@@ -358,6 +358,9 @@ public class TestAutomationController {
                     return "LEFT_CLICK_BLOCK: " + lx + "," + ly + "," + lz + " (side " + lside + ")";
 
                 case "screenshot":
+                    if (mc.guiAchievement != null) {
+                        mc.guiAchievement.func_146257_b();
+                    }
                     String destPath = arg.trim();
                     File dest = destPath.isEmpty() ? new File(mc.mcDataDir, "screenshots/test.png") : new File(destPath);
                     if (dest.getParentFile() != null) dest.getParentFile().mkdirs();
@@ -411,6 +414,12 @@ public class TestAutomationController {
             } catch (Throwable t) {
                 entry.future.completeExceptionally(t);
             }
+        }
+
+        // Permanently suppress achievement / tutorial toasts (e.g. "Press E to open your inventory")
+        // to guarantee deterministic and reproducible UI testing / screenshots without toast overlays.
+        if (mc.guiAchievement != null) {
+            mc.guiAchievement.func_146257_b();
         }
 
         String autoWorld = System.getProperty("gtnh.autoworld");

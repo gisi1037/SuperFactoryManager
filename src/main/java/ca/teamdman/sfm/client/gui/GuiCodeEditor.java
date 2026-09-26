@@ -471,19 +471,15 @@ public class GuiCodeEditor extends GuiScreen {
         drawDefaultBackground();
 
         // 1. Header
-        drawString(
-            fontRendererObj,
-            EnumChatFormatting.BOLD + "Super Factory Manager - Code Editor",
-            editorX,
-            10,
-            0x55FFFF);
-        String shortcutTip = EnumChatFormatting.DARK_GRAY + "Shift+Enter / Ctrl+S to save | Esc to cancel";
-        drawString(
-            fontRendererObj,
-            shortcutTip,
-            editorX + editorW - fontRendererObj.getStringWidth(shortcutTip),
-            10,
-            0x888888);
+        String title = EnumChatFormatting.BOLD + "Super Factory Manager - Code Editor";
+        drawString(fontRendererObj, title, editorX, 10, 0x55FFFF);
+        int titleW = fontRendererObj.getStringWidth(title);
+
+        String shortcutTip = EnumChatFormatting.DARK_GRAY + "Shift+Enter / Ctrl+S: Save";
+        int tipW = fontRendererObj.getStringWidth(shortcutTip);
+        if (editorX + titleW + 20 < editorX + editorW - tipW) {
+            drawString(fontRendererObj, shortcutTip, editorX + editorW - tipW, 10, 0x888888);
+        }
 
         // Status bar above editor
         drawString(fontRendererObj, fontRendererObj.trimStringToWidth(syntaxStatus, editorW - 120), editorX, 22, 0xFFFFFF);
