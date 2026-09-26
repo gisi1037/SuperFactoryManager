@@ -18,8 +18,11 @@ public class ClientProxy extends CommonProxy {
     @Override
     public void init(FMLInitializationEvent event) {
         super.init(event);
-        MinecraftForge.EVENT_BUS.register(new ClientItemWorldRenderer());
+        ClientItemWorldRenderer worldRenderer = new ClientItemWorldRenderer();
+        MinecraftForge.EVENT_BUS.register(worldRenderer);
+        cpw.mods.fml.common.FMLCommonHandler.instance().bus().register(worldRenderer);
         MinecraftForge.EVENT_BUS.register(new LabelGunReminderOverlay());
+        ca.teamdman.sfm.client.TestAutomationController.init();
     }
 
     @Override

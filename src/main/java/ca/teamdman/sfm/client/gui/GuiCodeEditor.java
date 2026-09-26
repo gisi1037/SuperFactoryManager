@@ -486,7 +486,14 @@ public class GuiCodeEditor extends GuiScreen {
             0x888888);
 
         // Status bar above editor
-        drawString(fontRendererObj, fontRendererObj.trimStringToWidth(syntaxStatus, editorW), editorX, 22, 0xFFFFFF);
+        drawString(fontRendererObj, fontRendererObj.trimStringToWidth(syntaxStatus, editorW - 120), editorX, 22, 0xFFFFFF);
+        String posInfo = "Ln " + (cursorLine + 1) + ", Col " + (cursorCol + 1) + " | " + lines.size() + " lines";
+        drawString(
+            fontRendererObj,
+            posInfo,
+            editorX + editorW - fontRendererObj.getStringWidth(posInfo),
+            22,
+            0xAAAAAA);
 
         // 2. Editor Outer Border
         drawRect(editorX - 1, editorY - 1, editorX + editorW + 1, editorY + editorH + 1, 0xFF444444);
@@ -567,14 +574,6 @@ public class GuiCodeEditor extends GuiScreen {
                 thumbColor);
         }
 
-        // 7. Footer details (Line / Column counter)
-        String posInfo = "Ln " + (cursorLine + 1) + ", Col " + (cursorCol + 1) + " | Total: " + lines.size() + " lines";
-        drawString(
-            fontRendererObj,
-            posInfo,
-            editorX + editorW - fontRendererObj.getStringWidth(posInfo),
-            height - 20,
-            0xAAAAAA);
 
         super.drawScreen(mouseX, mouseY, partialTicks);
     }

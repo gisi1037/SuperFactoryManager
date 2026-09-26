@@ -17,6 +17,7 @@ import net.minecraft.util.MovingObjectPosition;
 import net.minecraftforge.client.event.MouseEvent;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
 
+import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL11;
 
 import ca.teamdman.sfm.common.item.ItemLabelGun;
@@ -46,6 +47,27 @@ public class ClientItemWorldRenderer {
                 ItemLabelGun.setActiveLabel(held, next);
                 SFMNetwork.WRAPPER.sendToServer(new PacketSetLabel(next));
                 event.setCanceled(true);
+            }
+        }
+    }
+
+    @SubscribeEvent
+    public void onKeyInput(cpw.mods.fml.common.gameevent.InputEvent.KeyInputEvent event) {
+        Minecraft mc = Minecraft.getMinecraft();
+        if (mc.currentScreen != null) return;
+        EntityPlayer player = mc.thePlayer;
+        if (player == null) return;
+
+        ItemStack held = player.getHeldItem();
+        if (held == null || !(held.getItem() instanceof ItemLabelGun)) return;
+
+        if (Keyboard.getEventKeyState()) {
+            int key = Keyboard.getEventKey();
+            if (key == Keyboard.KEY_V) {
+                ItemLabelGun.cycleViewMode(held);
+                SFMNetwork.WRAPPER.sendToServer(new ca.teamdman.sfm.common.net.PacketLabelGunAction(ca.teamdman.sfm.common.net.PacketLabelGunAction.ACTION_CYCLE_VIEW));
+            } else if (key == Keyboard.KEY_G || key == Keyboard.KEY_L) {
+                mc.displayGuiScreen(new ca.teamdman.sfm.common.gui.GuiLabelGun(player, held));
             }
         }
     }
@@ -111,16 +133,17 @@ public class ClientItemWorldRenderer {
 
         if (posToLabels.isEmpty()) return;
 
-        double camX = RenderManager.instance.viewerPosX;
-        double camY = RenderManager.instance.viewerPosY;
-        double camZ = RenderManager.instance.viewerPosZ;
+        double camX = player.lastTickPosX + (player.posX - player.lastTickPosX) * event.partialTicks;
+        double camY = player.lastTickPosY + (player.posY - player.lastTickPosY) * event.partialTicks;
+        double camZ = player.lastTickPosZ + (player.posZ - player.lastTickPosZ) * event.partialTicks;
 
-        // 1. Draw translucent bounding boxes around labeled blocks
+        // 1. Draw translucent bounding boxes around labeled blocks (visible through walls)
         GL11.glPushMatrix();
         GL11.glEnable(GL11.GL_BLEND);
         OpenGlHelper.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA, 1, 0);
         GL11.glDisable(GL11.GL_TEXTURE_2D);
         GL11.glDisable(GL11.GL_LIGHTING);
+        GL11.glDisable(GL11.GL_DEPTH_TEST);
         GL11.glDepthMask(false);
 
         for (Map.Entry<BlockPos, List<String>> entry : posToLabels.entrySet()) {
@@ -145,6 +168,7 @@ public class ClientItemWorldRenderer {
         }
 
         GL11.glDepthMask(true);
+        GL11.glEnable(GL11.GL_DEPTH_TEST);
         GL11.glEnable(GL11.GL_TEXTURE_2D);
         GL11.glEnable(GL11.GL_LIGHTING);
         GL11.glDisable(GL11.GL_BLEND);

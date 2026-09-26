@@ -34,6 +34,7 @@ public class GuiLabelGun extends GuiScreen {
     private GuiButton btnDone;
 
     private final List<GuiButton> labelButtons = new ArrayList<>();
+    private final java.util.Map<GuiButton, String> labelBtnMap = new java.util.HashMap<>();
     private static final int BASE_LABEL_BTN_ID = 100;
 
     public GuiLabelGun(EntityPlayer player, ItemStack labelGun) {
@@ -89,6 +90,7 @@ public class GuiLabelGun extends GuiScreen {
             buttonList.remove(btn);
         }
         labelButtons.clear();
+        labelBtnMap.clear();
 
         String filter = labelField != null ? labelField.getText()
             .trim()
@@ -138,6 +140,7 @@ public class GuiLabelGun extends GuiScreen {
             String display = (isActive ? EnumChatFormatting.AQUA + "> " : "") + label + " (" + count + ")";
             GuiButton btn = new GuiButton(BASE_LABEL_BTN_ID + i, x, y, btnWidth, btnHeight, display);
             labelButtons.add(btn);
+            labelBtnMap.put(btn, label);
             buttonList.add(btn);
         }
     }
@@ -178,6 +181,9 @@ public class GuiLabelGun extends GuiScreen {
             .trim();
         ItemLabelGun.setActiveLabel(labelGun, newLabel);
         SFMNetwork.WRAPPER.sendToServer(new PacketSetLabel(newLabel));
+        if (player.getHeldItem() != null && player.getHeldItem().getItem() == labelGun.getItem()) {
+            ItemLabelGun.setActiveLabel(player.getHeldItem(), newLabel);
+        }
         mc.displayGuiScreen(null);
     }
 
@@ -204,25 +210,10 @@ public class GuiLabelGun extends GuiScreen {
             ItemLabelGun.LabelGunViewMode mode = ItemLabelGun.cycleViewMode(labelGun);
             SFMNetwork.WRAPPER.sendToServer(new PacketLabelGunAction(PacketLabelGunAction.ACTION_CYCLE_VIEW));
             btnCycleView.displayString = "View: " + mode.getDisplayName();
-        } else if (button.id >= BASE_LABEL_BTN_ID) {
+        } else {
             // Clicked a label button
-            int idx = button.id - BASE_LABEL_BTN_ID;
-            String filter = labelField.getText()
-                .trim()
-                .toLowerCase();
-            List<String> labels = new ArrayList<>(
-                labelHolder.getAllLabels()
-                    .keySet());
-            Collections.sort(labels);
-            List<String> filtered = new ArrayList<>();
-            for (String lbl : labels) {
-                if (filter.isEmpty() || lbl.toLowerCase()
-                    .contains(filter)) {
-                    filtered.add(lbl);
-                }
-            }
-            if (idx >= 0 && idx < filtered.size()) {
-                String chosen = filtered.get(idx);
+            String chosen = labelBtnMap.get(button);
+            if (chosen != null) {
                 labelField.setText(chosen);
                 onDone();
             }
@@ -247,8 +238,7 @@ public class GuiLabelGun extends GuiScreen {
 
         labelField.drawTextBox();
 
-        if (labelField.getText()
-            .isEmpty() && !labelField.isFocused()) {
+        if (labelField.getText().isEmpty()) {
             drawString(
                 fontRendererObj,
                 EnumChatFormatting.ITALIC + "Search or type new label...",

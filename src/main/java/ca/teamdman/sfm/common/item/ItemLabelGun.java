@@ -195,9 +195,38 @@ public class ItemLabelGun extends Item {
     }
 
     @Override
-    public boolean onItemUse(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side,
+    public boolean onItemUseFirst(ItemStack stack, EntityPlayer player, World world, int x, int y, int z, int side,
         float hitX, float hitY, float hitZ) {
         if (world.isRemote) {
+            String activeLabel = getActiveLabel(stack);
+            if (activeLabel.isEmpty() && !player.isSneaking()) {
+                net.minecraft.client.Minecraft.getMinecraft()
+                    .displayGuiScreen(new ca.teamdman.sfm.common.gui.GuiLabelGun(player, stack));
+                return true;
+            }
+
+            BlockPos targetPos = new BlockPos(x, y, z);
+            LabelPositionHolder gunHolder = LabelPositionHolder.from(stack);
+            if (player.isSneaking()) {
+                Set<String> labelsOnBlock = gunHolder.getLabelsForPosition(targetPos);
+                if (!labelsOnBlock.isEmpty()) {
+                    String firstLabel = labelsOnBlock.iterator().next();
+                    if (!firstLabel.equals(activeLabel)) {
+                        setActiveLabel(stack, firstLabel);
+                    } else {
+                        for (String lbl : labelsOnBlock) {
+                            gunHolder.removePosition(lbl, targetPos);
+                        }
+                        LabelPositionHolder.saveTo(stack, gunHolder);
+                    }
+                }
+            } else if (!activeLabel.isEmpty()) {
+                gunHolder.togglePosition(activeLabel, targetPos);
+                LabelPositionHolder.saveTo(stack, gunHolder);
+            }
+
+            net.minecraft.client.Minecraft.getMinecraft().getNetHandler().addToSendQueue(
+                new net.minecraft.network.play.client.C08PacketPlayerBlockPlacement(x, y, z, side, stack, hitX, hitY, hitZ));
             return true;
         }
 
@@ -215,6 +244,7 @@ public class ItemLabelGun extends Item {
                 if (player.isSneaking()) {
                     // Pull from Disk to Gun
                     LabelPositionHolder.saveTo(stack, diskHolder);
+                    player.inventoryContainer.detectAndSendChanges();
                     player.addChatMessage(
                         new ChatComponentText(
                             EnumChatFormatting.GREEN + "[SFM] Copied "
@@ -255,6 +285,7 @@ public class ItemLabelGun extends Item {
                     .next();
                 if (!firstLabel.equals(getActiveLabel(stack))) {
                     setActiveLabel(stack, firstLabel);
+                    player.inventoryContainer.detectAndSendChanges();
                     player.addChatMessage(
                         new ChatComponentText(
                             EnumChatFormatting.AQUA + "[SFM] Picked active label: \""
@@ -267,6 +298,7 @@ public class ItemLabelGun extends Item {
                         gunHolder.removePosition(lbl, targetPos);
                     }
                     LabelPositionHolder.saveTo(stack, gunHolder);
+                    player.inventoryContainer.detectAndSendChanges();
                     player.addChatMessage(
                         new ChatComponentText(
                             EnumChatFormatting.YELLOW + "[SFM] Cleared all labels from "
@@ -286,15 +318,12 @@ public class ItemLabelGun extends Item {
         // Toggling active label on target block
         String activeLabel = getActiveLabel(stack);
         if (activeLabel.isEmpty()) {
-            player.addChatMessage(
-                new ChatComponentText(
-                    EnumChatFormatting.RED
-                        + "[SFM] No active label selected! Right-click the air to set an active label."));
             return true;
         }
 
         boolean added = gunHolder.togglePosition(activeLabel, targetPos);
         LabelPositionHolder.saveTo(stack, gunHolder);
+        player.inventoryContainer.detectAndSendChanges();
 
         if (added) {
             player.addChatMessage(
@@ -322,14 +351,9 @@ public class ItemLabelGun extends Item {
 
     @Override
     public ItemStack onItemRightClick(ItemStack stack, World world, EntityPlayer player) {
-        if (!world.isRemote) {
-            player.openGui(
-                SuperFactoryManager.instance,
-                GuiHandler.GUI_LABEL_GUN,
-                world,
-                (int) player.posX,
-                (int) player.posY,
-                (int) player.posZ);
+        if (world.isRemote) {
+            net.minecraft.client.Minecraft.getMinecraft()
+                .displayGuiScreen(new ca.teamdman.sfm.common.gui.GuiLabelGun(player, stack));
         }
         return stack;
     }

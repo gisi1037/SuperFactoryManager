@@ -137,6 +137,16 @@ public class GuiLogs extends GuiScreen {
         rebuildFilteredLogs();
     }
 
+    private int pollTimer = 0;
+
+    @Override
+    public void updateScreen() {
+        super.updateScreen();
+        if (++pollTimer % 10 == 0) {
+            SFMNetwork.WRAPPER.sendToServer(new PacketManagerRequestLogs(manager.xCoord, manager.yCoord, manager.zCoord));
+        }
+    }
+
     public void onLogsReceived(String logLevelName, List<LogEntry> newLogs) {
         this.currentLogLevel = LogLevel.fromString(logLevelName);
         this.logs.clear();

@@ -48,6 +48,7 @@ public class PacketLabelGunAction implements IMessage {
                     } else if (message.action == ACTION_CYCLE_VIEW) {
                         ItemLabelGun.cycleViewMode(held);
                     }
+                    player.inventoryContainer.detectAndSendChanges();
                 }
             }
             return null;

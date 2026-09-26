@@ -39,6 +39,7 @@ public class PacketSetLabel implements IMessage {
                 ItemStack held = player.getHeldItem();
                 if (held != null && held.getItem() instanceof ItemLabelGun) {
                     ItemLabelGun.setActiveLabel(held, message.label);
+                    player.inventoryContainer.detectAndSendChanges();
                 }
             }
             return null;
