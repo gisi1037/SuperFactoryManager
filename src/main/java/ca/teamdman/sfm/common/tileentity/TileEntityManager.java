@@ -1,0 +1,394 @@
+package ca.teamdman.sfm.common.tileentity;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.inventory.IInventory;
+import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.network.NetworkManager;
+import net.minecraft.network.Packet;
+import net.minecraft.network.play.server.S35PacketUpdateTileEntity;
+import net.minecraft.tileentity.TileEntity;
+
+import ca.teamdman.sfm.common.item.ItemDisk;
+import ca.teamdman.sfm.common.label.LabelPositionHolder;
+import ca.teamdman.sfm.common.network.CableNetwork;
+import ca.teamdman.sfm.common.program.ProgramContext;
+import ca.teamdman.sfm.common.util.BlockPos;
+import ca.teamdman.sfml.ast.Program;
+import ca.teamdman.sfml.program_builder.ProgramBuildResult;
+import ca.teamdman.sfml.program_builder.ProgramBuilder;
+
+public class TileEntityManager extends TileEntity implements IInventory {
+
+    private ItemStack diskStack = null;
+    private Program compiledProgram = null;
+    private String lastCodeCompiled = null;
+    private String statusMessage = "No Disk";
+    private boolean isRunning = true;
+
+    private long managerTick = 0;
+    private int lastRedstonePower = 0;
+    private CableNetwork cableNetwork = null;
+
+    // Logging & Diagnostics
+    private LogLevel logLevel = LogLevel.OFF;
+    private final List<LogEntry> logs = new ArrayList<>();
+    private static final int MAX_LOGS = 500;
+    private double lastTickTimeMs = 0.0;
+    private double peakTickTimeMs = 0.0;
+
+    @Override
+    public void updateEntity() {
+        if (worldObj == null || worldObj.isRemote) {
+            return;
+        }
+
+        managerTick++;
+
+        int currentPower = worldObj.getBlockPowerInput(xCoord, yCoord, zCoord);
+        boolean pulse = currentPower > 0 && lastRedstonePower == 0;
+        lastRedstonePower = currentPower;
+
+        if (diskStack == null || !(diskStack.getItem() instanceof ItemDisk)) {
+            compiledProgram = null;
+            lastCodeCompiled = null;
+            statusMessage = "No Disk";
+            return;
+        }
+
+        String currentCode = ItemDisk.getProgramString(diskStack);
+        if (!currentCode.equals(lastCodeCompiled)) {
+            recompile(currentCode);
+        }
+
+        if (!isRunning || compiledProgram == null) {
+            return;
+        }
+
+        if (cableNetwork == null) {
+            cableNetwork = new CableNetwork(worldObj, new BlockPos(xCoord, yCoord, zCoord));
+        }
+
+        LabelPositionHolder labelPositions = LabelPositionHolder.from(diskStack);
+        ProgramContext context = new ProgramContext(worldObj, this, cableNetwork, labelPositions, managerTick, pulse);
+
+        long startNs = System.nanoTime();
+        try {
+            if (logLevel.includes(LogLevel.TRACE)) {
+                log(
+                    LogLevel.TRACE,
+                    "--- Starting execution tick " + managerTick
+                        + " (pulse="
+                        + pulse
+                        + ", power="
+                        + currentPower
+                        + ") ---");
+            }
+
+            compiledProgram.tick(context);
+
+            long elapsedNs = System.nanoTime() - startNs;
+            lastTickTimeMs = elapsedNs / 1_000_000.0;
+            if (lastTickTimeMs > peakTickTimeMs) {
+                peakTickTimeMs = lastTickTimeMs;
+            }
+
+            if (logLevel.includes(LogLevel.INFO)) {
+                log(LogLevel.INFO, String.format("Tick execution took %.2f ms", lastTickTimeMs));
+            }
+        } catch (Exception e) {
+            statusMessage = "Runtime error: " + e.getMessage();
+            log(LogLevel.ERROR, "Runtime exception: " + e.getMessage());
+        }
+    }
+
+    public void runOnceWithLogLevel(LogLevel level) {
+        if (worldObj == null || worldObj.isRemote) return;
+        LogLevel prev = this.logLevel;
+        this.logLevel = level;
+
+        log(level, "Manual execution triggered with log level: " + level.name());
+
+        if (cableNetwork == null) {
+            cableNetwork = new CableNetwork(worldObj, new BlockPos(xCoord, yCoord, zCoord));
+        }
+
+        if (diskStack != null && diskStack.getItem() instanceof ItemDisk) {
+            if (compiledProgram == null) {
+                recompile(ItemDisk.getProgramString(diskStack));
+            }
+
+            if (compiledProgram != null) {
+                int currentPower = worldObj.getBlockPowerInput(xCoord, yCoord, zCoord);
+                boolean pulse = currentPower > 0;
+                LabelPositionHolder labelPositions = LabelPositionHolder.from(diskStack);
+                ProgramContext context = new ProgramContext(
+                    worldObj,
+                    this,
+                    cableNetwork,
+                    labelPositions,
+                    managerTick,
+                    pulse);
+
+                long startNs = System.nanoTime();
+                try {
+                    compiledProgram.tick(context);
+                    long elapsedNs = System.nanoTime() - startNs;
+                    double ms = elapsedNs / 1_000_000.0;
+                    log(LogLevel.INFO, String.format("Manual run completed in %.2f ms", ms));
+                } catch (Exception e) {
+                    log(LogLevel.ERROR, "Manual run failed: " + e.getMessage());
+                }
+            } else {
+                log(LogLevel.ERROR, "Cannot run: program is invalid or missing.");
+            }
+        } else {
+            log(LogLevel.ERROR, "Cannot run: no Disk inserted.");
+        }
+
+        // Revert log level if it was OFF
+        if (prev == LogLevel.OFF) {
+            this.logLevel = LogLevel.OFF;
+        }
+    }
+
+    public void log(LogLevel level, String message) {
+        if (level == null || message == null) return;
+        synchronized (logs) {
+            logs.add(new LogEntry(level, message));
+            if (logs.size() > MAX_LOGS) {
+                logs.remove(0);
+            }
+        }
+    }
+
+    public List<LogEntry> getLogs() {
+        synchronized (logs) {
+            return new ArrayList<>(logs);
+        }
+    }
+
+    public void clearLogs() {
+        synchronized (logs) {
+            logs.clear();
+        }
+    }
+
+    public void setClientLogs(List<LogEntry> newLogs) {
+        synchronized (logs) {
+            logs.clear();
+            if (newLogs != null) {
+                logs.addAll(newLogs);
+            }
+        }
+    }
+
+    public LogLevel getLogLevel() {
+        return logLevel;
+    }
+
+    public void setLogLevel(LogLevel logLevel) {
+        this.logLevel = logLevel != null ? logLevel : LogLevel.OFF;
+        log(LogLevel.INFO, "Log level set to: " + this.logLevel.name());
+    }
+
+    public double getLastTickTimeMs() {
+        return lastTickTimeMs;
+    }
+
+    public double getPeakTickTimeMs() {
+        return peakTickTimeMs;
+    }
+
+    public void recompile(String code) {
+        lastCodeCompiled = code;
+        if (code == null || code.trim()
+            .isEmpty()) {
+            compiledProgram = null;
+            statusMessage = "Empty program";
+            log(LogLevel.INFO, "Program cleared (empty)");
+            return;
+        }
+
+        ProgramBuilder builder = new ProgramBuilder(code);
+        ProgramBuildResult result = builder.build();
+        if (result.isSuccess()) {
+            compiledProgram = result.getProgram();
+            statusMessage = "Running";
+            log(LogLevel.INFO, "Program recompiled successfully: " + compiledProgram.getName());
+        } else {
+            compiledProgram = null;
+            statusMessage = result.getErrorMessage();
+            log(LogLevel.ERROR, "Compilation error: " + result.getErrorMessage());
+        }
+    }
+
+    public void saveCodeAndRecompile(String newCode) {
+        if (diskStack != null && diskStack.getItem() instanceof ItemDisk) {
+            ItemDisk.setProgramString(diskStack, newCode);
+            markDirty();
+        }
+        recompile(newCode);
+    }
+
+    public ItemStack getDisk() {
+        return diskStack;
+    }
+
+    public String getStatusMessage() {
+        return statusMessage;
+    }
+
+    public boolean isRunning() {
+        return isRunning;
+    }
+
+    public void setRunning(boolean running) {
+        this.isRunning = running;
+        log(LogLevel.INFO, running ? "Manager started (RUNNING)" : "Manager paused (STOPPED)");
+    }
+
+    public long getManagerTick() {
+        return managerTick;
+    }
+
+    public BlockPos getBlockPos() {
+        return new BlockPos(xCoord, yCoord, zCoord);
+    }
+
+    // --- IInventory Implementation ---
+
+    @Override
+    public int getSizeInventory() {
+        return 1;
+    }
+
+    @Override
+    public ItemStack getStackInSlot(int slot) {
+        return slot == 0 ? diskStack : null;
+    }
+
+    @Override
+    public ItemStack decrStackSize(int slot, int amount) {
+        if (slot == 0 && diskStack != null) {
+            ItemStack result = diskStack;
+            diskStack = null;
+            compiledProgram = null;
+            lastCodeCompiled = null;
+            statusMessage = "No Disk";
+            log(LogLevel.INFO, "Disk removed");
+            markDirty();
+            return result;
+        }
+        return null;
+    }
+
+    @Override
+    public ItemStack getStackInSlotOnClosing(int slot) {
+        return decrStackSize(slot, 1);
+    }
+
+    @Override
+    public void setInventorySlotContents(int slot, ItemStack stack) {
+        if (slot == 0) {
+            diskStack = stack;
+            if (diskStack != null && diskStack.getItem() instanceof ItemDisk) {
+                log(LogLevel.INFO, "Disk inserted");
+                recompile(ItemDisk.getProgramString(diskStack));
+            } else {
+                compiledProgram = null;
+                lastCodeCompiled = null;
+                statusMessage = "No Disk";
+            }
+            markDirty();
+        }
+    }
+
+    @Override
+    public String getInventoryName() {
+        return "container.sfm.manager";
+    }
+
+    @Override
+    public boolean hasCustomInventoryName() {
+        return false;
+    }
+
+    @Override
+    public int getInventoryStackLimit() {
+        return 1;
+    }
+
+    @Override
+    public boolean isUseableByPlayer(EntityPlayer player) {
+        return worldObj.getTileEntity(xCoord, yCoord, zCoord) == this
+            && player.getDistanceSq(xCoord + 0.5D, yCoord + 0.5D, zCoord + 0.5D) <= 64.0D;
+    }
+
+    @Override
+    public void openInventory() {}
+
+    @Override
+    public void closeInventory() {}
+
+    @Override
+    public boolean isItemValidForSlot(int slot, ItemStack stack) {
+        return slot == 0 && stack != null && stack.getItem() instanceof ItemDisk;
+    }
+
+    // --- NBT Serialization ---
+
+    @Override
+    public void writeToNBT(NBTTagCompound tag) {
+        super.writeToNBT(tag);
+        tag.setBoolean("isRunning", isRunning);
+        tag.setLong("managerTick", managerTick);
+        tag.setString("logLevel", logLevel.name());
+        if (diskStack != null) {
+            NBTTagCompound itemTag = new NBTTagCompound();
+            diskStack.writeToNBT(itemTag);
+            tag.setTag("disk", itemTag);
+        }
+    }
+
+    @Override
+    public void readFromNBT(NBTTagCompound tag) {
+        super.readFromNBT(tag);
+        isRunning = tag.getBoolean("isRunning");
+        managerTick = tag.getLong("managerTick");
+        if (tag.hasKey("logLevel")) {
+            logLevel = LogLevel.fromString(tag.getString("logLevel"));
+        }
+        if (tag.hasKey("disk")) {
+            diskStack = ItemStack.loadItemStackFromNBT(tag.getCompoundTag("disk"));
+            if (diskStack != null && diskStack.getItem() instanceof ItemDisk) {
+                recompile(ItemDisk.getProgramString(diskStack));
+            }
+        } else {
+            diskStack = null;
+            compiledProgram = null;
+            statusMessage = "No Disk";
+        }
+    }
+
+    @Override
+    public Packet getDescriptionPacket() {
+        NBTTagCompound syncData = new NBTTagCompound();
+        writeToNBT(syncData);
+        syncData.setString("statusMessage", statusMessage);
+        return new S35PacketUpdateTileEntity(xCoord, yCoord, zCoord, 1, syncData);
+    }
+
+    @Override
+    public void onDataPacket(NetworkManager net, S35PacketUpdateTileEntity pkt) {
+        readFromNBT(pkt.func_148857_g());
+        if (pkt.func_148857_g()
+            .hasKey("statusMessage")) {
+            statusMessage = pkt.func_148857_g()
+                .getString("statusMessage");
+        }
+    }
+}
