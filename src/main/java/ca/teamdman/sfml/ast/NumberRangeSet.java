@@ -30,6 +30,23 @@ public final class NumberRangeSet implements ASTNode {
         return false;
     }
 
+    public boolean isAll() {
+        return ranges.isEmpty() || (ranges.size() == 1 && ranges.get(0).equals(NumberRange.MAX_RANGE));
+    }
+
+    @Override
+    public String toString() {
+        if (isAll()) {
+            return "all";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < ranges.size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(ranges.get(i));
+        }
+        return sb.toString();
+    }
+
     public static NumberRangeSet of(NumberRange... ranges) {
         List<NumberRange> list = new ArrayList<>();
         Collections.addAll(list, ranges);

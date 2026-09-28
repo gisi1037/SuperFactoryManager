@@ -88,4 +88,30 @@ public final class BoolHas implements BoolExpr {
     public ResourceIdSet getExcept() {
         return except;
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        if (setOperator != null) {
+            sb.append(setOperator).append(" ");
+        }
+        if (labelAccess != null) {
+            sb.append(labelAccess).append(" ");
+        }
+        sb.append("HAS");
+        if (comparisonOperator != null) {
+            sb.append(" ").append(comparisonOperator.getSymbol());
+        }
+        sb.append(" ").append(quantity);
+        if (resourceIds != null && resourceIds != ResourceIdSet.MATCH_ALL) {
+            sb.append(" ").append(resourceIds);
+        }
+        if (with != null && with != With.ALWAYS_TRUE) {
+            sb.append(" ").append(with);
+        }
+        if (except != null) {
+            sb.append(" EXCEPT ").append(except);
+        }
+        return sb.toString();
+    }
 }

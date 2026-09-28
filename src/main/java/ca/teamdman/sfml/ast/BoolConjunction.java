@@ -24,4 +24,9 @@ public final class BoolConjunction implements BoolExpr {
     public BoolExpr getRight() {
         return right;
     }
+
+    @Override
+    public String toString() {
+        return left + " AND " + right;
+    }
 }

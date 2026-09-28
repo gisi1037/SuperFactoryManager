@@ -10,4 +10,9 @@ public final class BoolTrue implements BoolExpr {
     public boolean evaluate(ProgramContext context) {
         return true;
     }
+
+    @Override
+    public String toString() {
+        return "TRUE";
+    }
 }

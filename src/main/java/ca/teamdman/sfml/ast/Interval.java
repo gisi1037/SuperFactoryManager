@@ -29,4 +29,17 @@ public final class Interval implements ASTNode {
         if (effectiveTick < 0) return false;
         return effectiveTick % ticks == 0;
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(ticks).append(" TICKS");
+        if (isGlobal) {
+            sb.append(" GLOBAL");
+        }
+        if (offset != 0) {
+            sb.append(" OFFSET ").append(offset);
+        }
+        return sb.toString();
+    }
 }

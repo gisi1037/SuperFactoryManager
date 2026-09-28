@@ -15,6 +15,9 @@ public final class ForgetStatement implements Statement {
 
     @Override
     public void tick(ProgramContext context) {
+        if (context.getManager() != null && context.getManager().getLogLevel().includes(ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG)) {
+            context.log(ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG, toString());
+        }
         if (labels.isEmpty()) {
             context.clearAllInputs();
         } else {
@@ -22,6 +25,17 @@ public final class ForgetStatement implements Statement {
                 context.clearInputsForLabel(label.getName());
             }
         }
+    }
+
+    @Override
+    public String toString() {
+        if (labels.isEmpty()) return "FORGET ALL";
+        StringBuilder sb = new StringBuilder("FORGET ");
+        for (int i = 0; i < labels.size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(labels.get(i).getName());
+        }
+        return sb.toString();
     }
 
     public List<Label> getLabels() {

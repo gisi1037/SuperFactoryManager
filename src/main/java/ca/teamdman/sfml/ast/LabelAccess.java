@@ -60,4 +60,31 @@ public final class LabelAccess implements ASTNode {
 
         return result;
     }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < labels.size(); i++) {
+            if (i > 0) builder.append(", ");
+            builder.append(labels.get(i).getName());
+        }
+        if (roundRobin != null && roundRobin.isEnabled()) {
+            builder.append(" ").append(roundRobin);
+        }
+        if (sides != null && !sides.equals(SideQualifier.DEFAULT) && !sides.getSides().isEmpty()) {
+            builder.append(" ");
+            for (int i = 0; i < sides.getSides().size(); i++) {
+                if (i > 0) builder.append(", ");
+                builder.append(sides.getSides().get(i).name());
+            }
+            builder.append(" SIDE");
+        }
+        if (slots != null && !slots.isAll()) {
+            builder.append(" SLOTS");
+            for (NumberRange range : slots.getRanges()) {
+                builder.append(" ").append(range);
+            }
+        }
+        return builder.toString();
+    }
 }

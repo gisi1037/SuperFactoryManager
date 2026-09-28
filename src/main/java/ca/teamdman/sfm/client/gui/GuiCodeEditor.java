@@ -38,7 +38,7 @@ public class GuiCodeEditor extends GuiScreen {
     private int editorY;
     private int editorW;
     private int editorH;
-    private int gutterW = 32;
+    private int gutterW = 0;
     private int scrollbarW = 10;
     private int lineHeight = 10;
     private int visibleLines;
@@ -52,10 +52,9 @@ public class GuiCodeEditor extends GuiScreen {
     private boolean syntaxValid = true;
 
     // Buttons
+    private GuiButton btnConfig;
     private GuiButton btnSave;
     private GuiButton btnCancel;
-    private GuiButton btnCheck;
-    private GuiButton btnCopy;
 
     public GuiCodeEditor(TileEntityManager manager, GuiScreen parentScreen) {
         this.manager = manager;
@@ -79,27 +78,21 @@ public class GuiCodeEditor extends GuiScreen {
         buttonList.clear();
         Keyboard.enableRepeatEvents(true);
 
-        int marginX = 20;
-        int topMargin = 32;
-        int bottomMargin = 36;
+        editorW = 400;
+        editorH = 200;
+        editorX = width / 2 - 200;
+        editorY = height / 2 - 110;
 
-        editorX = marginX;
-        editorY = topMargin;
-        editorW = width - marginX * 2;
-        editorH = height - topMargin - bottomMargin;
+        visibleLines = Math.max(1, (editorH - 8) / lineHeight);
 
-        visibleLines = Math.max(1, (editorH - 4) / lineHeight);
+        int btnY = height / 2 + 95;
+        btnConfig = new GuiButton(4, width / 2 - 200, btnY, 16, 20, "#");
+        btnSave = new GuiButton(0, width / 2 - 152, btnY, 200, 20, "Done");
+        btnCancel = new GuiButton(1, width / 2 + 98, btnY, 100, 20, "Cancel");
 
-        int btnY = height - bottomMargin + 8;
-        btnSave = new GuiButton(0, editorX, btnY, 100, 20, EnumChatFormatting.GREEN + "Save & Done");
-        btnCancel = new GuiButton(1, editorX + 110, btnY, 80, 20, "Cancel");
-        btnCheck = new GuiButton(2, editorX + 200, btnY, 95, 20, "Check Syntax");
-        btnCopy = new GuiButton(3, editorX + 305, btnY, 75, 20, "Copy All");
-
+        buttonList.add(btnConfig);
         buttonList.add(btnSave);
         buttonList.add(btnCancel);
-        buttonList.add(btnCheck);
-        buttonList.add(btnCopy);
 
         validateSyntax();
     }
@@ -150,9 +143,7 @@ public class GuiCodeEditor extends GuiScreen {
             saveAndClose();
         } else if (btn.id == 1) {
             mc.displayGuiScreen(parentScreen);
-        } else if (btn.id == 2) {
-            validateSyntax();
-        } else if (btn.id == 3) {
+        } else if (btn.id == 4) {
             setClipboardString(String.join("\n", lines));
             syntaxStatus = EnumChatFormatting.YELLOW + "Copied code to clipboard!";
         }
@@ -470,47 +461,29 @@ public class GuiCodeEditor extends GuiScreen {
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         drawDefaultBackground();
 
-        // 1. Header
-        String title = EnumChatFormatting.BOLD + "Super Factory Manager - Code Editor";
-        drawString(fontRendererObj, title, editorX, 10, 0x55FFFF);
-        int titleW = fontRendererObj.getStringWidth(title);
+        // 1. Editor Outer Border (1px crisp white border matching modern SFM)
+        drawRect(editorX - 1, editorY - 1, editorX + editorW + 1, editorY + editorH + 1, 0xFFFFFFFF);
 
-        String shortcutTip = EnumChatFormatting.DARK_GRAY + "Shift+Enter / Ctrl+S: Save";
-        int tipW = fontRendererObj.getStringWidth(shortcutTip);
-        if (editorX + titleW + 20 < editorX + editorW - tipW) {
-            drawString(fontRendererObj, shortcutTip, editorX + editorW - tipW, 10, 0x888888);
+        // 2. Editor Background (Pure black matching modern SFM)
+        drawRect(editorX, editorY, editorX + editorW, editorY + editorH, 0xFF000000);
+
+        // 3. Gutter Background (Line numbers if enabled)
+        if (gutterW > 0) {
+            drawRect(editorX, editorY, editorX + gutterW, editorY + editorH, 0xFF252526);
         }
 
-        // Status bar above editor
-        drawString(fontRendererObj, fontRendererObj.trimStringToWidth(syntaxStatus, editorW - 120), editorX, 22, 0xFFFFFF);
-        String posInfo = "Ln " + (cursorLine + 1) + ", Col " + (cursorCol + 1) + " | " + lines.size() + " lines";
-        drawString(
-            fontRendererObj,
-            posInfo,
-            editorX + editorW - fontRendererObj.getStringWidth(posInfo),
-            22,
-            0xAAAAAA);
-
-        // 2. Editor Outer Border
-        drawRect(editorX - 1, editorY - 1, editorX + editorW + 1, editorY + editorH + 1, 0xFF444444);
-
-        // 3. Gutter Background (Line numbers)
-        drawRect(editorX, editorY, editorX + gutterW, editorY + editorH, 0xFF252526);
-
-        // 4. Code Background (Dark IDE style)
         int codeAreaX = editorX + gutterW;
-        int codeAreaW = editorW - gutterW - scrollbarW;
-        drawRect(codeAreaX, editorY, codeAreaX + codeAreaW, editorY + editorH, 0xFF1E1E1E);
+        boolean hasScroll = lines.size() > visibleLines;
+        int codeAreaW = editorW - gutterW - (hasScroll ? scrollbarW : 0);
 
-        // 5. Scrollbar Track
+        // 4. Scrollbar Track
         int scrollbarX = editorX + editorW - scrollbarW;
-        drawRect(scrollbarX, editorY, scrollbarX + scrollbarW, editorY + editorH, 0xFF2D2D30);
+        if (hasScroll) {
+            drawRect(scrollbarX, editorY, scrollbarX + scrollbarW, editorY + editorH, 0xFF2D2D30);
+        }
 
-        // Render code lines & gutter
+        // Render code lines
         GL11.glEnable(GL11.GL_SCISSOR_TEST);
-        // Scissor box for code view (convert GUI coords to display coords)
-        int scale = mc.gameSettings.guiScale == 0 ? 1 : mc.gameSettings.guiScale;
-        // In 1.7.10 Minecraft, ScaledResolution calculates factor
         net.minecraft.client.gui.ScaledResolution sr = new net.minecraft.client.gui.ScaledResolution(
             mc,
             mc.displayWidth,
@@ -527,37 +500,39 @@ public class GuiCodeEditor extends GuiScreen {
 
             // Active line highlight
             if (lineIdx == cursorLine) {
-                drawRect(codeAreaX, y - 1, codeAreaX + codeAreaW, y + lineHeight - 1, 0xFF282828);
+                drawRect(codeAreaX, y - 1, codeAreaX + codeAreaW, y + lineHeight - 1, 0xFF181818);
             }
 
             // Syntax highlighted code
             renderSyntaxLine(line, codeAreaX + 4 - scrollColOffset, y);
 
-            // Cursor rendering
+            // Cursor rendering (white underscore matching Minecraft text inputs)
             if (lineIdx == cursorLine && (System.currentTimeMillis() / 450) % 2 == 0) {
                 int cursorPixelX = codeAreaX + 4
                     - scrollColOffset
                     + fontRendererObj.getStringWidth(line.substring(0, Math.min(cursorCol, line.length())));
-                drawRect(cursorPixelX, y - 1, cursorPixelX + 1, y + lineHeight - 1, 0xFF00FF00);
+                drawRect(cursorPixelX, y + lineHeight - 2, cursorPixelX + 5, y + lineHeight - 1, 0xFFFFFFFF);
             }
         }
         GL11.glDisable(GL11.GL_SCISSOR_TEST);
 
-        // Gutter line numbers
-        for (int i = 0; i < visibleLines; i++) {
-            int lineIdx = scrollLineOffset + i;
-            if (lineIdx >= lines.size()) break;
+        // Gutter line numbers if enabled
+        if (gutterW > 0) {
+            for (int i = 0; i < visibleLines; i++) {
+                int lineIdx = scrollLineOffset + i;
+                if (lineIdx >= lines.size()) break;
 
-            int y = editorY + 3 + i * lineHeight;
-            String numStr = String.valueOf(lineIdx + 1);
-            int numW = fontRendererObj.getStringWidth(numStr);
-            int color = lineIdx == cursorLine ? 0xFFFFFF : 0x707070;
-            fontRendererObj.drawString(numStr, editorX + gutterW - numW - 4, y, color);
+                int y = editorY + 3 + i * lineHeight;
+                String numStr = String.valueOf(lineIdx + 1);
+                int numW = fontRendererObj.getStringWidth(numStr);
+                int color = lineIdx == cursorLine ? 0xFFFFFF : 0x707070;
+                fontRendererObj.drawString(numStr, editorX + gutterW - numW - 4, y, color);
+            }
         }
 
-        // 6. Scrollbar Thumb
+        // 5. Scrollbar Thumb
         int totalLines = lines.size();
-        if (totalLines > visibleLines) {
+        if (hasScroll) {
             float thumbHeight = Math.max(16, (float) visibleLines / totalLines * editorH);
             float maxThumbY = editorH - thumbHeight;
             float thumbY = editorY + ((float) scrollLineOffset / (totalLines - visibleLines)) * maxThumbY;
@@ -624,5 +599,10 @@ public class GuiCodeEditor extends GuiScreen {
         if (commentPart != null) {
             fontRendererObj.drawString(commentPart, curX, y, 0x6A9955);
         }
+    }
+
+    @Override
+    public boolean doesGuiPauseGame() {
+        return false;
     }
 }

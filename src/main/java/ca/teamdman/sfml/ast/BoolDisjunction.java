@@ -24,4 +24,9 @@ public final class BoolDisjunction implements BoolExpr {
     public BoolExpr getRight() {
         return right;
     }
+
+    @Override
+    public String toString() {
+        return left + " OR " + right;
+    }
 }

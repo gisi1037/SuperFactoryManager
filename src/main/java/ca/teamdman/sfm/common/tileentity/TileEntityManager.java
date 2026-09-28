@@ -1,8 +1,15 @@
 package ca.teamdman.sfm.common.tileentity;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
+import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.item.ItemStack;
@@ -12,6 +19,7 @@ import net.minecraft.network.Packet;
 import net.minecraft.network.play.server.S35PacketUpdateTileEntity;
 import net.minecraft.tileentity.TileEntity;
 
+import ca.teamdman.sfm.Config;
 import ca.teamdman.sfm.common.item.ItemDisk;
 import ca.teamdman.sfm.common.label.LabelPositionHolder;
 import ca.teamdman.sfm.common.network.CableNetwork;
@@ -39,6 +47,8 @@ public class TileEntityManager extends TileEntity implements IInventory {
     private static final int MAX_LOGS = 500;
     private double lastTickTimeMs = 0.0;
     private double peakTickTimeMs = 0.0;
+    private final double[] tickTimes = new double[20];
+    private int tickTimeIndex = 0;
 
     @Override
     public void updateEntity() {
@@ -51,6 +61,10 @@ public class TileEntityManager extends TileEntity implements IInventory {
         int currentPower = worldObj.getBlockPowerInput(xCoord, yCoord, zCoord);
         boolean pulse = currentPower > 0 && lastRedstonePower == 0;
         lastRedstonePower = currentPower;
+
+        if (pulse && logLevel.includes(LogLevel.DEBUG)) {
+            log(LogLevel.DEBUG, "Program ticking with 1 unprocessed redstone pulses.");
+        }
 
         if (diskStack == null || !(diskStack.getItem() instanceof ItemDisk)) {
             compiledProgram = null;
@@ -77,27 +91,24 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
         long startNs = System.nanoTime();
         try {
-            if (logLevel.includes(LogLevel.TRACE)) {
-                log(
-                    LogLevel.TRACE,
-                    "--- Starting execution tick " + managerTick
-                        + " (pulse="
-                        + pulse
-                        + ", power="
-                        + currentPower
-                        + ") ---");
-            }
-
             compiledProgram.tick(context);
 
-            long elapsedNs = System.nanoTime() - startNs;
-            lastTickTimeMs = elapsedNs / 1_000_000.0;
-            if (lastTickTimeMs > peakTickTimeMs) {
-                peakTickTimeMs = lastTickTimeMs;
-            }
+            if (context.didSomething()) {
+                long elapsedNs = System.nanoTime() - startNs;
+                lastTickTimeMs = elapsedNs / 1_000_000.0;
+                if (lastTickTimeMs > peakTickTimeMs) {
+                    peakTickTimeMs = lastTickTimeMs;
+                }
+                tickTimes[tickTimeIndex] = lastTickTimeMs;
+                tickTimeIndex = (tickTimeIndex + 1) % 20;
 
-            if (logLevel.includes(LogLevel.INFO)) {
-                log(LogLevel.INFO, String.format("Tick execution took %.2f ms", lastTickTimeMs));
+                if (logLevel.includes(LogLevel.TRACE)) {
+                    log(LogLevel.TRACE, String.format("Program tick took %.2f ms", lastTickTimeMs));
+                }
+
+                if (logLevel == LogLevel.TRACE || logLevel == LogLevel.DEBUG || logLevel == LogLevel.INFO) {
+                    setLogLevel(LogLevel.OFF);
+                }
             }
         } catch (Exception e) {
             statusMessage = "Runtime error: " + e.getMessage();
@@ -157,12 +168,64 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     public void log(LogLevel level, String message) {
         if (level == null || message == null) return;
+        if (!this.logLevel.includes(level) && level != LogLevel.ERROR && level != LogLevel.WARN) {
+            return;
+        }
         synchronized (logs) {
             logs.add(new LogEntry(level, message));
             if (logs.size() > MAX_LOGS) {
                 logs.remove(0);
             }
         }
+        if (Config.exportLogsToFile) {
+            try {
+                File logDir = new File("logs");
+                if (!logDir.exists()) {
+                    logDir.mkdirs();
+                }
+                File logFile = new File(logDir, "sfm_server_export.log");
+                try (FileWriter fw = new FileWriter(logFile, true);
+                     BufferedWriter bw = new BufferedWriter(fw);
+                     PrintWriter out = new PrintWriter(bw)) {
+                    out.println("[" + level.name() + "] " + message);
+                }
+            } catch (Exception ignored) {}
+        }
+    }
+
+    public void logNetworkDiagnostics(ProgramContext context) {
+        log(LogLevel.TRACE, "======= Cable network =======");
+        log(LogLevel.TRACE, "Cable positions:");
+        if (cableNetwork != null) {
+            for (BlockPos pos : cableNetwork.getCables()) {
+                Block b = pos.getBlock(worldObj);
+                int meta = pos.getBlockMetadata(worldObj);
+                String bName = Block.blockRegistry.getNameForObject(b);
+                log(LogLevel.TRACE, "- " + pos + " Block{" + bName + (meta != 0 ? ":" + meta : "") + "}");
+            }
+            log(LogLevel.TRACE, "Capability positions:");
+            for (BlockPos pos : cableNetwork.getPeripherals()) {
+                Block b = pos.getBlock(worldObj);
+                int meta = pos.getBlockMetadata(worldObj);
+                String bName = Block.blockRegistry.getNameForObject(b);
+                log(LogLevel.TRACE, "- " + pos + " Block{" + bName + (meta != 0 ? ":" + meta : "") + "}");
+            }
+        }
+        log(LogLevel.TRACE, "=============================");
+        log(LogLevel.TRACE, "=== Label position holder ===");
+        if (diskStack != null) {
+            LabelPositionHolder holder = LabelPositionHolder.from(diskStack);
+            for (Map.Entry<String, Set<BlockPos>> entry : holder.getAllLabels().entrySet()) {
+                for (BlockPos pos : entry.getValue()) {
+                    Block b = pos.getBlock(worldObj);
+                    int meta = pos.getBlockMetadata(worldObj);
+                    String bName = Block.blockRegistry.getNameForObject(b);
+                    log(LogLevel.TRACE, "- " + entry.getKey() + ": " + pos + " Block{" + bName + (meta != 0 ? ":" + meta : "") + "}");
+                }
+            }
+        }
+        log(LogLevel.TRACE, "=============================");
+        log(LogLevel.TRACE, "Initial program context: " + context.toString());
     }
 
     public List<LogEntry> getLogs() {
@@ -191,8 +254,9 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     public void setLogLevel(LogLevel logLevel) {
-        this.logLevel = logLevel != null ? logLevel : LogLevel.OFF;
-        log(LogLevel.INFO, "Log level set to: " + this.logLevel.name());
+        LogLevel target = logLevel != null ? logLevel : LogLevel.OFF;
+        log(LogLevel.INFO, "Log level updated to " + target.name());
+        this.logLevel = target;
     }
 
     public double getLastTickTimeMs() {
@@ -255,8 +319,42 @@ public class TileEntityManager extends TileEntity implements IInventory {
         return managerTick;
     }
 
+    public void setManagerTick(long managerTick) {
+        this.managerTick = managerTick;
+    }
+
     public BlockPos getBlockPos() {
         return new BlockPos(xCoord, yCoord, zCoord);
+    }
+
+    public double[] getTickTimes() {
+        double[] result = new double[tickTimes.length];
+        System.arraycopy(tickTimes, tickTimeIndex, result, 0, tickTimes.length - tickTimeIndex);
+        System.arraycopy(tickTimes, 0, result, tickTimes.length - tickTimeIndex, tickTimeIndex);
+        return result;
+    }
+
+    public void rebuildNetwork() {
+        if (worldObj != null) {
+            cableNetwork = new CableNetwork(worldObj, new BlockPos(xCoord, yCoord, zCoord));
+            cableNetwork.scan();
+            log(
+                LogLevel.INFO,
+                "Cable network rebuilt (" + cableNetwork.getPeripherals()
+                    .size() + " inventories discovered)");
+            markDirty();
+        }
+    }
+
+    public void reset() {
+        if (diskStack != null) {
+            ItemDisk.setProgramString(diskStack, "");
+            LabelPositionHolder.from(diskStack)
+                .clear();
+            recompile("");
+            markDirty();
+            log(LogLevel.INFO, "Program and labels reset");
+        }
     }
 
     // --- IInventory Implementation ---
@@ -347,6 +445,12 @@ public class TileEntityManager extends TileEntity implements IInventory {
         tag.setBoolean("isRunning", isRunning);
         tag.setLong("managerTick", managerTick);
         tag.setString("logLevel", logLevel.name());
+        tag.setDouble("lastTickTimeMs", lastTickTimeMs);
+        tag.setDouble("peakTickTimeMs", peakTickTimeMs);
+        for (int i = 0; i < 20; i++) {
+            tag.setDouble("tt_" + i, tickTimes[i]);
+        }
+        tag.setInteger("tt_idx", tickTimeIndex);
         if (diskStack != null) {
             NBTTagCompound itemTag = new NBTTagCompound();
             diskStack.writeToNBT(itemTag);
@@ -361,6 +465,20 @@ public class TileEntityManager extends TileEntity implements IInventory {
         managerTick = tag.getLong("managerTick");
         if (tag.hasKey("logLevel")) {
             logLevel = LogLevel.fromString(tag.getString("logLevel"));
+        }
+        if (tag.hasKey("lastTickTimeMs")) {
+            lastTickTimeMs = tag.getDouble("lastTickTimeMs");
+        }
+        if (tag.hasKey("peakTickTimeMs")) {
+            peakTickTimeMs = tag.getDouble("peakTickTimeMs");
+        }
+        if (tag.hasKey("tt_idx")) {
+            tickTimeIndex = tag.getInteger("tt_idx");
+        }
+        for (int i = 0; i < 20; i++) {
+            if (tag.hasKey("tt_" + i)) {
+                tickTimes[i] = tag.getDouble("tt_" + i);
+            }
         }
         if (tag.hasKey("disk")) {
             diskStack = ItemStack.loadItemStackFromNBT(tag.getCompoundTag("disk"));

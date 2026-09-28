@@ -69,4 +69,14 @@ public final class ResourceIdSet implements ASTNode {
         Collections.addAll(list, ids);
         return new ResourceIdSet(list);
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < identifiers.size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(identifiers.get(i));
+        }
+        return sb.toString();
+    }
 }

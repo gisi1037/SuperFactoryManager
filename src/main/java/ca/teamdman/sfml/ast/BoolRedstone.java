@@ -25,4 +25,9 @@ public final class BoolRedstone implements BoolExpr {
     public int getTargetValue() {
         return targetValue;
     }
+
+    @Override
+    public String toString() {
+        return "REDSTONE " + comparison + " " + targetValue;
+    }
 }

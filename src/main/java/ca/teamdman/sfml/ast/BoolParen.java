@@ -14,4 +14,9 @@ public final class BoolParen implements BoolExpr {
     public boolean evaluate(ProgramContext context) {
         return inner.evaluate(context);
     }
+
+    @Override
+    public String toString() {
+        return "(" + inner + ")";
+    }
 }

@@ -27,6 +27,23 @@ public enum ComparisonOperator implements ASTNode {
         }
     }
 
+    public String getSymbol() {
+        switch (this) {
+            case GREATER:
+                return ">";
+            case LESSER:
+                return "<";
+            case EQUALS:
+                return "==";
+            case LESSER_OR_EQUAL:
+                return "<=";
+            case GREATER_OR_EQUAL:
+                return ">=";
+            default:
+                return "==";
+        }
+    }
+
     public static ComparisonOperator from(String text) {
         if (text == null) return EQUALS;
         switch (text.toUpperCase(Locale.ROOT)) {

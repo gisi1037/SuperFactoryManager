@@ -33,7 +33,38 @@ public final class Program implements Statement {
     @Override
     public void tick(ProgramContext context) {
         for (Trigger trigger : triggers) {
-            trigger.tick(context);
+            if (!trigger.shouldRun(context)) continue;
+            if (!context.didSomething()) {
+                context.setDidSomething(true);
+                if (context.getManager() != null && context.getManager().getLogLevel().includes(ca.teamdman.sfm.common.tileentity.LogLevel.TRACE)) {
+                    context.getManager().logNetworkDiagnostics(context);
+                }
+                if (context.getManager() != null && context.getManager().getLogLevel().includes(ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG)) {
+                    context.log(ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG, "PROGRAM TICK BEGIN");
+                }
+            }
+            if (context.getManager() != null && context.getManager().getLogLevel().includes(ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG)) {
+                context.log(ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG, "TRIGGERED FROM " + trigger.toStringCondensed());
+            }
+            long startNs = System.nanoTime();
+            trigger.getBlock().tick(context);
+            long elapsedNs = System.nanoTime() - startNs;
+            double ms = elapsedNs / 1_000_000.0;
+            if (context.getManager() != null && context.getManager().getLogLevel().includes(ca.teamdman.sfm.common.tileentity.LogLevel.INFO)) {
+                context.log(ca.teamdman.sfm.common.tileentity.LogLevel.INFO, String.format("Program trigger tick took %.2f ms:\n```\n%s\n```", ms, trigger.toString()));
+            }
         }
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        if (name != null && !name.isEmpty()) {
+            sb.append("NAME \"").append(name).append("\"\n");
+        }
+        for (Trigger trigger : triggers) {
+            sb.append(trigger).append("\n");
+        }
+        return sb.toString().trim();
     }
 }

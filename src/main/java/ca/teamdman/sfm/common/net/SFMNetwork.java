@@ -19,5 +19,6 @@ public final class SFMNetwork {
         WRAPPER
             .registerMessage(PacketManagerRequestLogs.Handler.class, PacketManagerRequestLogs.class, id++, Side.SERVER);
         WRAPPER.registerMessage(PacketManagerLogs.Handler.class, PacketManagerLogs.class, id++, Side.CLIENT);
+        WRAPPER.registerMessage(PacketManagerAction.Handler.class, PacketManagerAction.class, id++, Side.SERVER);
     }
 }

@@ -13,9 +13,16 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.world.WorldSettings;
 import net.minecraft.world.WorldType;
 
+import ca.teamdman.sfm.Config;
 import ca.teamdman.sfm.SuperFactoryManager;
+import ca.teamdman.sfm.common.block.ModBlocks;
 import ca.teamdman.sfm.common.gui.GuiLabelGun;
+import ca.teamdman.sfm.common.item.ItemDisk;
 import ca.teamdman.sfm.common.item.ModItems;
+import ca.teamdman.sfm.common.label.LabelPositionHolder;
+import ca.teamdman.sfm.common.tileentity.LogLevel;
+import ca.teamdman.sfm.common.tileentity.TileEntityManager;
+import ca.teamdman.sfm.common.util.BlockPos;
 import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
@@ -131,6 +138,95 @@ public class TestAutomationController {
                     launchWorld(worldName);
                     return "LAUNCHING_WORLD: " + worldName;
 
+                case "exportlogs":
+                    if (!arg.isEmpty()) {
+                        Config.exportLogsToFile = Boolean.parseBoolean(arg.trim());
+                    }
+                    return "EXPORT_LOGS_TO_FILE: " + Config.exportLogsToFile;
+
+                case "discordbutton":
+                    if (!arg.isEmpty()) {
+                        Config.showDiscordButton = Boolean.parseBoolean(arg.trim());
+                    }
+                    return "SHOW_DISCORD_BUTTON: " + Config.showDiscordButton;
+
+                case "runscenario":
+                    int scen = Integer.parseInt(arg.trim());
+                    boolean prevExport = Config.exportLogsToFile;
+                    Config.exportLogsToFile = true;
+                    File logF = new File("logs/sfm_server_export.log");
+                    if (logF.exists()) logF.delete();
+
+                    net.minecraft.world.World ws = null;
+                    if (net.minecraft.server.MinecraftServer.getServer() != null) {
+                        ws = net.minecraft.server.MinecraftServer.getServer().worldServerForDimension(mc.thePlayer != null ? mc.thePlayer.dimension : 0);
+                    }
+                    if (ws == null) {
+                        ws = mc.theWorld;
+                    }
+                    if (ws == null) return "ERROR: No world";
+
+                    int bx = 500, by = 60, bz = 0;
+                    BlockPos c1 = new BlockPos(bx + 1, by, bz);
+                    BlockPos c2 = new BlockPos(bx + 2, by, bz);
+                    BlockPos posA = new BlockPos(bx + 1, by + 1, bz);
+                    BlockPos posB = new BlockPos(bx + 2, by + 1, bz);
+
+                    ws.setBlock(bx, by, bz, ModBlocks.manager);
+                    ws.setBlock(c1.x, c1.y, c1.z, ModBlocks.cable);
+                    ws.setBlock(c2.x, c2.y, c2.z, ModBlocks.cable);
+                    ws.setBlock(posA.x, posA.y, posA.z, net.minecraft.init.Blocks.chest);
+                    ws.setBlock(posB.x, posB.y, posB.z, net.minecraft.init.Blocks.chest);
+
+                    net.minecraft.tileentity.TileEntityChest cIn = (net.minecraft.tileentity.TileEntityChest) ws.getTileEntity(posA.x, posA.y, posA.z);
+                    net.minecraft.tileentity.TileEntityChest cOut = (net.minecraft.tileentity.TileEntityChest) ws.getTileEntity(posB.x, posB.y, posB.z);
+                    if (cIn != null) {
+                        for (int i = 0; i < cIn.getSizeInventory(); i++) cIn.setInventorySlotContents(i, null);
+                    }
+                    if (cOut != null) {
+                        for (int i = 0; i < cOut.getSizeInventory(); i++) cOut.setInventorySlotContents(i, null);
+                    }
+
+                    String pCode;
+                    LogLevel pLvl;
+                    if (scen == 1) {
+                        if (cIn != null) cIn.setInventorySlotContents(0, new ItemStack(net.minecraft.init.Items.apple, 64));
+                        pCode = "NAME \"Test 1\"\nEVERY 20 TICKS DO\n  INPUT FROM a\n  OUTPUT TO b\nEND\n";
+                        pLvl = LogLevel.TRACE;
+                    } else if (scen == 2) {
+                        if (cIn != null) cIn.setInventorySlotContents(0, new ItemStack(net.minecraft.init.Items.apple, 64));
+                        pCode = "NAME \"Test 2\"\nEVERY 20 TICKS DO\n  IF a HAS >= 1 THEN\n    INPUT FROM a\n    OUTPUT TO b\n  END\nEND\n";
+                        pLvl = LogLevel.DEBUG;
+                    } else {
+                        pCode = "NAME \"Test 3\"\nEVERY 20 TICKS DO\n  INPUT FROM a\n  OUTPUT TO b\nEND\n";
+                        pLvl = LogLevel.DEBUG;
+                    }
+
+                    TileEntityManager mgr = (TileEntityManager) ws.getTileEntity(bx, by, bz);
+                    if (mgr == null) return "ERROR: No manager tile entity at " + bx + "," + by + "," + bz;
+
+                    for (Object te : ws.loadedTileEntityList) {
+                        if (te instanceof TileEntityManager && te != mgr) {
+                            ((TileEntityManager) te).setLogLevel(LogLevel.OFF);
+                        }
+                    }
+
+                    ItemStack dStack = new ItemStack(ModItems.disk);
+                    LabelPositionHolder lpHolder = new LabelPositionHolder();
+                    lpHolder.addPosition("a", posA);
+                    lpHolder.addPosition("b", posB);
+                    LabelPositionHolder.saveTo(dStack, lpHolder);
+                    ItemDisk.setProgramString(dStack, pCode);
+                    mgr.setInventorySlotContents(0, dStack);
+                    mgr.recompile(pCode);
+                    mgr.setLogLevel(pLvl);
+                    mgr.setManagerTick(19);
+
+                    mgr.updateEntity();
+                    Config.exportLogsToFile = prevExport;
+
+                    return "SCENARIO_RAN: " + scen;
+
                 case "opengui":
                     if ("labelgun".equalsIgnoreCase(arg)) {
                         if (mc.thePlayer == null) return "ERROR: Player is null";
@@ -144,6 +240,12 @@ public class TestAutomationController {
                         if (mc.thePlayer == null) return "ERROR: Player is null";
                         mc.displayGuiScreen(new GuiInventory(mc.thePlayer));
                         return "OPENED_INVENTORY_GUI";
+                    } else if ("manager".equalsIgnoreCase(arg)) {
+                        if (mc.thePlayer == null) return "ERROR: Player is null";
+                        TileEntityManager m = (TileEntityManager) mc.theWorld.getTileEntity(500, 60, 0);
+                        if (m == null) return "ERROR: No manager at 500,60,0";
+                        mc.displayGuiScreen(new ca.teamdman.sfm.common.gui.GuiManager(mc.thePlayer.inventory, m));
+                        return "OPENED_MANAGER_GUI";
                     } else {
                         return "UNKNOWN_GUI: " + arg;
                     }

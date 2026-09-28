@@ -10,4 +10,9 @@ public final class BoolFalse implements BoolExpr {
     public boolean evaluate(ProgramContext context) {
         return false;
     }
+
+    @Override
+    public String toString() {
+        return "FALSE";
+    }
 }

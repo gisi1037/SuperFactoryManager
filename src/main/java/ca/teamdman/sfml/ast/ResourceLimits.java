@@ -72,4 +72,20 @@ public final class ResourceLimits implements ASTNode {
         }
         return null;
     }
+
+    @Override
+    public String toString() {
+        if (this == DEFAULT || (limits.size() == 1 && limits.get(0).getResourceIds() == ResourceIdSet.MATCH_ALL && limits.get(0).getLimit() == Limit.UNLIMITED && exclusions == null)) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < limits.size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(limits.get(i));
+        }
+        if (exclusions != null) {
+            sb.append(" EXCEPT ").append(exclusions);
+        }
+        return sb.toString();
+    }
 }

@@ -16,8 +16,8 @@ public class ContainerManager extends Container {
     public ContainerManager(InventoryPlayer playerInv, TileEntityManager manager) {
         this.manager = manager;
 
-        // Slot 0: Disk slot
-        addSlotToContainer(new Slot(manager, 0, 186, 18) {
+        // Slot 0: Disk slot (matches modern SFM manager.png at 15, 47)
+        addSlotToContainer(new Slot(manager, 0, 15, 47) {
 
             @Override
             public boolean isItemValid(ItemStack stack) {
@@ -25,16 +25,16 @@ public class ContainerManager extends Container {
             }
         });
 
-        // Player Inventory
+        // Player Inventory (3x9 at 8, 84)
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
-                addSlotToContainer(new Slot(playerInv, col + row * 9 + 9, 28 + col * 18, 142 + row * 18));
+                addSlotToContainer(new Slot(playerInv, col + row * 9 + 9, 8 + col * 18, 84 + row * 18));
             }
         }
 
-        // Hotbar
+        // Hotbar (1x9 at 8, 142)
         for (int col = 0; col < 9; col++) {
-            addSlotToContainer(new Slot(playerInv, col, 28 + col * 18, 200));
+            addSlotToContainer(new Slot(playerInv, col, 8 + col * 18, 142));
         }
     }
 

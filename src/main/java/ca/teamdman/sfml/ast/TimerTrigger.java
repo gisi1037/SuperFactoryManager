@@ -26,4 +26,14 @@ public final class TimerTrigger implements Trigger {
         long currentTick = interval.isGlobal() ? context.getWorldTime() : context.getManagerTick();
         return interval.matches(currentTick);
     }
+
+    @Override
+    public String toStringCondensed() {
+        return "EVERY " + interval + " DO";
+    }
+
+    @Override
+    public String toString() {
+        return "EVERY " + interval + " DO\n" + block.toString() + "\nEND";
+    }
 }

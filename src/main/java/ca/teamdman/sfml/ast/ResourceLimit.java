@@ -47,4 +47,17 @@ public final class ResourceLimit implements ASTNode {
     public boolean matchesFluid(FluidStack fluid) {
         return resourceIds.matchesFluid(fluid);
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        if (limit != null && limit.getQuantity().getAmount() != Long.MAX_VALUE) {
+            sb.append(limit.getQuantity().getAmount()).append(" ");
+        }
+        sb.append(resourceIds);
+        if (limit != null && limit.getRetention().getAmount() > 0) {
+            sb.append(" RETAIN ").append(limit.getRetention().getAmount());
+        }
+        return sb.toString();
+    }
 }

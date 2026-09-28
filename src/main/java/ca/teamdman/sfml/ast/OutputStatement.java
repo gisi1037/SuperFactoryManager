@@ -19,7 +19,32 @@ public final class OutputStatement implements Statement {
 
     @Override
     public void tick(ProgramContext context) {
+        if (context.getManager() != null && context.getManager().getLogLevel().includes(ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG)) {
+            context.log(ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG, toString());
+        }
         context.executeOutput(this);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("OUTPUT ");
+        if (resourceLimits != null) {
+            String limStr = resourceLimits.toString();
+            if (!limStr.isEmpty()) {
+                sb.append(limStr).append(" ");
+            }
+        }
+        sb.append("TO ");
+        if (each) {
+            sb.append("EACH ");
+        }
+        sb.append(labelAccess);
+        return sb.toString();
+    }
+
+    public String toStringPretty() {
+        return toString();
     }
 
     public LabelAccess getLabelAccess() {

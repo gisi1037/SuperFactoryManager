@@ -29,4 +29,13 @@ public final class Block implements ASTNode {
         Collections.addAll(list, stmts);
         return new Block(list);
     }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        for (Statement stmt : statements) {
+            sb.append(stmt.toString()).append("\n");
+        }
+        return sb.toString().trim();
+    }
 }

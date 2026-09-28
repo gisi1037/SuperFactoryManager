@@ -19,4 +19,14 @@ public final class PulseTrigger implements Trigger {
     public boolean shouldRun(ProgramContext context) {
         return context.hasRedstonePulse();
     }
+
+    @Override
+    public String toStringCondensed() {
+        return "ON REDSTONE PULSE DO";
+    }
+
+    @Override
+    public String toString() {
+        return "ON REDSTONE PULSE DO\n" + block.toString() + "\nEND";
+    }
 }
