@@ -23,6 +23,15 @@ public class CompatTest {
     @Test
     public void testSteveFMCompatNullSafety() {
         assertFalse(SteveFMCompat.isCable(null, 0));
+        assertNull(SteveFMCompat.getInventory(null, null, null));
+        assertNull(SteveFMCompat.getFluidHandler(null, null, null));
+        assertFalse(SteveFMCompat.isReceiver(null, null));
+        org.junit.jupiter.api.Assertions.assertEquals(0, SteveFMCompat.getReceiverPower(null, null));
+        org.junit.jupiter.api.Assertions.assertEquals(0, SteveFMCompat.getMaxReceiverPower(null, null));
+        assertFalse(SteveFMCompat.isEmitter(null, null));
+        assertFalse(SteveFMCompat.setRedstoneOutput(null, null, null, 15, true));
+        assertFalse(SteveFMCompat.isBUD(null, null));
+        assertFalse(SteveFMCompat.checkAndClearBUDUpdates(null, null));
     }
 
     @Test

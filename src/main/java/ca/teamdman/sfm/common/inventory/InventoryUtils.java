@@ -13,6 +13,8 @@ import net.minecraftforge.fluids.FluidTankInfo;
 import net.minecraftforge.fluids.IFluidHandler;
 
 import ca.teamdman.sfm.common.util.BlockPos;
+import ca.teamdman.sfm.compat.Compat;
+import ca.teamdman.sfm.compat.stevefm.SteveFMCompat;
 import ca.teamdman.sfml.ast.NumberRangeSet;
 import ca.teamdman.sfml.ast.ResourceIdSet;
 import ca.teamdman.sfml.ast.SideQualifier;
@@ -25,13 +27,35 @@ public final class InventoryUtils {
     public static IInventory getInventory(World world, BlockPos pos) {
         if (world == null || pos == null) return null;
         TileEntity te = pos.getTileEntity(world);
-        return te instanceof IInventory ? (IInventory) te : null;
+        if (te instanceof IInventory) {
+            return (IInventory) te;
+        }
+        if (Compat.isSFMLoaded()) {
+            try {
+                IInventory steveInv = SteveFMCompat.getInventory(world, pos, te);
+                if (steveInv != null) {
+                    return steveInv;
+                }
+            } catch (Throwable ignored) {}
+        }
+        return null;
     }
 
     public static IFluidHandler getFluidHandler(World world, BlockPos pos) {
         if (world == null || pos == null) return null;
         TileEntity te = pos.getTileEntity(world);
-        return te instanceof IFluidHandler ? (IFluidHandler) te : null;
+        if (te instanceof IFluidHandler) {
+            return (IFluidHandler) te;
+        }
+        if (Compat.isSFMLoaded()) {
+            try {
+                IFluidHandler steveFluid = SteveFMCompat.getFluidHandler(world, pos, te);
+                if (steveFluid != null) {
+                    return steveFluid;
+                }
+            } catch (Throwable ignored) {}
+        }
+        return null;
     }
 
     public static int[] getAccessibleSlots(IInventory inv, ForgeDirection side, NumberRangeSet slotFilter) {

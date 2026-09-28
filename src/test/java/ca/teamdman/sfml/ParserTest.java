@@ -354,4 +354,34 @@ public class ParserTest {
             result.getErrors()
                 .isEmpty());
     }
+
+    @Test
+    public void testRedstoneOutputStatements() {
+        String code = "EVERY 20 TICKS DO\n" + "  OUTPUT 15 REDSTONE TO emitter\n"
+            + "  OUTPUT 0 REDSTONE TO emitter TOP SIDE\n"
+            + "  OUTPUT REDSTONE TO EACH emitter\n"
+            + "END";
+        ProgramBuildResult result = new ProgramBuilder(code).build();
+        assertTrue(result.isSuccess(), "Errors: " + result.getErrors());
+        Program program = result.getProgram();
+        TimerTrigger timer = (TimerTrigger) program.getTriggers()
+            .get(0);
+        assertEquals(
+            3,
+            timer.getBlock()
+                .getStatements()
+                .size());
+        assertTrue(
+            timer.getBlock()
+                .getStatements()
+                .get(0) instanceof OutputStatement);
+        assertTrue(
+            timer.getBlock()
+                .getStatements()
+                .get(1) instanceof OutputStatement);
+        assertTrue(
+            timer.getBlock()
+                .getStatements()
+                .get(2) instanceof OutputStatement);
+    }
 }

@@ -25,6 +25,8 @@ import ca.teamdman.sfm.common.label.LabelPositionHolder;
 import ca.teamdman.sfm.common.network.CableNetwork;
 import ca.teamdman.sfm.common.program.ProgramContext;
 import ca.teamdman.sfm.common.util.BlockPos;
+import ca.teamdman.sfm.compat.Compat;
+import ca.teamdman.sfm.compat.stevefm.SteveFMCompat;
 import ca.teamdman.sfml.ast.Program;
 import ca.teamdman.sfml.program_builder.ProgramBuildResult;
 import ca.teamdman.sfml.program_builder.ProgramBuilder;
@@ -58,12 +60,34 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
         managerTick++;
 
+        if (cableNetwork == null) {
+            cableNetwork = new CableNetwork(worldObj, new BlockPos(xCoord, yCoord, zCoord));
+        }
+
         int currentPower = worldObj.getBlockPowerInput(xCoord, yCoord, zCoord);
-        boolean pulse = currentPower > 0 && lastRedstonePower == 0;
+        if (Compat.isSFMLoaded()) {
+            try {
+                int receiverPower = SteveFMCompat.getMaxReceiverPower(worldObj, cableNetwork.getPeripherals());
+                if (receiverPower > currentPower) {
+                    currentPower = receiverPower;
+                }
+            } catch (Throwable ignored) {}
+        }
+        boolean budPulse = false;
+        if (Compat.isSFMLoaded()) {
+            try {
+                budPulse = SteveFMCompat.checkAndClearBUDUpdates(worldObj, cableNetwork.getPeripherals());
+            } catch (Throwable ignored) {}
+        }
+        boolean pulse = (currentPower > 0 && lastRedstonePower == 0) || budPulse;
         lastRedstonePower = currentPower;
 
         if (pulse && logLevel.includes(LogLevel.DEBUG)) {
-            log(LogLevel.DEBUG, "Program ticking with 1 unprocessed redstone pulses.");
+            if (budPulse) {
+                log(LogLevel.DEBUG, "Program ticking with 1 unprocessed BUD update pulse.");
+            } else {
+                log(LogLevel.DEBUG, "Program ticking with 1 unprocessed redstone pulses.");
+            }
         }
 
         if (diskStack == null || !(diskStack.getItem() instanceof ItemDisk)) {
@@ -134,6 +158,14 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
             if (compiledProgram != null) {
                 int currentPower = worldObj.getBlockPowerInput(xCoord, yCoord, zCoord);
+                if (Compat.isSFMLoaded()) {
+                    try {
+                        int receiverPower = SteveFMCompat.getMaxReceiverPower(worldObj, cableNetwork.getPeripherals());
+                        if (receiverPower > currentPower) {
+                            currentPower = receiverPower;
+                        }
+                    } catch (Throwable ignored) {}
+                }
                 boolean pulse = currentPower > 0;
                 LabelPositionHolder labelPositions = LabelPositionHolder.from(diskStack);
                 ProgramContext context = new ProgramContext(
