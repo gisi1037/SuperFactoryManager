@@ -6,6 +6,9 @@ import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.world.IBlockAccess;
 import net.minecraftforge.common.util.ForgeDirection;
 
+import ca.teamdman.sfm.compat.Compat;
+import ca.teamdman.sfm.compat.stevefm.SteveFMCompat;
+
 public class BlockCable extends Block {
 
     public BlockCable() {
@@ -19,10 +22,19 @@ public class BlockCable extends Block {
     }
 
     public boolean canConnectTo(IBlockAccess world, int x, int y, int z, ForgeDirection side) {
-        Block neighbor = world.getBlock(x + side.offsetX, y + side.offsetY, z + side.offsetZ);
+        int targetX = x + side.offsetX;
+        int targetY = y + side.offsetY;
+        int targetZ = z + side.offsetZ;
+        Block neighbor = world.getBlock(targetX, targetY, targetZ);
         if (neighbor instanceof BlockCable || neighbor instanceof BlockManager) {
             return true;
         }
-        return world.getTileEntity(x + side.offsetX, y + side.offsetY, z + side.offsetZ) != null;
+        if (Compat.isSFMLoaded()) {
+            int meta = world.getBlockMetadata(targetX, targetY, targetZ);
+            if (SteveFMCompat.isCable(neighbor, meta)) {
+                return true;
+            }
+        }
+        return world.getTileEntity(targetX, targetY, targetZ) != null;
     }
 }

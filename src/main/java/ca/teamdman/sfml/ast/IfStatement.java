@@ -17,8 +17,12 @@ public final class IfStatement implements Statement {
     @Override
     public void tick(ProgramContext context) {
         boolean result = condition.evaluate(context);
-        if (context.getManager() != null && context.getManager().getLogLevel().includes(ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG)) {
-            context.log(ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG, (result ? "TRUE: " : "FALSE: ") + condition.toString());
+        if (context.getManager() != null && context.getManager()
+            .getLogLevel()
+            .includes(ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG)) {
+            context.log(
+                ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG,
+                (result ? "TRUE: " : "FALSE: ") + condition.toString());
         }
         if (result) {
             trueBlock.tick(context);
@@ -30,10 +34,16 @@ public final class IfStatement implements Statement {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append("IF ").append(condition).append(" THEN\n");
-        sb.append(trueBlock.toString()).append("\n");
-        if (falseBlock != null && !falseBlock.getStatements().isEmpty()) {
-            sb.append("ELSE\n").append(falseBlock.toString()).append("\n");
+        sb.append("IF ")
+            .append(condition)
+            .append(" THEN\n");
+        sb.append(trueBlock.toString())
+            .append("\n");
+        if (falseBlock != null && !falseBlock.getStatements()
+            .isEmpty()) {
+            sb.append("ELSE\n")
+                .append(falseBlock.toString())
+                .append("\n");
         }
         sb.append("END");
         return sb.toString();

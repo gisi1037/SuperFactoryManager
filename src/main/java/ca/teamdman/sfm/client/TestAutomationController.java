@@ -1,8 +1,17 @@
 package ca.teamdman.sfm.client;
 
-import java.io.*;
-import java.net.*;
-import java.util.concurrent.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiMainMenu;
@@ -37,6 +46,7 @@ public class TestAutomationController {
     private int ticksInMainMenu = 0;
 
     private static class TaskEntry {
+
         final Callable<String> callable;
         final CompletableFuture<String> future = new CompletableFuture<>();
 
@@ -64,7 +74,9 @@ public class TestAutomationController {
     }
 
     public void start() {
-        FMLCommonHandler.instance().bus().register(this);
+        FMLCommonHandler.instance()
+            .bus()
+            .register(this);
         Thread serverThread = new Thread(this::runServer, "SFM-Test-Automation-Server");
         serverThread.setDaemon(true);
         serverThread.start();
@@ -89,7 +101,7 @@ public class TestAutomationController {
     private void handleClient(Socket client) {
         CompletableFuture.runAsync(() -> {
             try (BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
-                 PrintWriter out = new PrintWriter(client.getOutputStream(), true)) {
+                PrintWriter out = new PrintWriter(client.getOutputStream(), true)) {
                 String line = in.readLine();
                 if (line == null) return;
                 line = line.trim();
@@ -98,7 +110,9 @@ public class TestAutomationController {
             } catch (Exception e) {
                 SuperFactoryManager.LOG.error("[TestAutomation] Error handling client: " + e.getMessage());
             } finally {
-                try { client.close(); } catch (IOException ignored) {}
+                try {
+                    client.close();
+                } catch (IOException ignored) {}
             }
         });
     }
@@ -117,15 +131,23 @@ public class TestAutomationController {
             switch (cmd) {
                 case "status":
                     if (mc.thePlayer != null && mc.theWorld != null) {
-                        String gui = mc.currentScreen != null ? mc.currentScreen.getClass().getSimpleName() : "none";
+                        String gui = mc.currentScreen != null ? mc.currentScreen.getClass()
+                            .getSimpleName() : "none";
                         ItemStack held = mc.thePlayer.getHeldItem();
-                        String heldName = held != null ? held.getItem().getItemStackDisplayName(held) : "empty";
-                        return String.format("IN_WORLD [pos: %.1f, %.1f, %.1f, gui: %s, held: %s]",
-                                mc.thePlayer.posX, mc.thePlayer.posY, mc.thePlayer.posZ, gui, heldName);
+                        String heldName = held != null ? held.getItem()
+                            .getItemStackDisplayName(held) : "empty";
+                        return String.format(
+                            "IN_WORLD [pos: %.1f, %.1f, %.1f, gui: %s, held: %s]",
+                            mc.thePlayer.posX,
+                            mc.thePlayer.posY,
+                            mc.thePlayer.posZ,
+                            gui,
+                            heldName);
                     } else if (mc.currentScreen instanceof GuiMainMenu) {
                         return "MAIN_MENU";
                     } else if (mc.currentScreen != null) {
-                        return "GUI: " + mc.currentScreen.getClass().getName();
+                        return "GUI: " + mc.currentScreen.getClass()
+                            .getName();
                     } else {
                         return "LOADING";
                     }
@@ -159,7 +181,8 @@ public class TestAutomationController {
 
                     net.minecraft.world.World ws = null;
                     if (net.minecraft.server.MinecraftServer.getServer() != null) {
-                        ws = net.minecraft.server.MinecraftServer.getServer().worldServerForDimension(mc.thePlayer != null ? mc.thePlayer.dimension : 0);
+                        ws = net.minecraft.server.MinecraftServer.getServer()
+                            .worldServerForDimension(mc.thePlayer != null ? mc.thePlayer.dimension : 0);
                     }
                     if (ws == null) {
                         ws = mc.theWorld;
@@ -178,8 +201,10 @@ public class TestAutomationController {
                     ws.setBlock(posA.x, posA.y, posA.z, net.minecraft.init.Blocks.chest);
                     ws.setBlock(posB.x, posB.y, posB.z, net.minecraft.init.Blocks.chest);
 
-                    net.minecraft.tileentity.TileEntityChest cIn = (net.minecraft.tileentity.TileEntityChest) ws.getTileEntity(posA.x, posA.y, posA.z);
-                    net.minecraft.tileentity.TileEntityChest cOut = (net.minecraft.tileentity.TileEntityChest) ws.getTileEntity(posB.x, posB.y, posB.z);
+                    net.minecraft.tileentity.TileEntityChest cIn = (net.minecraft.tileentity.TileEntityChest) ws
+                        .getTileEntity(posA.x, posA.y, posA.z);
+                    net.minecraft.tileentity.TileEntityChest cOut = (net.minecraft.tileentity.TileEntityChest) ws
+                        .getTileEntity(posB.x, posB.y, posB.z);
                     if (cIn != null) {
                         for (int i = 0; i < cIn.getSizeInventory(); i++) cIn.setInventorySlotContents(i, null);
                     }
@@ -190,11 +215,13 @@ public class TestAutomationController {
                     String pCode;
                     LogLevel pLvl;
                     if (scen == 1) {
-                        if (cIn != null) cIn.setInventorySlotContents(0, new ItemStack(net.minecraft.init.Items.apple, 64));
+                        if (cIn != null)
+                            cIn.setInventorySlotContents(0, new ItemStack(net.minecraft.init.Items.apple, 64));
                         pCode = "NAME \"Test 1\"\nEVERY 20 TICKS DO\n  INPUT FROM a\n  OUTPUT TO b\nEND\n";
                         pLvl = LogLevel.TRACE;
                     } else if (scen == 2) {
-                        if (cIn != null) cIn.setInventorySlotContents(0, new ItemStack(net.minecraft.init.Items.apple, 64));
+                        if (cIn != null)
+                            cIn.setInventorySlotContents(0, new ItemStack(net.minecraft.init.Items.apple, 64));
                         pCode = "NAME \"Test 2\"\nEVERY 20 TICKS DO\n  IF a HAS >= 1 THEN\n    INPUT FROM a\n    OUTPUT TO b\n  END\nEND\n";
                         pLvl = LogLevel.DEBUG;
                     } else {
@@ -267,7 +294,8 @@ public class TestAutomationController {
                     if (mc.thePlayer == null) return "ERROR: Player is null";
                     ItemStack heldItem = mc.thePlayer.getHeldItem();
                     if (heldItem != null) {
-                        heldItem.getItem().onItemRightClick(heldItem, mc.theWorld, mc.thePlayer);
+                        heldItem.getItem()
+                            .onItemRightClick(heldItem, mc.theWorld, mc.thePlayer);
                         return "USED_ITEM: " + heldItem.getDisplayName();
                     }
                     return "NO_HELD_ITEM";
@@ -276,7 +304,8 @@ public class TestAutomationController {
                     if (mc.currentScreen == null) return "ERROR: No active GUI";
                     for (char c : arg.toCharArray()) {
                         try {
-                            java.lang.reflect.Method km = GuiScreen.class.getDeclaredMethod("keyTyped", char.class, int.class);
+                            java.lang.reflect.Method km = GuiScreen.class
+                                .getDeclaredMethod("keyTyped", char.class, int.class);
                             km.setAccessible(true);
                             km.invoke(mc.currentScreen, c, 0);
                         } catch (Exception e) {
@@ -288,11 +317,13 @@ public class TestAutomationController {
                 case "settext":
                     if (mc.currentScreen instanceof ca.teamdman.sfm.common.gui.GuiLabelGun) {
                         try {
-                            java.lang.reflect.Field f = ca.teamdman.sfm.common.gui.GuiLabelGun.class.getDeclaredField("labelField");
+                            java.lang.reflect.Field f = ca.teamdman.sfm.common.gui.GuiLabelGun.class
+                                .getDeclaredField("labelField");
                             f.setAccessible(true);
                             GuiTextField tf = (GuiTextField) f.get(mc.currentScreen);
                             tf.setText(arg);
-                            java.lang.reflect.Method m = ca.teamdman.sfm.common.gui.GuiLabelGun.class.getDeclaredMethod("rebuildLabelButtons");
+                            java.lang.reflect.Method m = ca.teamdman.sfm.common.gui.GuiLabelGun.class
+                                .getDeclaredMethod("rebuildLabelButtons");
                             m.setAccessible(true);
                             m.invoke(mc.currentScreen);
                             return "SET_TEXT: " + arg;
@@ -305,7 +336,8 @@ public class TestAutomationController {
                 case "enter":
                     if (mc.currentScreen instanceof ca.teamdman.sfm.common.gui.GuiLabelGun) {
                         try {
-                            java.lang.reflect.Method m = ca.teamdman.sfm.common.gui.GuiLabelGun.class.getDeclaredMethod("onDone");
+                            java.lang.reflect.Method m = ca.teamdman.sfm.common.gui.GuiLabelGun.class
+                                .getDeclaredMethod("onDone");
                             m.setAccessible(true);
                             m.invoke(mc.currentScreen);
                             return "DONE_TRIGGERED";
@@ -319,7 +351,8 @@ public class TestAutomationController {
                     if (mc.currentScreen == null) return "ERROR: No active GUI";
                     int keyCode = Integer.parseInt(arg.trim());
                     try {
-                        java.lang.reflect.Method km = GuiScreen.class.getDeclaredMethod("keyTyped", char.class, int.class);
+                        java.lang.reflect.Method km = GuiScreen.class
+                            .getDeclaredMethod("keyTyped", char.class, int.class);
                         km.setAccessible(true);
                         km.invoke(mc.currentScreen, '\0', keyCode);
                     } catch (Exception e) {
@@ -339,7 +372,8 @@ public class TestAutomationController {
                     int y = Integer.parseInt(coords[1]);
                     int button = coords.length > 2 ? Integer.parseInt(coords[2]) : 0;
                     try {
-                        java.lang.reflect.Method m = GuiScreen.class.getDeclaredMethod("mouseClicked", int.class, int.class, int.class);
+                        java.lang.reflect.Method m = GuiScreen.class
+                            .getDeclaredMethod("mouseClicked", int.class, int.class, int.class);
                         m.setAccessible(true);
                         m.invoke(mc.currentScreen, x, y, button);
                     } catch (Exception e) {
@@ -351,13 +385,15 @@ public class TestAutomationController {
                     if (mc.currentScreen instanceof ca.teamdman.sfm.client.gui.GuiCodeEditor) {
                         try {
                             ca.teamdman.sfm.client.gui.GuiCodeEditor ed = (ca.teamdman.sfm.client.gui.GuiCodeEditor) mc.currentScreen;
-                            java.lang.reflect.Field fLines = ca.teamdman.sfm.client.gui.GuiCodeEditor.class.getDeclaredField("lines");
+                            java.lang.reflect.Field fLines = ca.teamdman.sfm.client.gui.GuiCodeEditor.class
+                                .getDeclaredField("lines");
                             fLines.setAccessible(true);
                             java.util.List<String> edLines = (java.util.List<String>) fLines.get(ed);
                             edLines.clear();
                             String codeText = arg.replace("\\n", "\n");
                             edLines.addAll(java.util.Arrays.asList(codeText.split("\n", -1)));
-                            java.lang.reflect.Method m = ca.teamdman.sfm.client.gui.GuiCodeEditor.class.getDeclaredMethod("validateSyntax");
+                            java.lang.reflect.Method m = ca.teamdman.sfm.client.gui.GuiCodeEditor.class
+                                .getDeclaredMethod("validateSyntax");
                             m.setAccessible(true);
                             m.invoke(ed);
                             return "CODE_SET: " + edLines.size() + " lines";
@@ -373,7 +409,12 @@ public class TestAutomationController {
                         int slotId = Integer.parseInt(sParts[0]);
                         int mouseBtn = sParts.length > 1 ? Integer.parseInt(sParts[1]) : 0;
                         int clickMode = sParts.length > 2 ? Integer.parseInt(sParts[2]) : 0;
-                        mc.playerController.windowClick(mc.thePlayer.openContainer.windowId, slotId, mouseBtn, clickMode, mc.thePlayer);
+                        mc.playerController.windowClick(
+                            mc.thePlayer.openContainer.windowId,
+                            slotId,
+                            mouseBtn,
+                            clickMode,
+                            mc.thePlayer);
                         return "CLICKED_SLOT: " + slotId + " (btn " + mouseBtn + ", mode " + clickMode + ")";
                     }
                     return "NO_OPEN_CONTAINER";
@@ -383,10 +424,17 @@ public class TestAutomationController {
                         try {
                             java.lang.reflect.Field f = GuiScreen.class.getDeclaredField("buttonList");
                             f.setAccessible(true);
-                            java.util.List<net.minecraft.client.gui.GuiButton> btns = (java.util.List<net.minecraft.client.gui.GuiButton>) f.get(mc.currentScreen);
+                            java.util.List<net.minecraft.client.gui.GuiButton> btns = (java.util.List<net.minecraft.client.gui.GuiButton>) f
+                                .get(mc.currentScreen);
                             for (net.minecraft.client.gui.GuiButton b : btns) {
-                                if (String.valueOf(b.id).equals(arg.trim()) || b.displayString.toLowerCase().contains(arg.trim().toLowerCase())) {
-                                    java.lang.reflect.Method m = GuiScreen.class.getDeclaredMethod("actionPerformed", net.minecraft.client.gui.GuiButton.class);
+                                if (String.valueOf(b.id)
+                                    .equals(arg.trim())
+                                    || b.displayString.toLowerCase()
+                                        .contains(
+                                            arg.trim()
+                                                .toLowerCase())) {
+                                    java.lang.reflect.Method m = GuiScreen.class
+                                        .getDeclaredMethod("actionPerformed", net.minecraft.client.gui.GuiButton.class);
                                     m.setAccessible(true);
                                     m.invoke(mc.currentScreen, b);
                                     return "CLICKED_BUTTON: " + b.id + " (" + b.displayString + ")";
@@ -403,12 +451,17 @@ public class TestAutomationController {
                     if (mc.currentScreen instanceof ca.teamdman.sfm.common.gui.GuiLabelGun) {
                         try {
                             ca.teamdman.sfm.common.gui.GuiLabelGun gunGui = (ca.teamdman.sfm.common.gui.GuiLabelGun) mc.currentScreen;
-                            java.lang.reflect.Field f = ca.teamdman.sfm.common.gui.GuiLabelGun.class.getDeclaredField("labelBtnMap");
+                            java.lang.reflect.Field f = ca.teamdman.sfm.common.gui.GuiLabelGun.class
+                                .getDeclaredField("labelBtnMap");
                             f.setAccessible(true);
-                            java.util.Map<net.minecraft.client.gui.GuiButton, String> map = (java.util.Map<net.minecraft.client.gui.GuiButton, String>) f.get(gunGui);
-                            for (java.util.Map.Entry<net.minecraft.client.gui.GuiButton, String> entry : map.entrySet()) {
-                                if (entry.getValue().equalsIgnoreCase(arg.trim())) {
-                                    java.lang.reflect.Method m = GuiScreen.class.getDeclaredMethod("actionPerformed", net.minecraft.client.gui.GuiButton.class);
+                            java.util.Map<net.minecraft.client.gui.GuiButton, String> map = (java.util.Map<net.minecraft.client.gui.GuiButton, String>) f
+                                .get(gunGui);
+                            for (java.util.Map.Entry<net.minecraft.client.gui.GuiButton, String> entry : map
+                                .entrySet()) {
+                                if (entry.getValue()
+                                    .equalsIgnoreCase(arg.trim())) {
+                                    java.lang.reflect.Method m = GuiScreen.class
+                                        .getDeclaredMethod("actionPerformed", net.minecraft.client.gui.GuiButton.class);
                                     m.setAccessible(true);
                                     m.invoke(gunGui, entry.getKey());
                                     return "CLICKED_LABEL: " + entry.getValue();
@@ -446,7 +499,15 @@ public class TestAutomationController {
                     int ry = Integer.parseInt(rCoords[1]);
                     int rz = Integer.parseInt(rCoords[2]);
                     int rside = rCoords.length > 3 ? Integer.parseInt(rCoords[3]) : 1;
-                    boolean rsuccess = mc.playerController.onPlayerRightClick(mc.thePlayer, mc.theWorld, mc.thePlayer.getHeldItem(), rx, ry, rz, rside, net.minecraft.util.Vec3.createVectorHelper(rx + 0.5, ry + 0.5, rz + 0.5));
+                    boolean rsuccess = mc.playerController.onPlayerRightClick(
+                        mc.thePlayer,
+                        mc.theWorld,
+                        mc.thePlayer.getHeldItem(),
+                        rx,
+                        ry,
+                        rz,
+                        rside,
+                        net.minecraft.util.Vec3.createVectorHelper(rx + 0.5, ry + 0.5, rz + 0.5));
                     return "RIGHT_CLICK_BLOCK: " + rx + "," + ry + "," + rz + " (side " + rside + ") -> " + rsuccess;
 
                 case "leftclickblock":
@@ -464,13 +525,24 @@ public class TestAutomationController {
                         mc.guiAchievement.func_146257_b();
                     }
                     String destPath = arg.trim();
-                    File dest = destPath.isEmpty() ? new File(mc.mcDataDir, "screenshots/test.png") : new File(destPath);
-                    if (dest.getParentFile() != null) dest.getParentFile().mkdirs();
-                    net.minecraft.util.ScreenShotHelper.saveScreenshot(mc.mcDataDir, dest.getName(), mc.displayWidth, mc.displayHeight, mc.getFramebuffer());
+                    File dest = destPath.isEmpty() ? new File(mc.mcDataDir, "screenshots/test.png")
+                        : new File(destPath);
+                    if (dest.getParentFile() != null) dest.getParentFile()
+                        .mkdirs();
+                    net.minecraft.util.ScreenShotHelper.saveScreenshot(
+                        mc.mcDataDir,
+                        dest.getName(),
+                        mc.displayWidth,
+                        mc.displayHeight,
+                        mc.getFramebuffer());
                     File created = new File(new File(mc.mcDataDir, "screenshots"), dest.getName());
-                    if (created.exists() && !created.getAbsolutePath().equals(dest.getAbsolutePath())) {
+                    if (created.exists() && !created.getAbsolutePath()
+                        .equals(dest.getAbsolutePath())) {
                         try {
-                            java.nio.file.Files.move(created.toPath(), dest.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                            java.nio.file.Files.move(
+                                created.toPath(),
+                                dest.toPath(),
+                                java.nio.file.StandardCopyOption.REPLACE_EXISTING);
                         } catch (Exception e) {
                             return "ERROR_MOVE: " + e.getMessage();
                         }

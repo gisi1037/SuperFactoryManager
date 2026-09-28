@@ -15,7 +15,9 @@ public final class ForgetStatement implements Statement {
 
     @Override
     public void tick(ProgramContext context) {
-        if (context.getManager() != null && context.getManager().getLogLevel().includes(ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG)) {
+        if (context.getManager() != null && context.getManager()
+            .getLogLevel()
+            .includes(ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG)) {
             context.log(ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG, toString());
         }
         if (labels.isEmpty()) {
@@ -33,7 +35,9 @@ public final class ForgetStatement implements Statement {
         StringBuilder sb = new StringBuilder("FORGET ");
         for (int i = 0; i < labels.size(); i++) {
             if (i > 0) sb.append(", ");
-            sb.append(labels.get(i).getName());
+            sb.append(
+                labels.get(i)
+                    .getName());
         }
         return sb.toString();
     }

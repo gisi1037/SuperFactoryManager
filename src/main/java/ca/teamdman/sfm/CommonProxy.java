@@ -27,7 +27,9 @@ public class CommonProxy {
         ModRecipes.init();
     }
 
-    public void postInit(FMLPostInitializationEvent event) {}
+    public void postInit(FMLPostInitializationEvent event) {
+        ModRecipes.postInit();
+    }
 
     public void serverStarting(FMLServerStartingEvent event) {}
 }

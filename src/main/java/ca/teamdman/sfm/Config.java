@@ -14,8 +14,16 @@ public class Config {
         Configuration configuration = new Configuration(configFile);
 
         greeting = configuration.getString("greeting", Configuration.CATEGORY_GENERAL, greeting, "Greeting");
-        exportLogsToFile = configuration.getBoolean("exportLogsToFile", Configuration.CATEGORY_GENERAL, false, "Export manager execution logs to logs/sfm_server_export.log (disabled by default)");
-        showDiscordButton = configuration.getBoolean("showDiscordButton", Configuration.CATEGORY_GENERAL, true, "Show the Discord button on the Factory Manager GUI");
+        exportLogsToFile = configuration.getBoolean(
+            "exportLogsToFile",
+            Configuration.CATEGORY_GENERAL,
+            false,
+            "Export manager execution logs to logs/sfm_server_export.log (disabled by default)");
+        showDiscordButton = configuration.getBoolean(
+            "showDiscordButton",
+            Configuration.CATEGORY_GENERAL,
+            true,
+            "Show the Discord button on the Factory Manager GUI");
 
         if (configuration.hasChanged()) {
             configuration.save();

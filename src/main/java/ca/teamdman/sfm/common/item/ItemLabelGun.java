@@ -15,11 +15,11 @@ import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.EnumChatFormatting;
 import net.minecraft.world.World;
 
-import ca.teamdman.sfm.SuperFactoryManager;
-import ca.teamdman.sfm.common.gui.GuiHandler;
 import ca.teamdman.sfm.common.label.LabelPositionHolder;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 import ca.teamdman.sfm.common.util.BlockPos;
+import ca.teamdman.sfm.compat.Compat;
+import ca.teamdman.sfm.compat.stevesaddons.StevesAddonsCompat;
 
 public class ItemLabelGun extends Item {
 
@@ -210,7 +210,8 @@ public class ItemLabelGun extends Item {
             if (player.isSneaking()) {
                 Set<String> labelsOnBlock = gunHolder.getLabelsForPosition(targetPos);
                 if (!labelsOnBlock.isEmpty()) {
-                    String firstLabel = labelsOnBlock.iterator().next();
+                    String firstLabel = labelsOnBlock.iterator()
+                        .next();
                     if (!firstLabel.equals(activeLabel)) {
                         setActiveLabel(stack, firstLabel);
                     } else {
@@ -225,15 +226,45 @@ public class ItemLabelGun extends Item {
                 LabelPositionHolder.saveTo(stack, gunHolder);
             }
 
-            net.minecraft.client.Minecraft.getMinecraft().getNetHandler().addToSendQueue(
-                new net.minecraft.network.play.client.C08PacketPlayerBlockPlacement(x, y, z, side, stack, hitX, hitY, hitZ));
+            net.minecraft.client.Minecraft.getMinecraft()
+                .getNetHandler()
+                .addToSendQueue(
+                    new net.minecraft.network.play.client.C08PacketPlayerBlockPlacement(
+                        x,
+                        y,
+                        z,
+                        side,
+                        stack,
+                        hitX,
+                        hitY,
+                        hitZ));
             return true;
         }
 
         BlockPos targetPos = new BlockPos(x, y, z);
         TileEntity te = targetPos.getTileEntity(world);
 
-        // If clicking on Manager
+        // If clicking on Steve's Factory Manager block
+        if (Compat.isSFMLoaded() && te instanceof vswe.stevesfactory.blocks.TileEntityManager) {
+            if (Compat.isStevesAddonsLoaded()) {
+                LabelPositionHolder gunHolder = LabelPositionHolder.from(stack);
+                StevesAddonsCompat.syncAll(world, gunHolder);
+                player.addChatMessage(
+                    new ChatComponentText(
+                        EnumChatFormatting.GREEN + "[SFM] Synced "
+                            + gunHolder.getAllLabels()
+                                .size()
+                            + " labels to Steve's Factory Manager network via StevesAddons!"));
+            } else {
+                player.addChatMessage(
+                    new ChatComponentText(
+                        EnumChatFormatting.YELLOW
+                            + "[SFM] Steve's Factory Manager detected (StevesAddons required for label naming)."));
+            }
+            return true;
+        }
+
+        // If clicking on SuperFM Manager
         if (te instanceof TileEntityManager) {
             TileEntityManager manager = (TileEntityManager) te;
             ItemStack disk = manager.getDisk();
@@ -244,6 +275,9 @@ public class ItemLabelGun extends Item {
                 if (player.isSneaking()) {
                     // Pull from Disk to Gun
                     LabelPositionHolder.saveTo(stack, diskHolder);
+                    if (Compat.isStevesAddonsLoaded()) {
+                        StevesAddonsCompat.syncAll(world, diskHolder);
+                    }
                     player.inventoryContainer.detectAndSendChanges();
                     player.addChatMessage(
                         new ChatComponentText(
@@ -255,6 +289,9 @@ public class ItemLabelGun extends Item {
                     // Push from Gun to Disk
                     LabelPositionHolder.saveTo(disk, gunHolder);
                     manager.markDirty();
+                    if (Compat.isStevesAddonsLoaded()) {
+                        StevesAddonsCompat.syncAll(world, gunHolder);
+                    }
                     player.addChatMessage(
                         new ChatComponentText(
                             EnumChatFormatting.GREEN + "[SFM] Synced "
@@ -298,6 +335,9 @@ public class ItemLabelGun extends Item {
                         gunHolder.removePosition(lbl, targetPos);
                     }
                     LabelPositionHolder.saveTo(stack, gunHolder);
+                    if (Compat.isStevesAddonsLoaded()) {
+                        StevesAddonsCompat.onBlockUntagged(world, targetPos.x, targetPos.y, targetPos.z);
+                    }
                     player.inventoryContainer.detectAndSendChanges();
                     player.addChatMessage(
                         new ChatComponentText(
@@ -308,6 +348,25 @@ public class ItemLabelGun extends Item {
                 }
                 return true;
             } else {
+                // If no SuperFM labels, check if StevesAddons has a label to import!
+                if (Compat.isStevesAddonsLoaded()) {
+                    String existingName = StevesAddonsCompat.getSavedName(world, targetPos.x, targetPos.y, targetPos.z);
+                    if (existingName != null && !existingName.trim()
+                        .isEmpty()) {
+                        String trimmed = existingName.trim();
+                        setActiveLabel(stack, trimmed);
+                        gunHolder.addPosition(trimmed, targetPos);
+                        LabelPositionHolder.saveTo(stack, gunHolder);
+                        player.inventoryContainer.detectAndSendChanges();
+                        player.addChatMessage(
+                            new ChatComponentText(
+                                EnumChatFormatting.AQUA + "[SFM] Imported Steve's Addons label: \""
+                                    + trimmed
+                                    + "\" from "
+                                    + blockName));
+                        return true;
+                    }
+                }
                 player.addChatMessage(
                     new ChatComponentText(
                         EnumChatFormatting.GRAY + "[SFM] No labels on " + blockName + " at " + targetPos));
@@ -323,6 +382,24 @@ public class ItemLabelGun extends Item {
 
         boolean added = gunHolder.togglePosition(activeLabel, targetPos);
         LabelPositionHolder.saveTo(stack, gunHolder);
+        if (Compat.isStevesAddonsLoaded()) {
+            if (added) {
+                StevesAddonsCompat.onBlockTagged(world, targetPos.x, targetPos.y, targetPos.z, activeLabel);
+            } else {
+                Set<String> remaining = gunHolder.getLabelsForPosition(targetPos);
+                if (remaining.isEmpty()) {
+                    StevesAddonsCompat.onBlockUntagged(world, targetPos.x, targetPos.y, targetPos.z);
+                } else {
+                    StevesAddonsCompat.onBlockTagged(
+                        world,
+                        targetPos.x,
+                        targetPos.y,
+                        targetPos.z,
+                        remaining.iterator()
+                            .next());
+                }
+            }
+        }
         player.inventoryContainer.detectAndSendChanges();
 
         if (added) {

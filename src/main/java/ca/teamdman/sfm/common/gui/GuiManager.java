@@ -113,7 +113,11 @@ public class GuiManager extends GuiContainer {
             btnDiscord.enabled = true;
         }
         btnServerConfig.enabled = true;
-        btnDiag.visible = hasDisk && manager.getStatusMessage() != null && !manager.getStatusMessage().isEmpty() && !manager.getStatusMessage().equalsIgnoreCase("Running");
+        btnDiag.visible = hasDisk && manager.getStatusMessage() != null
+            && !manager.getStatusMessage()
+                .isEmpty()
+            && !manager.getStatusMessage()
+                .equalsIgnoreCase("Running");
     }
 
     @Override
@@ -134,13 +138,16 @@ public class GuiManager extends GuiContainer {
             String exampleProgram = "name \"Transfer Iron\"\n\nevery 20 ticks do\n  input from chest_in\n  output to chest_out\nend\n";
             setClipboardString(exampleProgram);
             if (mc.thePlayer != null) {
-                mc.thePlayer.addChatMessage(new ChatComponentText(EnumChatFormatting.GREEN + "[SFM] Example program copied to clipboard!"));
+                mc.thePlayer.addChatMessage(
+                    new ChatComponentText(EnumChatFormatting.GREEN + "[SFM] Example program copied to clipboard!"));
             }
         } else if (button.id == 4) {
             // Discord
             try {
-                if (Desktop.isDesktopSupported() && Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
-                    Desktop.getDesktop().browse(new URI("https://discord.gg/xjXYj9MmS4"));
+                if (Desktop.isDesktopSupported() && Desktop.getDesktop()
+                    .isSupported(Desktop.Action.BROWSE)) {
+                    Desktop.getDesktop()
+                        .browse(new URI("https://discord.gg/xjXYj9MmS4"));
                 }
             } catch (Exception ignored) {}
         } else if (button.id == 5) {
@@ -148,7 +155,8 @@ public class GuiManager extends GuiContainer {
             if (manager.getDisk() != null) {
                 setClipboardString(ItemDisk.getProgramString(manager.getDisk()));
                 if (mc.thePlayer != null) {
-                    mc.thePlayer.addChatMessage(new ChatComponentText(EnumChatFormatting.GREEN + "[SFM] Program copied to clipboard!"));
+                    mc.thePlayer.addChatMessage(
+                        new ChatComponentText(EnumChatFormatting.GREEN + "[SFM] Program copied to clipboard!"));
                 }
             }
         } else if (button.id == 6) {
@@ -157,21 +165,33 @@ public class GuiManager extends GuiContainer {
         } else if (button.id == 7) {
             // Rebuild cable network
             SFMNetwork.WRAPPER.sendToServer(
-                new PacketManagerAction(manager.xCoord, manager.yCoord, manager.zCoord, PacketManagerAction.ACTION_REBUILD));
+                new PacketManagerAction(
+                    manager.xCoord,
+                    manager.yCoord,
+                    manager.zCoord,
+                    PacketManagerAction.ACTION_REBUILD));
             if (mc.thePlayer != null) {
-                mc.thePlayer.addChatMessage(new ChatComponentText(EnumChatFormatting.AQUA + "[SFM] Cable network rebuild requested."));
+                mc.thePlayer.addChatMessage(
+                    new ChatComponentText(EnumChatFormatting.AQUA + "[SFM] Cable network rebuild requested."));
             }
         } else if (button.id == 8) {
             // View server config
             if (mc.thePlayer != null) {
-                mc.thePlayer.addChatMessage(new ChatComponentText(EnumChatFormatting.GRAY + "[SFM Server Config] Max logs: 500 | Cable limit: unlimited"));
+                mc.thePlayer.addChatMessage(
+                    new ChatComponentText(
+                        EnumChatFormatting.GRAY + "[SFM Server Config] Max logs: 500 | Cable limit: unlimited"));
             }
         } else if (button.id == 9) {
             // Reset
             SFMNetwork.WRAPPER.sendToServer(
-                new PacketManagerAction(manager.xCoord, manager.yCoord, manager.zCoord, PacketManagerAction.ACTION_RESET));
+                new PacketManagerAction(
+                    manager.xCoord,
+                    manager.yCoord,
+                    manager.zCoord,
+                    PacketManagerAction.ACTION_RESET));
             if (mc.thePlayer != null) {
-                mc.thePlayer.addChatMessage(new ChatComponentText(EnumChatFormatting.YELLOW + "[SFM] Disk program and labels reset."));
+                mc.thePlayer.addChatMessage(
+                    new ChatComponentText(EnumChatFormatting.YELLOW + "[SFM] Disk program and labels reset."));
             }
         } else if (button.id == 10) {
             // Diag button
@@ -179,7 +199,9 @@ public class GuiManager extends GuiContainer {
                 String diag = "SFM Diagnostics: " + manager.getStatusMessage();
                 setClipboardString(diag);
                 if (mc.thePlayer != null) {
-                    mc.thePlayer.addChatMessage(new ChatComponentText(EnumChatFormatting.RED + "[SFM Diagnostics] " + manager.getStatusMessage()));
+                    mc.thePlayer.addChatMessage(
+                        new ChatComponentText(
+                            EnumChatFormatting.RED + "[SFM Diagnostics] " + manager.getStatusMessage()));
                 }
             }
         }
@@ -199,7 +221,8 @@ public class GuiManager extends GuiContainer {
             GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
         }
 
-        mc.getTextureManager().bindTexture(GUI_TEXTURE);
+        mc.getTextureManager()
+            .bindTexture(GUI_TEXTURE);
         int left = (width - xSize) / 2;
         int top = (height - ySize) / 2;
         drawTexturedModalRect(left, top, 0, 0, xSize, ySize);
@@ -211,13 +234,19 @@ public class GuiManager extends GuiContainer {
     protected void drawGuiContainerForegroundLayer(int mouseX, int mouseY) {
         fontRendererObj.drawString("Manager", 8, 6, 0x404040);
 
-        String stateStr = manager.isRunning() ? EnumChatFormatting.GREEN + "running" : EnumChatFormatting.RED + "stopped";
+        String stateStr = manager.isRunning() ? EnumChatFormatting.GREEN + "running"
+            : EnumChatFormatting.RED + "stopped";
         fontRendererObj.drawString("State: " + stateStr, 8, 20, 0x404040);
 
         if (manager.getLogLevel() != LogLevel.OFF) {
             GL11.glPushMatrix();
             GL11.glScalef(0.5F, 0.5F, 1.0F);
-            fontRendererObj.drawString(manager.getLogLevel().name(), 16, 27, 0x00AAAA);
+            fontRendererObj.drawString(
+                manager.getLogLevel()
+                    .name(),
+                16,
+                27,
+                0x00AAAA);
             GL11.glPopMatrix();
         }
 
@@ -235,12 +264,18 @@ public class GuiManager extends GuiContainer {
                 double[] tt = manager.getTickTimes();
                 double hoveredMs = tt[hoveredIdx];
                 EnumChatFormatting col = getLatencyColor(hoveredMs);
-                String msg = "Hovered tick time: " + col + String.format("%.3f", hoveredMs) + EnumChatFormatting.RESET + " ms";
+                String msg = "Hovered tick time: " + col
+                    + String.format("%.3f", hoveredMs)
+                    + EnumChatFormatting.RESET
+                    + " ms";
                 fontRendererObj.drawString(msg, 8, 29, 0x404040);
             } else {
                 double peakMs = manager.getPeakTickTimeMs();
                 EnumChatFormatting col = getLatencyColor(peakMs);
-                String msg = "Peak tick time: " + col + String.format("%.3f", peakMs) + EnumChatFormatting.RESET + " ms";
+                String msg = "Peak tick time: " + col
+                    + String.format("%.3f", peakMs)
+                    + EnumChatFormatting.RESET
+                    + " ms";
                 fontRendererObj.drawString(msg, 8, 29, 0x404040);
             }
 
@@ -273,7 +308,7 @@ public class GuiManager extends GuiContainer {
 
         double[] tt = manager.getTickTimes();
         double peakMs = manager.getPeakTickTimeMs();
-        long yMax = Math.max((long)(peakMs * 1_000_000L), 50_000_000L);
+        long yMax = Math.max((long) (peakMs * 1_000_000L), 50_000_000L);
 
         GL11.glDisable(GL11.GL_TEXTURE_2D);
         GL11.glEnable(GL11.GL_BLEND);
@@ -283,9 +318,9 @@ public class GuiManager extends GuiContainer {
         // Draw line strip
         GL11.glBegin(GL11.GL_LINE_STRIP);
         for (int i = 0; i < tt.length && i < 20; i++) {
-            long yNanos = (long)(tt[i] * 1_000_000L);
-            float norm = yNanos <= 0 ? 0.0f : (float)(Math.log10(yNanos) / Math.log10(yMax));
-            int py = (plotY + plotHeight) - (int)(norm * (float)plotHeight);
+            long yNanos = (long) (tt[i] * 1_000_000L);
+            float norm = yNanos <= 0 ? 0.0f : (float) (Math.log10(yNanos) / Math.log10(yMax));
+            int py = (plotY + plotHeight) - (int) (norm * (float) plotHeight);
             int px = plotX + 6 * i;
 
             if (tt[i] <= 5.0) {

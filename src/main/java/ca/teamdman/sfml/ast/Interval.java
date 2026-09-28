@@ -33,12 +33,14 @@ public final class Interval implements ASTNode {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(ticks).append(" TICKS");
+        sb.append(ticks)
+            .append(" TICKS");
         if (isGlobal) {
             sb.append(" GLOBAL");
         }
         if (offset != 0) {
-            sb.append(" OFFSET ").append(offset);
+            sb.append(" OFFSET ")
+                .append(offset);
         }
         return sb.toString();
     }

@@ -34,8 +34,10 @@ public final class Block implements ASTNode {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         for (Statement stmt : statements) {
-            sb.append(stmt.toString()).append("\n");
+            sb.append(stmt.toString())
+                .append("\n");
         }
-        return sb.toString().trim();
+        return sb.toString()
+            .trim();
     }
 }

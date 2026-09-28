@@ -185,8 +185,8 @@ public class TileEntityManager extends TileEntity implements IInventory {
                 }
                 File logFile = new File(logDir, "sfm_server_export.log");
                 try (FileWriter fw = new FileWriter(logFile, true);
-                     BufferedWriter bw = new BufferedWriter(fw);
-                     PrintWriter out = new PrintWriter(bw)) {
+                    BufferedWriter bw = new BufferedWriter(fw);
+                    PrintWriter out = new PrintWriter(bw)) {
                     out.println("[" + level.name() + "] " + message);
                 }
             } catch (Exception ignored) {}
@@ -215,12 +215,15 @@ public class TileEntityManager extends TileEntity implements IInventory {
         log(LogLevel.TRACE, "=== Label position holder ===");
         if (diskStack != null) {
             LabelPositionHolder holder = LabelPositionHolder.from(diskStack);
-            for (Map.Entry<String, Set<BlockPos>> entry : holder.getAllLabels().entrySet()) {
+            for (Map.Entry<String, Set<BlockPos>> entry : holder.getAllLabels()
+                .entrySet()) {
                 for (BlockPos pos : entry.getValue()) {
                     Block b = pos.getBlock(worldObj);
                     int meta = pos.getBlockMetadata(worldObj);
                     String bName = Block.blockRegistry.getNameForObject(b);
-                    log(LogLevel.TRACE, "- " + entry.getKey() + ": " + pos + " Block{" + bName + (meta != 0 ? ":" + meta : "") + "}");
+                    log(
+                        LogLevel.TRACE,
+                        "- " + entry.getKey() + ": " + pos + " Block{" + bName + (meta != 0 ? ":" + meta : "") + "}");
                 }
             }
         }

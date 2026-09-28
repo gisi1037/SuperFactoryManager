@@ -93,24 +93,31 @@ public final class BoolHas implements BoolExpr {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         if (setOperator != null) {
-            sb.append(setOperator).append(" ");
+            sb.append(setOperator)
+                .append(" ");
         }
         if (labelAccess != null) {
-            sb.append(labelAccess).append(" ");
+            sb.append(labelAccess)
+                .append(" ");
         }
         sb.append("HAS");
         if (comparisonOperator != null) {
-            sb.append(" ").append(comparisonOperator.getSymbol());
+            sb.append(" ")
+                .append(comparisonOperator.getSymbol());
         }
-        sb.append(" ").append(quantity);
+        sb.append(" ")
+            .append(quantity);
         if (resourceIds != null && resourceIds != ResourceIdSet.MATCH_ALL) {
-            sb.append(" ").append(resourceIds);
+            sb.append(" ")
+                .append(resourceIds);
         }
         if (with != null && with != With.ALWAYS_TRUE) {
-            sb.append(" ").append(with);
+            sb.append(" ")
+                .append(with);
         }
         if (except != null) {
-            sb.append(" EXCEPT ").append(except);
+            sb.append(" EXCEPT ")
+                .append(except);
         }
         return sb.toString();
     }

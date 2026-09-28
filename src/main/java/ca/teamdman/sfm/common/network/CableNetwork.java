@@ -13,6 +13,8 @@ import net.minecraftforge.common.util.ForgeDirection;
 
 import ca.teamdman.sfm.common.block.BlockCable;
 import ca.teamdman.sfm.common.util.BlockPos;
+import ca.teamdman.sfm.compat.Compat;
+import ca.teamdman.sfm.compat.stevefm.SteveFMCompat;
 
 public final class CableNetwork {
 
@@ -57,9 +59,20 @@ public final class CableNetwork {
         visited.add(pos);
 
         Block block = pos.getBlock(world);
-        if (block instanceof BlockCable) {
+        int meta = world.getBlockMetadata(pos.x, pos.y, pos.z);
+
+        boolean isCable = (block instanceof BlockCable);
+        if (!isCable && Compat.isSFMLoaded()) {
+            isCable = SteveFMCompat.isCable(block, meta);
+        }
+
+        if (isCable) {
             cables.add(pos);
             queue.add(pos);
+            TileEntity te = pos.getTileEntity(world);
+            if (te != null) {
+                peripherals.add(pos);
+            }
         } else {
             TileEntity te = pos.getTileEntity(world);
             if (te != null) {

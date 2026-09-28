@@ -55,7 +55,12 @@ public final class ProgramContext {
 
     @Override
     public String toString() {
-        return "ProgramContext{managerPos=" + (manager != null ? manager.getBlockPos() : "null") + ", tick=" + managerTick + ", pulse=" + redstonePulse + "}";
+        return "ProgramContext{managerPos=" + (manager != null ? manager.getBlockPos() : "null")
+            + ", tick="
+            + managerTick
+            + ", pulse="
+            + redstonePulse
+            + "}";
     }
 
     public void log(LogLevel level, String message) {
@@ -124,13 +129,28 @@ public final class ProgramContext {
         for (InputStatement inputStmt : inputs) {
             log(LogLevel.DEBUG, "Gathering slots for IO statement \n```\n" + inputStmt.toStringPretty() + "\n```\n");
             log(LogLevel.TRACE, "Statement cache miss - this is the first time this statement is being gathered");
-            log(LogLevel.DEBUG, inputStmt.isEach() ? "EACH keyword used - trackers will be unique to each block" : "EACH keyword not used - trackers will be shared between blocks");
+            log(
+                LogLevel.DEBUG,
+                inputStmt.isEach() ? "EACH keyword used - trackers will be unique to each block"
+                    : "EACH keyword not used - trackers will be shared between blocks");
             log(LogLevel.DEBUG, "Gathering for: Item (Item)");
-            log(LogLevel.DEBUG, "Gathering slots in range set: " + inputStmt.getLabelAccess().getSlots());
+            log(
+                LogLevel.DEBUG,
+                "Gathering slots in range set: " + inputStmt.getLabelAccess()
+                    .getSlots());
 
-            List<BlockPos> inPositions = inputStmt.getLabelAccess().getPositions(labelPositions);
-            List<ForgeDirection> inSides = inputStmt.getLabelAccess().getSides().resolveDirections();
-            String labelStr = inputStmt.getLabelAccess().getLabels().isEmpty() ? "" : inputStmt.getLabelAccess().getLabels().get(0).getName();
+            List<BlockPos> inPositions = inputStmt.getLabelAccess()
+                .getPositions(labelPositions);
+            List<ForgeDirection> inSides = inputStmt.getLabelAccess()
+                .getSides()
+                .resolveDirections();
+            String labelStr = inputStmt.getLabelAccess()
+                .getLabels()
+                .isEmpty() ? ""
+                    : inputStmt.getLabelAccess()
+                        .getLabels()
+                        .get(0)
+                        .getName();
 
             for (BlockPos inPos : inPositions) {
                 if (!network.isConnected(inPos)) {
@@ -143,7 +163,9 @@ public final class ProgramContext {
                 for (ForgeDirection inSide : inSides) {
                     int invSize = inInv.getSizeInventory();
                     for (int slot = 0; slot < invSize; slot++) {
-                        if (!inputStmt.getLabelAccess().getSlots().contains(slot)) {
+                        if (!inputStmt.getLabelAccess()
+                            .getSlots()
+                            .contains(slot)) {
                             log(LogLevel.TRACE, String.format("Slot %d - not in range", slot));
                             continue;
                         }
@@ -152,12 +174,21 @@ public final class ProgramContext {
                             log(LogLevel.TRACE, String.format("Slot %d - skipping - null", slot));
                             continue;
                         }
-                        if (!inputStmt.getResourceLimits().matchesItem(inStack)) {
+                        if (!inputStmt.getResourceLimits()
+                            .matchesItem(inStack)) {
                             log(LogLevel.TRACE, String.format("Slot %d - skipping - %s", slot, getItemName(inStack)));
                             continue;
                         }
-                        ResourceLimit matchingLimit = inputStmt.getResourceLimits().getFirstMatchingLimit(inStack);
-                        log(LogLevel.TRACE, String.format("Slot %d - tracking - %dx %s - %s", slot, inStack.stackSize, getItemName(inStack), (matchingLimit != null ? matchingLimit.toString() : "all")));
+                        ResourceLimit matchingLimit = inputStmt.getResourceLimits()
+                            .getFirstMatchingLimit(inStack);
+                        log(
+                            LogLevel.TRACE,
+                            String.format(
+                                "Slot %d - tracking - %dx %s - %s",
+                                slot,
+                                inStack.stackSize,
+                                getItemName(inStack),
+                                (matchingLimit != null ? matchingLimit.toString() : "all")));
                         inputSlots.add(new InputSlot(labelStr, inPos, inSide, slot, inInv, matchingLimit, inStack));
                     }
                 }
@@ -173,14 +204,29 @@ public final class ProgramContext {
         }
 
         log(LogLevel.DEBUG, "Gathering slots for IO statement \n```\n" + outputStmt.toStringPretty() + "\n```\n");
-        log(LogLevel.DEBUG, outputStmt.isEach() ? "EACH keyword used - trackers will be unique to each block" : "EACH keyword not used - trackers will be shared between blocks");
+        log(
+            LogLevel.DEBUG,
+            outputStmt.isEach() ? "EACH keyword used - trackers will be unique to each block"
+                : "EACH keyword not used - trackers will be shared between blocks");
         log(LogLevel.DEBUG, "Gathering for: Item (Item)");
-        log(LogLevel.DEBUG, "Gathering slots in range set: " + outputStmt.getLabelAccess().getSlots());
+        log(
+            LogLevel.DEBUG,
+            "Gathering slots in range set: " + outputStmt.getLabelAccess()
+                .getSlots());
 
         List<OutputSlot> outputSlots = new ArrayList<>();
-        List<BlockPos> outPositions = outputStmt.getLabelAccess().getPositions(labelPositions);
-        List<ForgeDirection> outSides = outputStmt.getLabelAccess().getSides().resolveDirections();
-        String outLabelStr = outputStmt.getLabelAccess().getLabels().isEmpty() ? "" : outputStmt.getLabelAccess().getLabels().get(0).getName();
+        List<BlockPos> outPositions = outputStmt.getLabelAccess()
+            .getPositions(labelPositions);
+        List<ForgeDirection> outSides = outputStmt.getLabelAccess()
+            .getSides()
+            .resolveDirections();
+        String outLabelStr = outputStmt.getLabelAccess()
+            .getLabels()
+            .isEmpty() ? ""
+                : outputStmt.getLabelAccess()
+                    .getLabels()
+                    .get(0)
+                    .getName();
 
         for (BlockPos outPos : outPositions) {
             if (!network.isConnected(outPos)) {
@@ -193,13 +239,29 @@ public final class ProgramContext {
             for (ForgeDirection outSide : outSides) {
                 int invSize = outInv.getSizeInventory();
                 for (int slot = 0; slot < invSize; slot++) {
-                    if (!outputStmt.getLabelAccess().getSlots().contains(slot)) {
+                    if (!outputStmt.getLabelAccess()
+                        .getSlots()
+                        .contains(slot)) {
                         log(LogLevel.TRACE, String.format("Slot %d - not in range", slot));
                         continue;
                     }
                     ItemStack outStack = outInv.getStackInSlot(slot);
-                    log(LogLevel.TRACE, String.format("Slot %d - tracking - %s - %s", slot, (outStack != null ? getItemName(outStack) : "empty"), outputStmt.getResourceLimits()));
-                    outputSlots.add(new OutputSlot(outLabelStr, outPos, outSide, slot, outInv, outputStmt.getResourceLimits(), outputStmt.isEmptySlotsOnly()));
+                    log(
+                        LogLevel.TRACE,
+                        String.format(
+                            "Slot %d - tracking - %s - %s",
+                            slot,
+                            (outStack != null ? getItemName(outStack) : "empty"),
+                            outputStmt.getResourceLimits()));
+                    outputSlots.add(
+                        new OutputSlot(
+                            outLabelStr,
+                            outPos,
+                            outSide,
+                            slot,
+                            outInv,
+                            outputStmt.getResourceLimits(),
+                            outputStmt.isEmptySlotsOnly()));
                 }
             }
         }
@@ -217,13 +279,18 @@ public final class ProgramContext {
         for (InputSlot inSlot : inputSlots) {
             ItemStack currentInStack = inSlot.inv.getStackInSlot(inSlot.slot);
             if (currentInStack == null || currentInStack.stackSize <= 0) continue;
-            if (!outputStmt.getResourceLimits().matchesItem(currentInStack)) {
+            if (!outputStmt.getResourceLimits()
+                .matchesItem(currentInStack)) {
                 continue;
             }
 
             ResourceLimit inLimit = inSlot.limit;
-            long maxAllowedToMove = inLimit != null ? inLimit.getLimit().getQuantity().getAmount() : Long.MAX_VALUE;
-            long retentionRequired = inLimit != null ? inLimit.getLimit().getRetention().getAmount() : 0;
+            long maxAllowedToMove = inLimit != null ? inLimit.getLimit()
+                .getQuantity()
+                .getAmount() : Long.MAX_VALUE;
+            long retentionRequired = inLimit != null ? inLimit.getLimit()
+                .getRetention()
+                .getAmount() : 0;
 
             long alreadyMoved = movedPerLimit.getOrDefault(inLimit, 0L);
             long remainingQuota = maxAllowedToMove - alreadyMoved;
@@ -231,10 +298,17 @@ public final class ProgramContext {
 
             long availableAfterRetention = currentInStack.stackSize - retentionRequired;
             if (retentionRequired > 0) {
-                log(LogLevel.TRACE, String.format("Promised to leave %d in the source slot, still obligated to leave %d", retentionRequired, Math.max(0, retentionRequired - (currentInStack.stackSize - availableAfterRetention))));
+                log(
+                    LogLevel.TRACE,
+                    String.format(
+                        "Promised to leave %d in the source slot, still obligated to leave %d",
+                        retentionRequired,
+                        Math.max(0, retentionRequired - (currentInStack.stackSize - availableAfterRetention))));
             }
             if (availableAfterRetention <= 0) {
-                log(LogLevel.TRACE, "Nothing to move after retention obligations, marking source slot done and skipping");
+                log(
+                    LogLevel.TRACE,
+                    "Nothing to move after retention obligations, marking source slot done and skipping");
                 continue;
             }
 
@@ -247,7 +321,14 @@ public final class ProgramContext {
 
                 long maxStackSize = currentInStack.getMaxStackSize();
                 long toMove = Math.min(toTransfer, maxStackSize);
-                log(LogLevel.TRACE, String.format("Max transferable dest=%d, source=%d, stack limit=%d; new toMove=%d", maxStackSize, currentInStack.stackSize, maxStackSize, toMove));
+                log(
+                    LogLevel.TRACE,
+                    String.format(
+                        "Max transferable dest=%d, source=%d, stack limit=%d; new toMove=%d",
+                        maxStackSize,
+                        currentInStack.stackSize,
+                        maxStackSize,
+                        toMove));
 
                 if (toMove <= 0) {
                     log(LogLevel.TRACE, "toMove=0, skipping");
@@ -257,9 +338,15 @@ public final class ProgramContext {
                 ItemStack probe = currentInStack.copy();
                 probe.stackSize = (int) toMove;
 
-                int accepted = InventoryUtils.insertItem(outSlot.inv, outSlot.slot, outSlot.side, probe, true, outSlot.emptySlotsOnly);
+                int accepted = InventoryUtils
+                    .insertItem(outSlot.inv, outSlot.slot, outSlot.side, probe, true, outSlot.emptySlotsOnly);
                 if (accepted <= 0) {
-                    log(LogLevel.TRACE, String.format("Got remainder %d after simulated insertion of potential %d (0 to move), skipping", toMove, toMove));
+                    log(
+                        LogLevel.TRACE,
+                        String.format(
+                            "Got remainder %d after simulated insertion of potential %d (0 to move), skipping",
+                            toMove,
+                            toMove));
                     continue;
                 }
 
@@ -271,13 +358,21 @@ public final class ProgramContext {
 
                 log(LogLevel.DEBUG, String.format("Extracted %d from slot %d", extracted.stackSize, inSlot.slot));
 
-                InventoryUtils.insertItem(outSlot.inv, outSlot.slot, outSlot.side, extracted, false, outSlot.emptySlotsOnly);
+                InventoryUtils
+                    .insertItem(outSlot.inv, outSlot.slot, outSlot.side, extracted, false, outSlot.emptySlotsOnly);
 
                 toTransfer -= extracted.stackSize;
                 movedPerLimit.put(inLimit, alreadyMoved + extracted.stackSize);
                 alreadyMoved += extracted.stackSize;
 
-                log(LogLevel.INFO, String.format("Moved %d %s - source=%s, dest=%s", extracted.stackSize, getItemName(extracted), inSlot, outSlot));
+                log(
+                    LogLevel.INFO,
+                    String.format(
+                        "Moved %d %s - source=%s, dest=%s",
+                        extracted.stackSize,
+                        getItemName(extracted),
+                        inSlot,
+                        outSlot));
             }
         }
 
@@ -290,11 +385,17 @@ public final class ProgramContext {
             ResourceLimits inLimits = in.getResourceLimits();
             ResourceLimits outLimits = out.getResourceLimits();
 
-            List<ForgeDirection> inSides = in.getLabelAccess().getSides().resolveDirections();
-            List<ForgeDirection> outSides = out.getLabelAccess().getSides().resolveDirections();
+            List<ForgeDirection> inSides = in.getLabelAccess()
+                .getSides()
+                .resolveDirections();
+            List<ForgeDirection> outSides = out.getLabelAccess()
+                .getSides()
+                .resolveDirections();
 
-            List<BlockPos> inPositions = in.getLabelAccess().getPositions(labelPositions);
-            List<BlockPos> outPositions = out.getLabelAccess().getPositions(labelPositions);
+            List<BlockPos> inPositions = in.getLabelAccess()
+                .getPositions(labelPositions);
+            List<BlockPos> outPositions = out.getLabelAccess()
+                .getPositions(labelPositions);
 
             for (BlockPos inPos : inPositions) {
                 if (!network.isConnected(inPos)) continue;
@@ -308,8 +409,12 @@ public final class ProgramContext {
                     if (!outLimits.matchesFluid(drainedSim)) continue;
 
                     ResourceLimit inLimit = inLimits.getFirstMatchingLimit(drainedSim);
-                    long maxAllowed = inLimit != null ? inLimit.getLimit().getQuantity().getAmount() : Long.MAX_VALUE;
-                    long retention = inLimit != null ? inLimit.getLimit().getRetention().getAmount() : 0;
+                    long maxAllowed = inLimit != null ? inLimit.getLimit()
+                        .getQuantity()
+                        .getAmount() : Long.MAX_VALUE;
+                    long retention = inLimit != null ? inLimit.getLimit()
+                        .getRetention()
+                        .getAmount() : 0;
 
                     long availableAfterRetention = drainedSim.amount - retention;
                     if (availableAfterRetention <= 0) continue;
@@ -332,10 +437,40 @@ public final class ProgramContext {
                                     outTank.fill(outSide, actualDrained, true);
                                     toDrain -= actualDrained.amount;
 
-                                    String fluidName = actualDrained.getFluid().getName();
-                                    String srcStr = "LimitedInputSlot{label=" + (in.getLabelAccess().getLabels().isEmpty() ? "" : in.getLabelAccess().getLabels().get(0).getName()) + ", pos=" + inPos + ", direction=" + inSide + "}";
-                                    String dstStr = "LimitedOutputSlot{label=" + (out.getLabelAccess().getLabels().isEmpty() ? "" : out.getLabelAccess().getLabels().get(0).getName()) + ", pos=" + outPos + ", direction=" + outSide + "}";
-                                    log(LogLevel.INFO, String.format("Moved %dmB %s - source=%s, dest=%s", actualDrained.amount, fluidName, srcStr, dstStr));
+                                    String fluidName = actualDrained.getFluid()
+                                        .getName();
+                                    String srcStr = "LimitedInputSlot{label=" + (in.getLabelAccess()
+                                        .getLabels()
+                                        .isEmpty() ? ""
+                                            : in.getLabelAccess()
+                                                .getLabels()
+                                                .get(0)
+                                                .getName())
+                                        + ", pos="
+                                        + inPos
+                                        + ", direction="
+                                        + inSide
+                                        + "}";
+                                    String dstStr = "LimitedOutputSlot{label=" + (out.getLabelAccess()
+                                        .getLabels()
+                                        .isEmpty() ? ""
+                                            : out.getLabelAccess()
+                                                .getLabels()
+                                                .get(0)
+                                                .getName())
+                                        + ", pos="
+                                        + outPos
+                                        + ", direction="
+                                        + outSide
+                                        + "}";
+                                    log(
+                                        LogLevel.INFO,
+                                        String.format(
+                                            "Moved %dmB %s - source=%s, dest=%s",
+                                            actualDrained.amount,
+                                            fluidName,
+                                            srcStr,
+                                            dstStr));
                                 }
                             }
                             if (toDrain <= 0) break;
@@ -348,6 +483,7 @@ public final class ProgramContext {
     }
 
     public static class InputSlot {
+
         public final String label;
         public final BlockPos pos;
         public final ForgeDirection side;
@@ -356,7 +492,8 @@ public final class ProgramContext {
         public final ResourceLimit limit;
         public final ItemStack stack;
 
-        public InputSlot(String label, BlockPos pos, ForgeDirection side, int slot, IInventory inv, ResourceLimit limit, ItemStack stack) {
+        public InputSlot(String label, BlockPos pos, ForgeDirection side, int slot, IInventory inv, ResourceLimit limit,
+            ItemStack stack) {
             this.label = label;
             this.pos = pos;
             this.side = side;
@@ -373,6 +510,7 @@ public final class ProgramContext {
     }
 
     public static class OutputSlot {
+
         public final String label;
         public final BlockPos pos;
         public final ForgeDirection side;
@@ -381,7 +519,8 @@ public final class ProgramContext {
         public final ResourceLimits limits;
         public final boolean emptySlotsOnly;
 
-        public OutputSlot(String label, BlockPos pos, ForgeDirection side, int slot, IInventory inv, ResourceLimits limits, boolean emptySlotsOnly) {
+        public OutputSlot(String label, BlockPos pos, ForgeDirection side, int slot, IInventory inv,
+            ResourceLimits limits, boolean emptySlotsOnly) {
             this.label = label;
             this.pos = pos;
             this.side = side;
@@ -401,7 +540,8 @@ public final class ProgramContext {
         if (stack == null || stack.getItem() == null) return "null";
         Object objName = net.minecraft.item.Item.itemRegistry.getNameForObject(stack.getItem());
         String name = objName != null ? objName.toString() : stack.getUnlocalizedName();
-        if (stack.getItemDamage() != 0 && stack.getItemDamage() != net.minecraftforge.oredict.OreDictionary.WILDCARD_VALUE) {
+        if (stack.getItemDamage() != 0
+            && stack.getItemDamage() != net.minecraftforge.oredict.OreDictionary.WILDCARD_VALUE) {
             return name + "@" + stack.getItemDamage();
         }
         return name;

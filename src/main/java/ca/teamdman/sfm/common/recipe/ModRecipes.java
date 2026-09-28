@@ -6,6 +6,9 @@ import net.minecraft.item.ItemStack;
 
 import ca.teamdman.sfm.common.block.ModBlocks;
 import ca.teamdman.sfm.common.item.ModItems;
+import ca.teamdman.sfm.compat.Compat;
+import ca.teamdman.sfm.compat.nei.NEICompat;
+import ca.teamdman.sfm.compat.stevesaddons.StevesAddonsCompat;
 import cpw.mods.fml.common.registry.GameRegistry;
 
 public final class ModRecipes {
@@ -26,16 +29,18 @@ public final class ModRecipes {
             'P',
             Blocks.piston);
 
-        // Inventory Cables (yields 8)
-        GameRegistry.addRecipe(
-            new ItemStack(ModBlocks.cable, 8),
-            " B ",
-            "BRB",
-            " B ",
-            'B',
-            Blocks.iron_bars,
-            'R',
-            Items.redstone);
+        // Inventory Cables (yields 8) - only register if Steve's Factory Manager is not present!
+        if (!Compat.isSFMLoaded()) {
+            GameRegistry.addRecipe(
+                new ItemStack(ModBlocks.cable, 8),
+                " B ",
+                "BRB",
+                " B ",
+                'B',
+                Blocks.iron_bars,
+                'R',
+                Items.redstone);
+        }
 
         // Disk
         GameRegistry.addRecipe(
@@ -62,5 +67,14 @@ public final class ModRecipes {
             Items.redstone,
             'G',
             Items.gold_ingot);
+    }
+
+    public static void postInit() {
+        if (Compat.isStevesAddonsLoaded()) {
+            StevesAddonsCompat.integrateRecipes();
+        }
+        if (Compat.isNEILoaded()) {
+            NEICompat.hideItems();
+        }
     }
 }

@@ -89,13 +89,18 @@ public class GuiLabelGun extends GuiScreen {
         labelButtons.clear();
         labelBtnMap.clear();
 
-        String filter = labelField != null ? labelField.getText().trim().toLowerCase() : "";
-        List<String> labels = new ArrayList<>(labelHolder.getAllLabels().keySet());
+        String filter = labelField != null ? labelField.getText()
+            .trim()
+            .toLowerCase() : "";
+        List<String> labels = new ArrayList<>(
+            labelHolder.getAllLabels()
+                .keySet());
         Collections.sort(labels);
 
         List<String> filtered = new ArrayList<>();
         for (String lbl : labels) {
-            if (filter.isEmpty() || lbl.toLowerCase().contains(filter)) {
+            if (filter.isEmpty() || lbl.toLowerCase()
+                .contains(filter)) {
                 filtered.add(lbl);
             }
         }
@@ -162,10 +167,12 @@ public class GuiLabelGun extends GuiScreen {
     }
 
     private void onDone() {
-        String newLabel = labelField.getText().trim();
+        String newLabel = labelField.getText()
+            .trim();
         ItemLabelGun.setActiveLabel(labelGun, newLabel);
         SFMNetwork.WRAPPER.sendToServer(new PacketSetLabel(newLabel));
-        if (player.getHeldItem() != null && player.getHeldItem().getItem() == labelGun.getItem()) {
+        if (player.getHeldItem() != null && player.getHeldItem()
+            .getItem() == labelGun.getItem()) {
             ItemLabelGun.setActiveLabel(player.getHeldItem(), newLabel);
         }
         mc.displayGuiScreen(null);
@@ -205,7 +212,8 @@ public class GuiLabelGun extends GuiScreen {
 
         labelField.drawTextBox();
 
-        if (labelField.getText().isEmpty()) {
+        if (labelField.getText()
+            .isEmpty()) {
             drawString(
                 fontRendererObj,
                 EnumChatFormatting.GRAY + "Search or enter new label",

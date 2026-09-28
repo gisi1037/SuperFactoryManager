@@ -51,12 +51,20 @@ public final class ResourceLimit implements ASTNode {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        if (limit != null && limit.getQuantity().getAmount() != Long.MAX_VALUE) {
-            sb.append(limit.getQuantity().getAmount()).append(" ");
+        if (limit != null && limit.getQuantity()
+            .getAmount() != Long.MAX_VALUE) {
+            sb.append(
+                limit.getQuantity()
+                    .getAmount())
+                .append(" ");
         }
         sb.append(resourceIds);
-        if (limit != null && limit.getRetention().getAmount() > 0) {
-            sb.append(" RETAIN ").append(limit.getRetention().getAmount());
+        if (limit != null && limit.getRetention()
+            .getAmount() > 0) {
+            sb.append(" RETAIN ")
+                .append(
+                    limit.getRetention()
+                        .getAmount());
         }
         return sb.toString();
     }

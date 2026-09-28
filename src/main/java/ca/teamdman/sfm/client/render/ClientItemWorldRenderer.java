@@ -65,7 +65,9 @@ public class ClientItemWorldRenderer {
             int key = Keyboard.getEventKey();
             if (key == Keyboard.KEY_V) {
                 ItemLabelGun.cycleViewMode(held);
-                SFMNetwork.WRAPPER.sendToServer(new ca.teamdman.sfm.common.net.PacketLabelGunAction(ca.teamdman.sfm.common.net.PacketLabelGunAction.ACTION_CYCLE_VIEW));
+                SFMNetwork.WRAPPER.sendToServer(
+                    new ca.teamdman.sfm.common.net.PacketLabelGunAction(
+                        ca.teamdman.sfm.common.net.PacketLabelGunAction.ACTION_CYCLE_VIEW));
             } else if (key == Keyboard.KEY_G || key == Keyboard.KEY_L) {
                 mc.displayGuiScreen(new ca.teamdman.sfm.common.gui.GuiLabelGun(player, held));
             }

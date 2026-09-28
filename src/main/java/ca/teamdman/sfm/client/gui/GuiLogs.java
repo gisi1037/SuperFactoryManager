@@ -43,12 +43,11 @@ public class GuiLogs extends GuiScreen {
     private GuiButton btnDone;
     private GuiButton btnClear;
 
-    private static final String NO_CONTENT_TEXT =
-        "Ahoy, world!\n" +
-        "Change the log level using the buttons at the top of this screen.\n" +
-        "Trace, debug, and info log levels will be turned off after a single program execution.\n" +
-        "Logging can make statements take longer to execute.\n" +
-        "Use the copy button to help view in a different editor.";
+    private static final String NO_CONTENT_TEXT = "Ahoy, world!\n"
+        + "Change the log level using the buttons at the top of this screen.\n"
+        + "Trace, debug, and info log levels will be turned off after a single program execution.\n"
+        + "Logging can make statements take longer to execute.\n"
+        + "Use the copy button to help view in a different editor.";
 
     public GuiLogs(TileEntityManager manager, GuiScreen parentScreen) {
         this.manager = manager;
@@ -63,9 +62,8 @@ public class GuiLogs extends GuiScreen {
     }
 
     public static LogLevel[] getDisplayLevels() {
-        return new LogLevel[] {
-            LogLevel.OFF, LogLevel.TRACE, LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR
-        };
+        return new LogLevel[] { LogLevel.OFF, LogLevel.TRACE, LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN,
+            LogLevel.ERROR };
     }
 
     @Override
@@ -117,7 +115,8 @@ public class GuiLogs extends GuiScreen {
     public void updateScreen() {
         super.updateScreen();
         if (++pollTimer % 10 == 0) {
-            SFMNetwork.WRAPPER.sendToServer(new PacketManagerRequestLogs(manager.xCoord, manager.yCoord, manager.zCoord));
+            SFMNetwork.WRAPPER
+                .sendToServer(new PacketManagerRequestLogs(manager.xCoord, manager.yCoord, manager.zCoord));
         }
     }
 
@@ -173,13 +172,21 @@ public class GuiLogs extends GuiScreen {
             long now = System.currentTimeMillis();
             for (LogEntry e : logs) {
                 long sec = Math.max(0, (now - e.getTimestamp()) / 1000);
-                sb.append(sec / 60).append("m").append(sec % 60).append("s ago [")
-                  .append(e.getLevel().name()).append("] ")
-                  .append(e.getMessage()).append("\n");
+                sb.append(sec / 60)
+                    .append("m")
+                    .append(sec % 60)
+                    .append("s ago [")
+                    .append(
+                        e.getLevel()
+                            .name())
+                    .append("] ")
+                    .append(e.getMessage())
+                    .append("\n");
             }
             setClipboardString(sb.toString());
             if (mc.thePlayer != null) {
-                mc.thePlayer.addChatMessage(new ChatComponentText(EnumChatFormatting.GREEN + "[SFM] Logs copied to clipboard!"));
+                mc.thePlayer.addChatMessage(
+                    new ChatComponentText(EnumChatFormatting.GREEN + "[SFM] Logs copied to clipboard!"));
             }
         } else if (btn.id == 2) {
             // Clear logs

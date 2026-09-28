@@ -16,7 +16,9 @@ public final class InputStatement implements Statement {
 
     @Override
     public void tick(ProgramContext context) {
-        if (context.getManager() != null && context.getManager().getLogLevel().includes(ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG)) {
+        if (context.getManager() != null && context.getManager()
+            .getLogLevel()
+            .includes(ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG)) {
             context.log(ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG, toString());
         }
         context.addInputStatement(this);
@@ -29,7 +31,8 @@ public final class InputStatement implements Statement {
         if (resourceLimits != null) {
             String limStr = resourceLimits.toString();
             if (!limStr.isEmpty()) {
-                sb.append(limStr).append(" ");
+                sb.append(limStr)
+                    .append(" ");
             }
         }
         sb.append("FROM ");

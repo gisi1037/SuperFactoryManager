@@ -545,7 +545,6 @@ public class GuiCodeEditor extends GuiScreen {
                 thumbColor);
         }
 
-
         super.drawScreen(mouseX, mouseY, partialTicks);
     }
 

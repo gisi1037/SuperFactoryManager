@@ -4,6 +4,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.renderer.OpenGlHelper;
+
 import org.lwjgl.opengl.GL11;
 
 /**
@@ -21,10 +22,12 @@ public class GuiButtonSFM extends GuiButton {
         if (!this.visible) return;
 
         FontRenderer fontrenderer = mc.fontRenderer;
-        mc.getTextureManager().bindTexture(buttonTextures);
+        mc.getTextureManager()
+            .bindTexture(buttonTextures);
         GL11.glColor4f(1.0F, 1.0F, 1.0F, 1.0F);
         this.field_146123_n = mouseX >= this.xPosition && mouseY >= this.yPosition
-                && mouseX < this.xPosition + this.width && mouseY < this.yPosition + this.height;
+            && mouseX < this.xPosition + this.width
+            && mouseY < this.yPosition + this.height;
         int k = this.getHoverState(this.field_146123_n);
         GL11.glEnable(GL11.GL_BLEND);
         OpenGlHelper.glBlendFunc(770, 771, 1, 0);
@@ -42,7 +45,13 @@ public class GuiButtonSFM extends GuiButton {
         // Bottom-left (takes bottom border and shadow from texture!)
         this.drawTexturedModalRect(this.xPosition, this.yPosition + halfH, 0, 46 + k * 20 + (20 - remH), halfW, remH);
         // Bottom-right (takes bottom border and shadow from texture!)
-        this.drawTexturedModalRect(this.xPosition + halfW, this.yPosition + halfH, 200 - remW, 46 + k * 20 + (20 - remH), remW, remH);
+        this.drawTexturedModalRect(
+            this.xPosition + halfW,
+            this.yPosition + halfH,
+            200 - remW,
+            46 + k * 20 + (20 - remH),
+            remW,
+            remH);
 
         this.mouseDragged(mc, mouseX, mouseY);
         int color = 14737632;

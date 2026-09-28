@@ -31,7 +31,8 @@ public final class NumberRangeSet implements ASTNode {
     }
 
     public boolean isAll() {
-        return ranges.isEmpty() || (ranges.size() == 1 && ranges.get(0).equals(NumberRange.MAX_RANGE));
+        return ranges.isEmpty() || (ranges.size() == 1 && ranges.get(0)
+            .equals(NumberRange.MAX_RANGE));
     }
 
     @Override
