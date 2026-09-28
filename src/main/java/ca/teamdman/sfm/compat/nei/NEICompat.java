@@ -1,6 +1,7 @@
 package ca.teamdman.sfm.compat.nei;
 
 import net.minecraft.item.ItemStack;
+import net.minecraftforge.oredict.OreDictionary;
 
 import ca.teamdman.sfm.SuperFactoryManager;
 import ca.teamdman.sfm.common.block.ModBlocks;
@@ -14,13 +15,14 @@ public final class NEICompat {
     public static void hideItems() {
         try {
             if (Compat.isSFMLoaded()) {
-                API.hideItem(new ItemStack(ModBlocks.cable));
+                API.hideItem(new ItemStack(ModBlocks.cable, 1, OreDictionary.WILDCARD_VALUE));
                 SuperFactoryManager.LOG
                     .info("Hidden SuperFM redundant inventory cable from NEI (using SteveFM cables).");
             }
             if (Compat.isStevesAddonsLoaded()) {
                 if (stevesaddons.registry.ItemRegistry.labeler != null) {
-                    API.hideItem(new ItemStack(stevesaddons.registry.ItemRegistry.labeler));
+                    API.hideItem(
+                        new ItemStack(stevesaddons.registry.ItemRegistry.labeler, 1, OreDictionary.WILDCARD_VALUE));
                     SuperFactoryManager.LOG
                         .info("Hidden superseded StevesAddons Labeler from NEI in favor of SuperFM Label Gun.");
                 }

@@ -592,7 +592,8 @@ public class TestAutomationController {
 
         // Permanently suppress achievement / tutorial toasts (e.g. "Press E to open your inventory")
         // to guarantee deterministic and reproducible UI testing / screenshots without toast overlays.
-        if (mc.guiAchievement != null) {
+        if (mc.guiAchievement != null
+            && (Boolean.getBoolean("sfm.testHarness") || Boolean.getBoolean("gtnh.testHarness"))) {
             mc.guiAchievement.func_146257_b();
         }
 

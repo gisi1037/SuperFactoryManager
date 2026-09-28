@@ -24,11 +24,16 @@ public class ClientProxy extends CommonProxy {
             .bus()
             .register(worldRenderer);
         MinecraftForge.EVENT_BUS.register(new LabelGunReminderOverlay());
-        ca.teamdman.sfm.client.TestAutomationController.init();
+        if (Boolean.getBoolean("sfm.testHarness") || Boolean.getBoolean("gtnh.testHarness")) {
+            ca.teamdman.sfm.client.TestAutomationController.init();
+        }
     }
 
     @Override
     public void postInit(FMLPostInitializationEvent event) {
         super.postInit(event);
+        if (ca.teamdman.sfm.compat.Compat.isNEILoaded()) {
+            ca.teamdman.sfm.compat.nei.NEICompat.hideItems();
+        }
     }
 }

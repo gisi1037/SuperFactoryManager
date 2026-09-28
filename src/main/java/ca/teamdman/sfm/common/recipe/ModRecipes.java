@@ -7,7 +7,6 @@ import net.minecraft.item.ItemStack;
 import ca.teamdman.sfm.common.block.ModBlocks;
 import ca.teamdman.sfm.common.item.ModItems;
 import ca.teamdman.sfm.compat.Compat;
-import ca.teamdman.sfm.compat.nei.NEICompat;
 import ca.teamdman.sfm.compat.stevesaddons.StevesAddonsCompat;
 import cpw.mods.fml.common.registry.GameRegistry;
 
@@ -72,9 +71,6 @@ public final class ModRecipes {
     public static void postInit() {
         if (Compat.isStevesAddonsLoaded()) {
             StevesAddonsCompat.integrateRecipes();
-        }
-        if (Compat.isNEILoaded()) {
-            NEICompat.hideItems();
         }
     }
 }
