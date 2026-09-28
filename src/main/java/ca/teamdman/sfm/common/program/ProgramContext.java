@@ -24,7 +24,7 @@ import ca.teamdman.sfm.compat.stevefm.SteveFMCompat;
 import ca.teamdman.sfml.ast.InputStatement;
 import ca.teamdman.sfml.ast.Label;
 import ca.teamdman.sfml.ast.OutputStatement;
-import ca.teamdman.sfml.ast.ResourceIdentifier;
+import ca.teamdman.sfml.ast.RedstoneOutputStatement;
 import ca.teamdman.sfml.ast.ResourceLimit;
 import ca.teamdman.sfml.ast.ResourceLimits;
 
@@ -162,68 +162,17 @@ public final class ProgramContext {
         inputs.clear();
     }
 
-    public void executeOutput(OutputStatement outputStmt) {
-        // --- Redstone Emitter Output Handling ---
-        List<BlockPos> outPositions = outputStmt.getLabelAccess()
+    public void executeRedstoneOutput(RedstoneOutputStatement stmt) {
+        List<BlockPos> outPositions = stmt.getLabelAccess()
             .getPositions(labelPositions);
-        List<ForgeDirection> outSides = outputStmt.getLabelAccess()
+        List<ForgeDirection> outSides = stmt.getLabelAccess()
             .getSides()
             .resolveDirections();
 
-        boolean isRedstone = false;
-        long redstoneVal = -1;
-        if (outputStmt.getResourceLimits() != null) {
-            for (ResourceLimit limit : outputStmt.getResourceLimits()
-                .getLimits()) {
-                if (limit.getResourceIds() != null) {
-                    for (ResourceIdentifier id : limit.getResourceIds()
-                        .getIdentifiers()) {
-                        if ("redstone".equalsIgnoreCase(id.getName())
-                            || "minecraft:redstone".equalsIgnoreCase(id.getName())) {
-                            isRedstone = true;
-                            if (limit.getLimit() != null && limit.getLimit()
-                                .getQuantity() != null) {
-                                redstoneVal = limit.getLimit()
-                                    .getQuantity()
-                                    .getAmount();
-                            }
-                            break;
-                        }
-                    }
-                }
-                if (isRedstone) break;
-            }
-        }
+        int strength = stmt.getLevel();
+        boolean anyEmitted = false;
 
-        // Also check if any target position is a Redstone Emitter
-        if (!isRedstone && Compat.isSFMLoaded()) {
-            for (BlockPos outPos : outPositions) {
-                if (network.isConnected(outPos) && SteveFMCompat.isEmitter(world, outPos)) {
-                    isRedstone = true;
-                    if (outputStmt.getResourceLimits() != null) {
-                        for (ResourceLimit limit : outputStmt.getResourceLimits()
-                            .getLimits()) {
-                            if (limit.getLimit() != null && limit.getLimit()
-                                .getQuantity() != null) {
-                                long amt = limit.getLimit()
-                                    .getQuantity()
-                                    .getAmount();
-                                if (amt != Long.MAX_VALUE) {
-                                    redstoneVal = amt;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    break;
-                }
-            }
-        }
-
-        if (isRedstone && Compat.isSFMLoaded()) {
-            int strength = (redstoneVal < 0 || redstoneVal == Long.MAX_VALUE) ? 15
-                : (int) Math.min(15, Math.max(0, redstoneVal));
-            boolean anyEmitted = false;
+        if (Compat.isSFMLoaded()) {
             for (BlockPos outPos : outPositions) {
                 if (!network.isConnected(outPos)) {
                     log(LogLevel.TRACE, "Block not connected to cable network: " + outPos);
@@ -239,15 +188,14 @@ public final class ProgramContext {
                     }
                 }
             }
-            if (anyEmitted) {
-                setDidSomething(true);
-                return;
-            }
-            if (inputs.isEmpty()) {
-                return;
-            }
         }
 
+        if (anyEmitted) {
+            setDidSomething(true);
+        }
+    }
+
+    public void executeOutput(OutputStatement outputStmt) {
         if (inputs.isEmpty()) return;
 
         // --- Items Gathering & Transfer ---
@@ -341,6 +289,11 @@ public final class ProgramContext {
                 .getSlots());
 
         List<OutputSlot> outputSlots = new ArrayList<>();
+        List<BlockPos> outPositions = outputStmt.getLabelAccess()
+            .getPositions(labelPositions);
+        List<ForgeDirection> outSides = outputStmt.getLabelAccess()
+            .getSides()
+            .resolveDirections();
         String outLabelStr = outputStmt.getLabelAccess()
             .getLabels()
             .isEmpty() ? ""

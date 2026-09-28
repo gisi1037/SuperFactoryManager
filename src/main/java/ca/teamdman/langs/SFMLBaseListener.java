@@ -182,6 +182,26 @@ public class SFMLBaseListener implements SFMLListener {
      * </p>
      */
     @Override
+    public void enterRedstoneOutputStatement(SFMLParser.RedstoneOutputStatementContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitRedstoneOutputStatement(SFMLParser.RedstoneOutputStatementContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
     public void enterForgetStatement(SFMLParser.ForgetStatementContext ctx) {}
 
     /**

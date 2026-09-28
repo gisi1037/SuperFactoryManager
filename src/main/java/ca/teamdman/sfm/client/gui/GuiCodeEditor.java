@@ -549,7 +549,7 @@ public class GuiCodeEditor extends GuiScreen {
     }
 
     private static final Pattern KEYWORD_PATTERN = Pattern.compile(
-        "\\b(EVERY|TICKS|REDSTONE|PULSE|INPUT|OUTPUT|FORGET|IF|FROM|TO|EACH|ROUND_ROBIN|WITH|TRUE|FALSE|AND|OR|NOT|NAME)\\b",
+        "\\b(EVERY|TICKS|REDSTONE|LEVEL|LEVELS|PULSE|INPUT|OUTPUT|FORGET|IF|FROM|TO|EACH|ROUND_ROBIN|WITH|TRUE|FALSE|AND|OR|NOT|NAME)\\b",
         Pattern.CASE_INSENSITIVE);
 
     private void renderSyntaxLine(String line, int x, int y) {
@@ -581,6 +581,8 @@ public class GuiCodeEditor extends GuiScreen {
             else if (upper.equals("OUTPUT")) kwColor = 0xCE9178; // Orange/Coral
             else if (upper.equals("EVERY") || upper.equals("TICKS")
                 || upper.equals("REDSTONE")
+                || upper.equals("LEVEL")
+                || upper.equals("LEVELS")
                 || upper.equals("PULSE")) kwColor = 0xDCDCAA; // Yellow
             else if (upper.equals("IF") || upper.equals("TRUE") || upper.equals("FALSE")) kwColor = 0xC586C0; // Purple
 

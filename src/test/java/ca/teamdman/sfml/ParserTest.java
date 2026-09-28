@@ -18,6 +18,7 @@ import ca.teamdman.sfml.ast.InputStatement;
 import ca.teamdman.sfml.ast.OutputStatement;
 import ca.teamdman.sfml.ast.Program;
 import ca.teamdman.sfml.ast.PulseTrigger;
+import ca.teamdman.sfml.ast.RedstoneOutputStatement;
 import ca.teamdman.sfml.ast.ResourceIdentifier;
 import ca.teamdman.sfml.ast.RoundRobin;
 import ca.teamdman.sfml.ast.Side;
@@ -357,9 +358,11 @@ public class ParserTest {
 
     @Test
     public void testRedstoneOutputStatements() {
-        String code = "EVERY 20 TICKS DO\n" + "  OUTPUT 15 REDSTONE TO emitter\n"
-            + "  OUTPUT 0 REDSTONE TO emitter TOP SIDE\n"
-            + "  OUTPUT REDSTONE TO EACH emitter\n"
+        String code = "EVERY 20 TICKS DO\n" + "  OUTPUT 15 REDSTONE LEVEL TO emitter\n"
+            + "  OUTPUT REDSTONE LEVEL 12 TO emitter\n"
+            + "  OUTPUT 0 REDSTONE LEVEL TO emitter TOP SIDE\n"
+            + "  OUTPUT REDSTONE LEVEL TO EACH emitter\n"
+            + "  OUTPUT 15 REDSTONE TO chest\n"
             + "END";
         ProgramBuildResult result = new ProgramBuilder(code).build();
         assertTrue(result.isSuccess(), "Errors: " + result.getErrors());
@@ -367,21 +370,63 @@ public class ParserTest {
         TimerTrigger timer = (TimerTrigger) program.getTriggers()
             .get(0);
         assertEquals(
-            3,
+            5,
             timer.getBlock()
                 .getStatements()
                 .size());
+
+        // 1. OUTPUT 15 REDSTONE LEVEL TO emitter
         assertTrue(
             timer.getBlock()
                 .getStatements()
-                .get(0) instanceof OutputStatement);
+                .get(0) instanceof RedstoneOutputStatement);
+        RedstoneOutputStatement ros1 = (RedstoneOutputStatement) timer.getBlock()
+            .getStatements()
+            .get(0);
+        assertEquals(15, ros1.getLevel());
+        assertFalse(ros1.isEach());
+
+        // 2. OUTPUT REDSTONE LEVEL 12 TO emitter
         assertTrue(
             timer.getBlock()
                 .getStatements()
-                .get(1) instanceof OutputStatement);
+                .get(1) instanceof RedstoneOutputStatement);
+        RedstoneOutputStatement ros2 = (RedstoneOutputStatement) timer.getBlock()
+            .getStatements()
+            .get(1);
+        assertEquals(12, ros2.getLevel());
+        assertFalse(ros2.isEach());
+
+        // 3. OUTPUT 0 REDSTONE LEVEL TO emitter TOP SIDE
         assertTrue(
             timer.getBlock()
                 .getStatements()
-                .get(2) instanceof OutputStatement);
+                .get(2) instanceof RedstoneOutputStatement);
+        RedstoneOutputStatement ros3 = (RedstoneOutputStatement) timer.getBlock()
+            .getStatements()
+            .get(2);
+        assertEquals(0, ros3.getLevel());
+        assertTrue(
+            ros3.getLabelAccess()
+                .getSides()
+                .getSides()
+                .contains(Side.TOP));
+
+        // 4. OUTPUT REDSTONE LEVEL TO EACH emitter (defaults to level 15)
+        assertTrue(
+            timer.getBlock()
+                .getStatements()
+                .get(3) instanceof RedstoneOutputStatement);
+        RedstoneOutputStatement ros4 = (RedstoneOutputStatement) timer.getBlock()
+            .getStatements()
+            .get(3);
+        assertEquals(15, ros4.getLevel());
+        assertTrue(ros4.isEach());
+
+        // 5. OUTPUT 15 REDSTONE TO chest (item transfer of redstone dust)
+        assertTrue(
+            timer.getBlock()
+                .getStatements()
+                .get(4) instanceof OutputStatement);
     }
 }

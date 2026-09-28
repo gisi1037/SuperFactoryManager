@@ -27,9 +27,15 @@ interval: NUMBER? GLOBAL? (PLUS NUMBER)? (TICKS | TICK | SECONDS | SECOND)      
 
 block           : statement* ;
 statement       : inputStatement
+                | redstoneOutputStatement
                 | outputStatement
                 | ifStatement
                 | forgetStatement
+                ;
+
+redstoneOutputStatement
+                : OUTPUT quantity? REDSTONE (LEVEL | LEVELS) quantity? TO EACH? labelAccess
+                | TO EACH? labelAccess OUTPUT quantity? REDSTONE (LEVEL | LEVELS) quantity?
                 ;
 
 // IO STATEMENT
@@ -112,7 +118,7 @@ boolexpr        : TRUE                              #BooleanTrue
                 | boolexpr AND boolexpr             #BooleanConjunction
                 | boolexpr OR boolexpr              #BooleanDisjunction
                 | setOp? labelAccess HAS comparisonOp number resourceIdDisjunction? with? (EXCEPT resourceIdList)?  #BooleanHas
-                | REDSTONE (comparisonOp number)?   #BooleanRedstone
+                | REDSTONE (LEVEL | LEVELS)? (comparisonOp number)?   #BooleanRedstone
                 ;
 
 comparisonOp    : GT
@@ -150,7 +156,7 @@ label           : (identifier)  #RawLabel
 
 emptyslots      : EMPTY (SLOTS | SLOT) IN ;
 
-identifier : (IDENTIFIER | REDSTONE | GLOBAL | SECOND | SECONDS | TOP | BOTTOM | LEFT | RIGHT | FRONT | BACK) ;
+identifier : (IDENTIFIER | REDSTONE | LEVEL | LEVELS | GLOBAL | SECOND | SECONDS | TOP | BOTTOM | LEFT | RIGHT | FRONT | BACK) ;
 
 // GENERAL
 string: STRING ;
@@ -245,6 +251,8 @@ PLUS    : '+' | P L U S;
 
 // REDSTONE TRIGGER
 REDSTONE        : R E D S T O N E ;
+LEVEL           : L E V E L ;
+LEVELS          : L E V E L S ;
 PULSE           : P U L S E;
 
 // PROGRAM SYMBOLS

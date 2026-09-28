@@ -131,6 +131,20 @@ public interface SFMLListener extends ParseTreeListener {
     void exitStatement(SFMLParser.StatementContext ctx);
 
     /**
+     * Enter a parse tree produced by {@link SFMLParser#redstoneOutputStatement}.
+     * 
+     * @param ctx the parse tree
+     */
+    void enterRedstoneOutputStatement(SFMLParser.RedstoneOutputStatementContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#redstoneOutputStatement}.
+     * 
+     * @param ctx the parse tree
+     */
+    void exitRedstoneOutputStatement(SFMLParser.RedstoneOutputStatementContext ctx);
+
+    /**
      * Enter a parse tree produced by {@link SFMLParser#forgetStatement}.
      * 
      * @param ctx the parse tree

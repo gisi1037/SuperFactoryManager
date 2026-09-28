@@ -144,6 +144,24 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
     }
 
     @Override
+    public ASTNode visitRedstoneOutputStatement(SFMLParser.RedstoneOutputStatementContext ctx) {
+        LabelAccess labelAccess = (LabelAccess) visit(ctx.labelAccess());
+        int level = 15;
+        boolean each = ctx.EACH() != null;
+        if (ctx.quantity() != null && !ctx.quantity()
+            .isEmpty()) {
+            ResourceQuantity q = (ResourceQuantity) visit(ctx.quantity(0));
+            if (q != null) {
+                level = (int) Math.min(15, Math.max(0, q.getAmount()));
+                if (q.isEach()) {
+                    each = true;
+                }
+            }
+        }
+        return new RedstoneOutputStatement(labelAccess, level, each);
+    }
+
+    @Override
     public ASTNode visitOutputStatement(SFMLParser.OutputStatementContext ctx) {
         LabelAccess labelAccess = (LabelAccess) visit(ctx.labelAccess());
         ResourceLimits limits = ctx.outputResourceLimits() != null ? (ResourceLimits) visit(ctx.outputResourceLimits())
