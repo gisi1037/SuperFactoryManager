@@ -1,5 +1,6 @@
 tile.sfm.manager.name=Factory Manager
 tile.sfm.cable.name=Inventory Cable
+tile.sfm.fancyCable.name=Fancy Inventory Cable
 item.sfm.disk.name=Factory Disk
 item.sfm.labelgun.name=Label Gun
 container.sfm.manager=Factory Manager

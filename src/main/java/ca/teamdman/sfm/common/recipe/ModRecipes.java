@@ -41,6 +41,24 @@ public final class ModRecipes {
                 Items.redstone);
         }
 
+        // Fancy Inventory Cable (shapeless 1:1 conversion with regular cable)
+        GameRegistry.addShapelessRecipe(new ItemStack(ModBlocks.fancyCable), new ItemStack(ModBlocks.cable));
+        GameRegistry.addShapelessRecipe(new ItemStack(ModBlocks.cable), new ItemStack(ModBlocks.fancyCable));
+
+        // If Steve's Factory Manager is loaded, also allow converting SteveFM cable <-> fancy cable
+        if (Compat.isSFMLoaded()) {
+            try {
+                if (vswe.stevesfactory.blocks.ModBlocks.blockCable != null) {
+                    GameRegistry.addShapelessRecipe(
+                        new ItemStack(ModBlocks.fancyCable),
+                        new ItemStack(vswe.stevesfactory.blocks.ModBlocks.blockCable));
+                    GameRegistry.addShapelessRecipe(
+                        new ItemStack(vswe.stevesfactory.blocks.ModBlocks.blockCable),
+                        new ItemStack(ModBlocks.fancyCable));
+                }
+            } catch (Throwable ignored) {}
+        }
+
         // Disk
         GameRegistry.addRecipe(
             new ItemStack(ModItems.disk),
