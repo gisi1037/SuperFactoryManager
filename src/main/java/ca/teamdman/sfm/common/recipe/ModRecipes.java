@@ -28,8 +28,8 @@ public final class ModRecipes {
             'P',
             Blocks.piston);
 
-        // Inventory Cables (yields 8) - only register if Steve's Factory Manager is not present!
         if (!Compat.isSFMLoaded()) {
+            // Inventory Cables (yields 8) - only register if Steve's Factory Manager is not present!
             GameRegistry.addRecipe(
                 new ItemStack(ModBlocks.cable, 8),
                 " B ",
@@ -39,16 +39,22 @@ public final class ModRecipes {
                 Blocks.iron_bars,
                 'R',
                 Items.redstone);
-        }
 
-        // Fancy Inventory Cable (shapeless 1:1 conversion with regular cable)
-        GameRegistry.addShapelessRecipe(new ItemStack(ModBlocks.fancyCable), new ItemStack(ModBlocks.cable));
-        GameRegistry.addShapelessRecipe(new ItemStack(ModBlocks.cable), new ItemStack(ModBlocks.fancyCable));
-
-        // If Steve's Factory Manager is loaded, also allow converting SteveFM cable <-> fancy cable
-        if (Compat.isSFMLoaded()) {
+            // In standalone mode, allow 1:1 conversion between regular cable and fancy cable
+            GameRegistry.addShapelessRecipe(new ItemStack(ModBlocks.fancyCable), new ItemStack(ModBlocks.cable));
+            GameRegistry.addShapelessRecipe(new ItemStack(ModBlocks.cable), new ItemStack(ModBlocks.fancyCable));
+        } else {
+            // When Steve's Factory Manager is present:
+            // 1) Allow players with leftover SuperFM regular cables to convert them to SteveFM cables
+            // 2) Allow converting SteveFM cables <-> Fancy cables in both directions
             try {
                 if (vswe.stevesfactory.blocks.ModBlocks.blockCable != null) {
+                    // Leftover SuperFM cable -> SteveFM cable (one-way cleanup)
+                    GameRegistry.addShapelessRecipe(
+                        new ItemStack(vswe.stevesfactory.blocks.ModBlocks.blockCable),
+                        new ItemStack(ModBlocks.cable));
+
+                    // SteveFM cable <-> Fancy cable (both directions)
                     GameRegistry.addShapelessRecipe(
                         new ItemStack(ModBlocks.fancyCable),
                         new ItemStack(vswe.stevesfactory.blocks.ModBlocks.blockCable));
