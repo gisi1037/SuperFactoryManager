@@ -502,6 +502,32 @@ public class TestAutomationController {
                     }
                     return "NOT_CODE_EDITOR";
 
+                case "autoindent":
+                    if (mc.currentScreen instanceof ca.teamdman.sfm.client.gui.GuiCodeEditor) {
+                        try {
+                            ca.teamdman.sfm.client.gui.GuiCodeEditor ed = (ca.teamdman.sfm.client.gui.GuiCodeEditor) mc.currentScreen;
+                            ed.autoIndentAll();
+                            return "AUTOINDENTED";
+                        } catch (Exception e) {
+                            return "ERROR_AUTOINDENT: " + e.getMessage();
+                        }
+                    }
+                    return "NOT_CODE_EDITOR";
+
+                case "getcode":
+                    if (mc.currentScreen instanceof ca.teamdman.sfm.client.gui.GuiCodeEditor) {
+                        try {
+                            ca.teamdman.sfm.client.gui.GuiCodeEditor ed = (ca.teamdman.sfm.client.gui.GuiCodeEditor) mc.currentScreen;
+                            Field fLines = ca.teamdman.sfm.client.gui.GuiCodeEditor.class.getDeclaredField("lines");
+                            fLines.setAccessible(true);
+                            java.util.List<String> edLines = (java.util.List<String>) fLines.get(ed);
+                            return String.join("\n", edLines);
+                        } catch (Exception e) {
+                            return "ERROR_GET_CODE: " + e.getMessage();
+                        }
+                    }
+                    return "NOT_CODE_EDITOR";
+
                 case "setcode":
                     if (mc.currentScreen instanceof ca.teamdman.sfm.client.gui.GuiCodeEditor) {
                         try {
@@ -513,6 +539,15 @@ public class TestAutomationController {
                             edLines.clear();
                             String codeText = arg.replace("\\n", "\n");
                             edLines.addAll(java.util.Arrays.asList(codeText.split("\n", -1)));
+                            Field fCursorLine = ca.teamdman.sfm.client.gui.GuiCodeEditor.class
+                                .getDeclaredField("cursorLine");
+                            Field fCursorCol = ca.teamdman.sfm.client.gui.GuiCodeEditor.class
+                                .getDeclaredField("cursorCol");
+                            fCursorLine.setAccessible(true);
+                            fCursorCol.setAccessible(true);
+                            fCursorLine.setInt(ed, 0);
+                            fCursorCol.setInt(ed, 0);
+                            ed.updateLayout();
                             java.lang.reflect.Method m = ca.teamdman.sfm.client.gui.GuiCodeEditor.class
                                 .getDeclaredMethod("validateSyntax");
                             m.setAccessible(true);

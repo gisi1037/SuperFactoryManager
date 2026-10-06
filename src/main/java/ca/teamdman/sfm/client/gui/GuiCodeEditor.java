@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -519,6 +520,103 @@ public class GuiCodeEditor extends GuiScreen {
         return after != null ? after : "";
     }
 
+    public static int getLeadingSpaces(String s) {
+        if (s == null) return 0;
+        int count = 0;
+        while (count < s.length() && s.charAt(count) == ' ') {
+            count++;
+        }
+        return count;
+    }
+
+    public static String spaces(int count) {
+        if (count <= 0) return "";
+        StringBuilder sb = new StringBuilder(count);
+        for (int i = 0; i < count; i++) sb.append(' ');
+        return sb.toString();
+    }
+
+    public static String stripComment(String s) {
+        if (s == null) return "";
+        int cIdx = s.indexOf("//");
+        if (cIdx == -1) cIdx = s.indexOf("#");
+        return cIdx != -1 ? s.substring(0, cIdx) : s;
+    }
+
+    public static boolean isAllSpaces(String s) {
+        if (s == null || s.isEmpty()) return true;
+        for (int i = 0; i < s.length(); i++) {
+            if (s.charAt(i) != ' ') return false;
+        }
+        return true;
+    }
+
+    public static int getBlockDepthAtLine(List<String> lines, int targetLine) {
+        int depth = 0;
+        for (int i = 0; i < targetLine; i++) {
+            if (i >= lines.size()) break;
+            String raw = lines.get(i);
+            String code = stripComment(raw).trim();
+            if (code.isEmpty()) continue;
+            String upper = code.toUpperCase(Locale.ROOT);
+
+            if (upper.equals("END") || upper.startsWith("END ")) {
+                depth = Math.max(0, depth - 1);
+            } else if (upper.equals("ELSE") || upper.startsWith("ELSE ") || upper.startsWith("ELSEIF ")) {
+                // ELSE / ELSE IF continues current block depth, does not increase depth
+            } else if (upper.endsWith(" DO") || upper.equals("DO") || upper.endsWith(" THEN") || upper.equals("THEN")) {
+                depth++;
+            }
+        }
+        return depth;
+    }
+
+    public static int getExpectedIndentForLineText(int blockDepth, String lineText) {
+        String code = stripComment(lineText).trim();
+        String upper = code.toUpperCase(Locale.ROOT);
+        if (upper.equals("END") || upper.startsWith("END ")
+            || upper.equals("ELSE")
+            || upper.startsWith("ELSE ")
+            || upper.startsWith("ELSEIF ")) {
+            return Math.max(0, blockDepth - 1) * 2;
+        }
+        return blockDepth * 2;
+    }
+
+    public static int getExpectedIndent(List<String> lines, int targetLine) {
+        int depth = getBlockDepthAtLine(lines, targetLine);
+        String lineText = (targetLine >= 0 && targetLine < lines.size()) ? lines.get(targetLine) : "";
+        return getExpectedIndentForLineText(depth, lineText);
+    }
+
+    public void autoIndentAll() {
+        int oldCursorLine = cursorLine;
+        int oldCursorCol = cursorCol;
+        int oldIndent = (oldCursorLine >= 0 && oldCursorLine < lines.size())
+            ? getLeadingSpaces(lines.get(oldCursorLine))
+            : 0;
+
+        for (int i = 0; i < lines.size(); i++) {
+            int expected = getExpectedIndent(lines, i);
+            String raw = lines.get(i);
+            int curSpaces = getLeadingSpaces(raw);
+            String code = raw.substring(curSpaces);
+            if (!code.isEmpty()) {
+                lines.set(i, spaces(expected) + code);
+            } else {
+                lines.set(i, "");
+            }
+        }
+
+        if (oldCursorLine >= 0 && oldCursorLine < lines.size()) {
+            int newIndent = getLeadingSpaces(lines.get(oldCursorLine));
+            cursorCol = Math.max(0, oldCursorCol + (newIndent - oldIndent));
+        }
+
+        validateSyntax();
+        ensureCursorVisible();
+    }
+
     public boolean jumpToPlaceholder(boolean forward) {
         Pattern p = Pattern.compile("<([^>]+)>");
         if (forward) {
@@ -907,6 +1005,13 @@ public class GuiCodeEditor extends GuiScreen {
             return;
         }
 
+        // Ctrl + I: Auto-indent all lines (2 spaces per level)
+        if (isCtrlKeyDown() && keyCode == Keyboard.KEY_I) {
+            autoIndentAll();
+            syntaxStatus = EnumChatFormatting.GREEN + "Auto-indented (2 spaces per level)";
+            return;
+        }
+
         // Ctrl + A: Select All (jump to end)
         if (isCtrlKeyDown() && keyCode == Keyboard.KEY_A) {
             cursorLine = lines.size() - 1;
@@ -1037,24 +1142,58 @@ public class GuiCodeEditor extends GuiScreen {
                 String left = cur.substring(0, cursorCol);
                 String right = cur.substring(cursorCol);
 
-                int indentSpaces = 0;
-                while (indentSpaces < left.length() && left.charAt(indentSpaces) == ' ') {
-                    indentSpaces++;
-                }
-                StringBuilder indent = new StringBuilder();
-                for (int i = 0; i < indentSpaces; i++) indent.append(' ');
+                int curIndent = getLeadingSpaces(cur);
+                String leftCode = stripComment(left).trim();
+                String upperLeft = leftCode.toUpperCase(Locale.ROOT);
 
-                lines.set(cursorLine, left);
-                cursorLine++;
-                lines.add(cursorLine, indent.toString() + right);
-                cursorCol = indentSpaces;
+                boolean opensBlock = upperLeft.endsWith(" DO") || upperLeft.equals("DO")
+                    || upperLeft.endsWith(" THEN")
+                    || upperLeft.equals("THEN")
+                    || upperLeft.equals("ELSE")
+                    || upperLeft.endsWith(" ELSE");
+
+                String rightTrim = right.trim();
+                String upperRight = rightTrim.toUpperCase(Locale.ROOT);
+                boolean rightIsCloser = upperRight.equals("END") || upperRight.startsWith("END ")
+                    || upperRight.equals("ELSE")
+                    || upperRight.startsWith("ELSE ");
+
+                if (opensBlock && rightIsCloser) {
+                    lines.set(cursorLine, left);
+                    lines.add(cursorLine + 1, spaces(curIndent + 2));
+                    lines.add(cursorLine + 2, spaces(curIndent) + rightTrim);
+                    cursorLine++;
+                    cursorCol = curIndent + 2;
+                } else if (opensBlock) {
+                    lines.set(cursorLine, left);
+                    lines.add(cursorLine + 1, spaces(curIndent + 2) + rightTrim);
+                    cursorLine++;
+                    cursorCol = curIndent + 2;
+                } else if (rightIsCloser) {
+                    int newIndent = Math.max(0, curIndent - 2);
+                    lines.set(cursorLine, left);
+                    lines.add(cursorLine + 1, spaces(newIndent) + rightTrim);
+                    cursorLine++;
+                    cursorCol = newIndent;
+                } else {
+                    lines.set(cursorLine, left);
+                    lines.add(cursorLine + 1, spaces(curIndent) + rightTrim);
+                    cursorLine++;
+                    cursorCol = curIndent;
+                }
                 validateSyntax();
                 break;
             case Keyboard.KEY_BACK:
                 if (cursorCol > 0) {
                     String s = lines.get(cursorLine);
-                    lines.set(cursorLine, s.substring(0, cursorCol - 1) + s.substring(cursorCol));
-                    cursorCol--;
+                    // Smart dedent: if cursor is in leading whitespace at an even indentation >= 2, delete 2 spaces
+                    if (isAllSpaces(s.substring(0, cursorCol)) && cursorCol >= 2 && cursorCol % 2 == 0) {
+                        lines.set(cursorLine, s.substring(0, cursorCol - 2) + s.substring(cursorCol));
+                        cursorCol -= 2;
+                    } else {
+                        lines.set(cursorLine, s.substring(0, cursorCol - 1) + s.substring(cursorCol));
+                        cursorCol--;
+                    }
                     validateSyntax();
                 } else if (cursorLine > 0) {
                     String prev = lines.get(cursorLine - 1);
@@ -1080,17 +1219,49 @@ public class GuiCodeEditor extends GuiScreen {
             case Keyboard.KEY_TAB:
                 if (countPlaceholders() > 0) {
                     jumpToPlaceholder(!isShiftKeyDown());
+                } else if (isShiftKeyDown()) {
+                    // Shift+Tab: dedent current line up to 2 spaces
+                    String curLine = lines.get(cursorLine);
+                    if (curLine.startsWith("  ")) {
+                        lines.set(cursorLine, curLine.substring(2));
+                        cursorCol = Math.max(0, cursorCol - 2);
+                        validateSyntax();
+                    } else if (curLine.startsWith(" ")) {
+                        lines.set(cursorLine, curLine.substring(1));
+                        cursorCol = Math.max(0, cursorCol - 1);
+                        validateSyntax();
+                    }
                 } else {
+                    // Tab: indent 2 spaces
                     String curTab = lines.get(cursorLine);
-                    lines.set(cursorLine, curTab.substring(0, cursorCol) + "    " + curTab.substring(cursorCol));
-                    cursorCol += 4;
+                    lines.set(cursorLine, curTab.substring(0, cursorCol) + "  " + curTab.substring(cursorCol));
+                    cursorCol += 2;
                     validateSyntax();
                 }
                 break;
             default:
                 if (typedChar >= 32 && typedChar != 127) {
                     String curLine = lines.get(cursorLine);
-                    lines.set(cursorLine, curLine.substring(0, cursorCol) + typedChar + curLine.substring(cursorCol));
+                    String updated = curLine.substring(0, cursorCol) + typedChar + curLine.substring(cursorCol);
+                    String trimmed = updated.trim();
+                    String upperTrimmed = trimmed.toUpperCase(Locale.ROOT);
+
+                    // Auto-dedent when completing 'END' or 'ELSE'
+                    if ((upperTrimmed.equals("END") || upperTrimmed.equals("ELSE")) && updated.startsWith("  ")) {
+                        int depth = getBlockDepthAtLine(lines, cursorLine);
+                        int expected = getExpectedIndentForLineText(depth, updated);
+                        int curLeading = getLeadingSpaces(updated);
+                        if (curLeading > expected) {
+                            int diff = curLeading - expected;
+                            updated = spaces(expected) + trimmed;
+                            cursorCol = Math.max(0, cursorCol + 1 - diff);
+                            lines.set(cursorLine, updated);
+                            validateSyntax();
+                            break;
+                        }
+                    }
+
+                    lines.set(cursorLine, updated);
                     cursorCol++;
                     validateSyntax();
                 }
@@ -1176,6 +1347,7 @@ public class GuiCodeEditor extends GuiScreen {
             if (rowIdx >= visualRows.size()) break;
 
             VisualRow vr = visualRows.get(rowIdx);
+            if (vr.physicalLine < 0 || vr.physicalLine >= lines.size()) continue;
             int y = editorY + 3 + i * lineHeight;
 
             // Active line highlight
@@ -1208,6 +1380,7 @@ public class GuiCodeEditor extends GuiScreen {
                 int rowIdx = scrollLineOffset + i;
                 if (rowIdx >= visualRows.size()) break;
                 VisualRow vr = visualRows.get(rowIdx);
+                if (vr.physicalLine < 0 || vr.physicalLine >= lines.size()) continue;
                 if (vr.startChar == 0) {
                     int y = editorY + 3 + i * lineHeight;
                     String numStr = String.valueOf(vr.physicalLine + 1);
@@ -1273,13 +1446,25 @@ public class GuiCodeEditor extends GuiScreen {
         // 9. Title and Quick Shortcuts bar (above toolbar)
         String title = (editorW < 360) ? "Code Editor" : "Super Factory Manager - Code Editor";
         fontRendererObj.drawStringWithShadow(title, editorX, editorY - 34, 0x00E0FF);
-        String shortcutHelp = EnumChatFormatting.GRAY + "Autocomplete: "
-            + EnumChatFormatting.AQUA
-            + "Ctrl+Space"
-            + EnumChatFormatting.GRAY
-            + " | Next: "
-            + EnumChatFormatting.AQUA
-            + "Tab";
+        String shortcutHelp = (editorW >= 420)
+            ? (EnumChatFormatting.GRAY + "Autocomplete: "
+                + EnumChatFormatting.AQUA
+                + "Ctrl+Space"
+                + EnumChatFormatting.GRAY
+                + " | Indent: "
+                + EnumChatFormatting.AQUA
+                + "Ctrl+I"
+                + EnumChatFormatting.GRAY
+                + " | Next: "
+                + EnumChatFormatting.AQUA
+                + "Tab")
+            : (EnumChatFormatting.GRAY + "Indent: "
+                + EnumChatFormatting.AQUA
+                + "Ctrl+I"
+                + EnumChatFormatting.GRAY
+                + " | Next: "
+                + EnumChatFormatting.AQUA
+                + "Tab");
         if (editorW >= 360) {
             fontRendererObj.drawStringWithShadow(
                 shortcutHelp,

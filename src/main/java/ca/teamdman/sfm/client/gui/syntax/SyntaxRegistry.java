@@ -24,7 +24,7 @@ public final class SyntaxRegistry {
                 "trig_timer",
                 "EVERY <20> TICKS DO ... END",
                 SnippetCategory.TRIGGER,
-                "EVERY <20> TICKS DO\n    <statements>\nEND",
+                "EVERY <20> TICKS DO\n  <statements>\nEND",
                 "Executes every N ticks (20 ticks = 1 second)"));
 
         register(
@@ -32,7 +32,7 @@ public final class SyntaxRegistry {
                 "trig_pulse",
                 "EVERY REDSTONE PULSE DO ... END",
                 SnippetCategory.TRIGGER,
-                "EVERY REDSTONE PULSE DO\n    <statements>\nEND",
+                "EVERY REDSTONE PULSE DO\n  <statements>\nEND",
                 "Executes when redstone input rises or changes"));
 
         // --- I/O TRANSFER ---
@@ -122,7 +122,7 @@ public final class SyntaxRegistry {
                 "cond_if",
                 "IF <condition> THEN ... END",
                 SnippetCategory.CONDITION,
-                "IF <condition> THEN\n    <statements>\nEND",
+                "IF <condition> THEN\n  <statements>\nEND",
                 "Executes block only if condition evaluates true"));
 
         register(
@@ -130,7 +130,7 @@ public final class SyntaxRegistry {
                 "cond_if_else",
                 "IF <condition> THEN ... ELSE ... END",
                 SnippetCategory.CONDITION,
-                "IF <condition> THEN\n    <statements>\nELSE\n    <fallback>\nEND",
+                "IF <condition> THEN\n  <statements>\nELSE\n  <fallback>\nEND",
                 "Branching logic with true/false blocks"));
 
         register(
