@@ -25,6 +25,9 @@ public class GuiLogs extends GuiScreen {
     private final TileEntityManager manager;
     private final GuiScreen parentScreen;
 
+    private static boolean savedWordWrap = false;
+    private boolean wordWrap = savedWordWrap;
+
     private final List<LogEntry> logs = new ArrayList<>();
     private LogLevel currentLogLevel = LogLevel.OFF;
 
@@ -36,10 +39,20 @@ public class GuiLogs extends GuiScreen {
     private int lineHeight = 10;
     private int visibleLines;
     private int scrollOffset = 0;
+    private int scrollColOffset = 0;
+
+    // Scrollbar interaction state
+    private boolean isDraggingVScroll = false;
+    private boolean isDraggingHScroll = false;
+    private int dragClickOffsetY = 0;
+    private int dragClickOffsetX = 0;
+    private int scrollbarW = 8;
+    private int scrollbarH = 8;
 
     // Buttons
     private final List<GuiButton> levelButtons = new ArrayList<>();
     private GuiButton btnCopy;
+    private GuiButton btnWrap;
     private GuiButton btnDone;
     private GuiButton btnClear;
 
@@ -94,13 +107,15 @@ public class GuiLogs extends GuiScreen {
             buttonList.add(btn);
         }
 
-        // 2. Bottom row: Copy logs (80x20), Done (200x20), Clear logs (80x20)
+        // 2. Bottom row: Copy logs (80x20), Wrap toggle (72x20), Done (152x20), Clear logs (84x20)
         int bottomY = height / 2 + 95;
         btnCopy = new GuiButton(1, width / 2 - 200, bottomY, 80, 20, "Copy logs");
-        btnDone = new GuiButton(0, width / 2 - 102, bottomY, 200, 20, "Done");
-        btnClear = new GuiButton(2, width / 2 + 113, bottomY, 80, 20, "Clear logs");
+        btnWrap = new GuiButton(3, width / 2 - 116, bottomY, 72, 20, wordWrap ? "Wrap: ON" : "Wrap: OFF");
+        btnDone = new GuiButton(0, width / 2 - 40, bottomY, 152, 20, "Done");
+        btnClear = new GuiButton(2, width / 2 + 116, bottomY, 84, 20, "Clear logs");
 
         buttonList.add(btnCopy);
+        buttonList.add(btnWrap);
         buttonList.add(btnDone);
         buttonList.add(btnClear);
 
@@ -137,7 +152,8 @@ public class GuiLogs extends GuiScreen {
     }
 
     private void scrollToBottom() {
-        List<String> rendered = getFormattedDisplayLines();
+        int wrapWidth = termW - 8 - scrollbarW;
+        List<String> rendered = getFormattedDisplayLines(wrapWidth);
         if (rendered.size() > visibleLines) {
             scrollOffset = rendered.size() - visibleLines;
         } else {
@@ -150,12 +166,32 @@ public class GuiLogs extends GuiScreen {
         super.handleMouseInput();
         int dWheel = Mouse.getDWheel();
         if (dWheel != 0) {
-            List<String> rendered = getFormattedDisplayLines();
-            int maxOffset = Math.max(0, rendered.size() - visibleLines);
-            if (dWheel > 0) {
-                scrollOffset = Math.max(0, scrollOffset - 2);
+            int wrapWidth = termW - 8 - scrollbarW;
+            List<String> rendered = getFormattedDisplayLines(wrapWidth);
+            boolean shift = Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT);
+
+            if (shift && !wordWrap) {
+                // Horizontal scrolling
+                int maxLineWidth = 0;
+                for (String l : rendered) {
+                    int w = fontRendererObj.getStringWidth(l);
+                    if (w > maxLineWidth) maxLineWidth = w;
+                }
+                int viewW = termW - (rendered.size() > visibleLines ? scrollbarW : 0);
+                int maxOffset = Math.max(0, (maxLineWidth + 12) - viewW);
+                if (dWheel > 0) {
+                    scrollColOffset = Math.max(0, scrollColOffset - 16);
+                } else {
+                    scrollColOffset = Math.min(maxOffset, scrollColOffset + 16);
+                }
             } else {
-                scrollOffset = Math.min(maxOffset, scrollOffset + 2);
+                // Vertical scrolling
+                int maxOffset = Math.max(0, rendered.size() - visibleLines);
+                if (dWheel > 0) {
+                    scrollOffset = Math.max(0, scrollOffset - 2);
+                } else {
+                    scrollOffset = Math.min(maxOffset, scrollOffset + 2);
+                }
             }
         }
     }
@@ -193,6 +229,14 @@ public class GuiLogs extends GuiScreen {
             SFMNetwork.WRAPPER.sendToServer(new PacketManagerClearLogs(manager.xCoord, manager.yCoord, manager.zCoord));
             logs.clear();
             scrollOffset = 0;
+            scrollColOffset = 0;
+        } else if (btn.id == 3) {
+            // Toggle word wrap
+            wordWrap = !wordWrap;
+            savedWordWrap = wordWrap;
+            btnWrap.displayString = wordWrap ? "Wrap: ON" : "Wrap: OFF";
+            scrollColOffset = 0;
+            scrollOffset = 0;
         } else if (btn.id >= 10 && btn.id < 10 + getDisplayLevels().length) {
             LogLevel lvl = getDisplayLevels()[btn.id - 10];
             currentLogLevel = lvl;
@@ -203,7 +247,7 @@ public class GuiLogs extends GuiScreen {
         }
     }
 
-    private List<String> getFormattedDisplayLines() {
+    private List<String> getRawLogLines() {
         List<String> result = new ArrayList<>();
         if (logs.isEmpty()) {
             String[] emptyLines = NO_CONTENT_TEXT.split("\n");
@@ -242,6 +286,125 @@ public class GuiLogs extends GuiScreen {
         return result;
     }
 
+    @SuppressWarnings("unchecked")
+    private List<String> getFormattedDisplayLines(int wrapWidth) {
+        List<String> raw = getRawLogLines();
+        if (!wordWrap) {
+            return raw;
+        }
+        List<String> result = new ArrayList<>();
+        for (String line : raw) {
+            List<String> wrapped = fontRendererObj.listFormattedStringToWidth(line, Math.max(20, wrapWidth));
+            result.addAll(wrapped);
+        }
+        return result;
+    }
+
+    @Override
+    protected void mouseClicked(int mouseX, int mouseY, int mouseButton) {
+        super.mouseClicked(mouseX, mouseY, mouseButton);
+        if (mouseButton == 0) {
+            int wrapWidth = termW - 8 - scrollbarW;
+            List<String> displayLines = getFormattedDisplayLines(wrapWidth);
+            boolean hasVScroll = displayLines.size() > visibleLines;
+            int viewW = termW - (hasVScroll ? scrollbarW : 0);
+
+            int maxLineWidth = 0;
+            for (String l : displayLines) {
+                int w = fontRendererObj.getStringWidth(l);
+                if (w > maxLineWidth) maxLineWidth = w;
+            }
+            boolean hasHScroll = !wordWrap && (maxLineWidth + 8 > viewW);
+            int availH = termH - (hasHScroll ? scrollbarH : 0);
+            int maxVOffset = Math.max(0, displayLines.size() - visibleLines);
+            int maxHOffset = Math.max(0, (maxLineWidth + 12) - viewW);
+
+            // Vertical scrollbar click
+            if (hasVScroll && mouseX >= termX + termW - scrollbarW
+                && mouseX <= termX + termW
+                && mouseY >= termY
+                && mouseY <= termY + availH) {
+                float thumbH = Math.max(16, (float) visibleLines / displayLines.size() * availH);
+                float maxThumbY = availH - thumbH;
+                float currentThumbY = termY + ((float) scrollOffset / maxVOffset) * maxThumbY;
+                if (mouseY >= currentThumbY && mouseY <= currentThumbY + thumbH) {
+                    isDraggingVScroll = true;
+                    dragClickOffsetY = (int) (mouseY - currentThumbY);
+                } else {
+                    float clickRatio = (float) (mouseY - termY) / availH;
+                    scrollOffset = Math.min(Math.max(0, (int) (clickRatio * maxVOffset)), maxVOffset);
+                    isDraggingVScroll = true;
+                    dragClickOffsetY = (int) (thumbH / 2);
+                }
+                return;
+            }
+
+            // Horizontal scrollbar click
+            if (hasHScroll && mouseY >= termY + termH - scrollbarH
+                && mouseY <= termY + termH
+                && mouseX >= termX
+                && mouseX <= termX + viewW) {
+                float thumbW = Math.max(16, (float) viewW / (maxLineWidth + 12) * viewW);
+                float maxThumbX = viewW - thumbW;
+                float currentThumbX = termX + ((float) scrollColOffset / maxHOffset) * maxThumbX;
+                if (mouseX >= currentThumbX && mouseX <= currentThumbX + thumbW) {
+                    isDraggingHScroll = true;
+                    dragClickOffsetX = (int) (mouseX - currentThumbX);
+                } else {
+                    float clickRatio = (float) (mouseX - termX) / viewW;
+                    scrollColOffset = Math.min(Math.max(0, (int) (clickRatio * maxHOffset)), maxHOffset);
+                    isDraggingHScroll = true;
+                    dragClickOffsetX = (int) (thumbW / 2);
+                }
+                return;
+            }
+        }
+    }
+
+    @Override
+    protected void mouseMovedOrUp(int mouseX, int mouseY, int which) {
+        super.mouseMovedOrUp(mouseX, mouseY, which);
+        if (which == 0) {
+            isDraggingVScroll = false;
+            isDraggingHScroll = false;
+        }
+    }
+
+    @Override
+    protected void mouseClickMove(int mouseX, int mouseY, int clickedMouseButton, long timeSinceLastClick) {
+        super.mouseClickMove(mouseX, mouseY, clickedMouseButton, timeSinceLastClick);
+        int wrapWidth = termW - 8 - scrollbarW;
+        List<String> displayLines = getFormattedDisplayLines(wrapWidth);
+        boolean hasVScroll = displayLines.size() > visibleLines;
+        int viewW = termW - (hasVScroll ? scrollbarW : 0);
+
+        int maxLineWidth = 0;
+        for (String l : displayLines) {
+            int w = fontRendererObj.getStringWidth(l);
+            if (w > maxLineWidth) maxLineWidth = w;
+        }
+        boolean hasHScroll = !wordWrap && (maxLineWidth + 8 > viewW);
+        int availH = termH - (hasHScroll ? scrollbarH : 0);
+        int maxVOffset = Math.max(0, displayLines.size() - visibleLines);
+        int maxHOffset = Math.max(0, (maxLineWidth + 12) - viewW);
+
+        if (isDraggingVScroll && maxVOffset > 0) {
+            float thumbH = Math.max(16, (float) visibleLines / displayLines.size() * availH);
+            float maxThumbY = availH - thumbH;
+            float newThumbY = mouseY - termY - dragClickOffsetY;
+            float ratio = Math.max(0.0f, Math.min(1.0f, newThumbY / maxThumbY));
+            scrollOffset = Math.round(ratio * maxVOffset);
+        }
+
+        if (isDraggingHScroll && maxHOffset > 0) {
+            float thumbW = Math.max(16, (float) viewW / (maxLineWidth + 12) * viewW);
+            float maxThumbX = viewW - thumbW;
+            float newThumbX = mouseX - termX - dragClickOffsetX;
+            float ratio = Math.max(0.0f, Math.min(1.0f, newThumbX / maxThumbX));
+            scrollColOffset = Math.round(ratio * maxHOffset);
+        }
+    }
+
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         drawDefaultBackground();
@@ -250,39 +413,79 @@ public class GuiLogs extends GuiScreen {
         drawRect(termX - 1, termY - 1, termX + termW + 1, termY + termH + 1, 0xFFFFFFFF);
         drawRect(termX, termY, termX + termW, termY + termH, 0xFF000000);
 
-        // 2. Render log lines with scissor clipping
-        List<String> displayLines = getFormattedDisplayLines();
-        int maxOffset = Math.max(0, displayLines.size() - visibleLines);
-        if (scrollOffset > maxOffset) {
-            scrollOffset = maxOffset;
+        // 2. Measure display lines and scrollbar needs
+        int wrapWidth = termW - 8 - scrollbarW;
+        List<String> displayLines = getFormattedDisplayLines(wrapWidth);
+
+        int maxLineWidth = 0;
+        for (String l : displayLines) {
+            int w = fontRendererObj.getStringWidth(l);
+            if (w > maxLineWidth) maxLineWidth = w;
+        }
+
+        boolean hasVScroll = displayLines.size() > visibleLines;
+        int viewW = termW - (hasVScroll ? scrollbarW : 0);
+        boolean hasHScroll = !wordWrap && (maxLineWidth + 8 > viewW);
+        int availH = termH - (hasHScroll ? scrollbarH : 0);
+        visibleLines = Math.max(1, (availH - 8) / lineHeight);
+
+        int maxVOffset = Math.max(0, displayLines.size() - visibleLines);
+        if (scrollOffset > maxVOffset) {
+            scrollOffset = maxVOffset;
+        }
+
+        int maxHOffset = Math.max(0, (maxLineWidth + 12) - viewW);
+        if (wordWrap || scrollColOffset > maxHOffset) {
+            scrollColOffset = wordWrap ? 0 : maxHOffset;
         }
 
         int textX = termX + 4;
         int textY = termY + 4;
 
-        int scale = mc.gameSettings.guiScale;
-        if (scale == 0) scale = 2; // fallback
+        net.minecraft.client.gui.ScaledResolution sr = new net.minecraft.client.gui.ScaledResolution(
+            mc,
+            mc.displayWidth,
+            mc.displayHeight);
+        int scale = sr.getScaleFactor();
 
         // Enable GL scissor for exact terminal window clipping
         GL11.glEnable(GL11.GL_SCISSOR_TEST);
-        GL11.glScissor(termX * scale, (height - (termY + termH)) * scale, termW * scale, termH * scale);
+        GL11.glScissor(termX * scale, (height - (termY + availH)) * scale, viewW * scale, availH * scale);
 
         for (int i = 0; i < visibleLines; i++) {
             int lineIdx = scrollOffset + i;
             if (lineIdx >= displayLines.size()) break;
             String line = displayLines.get(lineIdx);
-            fontRendererObj.drawString(line, textX, textY + i * lineHeight, 0xFFFFFF);
+            fontRendererObj.drawString(line, textX - scrollColOffset, textY + i * lineHeight, 0xFFFFFF);
         }
 
         GL11.glDisable(GL11.GL_SCISSOR_TEST);
 
-        // 3. Scrollbar if needed
-        if (displayLines.size() > visibleLines) {
-            int scrollbarX = termX + termW - 4;
-            int trackH = termH;
-            float thumbH = Math.max(16, (float) visibleLines / displayLines.size() * trackH);
-            float thumbY = termY + ((float) scrollOffset / maxOffset) * (trackH - thumbH);
-            drawRect(scrollbarX, (int) thumbY, scrollbarX + 2, (int) (thumbY + thumbH), 0xFF888888);
+        // 3. Vertical Scrollbar if needed
+        if (hasVScroll) {
+            int scrollbarX = termX + termW - scrollbarW;
+            drawRect(scrollbarX, termY, scrollbarX + scrollbarW, termY + availH, 0xFF2D2D30);
+            float thumbH = Math.max(16, (float) visibleLines / displayLines.size() * availH);
+            float maxThumbY = availH - thumbH;
+            float thumbY = termY + ((float) scrollOffset / maxVOffset) * maxThumbY;
+            int thumbCol = isDraggingVScroll ? 0xFF7A7A7E : 0xFF505054;
+            drawRect(scrollbarX + 1, (int) thumbY, scrollbarX + scrollbarW - 1, (int) (thumbY + thumbH), thumbCol);
+        }
+
+        // 4. Horizontal Scrollbar if needed (mutually exclusive with word-wrap)
+        if (hasHScroll) {
+            int hScrollY = termY + termH - scrollbarH;
+            drawRect(termX, hScrollY, termX + viewW, hScrollY + scrollbarH, 0xFF2D2D30);
+            float thumbW = Math.max(16, (float) viewW / (maxLineWidth + 12) * viewW);
+            float maxThumbX = viewW - thumbW;
+            float thumbX = termX + ((float) scrollColOffset / maxHOffset) * maxThumbX;
+            int thumbCol = isDraggingHScroll ? 0xFF7A7A7E : 0xFF505054;
+            drawRect((int) thumbX, hScrollY + 1, (int) (thumbX + thumbW), hScrollY + scrollbarH - 1, thumbCol);
+        }
+
+        // 5. Corner junction if both scrollbars are visible
+        if (hasVScroll && hasHScroll) {
+            drawRect(termX + termW - scrollbarW, termY + termH - scrollbarH, termX + termW, termY + termH, 0xFF252526);
         }
 
         super.drawScreen(mouseX, mouseY, partialTicks);

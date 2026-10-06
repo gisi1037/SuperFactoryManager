@@ -5,6 +5,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -433,6 +435,72 @@ public class TestAutomationController {
                         return "ERROR_CLICK: " + e.getMessage();
                     }
                     return "CLICKED: " + x + ", " + y + " (button " + button + ")";
+
+                case "drag":
+                    if (mc.currentScreen == null) return "ERROR: No active GUI to drag";
+                    String[] dCoords = arg.split("\\s+");
+                    int dx1 = Integer.parseInt(dCoords[0]);
+                    int dy1 = Integer.parseInt(dCoords[1]);
+                    int dx2 = Integer.parseInt(dCoords[2]);
+                    int dy2 = Integer.parseInt(dCoords[3]);
+                    int steps = dCoords.length > 4 ? Integer.parseInt(dCoords[4]) : 10;
+                    try {
+                        Method mDown = null;
+                        Method mMove = null;
+                        Method mUp = null;
+                        Class<?> cls = mc.currentScreen.getClass();
+                        while (cls != null && cls != Object.class) {
+                            for (Method m : cls.getDeclaredMethods()) {
+                                if (m.getName()
+                                    .equals("mouseClicked") && m.getParameterTypes().length == 3) mDown = m;
+                                if (m.getName()
+                                    .equals("mouseClickMove") && m.getParameterTypes().length == 4) mMove = m;
+                                if (m.getName()
+                                    .equals("mouseMovedOrUp") && m.getParameterTypes().length == 3) mUp = m;
+                            }
+                            cls = cls.getSuperclass();
+                        }
+                        if (mDown != null) {
+                            mDown.setAccessible(true);
+                            mDown.invoke(mc.currentScreen, dx1, dy1, 0);
+                        }
+                        if (mMove != null) {
+                            mMove.setAccessible(true);
+                            for (int s = 1; s <= steps; s++) {
+                                int cx = dx1 + (dx2 - dx1) * s / steps;
+                                int cy = dy1 + (dy2 - dy1) * s / steps;
+                                mMove.invoke(mc.currentScreen, cx, cy, 0, 50L * s);
+                            }
+                        }
+                        if (mUp != null) {
+                            mUp.setAccessible(true);
+                            mUp.invoke(mc.currentScreen, dx2, dy2, 0);
+                        }
+                        return "DRAGGED: (" + dx1 + "," + dy1 + ") -> (" + dx2 + "," + dy2 + ")";
+                    } catch (Exception e) {
+                        return "ERROR_DRAG: " + e.getMessage();
+                    }
+
+                case "resizegui":
+                    if (mc.currentScreen instanceof ca.teamdman.sfm.client.gui.GuiCodeEditor) {
+                        try {
+                            ca.teamdman.sfm.client.gui.GuiCodeEditor ed = (ca.teamdman.sfm.client.gui.GuiCodeEditor) mc.currentScreen;
+                            String[] dims = arg.split("\\s+");
+                            int newW = Integer.parseInt(dims[0]);
+                            int newH = Integer.parseInt(dims[1]);
+                            Field fW = ca.teamdman.sfm.client.gui.GuiCodeEditor.class.getDeclaredField("editorW");
+                            Field fH = ca.teamdman.sfm.client.gui.GuiCodeEditor.class.getDeclaredField("editorH");
+                            fW.setAccessible(true);
+                            fH.setAccessible(true);
+                            fW.setInt(ed, newW);
+                            fH.setInt(ed, newH);
+                            ed.updateLayout();
+                            return "RESIZED_GUI: " + newW + "x" + newH;
+                        } catch (Exception e) {
+                            return "ERROR_RESIZE_GUI: " + e.getMessage();
+                        }
+                    }
+                    return "NOT_CODE_EDITOR";
 
                 case "setcode":
                     if (mc.currentScreen instanceof ca.teamdman.sfm.client.gui.GuiCodeEditor) {

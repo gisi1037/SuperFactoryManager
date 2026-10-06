@@ -40,6 +40,31 @@ public class GuiCodeEditor extends GuiScreen {
     private int scrollLineOffset = 0;
     private int scrollColOffset = 0;
 
+    // Session persisted state
+    private static int lastEditorW = 400;
+    private static int lastEditorH = 180;
+    private static int lastEditorX = -1;
+    private static int lastEditorY = -1;
+    private static boolean savedWordWrap = false;
+
+    // Corner Resizing state
+    private static final int CORNER_NONE = 0;
+    private static final int CORNER_NW = 1;
+    private static final int CORNER_NE = 2;
+    private static final int CORNER_SW = 3;
+    private static final int CORNER_SE = 4;
+
+    private int resizingCorner = CORNER_NONE;
+    private int dragStartX, dragStartY;
+    private int origEditorX, origEditorY, origEditorW, origEditorH;
+
+    // Word Wrap & Horizontal Scrolling
+    private boolean wordWrap = savedWordWrap;
+    private boolean isDraggingHScroll = false;
+    private int dragClickOffsetX = 0;
+    private int scrollbarH = 8;
+    private GuiButton btnWrap;
+
     // Layout
     private int editorX;
     private int editorY;
@@ -53,6 +78,24 @@ public class GuiCodeEditor extends GuiScreen {
     // Scrollbar state
     private boolean isDraggingVScroll = false;
     private int dragClickOffsetY = 0;
+
+    // Visual row wrapping model
+    public static class VisualRow {
+
+        public final int physicalLine;
+        public final int startChar;
+        public final int endChar;
+        public final String text;
+
+        public VisualRow(int physicalLine, int startChar, int endChar, String text) {
+            this.physicalLine = physicalLine;
+            this.startChar = startChar;
+            this.endChar = endChar;
+            this.text = text;
+        }
+    }
+
+    private final List<VisualRow> visualRows = new ArrayList<>();
 
     // Syntax validation status
     private String syntaxStatus = "Ready";
@@ -88,25 +131,171 @@ public class GuiCodeEditor extends GuiScreen {
         }
     }
 
+    private boolean isVScrollNeeded() {
+        if (visibleLines <= 0) return false;
+        return visualRows.isEmpty() ? lines.size() > visibleLines : visualRows.size() > visibleLines;
+    }
+
+    private void rebuildVisualRows() {
+        visualRows.clear();
+        int hasVScrollEst = (lines.size() > visibleLines) ? scrollbarW : 0;
+        int wrapWidth = Math.max(50, editorW - gutterW - hasVScrollEst - 8);
+
+        for (int pLine = 0; pLine < lines.size(); pLine++) {
+            String line = lines.get(pLine);
+            if (!wordWrap) {
+                visualRows.add(new VisualRow(pLine, 0, line.length(), line));
+            } else {
+                if (line.isEmpty()) {
+                    visualRows.add(new VisualRow(pLine, 0, 0, ""));
+                } else {
+                    int start = 0;
+                    while (start < line.length()) {
+                        int count = fontRendererObj.trimStringToWidth(line.substring(start), wrapWidth)
+                            .length();
+                        if (count <= 0) count = 1;
+                        int end = start + count;
+                        if (end < line.length()) {
+                            int lastSpace = line.lastIndexOf(' ', end - 1);
+                            if (lastSpace >= start + 1) {
+                                end = lastSpace + 1;
+                            }
+                        }
+                        visualRows.add(new VisualRow(pLine, start, end, line.substring(start, end)));
+                        start = end;
+                    }
+                }
+            }
+        }
+    }
+
+    private int getCursorVisualRow() {
+        int lastMatchingRow = 0;
+        for (int r = 0; r < visualRows.size(); r++) {
+            VisualRow vr = visualRows.get(r);
+            if (vr.physicalLine == cursorLine) {
+                lastMatchingRow = r;
+                if (cursorCol >= vr.startChar && cursorCol < vr.endChar) {
+                    return r;
+                }
+            }
+        }
+        return lastMatchingRow;
+    }
+
+    public void updateLayout() {
+        int minW = 320;
+        int minH = 120;
+        editorW = Math.max(minW, Math.min(width - 20, editorW));
+        editorH = Math.max(minH, Math.min(height - 50, editorH));
+        editorX = Math.max(10, Math.min(width - editorW - 10, editorX));
+        editorY = Math.max(36, Math.min(height - editorH - 45, editorY));
+
+        lastEditorW = editorW;
+        lastEditorH = editorH;
+        lastEditorX = editorX;
+        lastEditorY = editorY;
+
+        int maxLineW = 0;
+        for (String l : lines) {
+            int w = fontRendererObj.getStringWidth(l);
+            if (w > maxLineW) maxLineW = w;
+        }
+
+        int codeAreaW = editorW - gutterW - (lines.size() > visibleLines ? scrollbarW : 0);
+        boolean hasHScroll = !wordWrap && (maxLineW + 16 > codeAreaW);
+        int availH = editorH - (hasHScroll ? scrollbarH : 0);
+        visibleLines = Math.max(1, (availH - 8) / lineHeight);
+
+        rebuildVisualRows();
+
+        // Reposition Top Toolbar
+        int barY = editorY - 22;
+        int barX = editorX;
+        if (editorW < 380) {
+            btnTriggers.width = 54;
+            btnTriggers.displayString = "Trig \u25BC";
+            btnIO.width = 44;
+            btnLogic.width = 46;
+            btnLabels.width = 50;
+            btnModifiers.width = 54;
+            btnModifiers.displayString = "Mod \u25BC";
+            btnSuggest.width = 68;
+            btnSuggest.displayString = "\u2728 Suggest";
+        } else {
+            btnTriggers.width = 65;
+            btnTriggers.displayString = "Triggers \u25BC";
+            btnIO.width = 52;
+            btnLogic.width = 56;
+            btnLabels.width = 60;
+            btnModifiers.width = 68;
+            btnModifiers.displayString = "Modifiers \u25BC";
+            btnSuggest.width = 89;
+            btnSuggest.displayString = "\u2728 Suggest...";
+        }
+
+        btnTriggers.xPosition = barX;
+        btnTriggers.yPosition = barY;
+        btnIO.xPosition = barX + btnTriggers.width + 2;
+        btnIO.yPosition = barY;
+        btnLogic.xPosition = btnIO.xPosition + btnIO.width + 2;
+        btnLogic.yPosition = barY;
+        btnLabels.xPosition = btnLogic.xPosition + btnLogic.width + 2;
+        btnLabels.yPosition = barY;
+        btnModifiers.xPosition = btnLabels.xPosition + btnLabels.width + 2;
+        btnModifiers.yPosition = barY;
+
+        if (editorW >= 400) {
+            btnSuggest.xPosition = editorX + editorW - btnSuggest.width;
+        } else {
+            btnSuggest.xPosition = btnModifiers.xPosition + btnModifiers.width + 2;
+        }
+        btnSuggest.yPosition = barY;
+
+        // Reposition Bottom Buttons
+        int btnY = editorY + editorH + 16;
+        btnConfig.xPosition = editorX;
+        btnConfig.yPosition = btnY;
+        btnConfig.width = 16;
+
+        btnWrap.xPosition = editorX + 20;
+        btnWrap.yPosition = btnY;
+        btnWrap.width = 64;
+        btnWrap.displayString = wordWrap ? "Wrap: ON" : "Wrap: OFF";
+
+        btnCancel.width = 65;
+        btnCancel.xPosition = editorX + editorW - btnCancel.width;
+        btnCancel.yPosition = btnY;
+
+        int saveX = editorX + 88;
+        int saveW = (btnCancel.xPosition - 4) - saveX;
+        btnSave.xPosition = saveX;
+        btnSave.yPosition = btnY;
+        btnSave.width = Math.max(50, saveW);
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     public void initGui() {
         buttonList.clear();
         Keyboard.enableRepeatEvents(true);
 
-        editorW = 400;
-        editorH = 180;
-        editorX = width / 2 - 200;
-        editorY = height / 2 - 95;
+        editorW = lastEditorW;
+        editorH = lastEditorH;
+        if (lastEditorX != -1 && lastEditorY != -1) {
+            editorX = lastEditorX;
+            editorY = lastEditorY;
+        } else {
+            editorX = width / 2 - editorW / 2;
+            editorY = height / 2 - editorH / 2 - 5;
+        }
 
-        visibleLines = Math.max(1, (editorH - 8) / lineHeight);
+        int btnY = editorY + editorH + 16;
+        btnConfig = new GuiButton(4, editorX, btnY, 16, 20, "#");
+        btnWrap = new GuiButton(5, editorX + 20, btnY, 64, 20, wordWrap ? "Wrap: ON" : "Wrap: OFF");
+        btnSave = new GuiButton(0, editorX + 88, btnY, 100, 20, "Done");
+        btnCancel = new GuiButton(1, editorX + editorW - 65, btnY, 65, 20, "Cancel");
 
-        int btnY = height / 2 + 96;
-        btnConfig = new GuiButton(4, width / 2 - 200, btnY, 16, 20, "#");
-        btnSave = new GuiButton(0, width / 2 - 152, btnY, 200, 20, "Done");
-        btnCancel = new GuiButton(1, width / 2 + 98, btnY, 100, 20, "Cancel");
-
-        // Top Snippet Toolbar (aligned directly above editor)
         int barY = editorY - 22;
         int barX = editorX;
         btnTriggers = new GuiButton(101, barX, barY, 65, 18, "Triggers \u25BC");
@@ -117,6 +306,7 @@ public class GuiCodeEditor extends GuiScreen {
         btnSuggest = new GuiButton(100, barX + 311, barY, 89, 18, "\u2728 Suggest...");
 
         buttonList.add(btnConfig);
+        buttonList.add(btnWrap);
         buttonList.add(btnSave);
         buttonList.add(btnCancel);
 
@@ -127,6 +317,7 @@ public class GuiCodeEditor extends GuiScreen {
         buttonList.add(btnModifiers);
         buttonList.add(btnSuggest);
 
+        updateLayout();
         validateSyntax();
     }
 
@@ -179,6 +370,13 @@ public class GuiCodeEditor extends GuiScreen {
         } else if (btn.id == 4) {
             setClipboardString(String.join("\n", lines));
             syntaxStatus = EnumChatFormatting.YELLOW + "Copied code to clipboard!";
+        } else if (btn.id == 5) {
+            // Toggle word wrap
+            wordWrap = !wordWrap;
+            savedWordWrap = wordWrap;
+            scrollColOffset = 0;
+            updateLayout();
+            ensureCursorVisible();
         } else if (btn.id == 100) {
             openAutocompleteAtCursor();
         } else if (btn.id == 101) {
@@ -225,10 +423,15 @@ public class GuiCodeEditor extends GuiScreen {
     }
 
     public void openAutocompleteAtCursor() {
-        String curLine = (cursorLine >= 0 && cursorLine < lines.size()) ? lines.get(cursorLine) : "";
-        String beforeCursor = curLine.substring(0, Math.min(cursorCol, curLine.length()));
-        int cursorPixelX = editorX + gutterW + 4 - scrollColOffset + fontRendererObj.getStringWidth(beforeCursor);
-        int cursorPixelY = editorY + 3 + (cursorLine - scrollLineOffset) * lineHeight;
+        int cursorRow = getCursorVisualRow();
+        VisualRow vr = (cursorRow >= 0 && cursorRow < visualRows.size()) ? visualRows.get(cursorRow) : null;
+        String curRowText = vr != null ? vr.text : "";
+        int colInRow = vr != null ? Math.max(0, Math.min(cursorCol - vr.startChar, curRowText.length())) : 0;
+        String beforeCursor = curRowText.substring(0, colInRow);
+
+        int codeAreaX = editorX + gutterW;
+        int cursorPixelX = codeAreaX + 4 - scrollColOffset + fontRendererObj.getStringWidth(beforeCursor);
+        int cursorPixelY = editorY + 3 + (cursorRow - scrollLineOffset) * lineHeight;
 
         List<SyntaxSnippet> suggestions = SyntaxRegistry
             .getContextualSuggestions(String.join("\n", lines), cursorLine, cursorCol, getActiveDiskLabels());
@@ -389,13 +592,49 @@ public class GuiCodeEditor extends GuiScreen {
                 popup.handleMouseWheel(dWheel);
                 return;
             }
-            int linesToScroll = 3;
-            if (dWheel > 0) {
-                scrollLineOffset = Math.max(0, scrollLineOffset - linesToScroll);
+
+            boolean shift = Keyboard.isKeyDown(Keyboard.KEY_LSHIFT) || Keyboard.isKeyDown(Keyboard.KEY_RSHIFT);
+            if (shift && !wordWrap) {
+                // Horizontal scrolling
+                int maxLineW = 0;
+                for (String l : lines) {
+                    int w = fontRendererObj.getStringWidth(l);
+                    if (w > maxLineW) maxLineW = w;
+                }
+                int codeAreaW = editorW - gutterW - (visualRows.size() > visibleLines ? scrollbarW : 0);
+                int maxColOffset = Math.max(0, (maxLineW + 20) - codeAreaW);
+                if (dWheel > 0) {
+                    scrollColOffset = Math.max(0, scrollColOffset - 20);
+                } else {
+                    scrollColOffset = Math.min(maxColOffset, scrollColOffset + 20);
+                }
             } else {
-                scrollLineOffset = Math.min(Math.max(0, lines.size() - visibleLines), scrollLineOffset + linesToScroll);
+                int linesToScroll = 3;
+                int maxOffset = Math.max(0, visualRows.size() - visibleLines);
+                if (dWheel > 0) {
+                    scrollLineOffset = Math.max(0, scrollLineOffset - linesToScroll);
+                } else {
+                    scrollLineOffset = Math.min(maxOffset, scrollLineOffset + linesToScroll);
+                }
             }
         }
+    }
+
+    private int getHoveredCorner(int mouseX, int mouseY) {
+        int radius = 7;
+        if (Math.abs(mouseX - editorX) <= radius && Math.abs(mouseY - editorY) <= radius) {
+            return CORNER_NW;
+        }
+        if (Math.abs(mouseX - (editorX + editorW)) <= radius && Math.abs(mouseY - editorY) <= radius) {
+            return CORNER_NE;
+        }
+        if (Math.abs(mouseX - editorX) <= radius && Math.abs(mouseY - (editorY + editorH)) <= radius) {
+            return CORNER_SW;
+        }
+        if (Math.abs(mouseX - (editorX + editorW)) <= radius && Math.abs(mouseY - (editorY + editorH)) <= radius) {
+            return CORNER_SE;
+        }
+        return CORNER_NONE;
     }
 
     @Override
@@ -415,56 +654,104 @@ public class GuiCodeEditor extends GuiScreen {
         super.mouseClicked(mouseX, mouseY, mouseButton);
 
         if (mouseButton == 0) {
-            int scrollbarX = editorX + editorW - scrollbarW;
-            if (mouseX >= scrollbarX && mouseX <= scrollbarX + scrollbarW
-                && mouseY >= editorY
-                && mouseY <= editorY + editorH) {
-                // Clicked on scrollbar track or thumb
-                int totalLines = lines.size();
-                if (totalLines > visibleLines) {
-                    float thumbHeight = Math.max(16, (float) visibleLines / totalLines * editorH);
-                    float maxThumbY = editorH - thumbHeight;
-                    float currentThumbY = editorY
-                        + ((float) scrollLineOffset / (totalLines - visibleLines)) * maxThumbY;
+            // Check corner resize handles first
+            int corner = getHoveredCorner(mouseX, mouseY);
+            if (corner != CORNER_NONE) {
+                resizingCorner = corner;
+                dragStartX = mouseX;
+                dragStartY = mouseY;
+                origEditorX = editorX;
+                origEditorY = editorY;
+                origEditorW = editorW;
+                origEditorH = editorH;
+                return;
+            }
 
-                    if (mouseY >= currentThumbY && mouseY <= currentThumbY + thumbHeight) {
-                        isDraggingVScroll = true;
-                        dragClickOffsetY = (int) (mouseY - currentThumbY);
-                    } else {
-                        // Clicked track, jump scroll
-                        float clickRatio = (float) (mouseY - editorY) / editorH;
-                        scrollLineOffset = Math.min(
-                            Math.max(0, (int) (clickRatio * (totalLines - visibleLines))),
-                            totalLines - visibleLines);
-                        isDraggingVScroll = true;
-                        dragClickOffsetY = (int) (thumbHeight / 2);
-                    }
+            // Check horizontal scrollbar
+            int maxLineW = 0;
+            for (String l : lines) {
+                int w = fontRendererObj.getStringWidth(l);
+                if (w > maxLineW) maxLineW = w;
+            }
+            boolean hasVScroll = visualRows.size() > visibleLines;
+            int codeAreaW = editorW - gutterW - (hasVScroll ? scrollbarW : 0);
+            boolean hasHScroll = !wordWrap && (maxLineW + 16 > codeAreaW);
+            int hScrollY = editorY + editorH - scrollbarH;
+            int hScrollX = editorX + gutterW;
+
+            if (hasHScroll && mouseY >= hScrollY
+                && mouseY <= hScrollY + scrollbarH
+                && mouseX >= hScrollX
+                && mouseX <= hScrollX + codeAreaW) {
+                int maxColOffset = Math.max(0, (maxLineW + 20) - codeAreaW);
+                float viewRatio = (float) codeAreaW / (maxLineW + 20);
+                float thumbW = Math.max(16, viewRatio * codeAreaW);
+                float maxThumbX = codeAreaW - thumbW;
+                float currentThumbX = hScrollX + ((float) scrollColOffset / maxColOffset) * maxThumbX;
+
+                if (mouseX >= currentThumbX && mouseX <= currentThumbX + thumbW) {
+                    isDraggingHScroll = true;
+                    dragClickOffsetX = (int) (mouseX - currentThumbX);
+                } else {
+                    float clickRatio = (float) (mouseX - hScrollX) / codeAreaW;
+                    scrollColOffset = Math.min(Math.max(0, (int) (clickRatio * maxColOffset)), maxColOffset);
+                    isDraggingHScroll = true;
+                    dragClickOffsetX = (int) (thumbW / 2);
+                }
+                return;
+            }
+
+            // Check vertical scrollbar
+            int scrollbarX = editorX + editorW - scrollbarW;
+            int availVScrollH = editorH - (hasHScroll ? scrollbarH : 0);
+            if (hasVScroll && mouseX >= scrollbarX
+                && mouseX <= scrollbarX + scrollbarW
+                && mouseY >= editorY
+                && mouseY <= editorY + availVScrollH) {
+                int totalRows = visualRows.size();
+                float thumbHeight = Math.max(16, (float) visibleLines / totalRows * availVScrollH);
+                float maxThumbY = availVScrollH - thumbHeight;
+                float currentThumbY = editorY + ((float) scrollLineOffset / (totalRows - visibleLines)) * maxThumbY;
+
+                if (mouseY >= currentThumbY && mouseY <= currentThumbY + thumbHeight) {
+                    isDraggingVScroll = true;
+                    dragClickOffsetY = (int) (mouseY - currentThumbY);
+                } else {
+                    float clickRatio = (float) (mouseY - editorY) / availVScrollH;
+                    scrollLineOffset = Math
+                        .min(Math.max(0, (int) (clickRatio * (totalRows - visibleLines))), totalRows - visibleLines);
+                    isDraggingVScroll = true;
+                    dragClickOffsetY = (int) (thumbHeight / 2);
                 }
                 return;
             }
 
             // Clicked inside code editor area
             int textAreaX = editorX + gutterW;
-            int textAreaW = editorW - gutterW - scrollbarW;
+            int textAreaW = codeAreaW;
+            int textAreaH = availVScrollH;
             if (mouseX >= textAreaX && mouseX <= textAreaX + textAreaW
                 && mouseY >= editorY
-                && mouseY <= editorY + editorH) {
+                && mouseY <= editorY + textAreaH) {
                 int clickedRow = (mouseY - editorY) / lineHeight + scrollLineOffset;
-                if (clickedRow >= 0 && clickedRow < lines.size()) {
-                    cursorLine = clickedRow;
-                    String line = lines.get(cursorLine);
-                    int relX = mouseX - textAreaX + scrollColOffset;
+                if (clickedRow >= 0 && clickedRow < visualRows.size()) {
+                    VisualRow vr = visualRows.get(clickedRow);
+                    cursorLine = vr.physicalLine;
+                    int relX = mouseX - textAreaX - 4 + scrollColOffset;
                     int col = 0;
                     int accW = 0;
-                    for (int c = 0; c < line.length(); c++) {
-                        int charW = fontRendererObj.getCharWidth(line.charAt(c));
+                    for (int c = 0; c < vr.text.length(); c++) {
+                        int charW = fontRendererObj.getCharWidth(vr.text.charAt(c));
                         if (accW + charW / 2 > relX) {
                             break;
                         }
                         accW += charW;
                         col++;
                     }
-                    cursorCol = Math.min(col, line.length());
+                    cursorCol = Math.min(
+                        vr.startChar + col,
+                        lines.get(cursorLine)
+                            .length());
                 }
             }
         }
@@ -475,19 +762,102 @@ public class GuiCodeEditor extends GuiScreen {
         super.mouseMovedOrUp(mouseX, mouseY, which);
         if (which == 0) {
             isDraggingVScroll = false;
+            isDraggingHScroll = false;
+            resizingCorner = CORNER_NONE;
         }
     }
 
     @Override
     protected void mouseClickMove(int mouseX, int mouseY, int clickedMouseButton, long timeSinceLastClick) {
         super.mouseClickMove(mouseX, mouseY, clickedMouseButton, timeSinceLastClick);
-        if (isDraggingVScroll && lines.size() > visibleLines) {
-            int totalLines = lines.size();
-            float thumbHeight = Math.max(16, (float) visibleLines / totalLines * editorH);
-            float maxThumbY = editorH - thumbHeight;
+
+        if (resizingCorner != CORNER_NONE) {
+            int dx = mouseX - dragStartX;
+            int dy = mouseY - dragStartY;
+            int minW = 320;
+            int minH = 120;
+            int maxW = width - 20;
+            int maxH = height - 50;
+
+            int newX = origEditorX;
+            int newY = origEditorY;
+            int newW = origEditorW;
+            int newH = origEditorH;
+
+            switch (resizingCorner) {
+                case CORNER_NW:
+                    newW = Math.max(minW, Math.min(maxW, origEditorW - dx));
+                    newH = Math.max(minH, Math.min(maxH, origEditorH - dy));
+                    newX = origEditorX + (origEditorW - newW);
+                    newY = origEditorY + (origEditorH - newH);
+                    if (newX < 10) {
+                        newW = origEditorX + origEditorW - 10;
+                        newX = 10;
+                    }
+                    if (newY < 36) {
+                        newH = origEditorY + origEditorH - 36;
+                        newY = 36;
+                    }
+                    break;
+                case CORNER_NE:
+                    newW = Math.max(minW, Math.min(width - origEditorX - 10, origEditorW + dx));
+                    newH = Math.max(minH, Math.min(maxH, origEditorH - dy));
+                    newY = origEditorY + (origEditorH - newH);
+                    if (newY < 36) {
+                        newH = origEditorY + origEditorH - 36;
+                        newY = 36;
+                    }
+                    break;
+                case CORNER_SW:
+                    newW = Math.max(minW, Math.min(maxW, origEditorW - dx));
+                    newH = Math.max(minH, Math.min(height - origEditorY - 45, origEditorH + dy));
+                    newX = origEditorX + (origEditorW - newW);
+                    if (newX < 10) {
+                        newW = origEditorX + origEditorW - 10;
+                        newX = 10;
+                    }
+                    break;
+                case CORNER_SE:
+                    newW = Math.max(minW, Math.min(width - origEditorX - 10, origEditorW + dx));
+                    newH = Math.max(minH, Math.min(height - origEditorY - 45, origEditorH + dy));
+                    break;
+            }
+
+            editorX = newX;
+            editorY = newY;
+            editorW = newW;
+            editorH = newH;
+            updateLayout();
+            return;
+        }
+
+        int maxLineW = 0;
+        for (String l : lines) {
+            int w = fontRendererObj.getStringWidth(l);
+            if (w > maxLineW) maxLineW = w;
+        }
+        boolean hasVScroll = visualRows.size() > visibleLines;
+        int codeAreaW = editorW - gutterW - (hasVScroll ? scrollbarW : 0);
+        boolean hasHScroll = !wordWrap && (maxLineW + 16 > codeAreaW);
+        int availVScrollH = editorH - (hasHScroll ? scrollbarH : 0);
+
+        if (isDraggingVScroll && visualRows.size() > visibleLines) {
+            int totalRows = visualRows.size();
+            float thumbHeight = Math.max(16, (float) visibleLines / totalRows * availVScrollH);
+            float maxThumbY = availVScrollH - thumbHeight;
             float newThumbY = mouseY - editorY - dragClickOffsetY;
             float ratio = Math.max(0.0f, Math.min(1.0f, newThumbY / maxThumbY));
-            scrollLineOffset = Math.round(ratio * (totalLines - visibleLines));
+            scrollLineOffset = Math.round(ratio * (totalRows - visibleLines));
+        }
+
+        if (isDraggingHScroll && hasHScroll) {
+            int maxColOffset = Math.max(0, (maxLineW + 20) - codeAreaW);
+            float viewRatio = (float) codeAreaW / (maxLineW + 20);
+            float thumbW = Math.max(16, viewRatio * codeAreaW);
+            float maxThumbX = codeAreaW - thumbW;
+            float newThumbX = mouseX - (editorX + gutterW) - dragClickOffsetX;
+            float ratio = Math.max(0.0f, Math.min(1.0f, newThumbX / maxThumbX));
+            scrollColOffset = Math.round(ratio * maxColOffset);
         }
     }
 
@@ -583,21 +953,43 @@ public class GuiCodeEditor extends GuiScreen {
 
         switch (keyCode) {
             case Keyboard.KEY_UP:
-                if (cursorLine > 0) {
-                    cursorLine--;
-                    cursorCol = Math.min(
-                        cursorCol,
-                        lines.get(cursorLine)
-                            .length());
+                if (wordWrap) {
+                    int curRow = getCursorVisualRow();
+                    if (curRow > 0) {
+                        VisualRow curVr = visualRows.get(curRow);
+                        int colInRow = Math.max(0, Math.min(cursorCol - curVr.startChar, curVr.text.length()));
+                        VisualRow target = visualRows.get(curRow - 1);
+                        cursorLine = target.physicalLine;
+                        cursorCol = target.startChar + Math.min(colInRow, target.text.length());
+                    }
+                } else {
+                    if (cursorLine > 0) {
+                        cursorLine--;
+                        cursorCol = Math.min(
+                            cursorCol,
+                            lines.get(cursorLine)
+                                .length());
+                    }
                 }
                 break;
             case Keyboard.KEY_DOWN:
-                if (cursorLine < lines.size() - 1) {
-                    cursorLine++;
-                    cursorCol = Math.min(
-                        cursorCol,
-                        lines.get(cursorLine)
-                            .length());
+                if (wordWrap) {
+                    int curRow = getCursorVisualRow();
+                    if (curRow < visualRows.size() - 1) {
+                        VisualRow curVr = visualRows.get(curRow);
+                        int colInRow = Math.max(0, Math.min(cursorCol - curVr.startChar, curVr.text.length()));
+                        VisualRow target = visualRows.get(curRow + 1);
+                        cursorLine = target.physicalLine;
+                        cursorCol = target.startChar + Math.min(colInRow, target.text.length());
+                    }
+                } else {
+                    if (cursorLine < lines.size() - 1) {
+                        cursorLine++;
+                        cursorCol = Math.min(
+                            cursorCol,
+                            lines.get(cursorLine)
+                                .length());
+                    }
                 }
                 break;
             case Keyboard.KEY_LEFT:
@@ -645,7 +1037,6 @@ public class GuiCodeEditor extends GuiScreen {
                 String left = cur.substring(0, cursorCol);
                 String right = cur.substring(cursorCol);
 
-                // Preserve leading indent spaces
                 int indentSpaces = 0;
                 while (indentSpaces < left.length() && left.charAt(indentSpaces) == ' ') {
                     indentSpaces++;
@@ -710,23 +1101,29 @@ public class GuiCodeEditor extends GuiScreen {
     }
 
     private void ensureCursorVisible() {
-        if (cursorLine < scrollLineOffset) {
-            scrollLineOffset = cursorLine;
-        } else if (cursorLine >= scrollLineOffset + visibleLines) {
-            scrollLineOffset = cursorLine - visibleLines + 1;
+        rebuildVisualRows();
+        int cursorRow = getCursorVisualRow();
+        if (cursorRow < scrollLineOffset) {
+            scrollLineOffset = cursorRow;
+        } else if (cursorRow >= scrollLineOffset + visibleLines) {
+            scrollLineOffset = cursorRow - visibleLines + 1;
         }
 
-        // Horizontal scroll check
-        if (cursorLine >= 0 && cursorLine < lines.size()) {
-            String line = lines.get(cursorLine);
-            String beforeCursor = line.substring(0, Math.min(cursorCol, line.length()));
-            int cursorPixelX = fontRendererObj.getStringWidth(beforeCursor);
-            int textAreaW = editorW - gutterW - scrollbarW - 10;
+        if (wordWrap) {
+            scrollColOffset = 0;
+        } else {
+            if (cursorLine >= 0 && cursorLine < lines.size()) {
+                String line = lines.get(cursorLine);
+                String beforeCursor = line.substring(0, Math.min(cursorCol, line.length()));
+                int cursorPixelX = fontRendererObj.getStringWidth(beforeCursor);
+                int codeAreaW = editorW - gutterW - (visualRows.size() > visibleLines ? scrollbarW : 0);
+                int textAreaW = codeAreaW - 14;
 
-            if (cursorPixelX < scrollColOffset) {
-                scrollColOffset = Math.max(0, cursorPixelX - 20);
-            } else if (cursorPixelX > scrollColOffset + textAreaW) {
-                scrollColOffset = cursorPixelX - textAreaW + 20;
+                if (cursorPixelX < scrollColOffset) {
+                    scrollColOffset = Math.max(0, cursorPixelX - 20);
+                } else if (cursorPixelX > scrollColOffset + textAreaW) {
+                    scrollColOffset = cursorPixelX - textAreaW + 20;
+                }
             }
         }
     }
@@ -746,45 +1143,60 @@ public class GuiCodeEditor extends GuiScreen {
             drawRect(editorX, editorY, editorX + gutterW, editorY + editorH, 0xFF252526);
         }
 
-        int codeAreaX = editorX + gutterW;
-        boolean hasScroll = lines.size() > visibleLines;
-        int codeAreaW = editorW - gutterW - (hasScroll ? scrollbarW : 0);
-
-        // 4. Scrollbar Track
-        int scrollbarX = editorX + editorW - scrollbarW;
-        if (hasScroll) {
-            drawRect(scrollbarX, editorY, scrollbarX + scrollbarW, editorY + editorH, 0xFF2D2D30);
+        int maxLineW = 0;
+        for (String l : lines) {
+            int w = fontRendererObj.getStringWidth(l);
+            if (w > maxLineW) maxLineW = w;
         }
 
-        // Render code lines
+        boolean hasVScroll = visualRows.size() > visibleLines;
+        int codeAreaX = editorX + gutterW;
+        int codeAreaW = editorW - gutterW - (hasVScroll ? scrollbarW : 0);
+        boolean hasHScroll = !wordWrap && (maxLineW + 16 > codeAreaW);
+        int availVScrollH = editorH - (hasHScroll ? scrollbarH : 0);
+
+        int maxColOffset = Math.max(0, (maxLineW + 20) - codeAreaW);
+        if (wordWrap || scrollColOffset > maxColOffset) {
+            scrollColOffset = wordWrap ? 0 : maxColOffset;
+        }
+
+        // 4. Render code lines with GL Scissor
         GL11.glEnable(GL11.GL_SCISSOR_TEST);
         net.minecraft.client.gui.ScaledResolution sr = new net.minecraft.client.gui.ScaledResolution(
             mc,
             mc.displayWidth,
             mc.displayHeight);
         int sf = sr.getScaleFactor();
-        GL11.glScissor(codeAreaX * sf, (height - (editorY + editorH)) * sf, codeAreaW * sf, editorH * sf);
+        GL11.glScissor(codeAreaX * sf, (height - (editorY + availVScrollH)) * sf, codeAreaW * sf, availVScrollH * sf);
+
+        int cursorVisualRow = getCursorVisualRow();
 
         for (int i = 0; i < visibleLines; i++) {
-            int lineIdx = scrollLineOffset + i;
-            if (lineIdx >= lines.size()) break;
+            int rowIdx = scrollLineOffset + i;
+            if (rowIdx >= visualRows.size()) break;
 
+            VisualRow vr = visualRows.get(rowIdx);
             int y = editorY + 3 + i * lineHeight;
-            String line = lines.get(lineIdx);
 
             // Active line highlight
-            if (lineIdx == cursorLine) {
+            if (vr.physicalLine == cursorLine) {
                 drawRect(codeAreaX, y - 1, codeAreaX + codeAreaW, y + lineHeight - 1, 0xFF181818);
             }
 
-            // Syntax highlighted code
-            renderSyntaxLine(line, codeAreaX + 4 - scrollColOffset, y);
+            // Check if comment
+            String fullLine = lines.get(vr.physicalLine);
+            int commentIdx = fullLine.indexOf("//");
+            if (commentIdx == -1) commentIdx = fullLine.indexOf("#");
+            boolean isFullComment = (commentIdx != -1 && vr.startChar >= commentIdx);
 
-            // Cursor rendering (white underscore matching Minecraft text inputs)
-            if (lineIdx == cursorLine && (System.currentTimeMillis() / 450) % 2 == 0) {
-                int cursorPixelX = codeAreaX + 4
-                    - scrollColOffset
-                    + fontRendererObj.getStringWidth(line.substring(0, Math.min(cursorCol, line.length())));
+            // Syntax highlighted code
+            renderSyntaxLine(vr.text, codeAreaX + 4 - scrollColOffset, y, isFullComment);
+
+            // Cursor rendering
+            if (rowIdx == cursorVisualRow && (System.currentTimeMillis() / 450) % 2 == 0) {
+                int colInRow = Math.max(0, Math.min(cursorCol - vr.startChar, vr.text.length()));
+                String before = vr.text.substring(0, colInRow);
+                int cursorPixelX = codeAreaX + 4 - scrollColOffset + fontRendererObj.getStringWidth(before);
                 drawRect(cursorPixelX, y + lineHeight - 2, cursorPixelX + 5, y + lineHeight - 1, 0xFFFFFFFF);
             }
         }
@@ -793,23 +1205,26 @@ public class GuiCodeEditor extends GuiScreen {
         // Gutter line numbers if enabled
         if (gutterW > 0) {
             for (int i = 0; i < visibleLines; i++) {
-                int lineIdx = scrollLineOffset + i;
-                if (lineIdx >= lines.size()) break;
-
-                int y = editorY + 3 + i * lineHeight;
-                String numStr = String.valueOf(lineIdx + 1);
-                int numW = fontRendererObj.getStringWidth(numStr);
-                int color = lineIdx == cursorLine ? 0xFFFFFF : 0x707070;
-                fontRendererObj.drawString(numStr, editorX + gutterW - numW - 4, y, color);
+                int rowIdx = scrollLineOffset + i;
+                if (rowIdx >= visualRows.size()) break;
+                VisualRow vr = visualRows.get(rowIdx);
+                if (vr.startChar == 0) {
+                    int y = editorY + 3 + i * lineHeight;
+                    String numStr = String.valueOf(vr.physicalLine + 1);
+                    int numW = fontRendererObj.getStringWidth(numStr);
+                    int color = vr.physicalLine == cursorLine ? 0xFFFFFF : 0x707070;
+                    fontRendererObj.drawString(numStr, editorX + gutterW - numW - 4, y, color);
+                }
             }
         }
 
-        // 5. Scrollbar Thumb
-        int totalLines = lines.size();
-        if (hasScroll) {
-            float thumbHeight = Math.max(16, (float) visibleLines / totalLines * editorH);
-            float maxThumbY = editorH - thumbHeight;
-            float thumbY = editorY + ((float) scrollLineOffset / (totalLines - visibleLines)) * maxThumbY;
+        // 5. Vertical Scrollbar Thumb & Track
+        int scrollbarX = editorX + editorW - scrollbarW;
+        if (hasVScroll) {
+            drawRect(scrollbarX, editorY, scrollbarX + scrollbarW, editorY + availVScrollH, 0xFF2D2D30);
+            float thumbHeight = Math.max(16, (float) visibleLines / visualRows.size() * availVScrollH);
+            float maxThumbY = availVScrollH - thumbHeight;
+            float thumbY = editorY + ((float) scrollLineOffset / (visualRows.size() - visibleLines)) * maxThumbY;
             int thumbColor = isDraggingVScroll ? 0xFF7A7A7E : 0xFF505054;
             drawRect(
                 scrollbarX + 1,
@@ -819,8 +1234,45 @@ public class GuiCodeEditor extends GuiScreen {
                 thumbColor);
         }
 
-        // 6. Title and Quick Shortcuts bar (above toolbar)
-        fontRendererObj.drawStringWithShadow("Super Factory Manager - Code Editor", editorX, editorY - 34, 0x00E0FF);
+        // 6. Horizontal Scrollbar Track & Thumb (mutually exclusive with word-wrap)
+        if (hasHScroll) {
+            int hScrollY = editorY + editorH - scrollbarH;
+            drawRect(codeAreaX, hScrollY, codeAreaX + codeAreaW, hScrollY + scrollbarH, 0xFF2D2D30);
+            float viewRatio = (float) codeAreaW / (maxLineW + 20);
+            float thumbW = Math.max(16, viewRatio * codeAreaW);
+            float maxThumbX = codeAreaW - thumbW;
+            float thumbX = codeAreaX + ((float) scrollColOffset / maxColOffset) * maxThumbX;
+            int thumbColor = isDraggingHScroll ? 0xFF7A7A7E : 0xFF505054;
+            drawRect((int) thumbX, hScrollY + 1, (int) (thumbX + thumbW), hScrollY + scrollbarH - 1, thumbColor);
+        }
+
+        // 7. Corner Junction if both scrollbars are visible
+        if (hasVScroll && hasHScroll) {
+            drawRect(scrollbarX, editorY + editorH - scrollbarH, editorX + editorW, editorY + editorH, 0xFF252526);
+        }
+
+        // 8. Resizable Corner Grips (NW, NE, SW, SE)
+        int hoveredCorner = getHoveredCorner(mouseX, mouseY);
+        drawCornerGrip(CORNER_NW, editorX, editorY, hoveredCorner == CORNER_NW || resizingCorner == CORNER_NW);
+        drawCornerGrip(
+            CORNER_NE,
+            editorX + editorW,
+            editorY,
+            hoveredCorner == CORNER_NE || resizingCorner == CORNER_NE);
+        drawCornerGrip(
+            CORNER_SW,
+            editorX,
+            editorY + editorH,
+            hoveredCorner == CORNER_SW || resizingCorner == CORNER_SW);
+        drawCornerGrip(
+            CORNER_SE,
+            editorX + editorW,
+            editorY + editorH,
+            hoveredCorner == CORNER_SE || resizingCorner == CORNER_SE);
+
+        // 9. Title and Quick Shortcuts bar (above toolbar)
+        String title = (editorW < 360) ? "Code Editor" : "Super Factory Manager - Code Editor";
+        fontRendererObj.drawStringWithShadow(title, editorX, editorY - 34, 0x00E0FF);
         String shortcutHelp = EnumChatFormatting.GRAY + "Autocomplete: "
             + EnumChatFormatting.AQUA
             + "Ctrl+Space"
@@ -828,13 +1280,15 @@ public class GuiCodeEditor extends GuiScreen {
             + " | Next: "
             + EnumChatFormatting.AQUA
             + "Tab";
-        fontRendererObj.drawStringWithShadow(
-            shortcutHelp,
-            editorX + editorW - fontRendererObj.getStringWidth(shortcutHelp),
-            editorY - 34,
-            0xFFFFFF);
+        if (editorW >= 360) {
+            fontRendererObj.drawStringWithShadow(
+                shortcutHelp,
+                editorX + editorW - fontRendererObj.getStringWidth(shortcutHelp),
+                editorY - 34,
+                0xFFFFFF);
+        }
 
-        // 7. Status Line (between editor and bottom buttons)
+        // 10. Status Line (between editor and bottom buttons)
         int statusY = editorY + editorH + 4;
         int phCount = countPlaceholders();
         int phWidth = 0;
@@ -854,30 +1308,62 @@ public class GuiCodeEditor extends GuiScreen {
 
         super.drawScreen(mouseX, mouseY, partialTicks);
 
-        // 8. Autocomplete Popup on top of everything
+        // 11. Autocomplete Popup on top of everything
         popup.draw(fontRendererObj, mouseX, mouseY);
+    }
+
+    private void drawCornerGrip(int corner, int cx, int cy, boolean active) {
+        int color = active ? 0xFF00E0FF : 0xFF808080;
+        int size = 5;
+        switch (corner) {
+            case CORNER_NW:
+                drawRect(cx - 2, cy - 2, cx + size, cy, color);
+                drawRect(cx - 2, cy - 2, cx, cy + size, color);
+                break;
+            case CORNER_NE:
+                drawRect(cx - size, cy - 2, cx + 2, cy, color);
+                drawRect(cx, cy - 2, cx + 2, cy + size, color);
+                break;
+            case CORNER_SW:
+                drawRect(cx - 2, cy, cx + size, cy + 2, color);
+                drawRect(cx - 2, cy - size, cx, cy + 2, color);
+                break;
+            case CORNER_SE:
+                drawRect(cx - size, cy, cx + 2, cy + 2, color);
+                drawRect(cx, cy - size, cx + 2, cy + 2, color);
+                // Diagonal grip ticks in bottom-right corner
+                drawRect(cx - 3, cy - 1, cx - 1, cy, color);
+                drawRect(cx - 6, cy - 1, cx - 4, cy, color);
+                drawRect(cx - 1, cy - 3, cx, cy - 1, color);
+                drawRect(cx - 3, cy - 3, cx - 2, cy - 2, color);
+                break;
+        }
     }
 
     private static final Pattern TOKEN_PATTERN = Pattern.compile(
         "(<[^>]+>)|(\"[^\"]*\")|(\\b(EVERY|TICKS|REDSTONE|LEVEL|LEVELS|PULSE|INPUT|OUTPUT|FORGET|IF|FROM|TO|EACH|ROUND_ROBIN|WITH|TRUE|FALSE|AND|OR|NOT|NAME)\\b)",
         Pattern.CASE_INSENSITIVE);
 
-    private void renderSyntaxLine(String line, int x, int y) {
-        if (line.isEmpty()) return;
+    private void renderSyntaxLine(String text, int x, int y, boolean isComment) {
+        if (text.isEmpty()) return;
 
-        // Check for comment
-        int commentIdx = line.indexOf("//");
-        if (commentIdx == -1) commentIdx = line.indexOf("#");
+        if (isComment) {
+            fontRendererObj.drawString(text, x, y, 0x6A9955);
+            return;
+        }
 
-        String codePart = commentIdx != -1 ? line.substring(0, commentIdx) : line;
-        String commentPart = commentIdx != -1 ? line.substring(commentIdx) : null;
+        // Check for comment within this line
+        int commentIdx = text.indexOf("//");
+        if (commentIdx == -1) commentIdx = text.indexOf("#");
+
+        String codePart = commentIdx != -1 ? text.substring(0, commentIdx) : text;
+        String commentPart = commentIdx != -1 ? text.substring(commentIdx) : null;
 
         // Render code part with token highlighting
         int curX = x;
         int lastIndex = 0;
         Matcher m = TOKEN_PATTERN.matcher(codePart);
         while (m.find()) {
-            // Text before match
             if (m.start() > lastIndex) {
                 String sub = codePart.substring(lastIndex, m.start());
                 fontRendererObj.drawString(sub, curX, y, 0xE0E0E0);
@@ -914,7 +1400,7 @@ public class GuiCodeEditor extends GuiScreen {
             curX += fontRendererObj.getStringWidth(rest);
         }
 
-        // Render comment part in green/gray
+        // Render comment part in green
         if (commentPart != null) {
             fontRendererObj.drawString(commentPart, curX, y, 0x6A9955);
         }
