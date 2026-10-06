@@ -2,7 +2,9 @@ package ca.teamdman.sfm.client.gui;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -14,7 +16,12 @@ import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.GL11;
 
+import ca.teamdman.sfm.client.gui.syntax.GuiAutocompletePopup;
+import ca.teamdman.sfm.client.gui.syntax.SnippetCategory;
+import ca.teamdman.sfm.client.gui.syntax.SyntaxRegistry;
+import ca.teamdman.sfm.client.gui.syntax.SyntaxSnippet;
 import ca.teamdman.sfm.common.item.ItemDisk;
+import ca.teamdman.sfm.common.label.LabelPositionHolder;
 import ca.teamdman.sfm.common.net.PacketSaveProgram;
 import ca.teamdman.sfm.common.net.SFMNetwork;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
@@ -56,6 +63,15 @@ public class GuiCodeEditor extends GuiScreen {
     private GuiButton btnSave;
     private GuiButton btnCancel;
 
+    // Autocomplete & Syntax Snippet UI
+    private final GuiAutocompletePopup popup = new GuiAutocompletePopup();
+    private GuiButton btnTriggers;
+    private GuiButton btnIO;
+    private GuiButton btnLogic;
+    private GuiButton btnLabels;
+    private GuiButton btnModifiers;
+    private GuiButton btnSuggest;
+
     public GuiCodeEditor(TileEntityManager manager, GuiScreen parentScreen) {
         this.manager = manager;
         this.parentScreen = parentScreen;
@@ -79,20 +95,37 @@ public class GuiCodeEditor extends GuiScreen {
         Keyboard.enableRepeatEvents(true);
 
         editorW = 400;
-        editorH = 200;
+        editorH = 180;
         editorX = width / 2 - 200;
-        editorY = height / 2 - 110;
+        editorY = height / 2 - 95;
 
         visibleLines = Math.max(1, (editorH - 8) / lineHeight);
 
-        int btnY = height / 2 + 95;
+        int btnY = height / 2 + 96;
         btnConfig = new GuiButton(4, width / 2 - 200, btnY, 16, 20, "#");
         btnSave = new GuiButton(0, width / 2 - 152, btnY, 200, 20, "Done");
         btnCancel = new GuiButton(1, width / 2 + 98, btnY, 100, 20, "Cancel");
 
+        // Top Snippet Toolbar (aligned directly above editor)
+        int barY = editorY - 22;
+        int barX = editorX;
+        btnTriggers = new GuiButton(101, barX, barY, 65, 18, "Triggers \u25BC");
+        btnIO = new GuiButton(102, barX + 67, barY, 52, 18, "I/O \u25BC");
+        btnLogic = new GuiButton(103, barX + 121, barY, 56, 18, "Logic \u25BC");
+        btnLabels = new GuiButton(104, barX + 179, barY, 60, 18, "Labels \u25BC");
+        btnModifiers = new GuiButton(105, barX + 241, barY, 68, 18, "Modifiers \u25BC");
+        btnSuggest = new GuiButton(100, barX + 311, barY, 89, 18, "\u2728 Suggest...");
+
         buttonList.add(btnConfig);
         buttonList.add(btnSave);
         buttonList.add(btnCancel);
+
+        buttonList.add(btnTriggers);
+        buttonList.add(btnIO);
+        buttonList.add(btnLogic);
+        buttonList.add(btnLabels);
+        buttonList.add(btnModifiers);
+        buttonList.add(btnSuggest);
 
         validateSyntax();
     }
@@ -146,7 +179,203 @@ public class GuiCodeEditor extends GuiScreen {
         } else if (btn.id == 4) {
             setClipboardString(String.join("\n", lines));
             syntaxStatus = EnumChatFormatting.YELLOW + "Copied code to clipboard!";
+        } else if (btn.id == 100) {
+            openAutocompleteAtCursor();
+        } else if (btn.id == 101) {
+            popup.openAt(
+                btn.xPosition,
+                btn.yPosition + btn.height + 1,
+                width,
+                height,
+                "Triggers",
+                SyntaxRegistry.getSnippetsForCategory(SnippetCategory.TRIGGER));
+        } else if (btn.id == 102) {
+            popup.openAt(
+                btn.xPosition,
+                btn.yPosition + btn.height + 1,
+                width,
+                height,
+                "I/O Transfer",
+                SyntaxRegistry.getSnippetsForCategory(SnippetCategory.IO));
+        } else if (btn.id == 103) {
+            popup.openAt(
+                btn.xPosition,
+                btn.yPosition + btn.height + 1,
+                width,
+                height,
+                "Logic & Conditions",
+                SyntaxRegistry.getSnippetsForCategory(SnippetCategory.CONDITION));
+        } else if (btn.id == 104) {
+            popup.openAt(
+                btn.xPosition,
+                btn.yPosition + btn.height + 1,
+                width,
+                height,
+                "Labels & Sides",
+                getCombinedLabelSnippets());
+        } else if (btn.id == 105) {
+            popup.openAt(
+                btn.xPosition,
+                btn.yPosition + btn.height + 1,
+                width,
+                height,
+                "Modifiers & Limits",
+                SyntaxRegistry.getSnippetsForCategory(SnippetCategory.MODIFIER));
         }
+    }
+
+    public void openAutocompleteAtCursor() {
+        String curLine = (cursorLine >= 0 && cursorLine < lines.size()) ? lines.get(cursorLine) : "";
+        String beforeCursor = curLine.substring(0, Math.min(cursorCol, curLine.length()));
+        int cursorPixelX = editorX + gutterW + 4 - scrollColOffset + fontRendererObj.getStringWidth(beforeCursor);
+        int cursorPixelY = editorY + 3 + (cursorLine - scrollLineOffset) * lineHeight;
+
+        List<SyntaxSnippet> suggestions = SyntaxRegistry
+            .getContextualSuggestions(String.join("\n", lines), cursorLine, cursorCol, getActiveDiskLabels());
+        popup.openAt(
+            cursorPixelX,
+            cursorPixelY + lineHeight + 2,
+            width,
+            height,
+            "Suggestions (Ctrl+Space)",
+            suggestions);
+    }
+
+    public Set<String> getActiveDiskLabels() {
+        if (manager != null && manager.getDisk() != null) {
+            return LabelPositionHolder.from(manager.getDisk())
+                .getAllLabels()
+                .keySet();
+        }
+        return Collections.emptySet();
+    }
+
+    public List<SyntaxSnippet> getCombinedLabelSnippets() {
+        List<SyntaxSnippet> list = new ArrayList<>();
+        Set<String> diskLabels = getActiveDiskLabels();
+        list.addAll(SyntaxRegistry.getLabelSnippets(diskLabels));
+        list.addAll(SyntaxRegistry.getSnippetsForCategory(SnippetCategory.LABEL));
+        return list;
+    }
+
+    public void insertSnippet(SyntaxSnippet snippet) {
+        if (snippet == null) return;
+        String template = snippet.getTemplate();
+        String curLine = lines.get(cursorLine);
+
+        int tokenStart = cursorCol;
+        int tokenEnd = cursorCol;
+
+        // Check if cursor is on or inside a <placeholder>
+        int lt = curLine.lastIndexOf('<', cursorCol);
+        int gt = curLine.indexOf('>', cursorCol);
+        if (lt != -1 && gt != -1 && gt > lt && (cursorCol >= lt && cursorCol <= gt + 1)) {
+            tokenStart = lt;
+            tokenEnd = gt + 1;
+        } else {
+            // Check if cursor is preceded by a word token (e.g. partial typing)
+            while (tokenStart > 0 && Character.isLetterOrDigit(curLine.charAt(tokenStart - 1))) {
+                tokenStart--;
+            }
+        }
+
+        String before = curLine.substring(0, tokenStart);
+        String after = curLine.substring(tokenEnd);
+
+        // Determine base indentation of current line
+        int indentSpaces = 0;
+        while (indentSpaces < before.length() && before.charAt(indentSpaces) == ' ') {
+            indentSpaces++;
+        }
+        StringBuilder indent = new StringBuilder();
+        for (int i = 0; i < indentSpaces; i++) indent.append(' ');
+
+        String[] tLines = template.split("\n", -1);
+        if (tLines.length == 1) {
+            lines.set(cursorLine, before + tLines[0] + after);
+            cursorCol = before.length() + tLines[0].length();
+        } else {
+            lines.set(cursorLine, before + tLines[0]);
+            for (int i = 1; i < tLines.length - 1; i++) {
+                lines.add(cursorLine + i, indent.toString() + tLines[i]);
+            }
+            String lastLine = indent.toString() + tLines[tLines.length - 1];
+            lines.add(cursorLine + tLines.length - 1, lastLine + afterCursorOrEmpty(after));
+            cursorLine += tLines.length - 1;
+            cursorCol = lastLine.length();
+        }
+
+        // Auto-navigate to first placeholder if present
+        jumpToPlaceholder(true);
+
+        validateSyntax();
+        ensureCursorVisible();
+    }
+
+    private String afterCursorOrEmpty(String after) {
+        return after != null ? after : "";
+    }
+
+    public boolean jumpToPlaceholder(boolean forward) {
+        Pattern p = Pattern.compile("<([^>]+)>");
+        if (forward) {
+            // Search forward from current line and col
+            for (int l = cursorLine; l < lines.size(); l++) {
+                String s = lines.get(l);
+                int startCol = (l == cursorLine) ? Math.min(cursorCol + 1, s.length()) : 0;
+                if (startCol < s.length()) {
+                    Matcher m = p.matcher(s);
+                    if (m.find(startCol)) {
+                        cursorLine = l;
+                        cursorCol = m.start();
+                        ensureCursorVisible();
+                        return true;
+                    }
+                }
+            }
+            // Wrap around from top
+            for (int l = 0; l <= cursorLine; l++) {
+                String s = lines.get(l);
+                Matcher m = p.matcher(s);
+                if (m.find()) {
+                    if (l < cursorLine || m.start() < cursorCol) {
+                        cursorLine = l;
+                        cursorCol = m.start();
+                        ensureCursorVisible();
+                        return true;
+                    }
+                }
+            }
+        } else {
+            // Search backward
+            for (int l = cursorLine; l >= 0; l--) {
+                String s = lines.get(l);
+                Matcher m = p.matcher(s);
+                int bestStart = -1;
+                while (m.find()) {
+                    if (l < cursorLine || m.start() < cursorCol) {
+                        bestStart = m.start();
+                    }
+                }
+                if (bestStart != -1) {
+                    cursorLine = l;
+                    cursorCol = bestStart;
+                    ensureCursorVisible();
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    public int countPlaceholders() {
+        int count = 0;
+        Pattern p = Pattern.compile("<([^>]+)>");
+        for (String line : lines) {
+            Matcher m = p.matcher(line);
+            while (m.find()) count++;
+        }
+        return count;
     }
 
     @Override
@@ -154,6 +383,12 @@ public class GuiCodeEditor extends GuiScreen {
         super.handleMouseInput();
         int dWheel = Mouse.getDWheel();
         if (dWheel != 0) {
+            int mouseX = Mouse.getEventX() * width / mc.displayWidth;
+            int mouseY = height - Mouse.getEventY() * height / mc.displayHeight - 1;
+            if (popup.isVisible() && popup.contains(mouseX, mouseY)) {
+                popup.handleMouseWheel(dWheel);
+                return;
+            }
             int linesToScroll = 3;
             if (dWheel > 0) {
                 scrollLineOffset = Math.max(0, scrollLineOffset - linesToScroll);
@@ -165,6 +400,18 @@ public class GuiCodeEditor extends GuiScreen {
 
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int mouseButton) {
+        if (popup.isVisible()) {
+            if (popup.contains(mouseX, mouseY)) {
+                SyntaxSnippet snippet = popup.mouseClicked(mouseX, mouseY, mouseButton);
+                if (snippet != null) {
+                    insertSnippet(snippet);
+                }
+                return;
+            } else {
+                popup.close();
+            }
+        }
+
         super.mouseClicked(mouseX, mouseY, mouseButton);
 
         if (mouseButton == 0) {
@@ -246,8 +493,31 @@ public class GuiCodeEditor extends GuiScreen {
 
     @Override
     protected void keyTyped(char typedChar, int keyCode) {
+        if (popup.isVisible()) {
+            SyntaxSnippet snippet = popup.handleKeyInput(typedChar, keyCode);
+            if (snippet != null) {
+                insertSnippet(snippet);
+                return;
+            }
+            if (keyCode == Keyboard.KEY_ESCAPE || keyCode == Keyboard.KEY_DOWN
+                || keyCode == Keyboard.KEY_UP
+                || keyCode == Keyboard.KEY_PRIOR
+                || keyCode == Keyboard.KEY_NEXT
+                || keyCode == Keyboard.KEY_RETURN
+                || keyCode == Keyboard.KEY_NUMPADENTER
+                || keyCode == Keyboard.KEY_TAB) {
+                return;
+            }
+        }
+
         if (keyCode == Keyboard.KEY_ESCAPE) {
             mc.displayGuiScreen(parentScreen);
+            return;
+        }
+
+        // Ctrl + Space: Contextual Autocomplete
+        if (isCtrlKeyDown() && keyCode == Keyboard.KEY_SPACE) {
+            openAutocompleteAtCursor();
             return;
         }
 
@@ -417,10 +687,14 @@ public class GuiCodeEditor extends GuiScreen {
                 }
                 break;
             case Keyboard.KEY_TAB:
-                String curTab = lines.get(cursorLine);
-                lines.set(cursorLine, curTab.substring(0, cursorCol) + "    " + curTab.substring(cursorCol));
-                cursorCol += 4;
-                validateSyntax();
+                if (countPlaceholders() > 0) {
+                    jumpToPlaceholder(!isShiftKeyDown());
+                } else {
+                    String curTab = lines.get(cursorLine);
+                    lines.set(cursorLine, curTab.substring(0, cursorCol) + "    " + curTab.substring(cursorCol));
+                    cursorCol += 4;
+                    validateSyntax();
+                }
                 break;
             default:
                 if (typedChar >= 32 && typedChar != 127) {
@@ -545,11 +819,47 @@ public class GuiCodeEditor extends GuiScreen {
                 thumbColor);
         }
 
+        // 6. Title and Quick Shortcuts bar (above toolbar)
+        fontRendererObj.drawStringWithShadow("Super Factory Manager - Code Editor", editorX, editorY - 34, 0x00E0FF);
+        String shortcutHelp = EnumChatFormatting.GRAY + "Autocomplete: "
+            + EnumChatFormatting.AQUA
+            + "Ctrl+Space"
+            + EnumChatFormatting.GRAY
+            + " | Next: "
+            + EnumChatFormatting.AQUA
+            + "Tab";
+        fontRendererObj.drawStringWithShadow(
+            shortcutHelp,
+            editorX + editorW - fontRendererObj.getStringWidth(shortcutHelp),
+            editorY - 34,
+            0xFFFFFF);
+
+        // 7. Status Line (between editor and bottom buttons)
+        int statusY = editorY + editorH + 4;
+        int phCount = countPlaceholders();
+        int phWidth = 0;
+        if (phCount > 0) {
+            String phText = EnumChatFormatting.GOLD.toString() + phCount
+                + EnumChatFormatting.YELLOW
+                + (phCount == 1 ? " placeholder" : " placeholders")
+                + " remaining (\u21E5 Tab)";
+            phWidth = fontRendererObj.getStringWidth(phText) + 8;
+            fontRendererObj
+                .drawString(phText, editorX + editorW - fontRendererObj.getStringWidth(phText) - 2, statusY, 0xFFFFFF);
+        }
+
+        int maxStatusW = editorW - phWidth - 6;
+        String trimmedStatus = fontRendererObj.trimStringToWidth(syntaxStatus, maxStatusW);
+        fontRendererObj.drawString(trimmedStatus, editorX + 2, statusY, 0xFFFFFF);
+
         super.drawScreen(mouseX, mouseY, partialTicks);
+
+        // 8. Autocomplete Popup on top of everything
+        popup.draw(fontRendererObj, mouseX, mouseY);
     }
 
-    private static final Pattern KEYWORD_PATTERN = Pattern.compile(
-        "\\b(EVERY|TICKS|REDSTONE|LEVEL|LEVELS|PULSE|INPUT|OUTPUT|FORGET|IF|FROM|TO|EACH|ROUND_ROBIN|WITH|TRUE|FALSE|AND|OR|NOT|NAME)\\b",
+    private static final Pattern TOKEN_PATTERN = Pattern.compile(
+        "(<[^>]+>)|(\"[^\"]*\")|(\\b(EVERY|TICKS|REDSTONE|LEVEL|LEVELS|PULSE|INPUT|OUTPUT|FORGET|IF|FROM|TO|EACH|ROUND_ROBIN|WITH|TRUE|FALSE|AND|OR|NOT|NAME)\\b)",
         Pattern.CASE_INSENSITIVE);
 
     private void renderSyntaxLine(String line, int x, int y) {
@@ -562,10 +872,10 @@ public class GuiCodeEditor extends GuiScreen {
         String codePart = commentIdx != -1 ? line.substring(0, commentIdx) : line;
         String commentPart = commentIdx != -1 ? line.substring(commentIdx) : null;
 
-        // Render code part with simple token highlighting
+        // Render code part with token highlighting
         int curX = x;
         int lastIndex = 0;
-        Matcher m = KEYWORD_PATTERN.matcher(codePart);
+        Matcher m = TOKEN_PATTERN.matcher(codePart);
         while (m.find()) {
             // Text before match
             if (m.start() > lastIndex) {
@@ -573,21 +883,29 @@ public class GuiCodeEditor extends GuiScreen {
                 fontRendererObj.drawString(sub, curX, y, 0xE0E0E0);
                 curX += fontRendererObj.getStringWidth(sub);
             }
-            // Keyword
-            String kw = m.group();
-            int kwColor = 0x569CD6; // VS Code style keyword blue
-            String upper = kw.toUpperCase();
-            if (upper.equals("INPUT")) kwColor = 0x4EC9B0; // Cyan
-            else if (upper.equals("OUTPUT")) kwColor = 0xCE9178; // Orange/Coral
-            else if (upper.equals("EVERY") || upper.equals("TICKS")
-                || upper.equals("REDSTONE")
-                || upper.equals("LEVEL")
-                || upper.equals("LEVELS")
-                || upper.equals("PULSE")) kwColor = 0xDCDCAA; // Yellow
-            else if (upper.equals("IF") || upper.equals("TRUE") || upper.equals("FALSE")) kwColor = 0xC586C0; // Purple
+            String match = m.group();
+            if (m.group(1) != null) {
+                // <placeholder> -> warm gold/amber
+                fontRendererObj.drawString(match, curX, y, 0xE5C07B);
+            } else if (m.group(2) != null) {
+                // "string literal" -> green
+                fontRendererObj.drawString(match, curX, y, 0x98C379);
+            } else if (m.group(3) != null) {
+                // Keyword
+                int kwColor = 0x569CD6; // VS Code style keyword blue
+                String upper = match.toUpperCase();
+                if (upper.equals("INPUT")) kwColor = 0x4EC9B0; // Cyan
+                else if (upper.equals("OUTPUT")) kwColor = 0xCE9178; // Orange/Coral
+                else if (upper.equals("EVERY") || upper.equals("TICKS")
+                    || upper.equals("REDSTONE")
+                    || upper.equals("LEVEL")
+                    || upper.equals("LEVELS")
+                    || upper.equals("PULSE")) kwColor = 0xDCDCAA; // Yellow
+                else if (upper.equals("IF") || upper.equals("TRUE") || upper.equals("FALSE")) kwColor = 0xC586C0; // Purple
 
-            fontRendererObj.drawString(kw, curX, y, kwColor);
-            curX += fontRendererObj.getStringWidth(kw);
+                fontRendererObj.drawString(match, curX, y, kwColor);
+            }
+            curX += fontRendererObj.getStringWidth(match);
             lastIndex = m.end();
         }
         if (lastIndex < codePart.length()) {

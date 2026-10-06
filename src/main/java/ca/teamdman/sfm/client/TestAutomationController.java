@@ -57,8 +57,11 @@ public class TestAutomationController {
 
     public static synchronized void init() {
         if (INSTANCE == null) {
-            int port = 25569;
-            String portProp = System.getProperty("gtnh.harness.port");
+            int port = 25573;
+            String portProp = System.getProperty("sfm.harness.port");
+            if (portProp == null || portProp.isEmpty()) {
+                portProp = System.getProperty("gtnh.sfm.port");
+            }
             if (portProp != null && !portProp.isEmpty()) {
                 try {
                     port = Integer.parseInt(portProp);
@@ -267,15 +270,44 @@ public class TestAutomationController {
                         if (mc.thePlayer == null) return "ERROR: Player is null";
                         mc.displayGuiScreen(new GuiInventory(mc.thePlayer));
                         return "OPENED_INVENTORY_GUI";
-                    } else if ("manager".equalsIgnoreCase(arg)) {
-                        if (mc.thePlayer == null) return "ERROR: Player is null";
-                        TileEntityManager m = (TileEntityManager) mc.theWorld.getTileEntity(500, 60, 0);
-                        if (m == null) return "ERROR: No manager at 500,60,0";
-                        mc.displayGuiScreen(new ca.teamdman.sfm.common.gui.GuiManager(mc.thePlayer.inventory, m));
-                        return "OPENED_MANAGER_GUI";
-                    } else {
-                        return "UNKNOWN_GUI: " + arg;
-                    }
+                    } else if ("editor".equalsIgnoreCase(arg) || arg.toLowerCase()
+                        .startsWith("editor")) {
+                            if (mc.thePlayer == null) return "ERROR: Player is null";
+                            int mx = 10, my = 6, mz = 420;
+                            String[] ep = arg.trim()
+                                .split("\\s+");
+                            if (ep.length >= 4) {
+                                mx = Integer.parseInt(ep[1]);
+                                my = Integer.parseInt(ep[2]);
+                                mz = Integer.parseInt(ep[3]);
+                            }
+                            TileEntityManager m = (TileEntityManager) mc.theWorld.getTileEntity(mx, my, mz);
+                            if (m == null) return "ERROR: No manager at " + mx + "," + my + "," + mz;
+                            mc.displayGuiScreen(new ca.teamdman.sfm.client.gui.GuiCodeEditor(m, mc.currentScreen));
+                            return "OPENED_EDITOR_GUI";
+                        } else if ("manager".equalsIgnoreCase(arg) || arg.toLowerCase()
+                            .startsWith("manager")) {
+                                if (mc.thePlayer == null) return "ERROR: Player is null";
+                                int mx = 10, my = 6, mz = 420;
+                                String[] ep = arg.trim()
+                                    .split("\\s+");
+                                if (ep.length >= 4) {
+                                    mx = Integer.parseInt(ep[1]);
+                                    my = Integer.parseInt(ep[2]);
+                                    mz = Integer.parseInt(ep[3]);
+                                } else if (mc.theWorld.getTileEntity(500, 60, 0) instanceof TileEntityManager) {
+                                    mx = 500;
+                                    my = 60;
+                                    mz = 0;
+                                }
+                                TileEntityManager m = (TileEntityManager) mc.theWorld.getTileEntity(mx, my, mz);
+                                if (m == null) return "ERROR: No manager at " + mx + "," + my + "," + mz;
+                                mc.displayGuiScreen(
+                                    new ca.teamdman.sfm.common.gui.GuiManager(mc.thePlayer.inventory, m));
+                                return "OPENED_MANAGER_GUI";
+                            } else {
+                                return "UNKNOWN_GUI: " + arg;
+                            }
 
                 case "closegui":
                     mc.gameSettings.pauseOnLostFocus = false;
@@ -304,10 +336,17 @@ public class TestAutomationController {
                     if (mc.currentScreen == null) return "ERROR: No active GUI";
                     for (char c : arg.toCharArray()) {
                         try {
-                            java.lang.reflect.Method km = GuiScreen.class
-                                .getDeclaredMethod("keyTyped", char.class, int.class);
-                            km.setAccessible(true);
-                            km.invoke(mc.currentScreen, c, 0);
+                            if (mc.currentScreen instanceof ca.teamdman.sfm.client.gui.GuiCodeEditor) {
+                                java.lang.reflect.Method km = ca.teamdman.sfm.client.gui.GuiCodeEditor.class
+                                    .getDeclaredMethod("keyTyped", char.class, int.class);
+                                km.setAccessible(true);
+                                km.invoke(mc.currentScreen, c, 0);
+                            } else {
+                                java.lang.reflect.Method km = GuiScreen.class
+                                    .getDeclaredMethod("keyTyped", char.class, int.class);
+                                km.setAccessible(true);
+                                km.invoke(mc.currentScreen, c, 0);
+                            }
                         } catch (Exception e) {
                             return "ERROR_TYPE: " + e.getMessage();
                         }
@@ -351,10 +390,17 @@ public class TestAutomationController {
                     if (mc.currentScreen == null) return "ERROR: No active GUI";
                     int keyCode = Integer.parseInt(arg.trim());
                     try {
-                        java.lang.reflect.Method km = GuiScreen.class
-                            .getDeclaredMethod("keyTyped", char.class, int.class);
-                        km.setAccessible(true);
-                        km.invoke(mc.currentScreen, '\0', keyCode);
+                        if (mc.currentScreen instanceof ca.teamdman.sfm.client.gui.GuiCodeEditor) {
+                            java.lang.reflect.Method km = ca.teamdman.sfm.client.gui.GuiCodeEditor.class
+                                .getDeclaredMethod("keyTyped", char.class, int.class);
+                            km.setAccessible(true);
+                            km.invoke(mc.currentScreen, '\0', keyCode);
+                        } else {
+                            java.lang.reflect.Method km = GuiScreen.class
+                                .getDeclaredMethod("keyTyped", char.class, int.class);
+                            km.setAccessible(true);
+                            km.invoke(mc.currentScreen, '\0', keyCode);
+                        }
                     } catch (Exception e) {
                         return "ERROR_KEY: " + e.getMessage();
                     }
@@ -372,10 +418,17 @@ public class TestAutomationController {
                     int y = Integer.parseInt(coords[1]);
                     int button = coords.length > 2 ? Integer.parseInt(coords[2]) : 0;
                     try {
-                        java.lang.reflect.Method m = GuiScreen.class
-                            .getDeclaredMethod("mouseClicked", int.class, int.class, int.class);
-                        m.setAccessible(true);
-                        m.invoke(mc.currentScreen, x, y, button);
+                        if (mc.currentScreen instanceof ca.teamdman.sfm.client.gui.GuiCodeEditor) {
+                            java.lang.reflect.Method m = ca.teamdman.sfm.client.gui.GuiCodeEditor.class
+                                .getDeclaredMethod("mouseClicked", int.class, int.class, int.class);
+                            m.setAccessible(true);
+                            m.invoke(mc.currentScreen, x, y, button);
+                        } else {
+                            java.lang.reflect.Method m = GuiScreen.class
+                                .getDeclaredMethod("mouseClicked", int.class, int.class, int.class);
+                            m.setAccessible(true);
+                            m.invoke(mc.currentScreen, x, y, button);
+                        }
                     } catch (Exception e) {
                         return "ERROR_CLICK: " + e.getMessage();
                     }

@@ -29,7 +29,7 @@ public class ClientProxy extends CommonProxy {
         cpw.mods.fml.client.registry.RenderingRegistry
             .registerBlockHandler(new ca.teamdman.sfm.client.render.RenderFancyCable(fancyCableRenderId));
 
-        if (Boolean.getBoolean("sfm.testHarness") || Boolean.getBoolean("gtnh.testHarness")) {
+        if (Boolean.parseBoolean(System.getProperty("sfm.testHarness", "true"))) {
             ca.teamdman.sfm.client.TestAutomationController.init();
         }
     }
