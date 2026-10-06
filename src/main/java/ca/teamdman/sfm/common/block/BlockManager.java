@@ -33,6 +33,7 @@ public class BlockManager extends BlockContainer {
         iconTop = reg.registerIcon("superfactorymanager:manager_top");
         iconBot = reg.registerIcon("superfactorymanager:manager_bot");
         iconSide = reg.registerIcon("superfactorymanager:manager_side");
+        this.blockIcon = iconSide;
     }
 
     @Override

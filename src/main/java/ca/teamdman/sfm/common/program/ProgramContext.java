@@ -1,12 +1,14 @@
 package ca.teamdman.sfm.common.program;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import net.minecraft.inventory.IInventory;
+import net.minecraft.inventory.ISidedInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
@@ -234,18 +236,24 @@ public final class ProgramContext {
                 IInventory inInv = InventoryUtils.getInventory(world, inPos);
                 if (inInv == null) continue;
 
-                for (ForgeDirection inSide : inSides) {
-                    int invSize = inInv.getSizeInventory();
-                    for (int slot = 0; slot < invSize; slot++) {
-                        if (!inputStmt.getLabelAccess()
-                            .getSlots()
-                            .contains(slot)) {
-                            log(LogLevel.TRACE, String.format("Slot %d - not in range", slot));
-                            continue;
-                        }
+                boolean isInSided = inInv instanceof ISidedInventory;
+                List<ForgeDirection> inSidesToCheck = isInSided ? inSides
+                    : Collections.singletonList(ForgeDirection.UNKNOWN);
+
+                for (ForgeDirection inSide : inSidesToCheck) {
+                    int[] accessibleSlots = InventoryUtils.getAccessibleSlots(
+                        inInv,
+                        inSide,
+                        inputStmt.getLabelAccess()
+                            .getSlots());
+                    for (int slot : accessibleSlots) {
                         ItemStack inStack = inInv.getStackInSlot(slot);
                         if (inStack == null || inStack.stackSize <= 0) {
                             log(LogLevel.TRACE, String.format("Slot %d - skipping - null", slot));
+                            continue;
+                        }
+                        if (!InventoryUtils.canExtract(inInv, slot, inStack, inSide)) {
+                            log(LogLevel.TRACE, String.format("Slot %d - skipping - cannot extract", slot));
                             continue;
                         }
                         if (!inputStmt.getResourceLimits()
@@ -310,15 +318,17 @@ public final class ProgramContext {
             IInventory outInv = InventoryUtils.getInventory(world, outPos);
             if (outInv == null) continue;
 
-            for (ForgeDirection outSide : outSides) {
-                int invSize = outInv.getSizeInventory();
-                for (int slot = 0; slot < invSize; slot++) {
-                    if (!outputStmt.getLabelAccess()
-                        .getSlots()
-                        .contains(slot)) {
-                        log(LogLevel.TRACE, String.format("Slot %d - not in range", slot));
-                        continue;
-                    }
+            boolean isOutSided = outInv instanceof ISidedInventory;
+            List<ForgeDirection> outSidesToCheck = isOutSided ? outSides
+                : Collections.singletonList(ForgeDirection.UNKNOWN);
+
+            for (ForgeDirection outSide : outSidesToCheck) {
+                int[] accessibleSlots = InventoryUtils.getAccessibleSlots(
+                    outInv,
+                    outSide,
+                    outputStmt.getLabelAccess()
+                        .getSlots());
+                for (int slot : accessibleSlots) {
                     ItemStack outStack = outInv.getStackInSlot(slot);
                     log(
                         LogLevel.TRACE,
