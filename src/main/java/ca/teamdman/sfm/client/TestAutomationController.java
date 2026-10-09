@@ -291,7 +291,12 @@ public class TestAutomationController {
                     holder.addPosition(labelName, new BlockPos(tx, ty, tz));
                     LabelPositionHolder.saveTo(disk, holder);
                     mgr.setInventorySlotContents(0, disk);
+                    mgr.rebuildNetwork();
                     mgr.markDirty();
+                    if (mc.theWorld != null && mc.theWorld != ws) {
+                        TileEntityManager clientMgr = (TileEntityManager) mc.theWorld.getTileEntity(mx, my, mz);
+                        if (clientMgr != null) clientMgr.setInventorySlotContents(0, disk.copy());
+                    }
                     return "LABEL_SET: " + labelName + " -> " + tx + "," + ty + "," + tz;
                 }
 
@@ -321,7 +326,12 @@ public class TestAutomationController {
                     LabelPositionHolder holder = new LabelPositionHolder();
                     LabelPositionHolder.saveTo(disk, holder);
                     mgr.setInventorySlotContents(0, disk);
+                    mgr.rebuildNetwork();
                     mgr.markDirty();
+                    if (mc.theWorld != null && mc.theWorld != ws) {
+                        TileEntityManager clientMgr = (TileEntityManager) mc.theWorld.getTileEntity(mx, my, mz);
+                        if (clientMgr != null) clientMgr.setInventorySlotContents(0, disk.copy());
+                    }
                     return "LABELS_CLEARED";
                 }
 
@@ -352,8 +362,18 @@ public class TestAutomationController {
                     ItemDisk.setProgramString(disk, pCode);
                     mgr.setInventorySlotContents(0, disk);
                     mgr.recompile(pCode);
+                    mgr.rebuildNetwork();
+                    mgr.setManagerTick(0);
+                    mgr.setRunning(true);
                     mgr.setLogLevel(LogLevel.DEBUG);
                     mgr.markDirty();
+                    if (mc.theWorld != null && mc.theWorld != ws) {
+                        TileEntityManager clientMgr = (TileEntityManager) mc.theWorld.getTileEntity(mx, my, mz);
+                        if (clientMgr != null) {
+                            clientMgr.setInventorySlotContents(0, disk.copy());
+                            clientMgr.recompile(pCode);
+                        }
+                    }
                     return "PROGRAM_SET: " + (mgr.hasCompiledProgram() ? "VALID" : "INVALID");
                 }
 
@@ -406,10 +426,63 @@ public class TestAutomationController {
                     TileEntityManager mgr = (TileEntityManager) ws.getTileEntity(mx, my, mz);
                     if (mgr == null) return "ERROR: No manager at " + mx + "," + my + "," + mz;
 
+                    boolean wasRunning = mgr.isRunning();
+                    mgr.setRunning(true);
                     for (int s = 0; s < steps; s++) {
                         mgr.updateEntity();
                     }
+                    mgr.setRunning(wasRunning);
                     return "STEPPED: " + steps + " (tick=" + mgr.getManagerTick() + ")";
+                }
+
+                case "setrunning": {
+                    String[] sp = arg.trim()
+                        .split("\\s+");
+                    if (sp.length < 4) return "ERROR: Usage: setrunning <mx> <my> <mz> <true|false>";
+                    int mx = Integer.parseInt(sp[0]);
+                    int my = Integer.parseInt(sp[1]);
+                    int mz = Integer.parseInt(sp[2]);
+                    boolean run = Boolean.parseBoolean(sp[3]);
+
+                    net.minecraft.world.World ws = null;
+                    if (net.minecraft.server.MinecraftServer.getServer() != null) {
+                        ws = net.minecraft.server.MinecraftServer.getServer()
+                            .worldServerForDimension(mc.thePlayer != null ? mc.thePlayer.dimension : 0);
+                    }
+                    if (ws == null) ws = mc.theWorld;
+                    if (ws == null) return "ERROR: No world";
+
+                    TileEntityManager mgr = (TileEntityManager) ws.getTileEntity(mx, my, mz);
+                    if (mgr == null) return "ERROR: No manager at " + mx + "," + my + "," + mz;
+
+                    mgr.setRunning(run);
+                    mgr.markDirty();
+                    return "RUNNING_SET: " + mgr.isRunning();
+                }
+
+                case "settick": {
+                    String[] sp = arg.trim()
+                        .split("\\s+");
+                    if (sp.length < 4) return "ERROR: Usage: settick <mx> <my> <mz> <tick>";
+                    int mx = Integer.parseInt(sp[0]);
+                    int my = Integer.parseInt(sp[1]);
+                    int mz = Integer.parseInt(sp[2]);
+                    long tick = Long.parseLong(sp[3]);
+
+                    net.minecraft.world.World ws = null;
+                    if (net.minecraft.server.MinecraftServer.getServer() != null) {
+                        ws = net.minecraft.server.MinecraftServer.getServer()
+                            .worldServerForDimension(mc.thePlayer != null ? mc.thePlayer.dimension : 0);
+                    }
+                    if (ws == null) ws = mc.theWorld;
+                    if (ws == null) return "ERROR: No world";
+
+                    TileEntityManager mgr = (TileEntityManager) ws.getTileEntity(mx, my, mz);
+                    if (mgr == null) return "ERROR: No manager at " + mx + "," + my + "," + mz;
+
+                    mgr.setManagerTick(tick);
+                    mgr.markDirty();
+                    return "TICK_SET: " + mgr.getManagerTick();
                 }
 
                 case "opengui":

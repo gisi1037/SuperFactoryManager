@@ -49,6 +49,15 @@ public class BlockManager extends BlockContainer {
     }
 
     @Override
+    public void onNeighborBlockChange(World world, int x, int y, int z, net.minecraft.block.Block block) {
+        TileEntity te = world.getTileEntity(x, y, z);
+        if (te instanceof TileEntityManager) {
+            ((TileEntityManager) te).rebuildNetwork();
+        }
+        super.onNeighborBlockChange(world, x, y, z, block);
+    }
+
+    @Override
     public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, int side, float hitX,
         float hitY, float hitZ) {
         if (!world.isRemote) {

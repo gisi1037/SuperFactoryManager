@@ -58,10 +58,8 @@ public class TileEntityManager extends TileEntity implements IInventory {
             return;
         }
 
-        managerTick++;
-
         if (cableNetwork == null) {
-            cableNetwork = new CableNetwork(worldObj, new BlockPos(xCoord, yCoord, zCoord));
+            rebuildNetwork();
         }
 
         int currentPower = worldObj.getBlockPowerInput(xCoord, yCoord, zCoord);
@@ -106,8 +104,10 @@ public class TileEntityManager extends TileEntity implements IInventory {
             return;
         }
 
+        managerTick++;
+
         if (cableNetwork == null) {
-            cableNetwork = new CableNetwork(worldObj, new BlockPos(xCoord, yCoord, zCoord));
+            rebuildNetwork();
         }
 
         LabelPositionHolder labelPositions = LabelPositionHolder.from(diskStack);
@@ -148,7 +148,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
         log(level, "Manual execution triggered with log level: " + level.name());
 
         if (cableNetwork == null) {
-            cableNetwork = new CableNetwork(worldObj, new BlockPos(xCoord, yCoord, zCoord));
+            rebuildNetwork();
         }
 
         if (diskStack != null && diskStack.getItem() instanceof ItemDisk) {

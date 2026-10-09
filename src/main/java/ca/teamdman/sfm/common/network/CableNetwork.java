@@ -27,6 +27,7 @@ public final class CableNetwork {
     public CableNetwork(World world, BlockPos managerPos) {
         this.world = world;
         this.managerPos = managerPos;
+        scan();
     }
 
     public void scan() {
