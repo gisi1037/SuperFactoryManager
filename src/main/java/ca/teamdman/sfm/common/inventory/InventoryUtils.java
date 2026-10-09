@@ -124,7 +124,10 @@ public final class InventoryUtils {
         extracted.stackSize = toExtract;
 
         if (!simulate) {
-            if (inSlot.stackSize <= toExtract) {
+            ItemStack decr = inv.decrStackSize(slot, toExtract);
+            if (decr != null && decr.stackSize > 0) {
+                extracted = decr;
+            } else if (inSlot.stackSize <= toExtract) {
                 inv.setInventorySlotContents(slot, null);
             } else {
                 inSlot.stackSize -= toExtract;

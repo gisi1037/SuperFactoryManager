@@ -177,7 +177,7 @@ public class TestAutomationController {
                     }
                     return "SHOW_DISCORD_BUTTON: " + Config.showDiscordButton;
 
-                case "runscenario":
+                case "runscenario": {
                     int scen = Integer.parseInt(arg.trim());
                     boolean prevExport = Config.exportLogsToFile;
                     Config.exportLogsToFile = true;
@@ -258,6 +258,159 @@ public class TestAutomationController {
                     Config.exportLogsToFile = prevExport;
 
                     return "SCENARIO_RAN: " + scen;
+                }
+
+                case "setlabel": {
+                    String[] sp = arg.trim()
+                        .split("\\s+");
+                    if (sp.length < 7) return "ERROR: Usage: setlabel <mx> <my> <mz> <label> <tx> <ty> <tz>";
+                    int mx = Integer.parseInt(sp[0]);
+                    int my = Integer.parseInt(sp[1]);
+                    int mz = Integer.parseInt(sp[2]);
+                    String labelName = sp[3];
+                    int tx = Integer.parseInt(sp[4]);
+                    int ty = Integer.parseInt(sp[5]);
+                    int tz = Integer.parseInt(sp[6]);
+
+                    net.minecraft.world.World ws = null;
+                    if (net.minecraft.server.MinecraftServer.getServer() != null) {
+                        ws = net.minecraft.server.MinecraftServer.getServer()
+                            .worldServerForDimension(mc.thePlayer != null ? mc.thePlayer.dimension : 0);
+                    }
+                    if (ws == null) ws = mc.theWorld;
+                    if (ws == null) return "ERROR: No world";
+
+                    TileEntityManager mgr = (TileEntityManager) ws.getTileEntity(mx, my, mz);
+                    if (mgr == null) return "ERROR: No manager at " + mx + "," + my + "," + mz;
+
+                    ItemStack disk = mgr.getStackInSlot(0);
+                    if (disk == null || disk.getItem() != ModItems.disk) {
+                        disk = new ItemStack(ModItems.disk);
+                    }
+                    LabelPositionHolder holder = LabelPositionHolder.from(disk);
+                    holder.addPosition(labelName, new BlockPos(tx, ty, tz));
+                    LabelPositionHolder.saveTo(disk, holder);
+                    mgr.setInventorySlotContents(0, disk);
+                    mgr.markDirty();
+                    return "LABEL_SET: " + labelName + " -> " + tx + "," + ty + "," + tz;
+                }
+
+                case "clearlabels": {
+                    String[] sp = arg.trim()
+                        .split("\\s+");
+                    if (sp.length < 3) return "ERROR: Usage: clearlabels <mx> <my> <mz>";
+                    int mx = Integer.parseInt(sp[0]);
+                    int my = Integer.parseInt(sp[1]);
+                    int mz = Integer.parseInt(sp[2]);
+
+                    net.minecraft.world.World ws = null;
+                    if (net.minecraft.server.MinecraftServer.getServer() != null) {
+                        ws = net.minecraft.server.MinecraftServer.getServer()
+                            .worldServerForDimension(mc.thePlayer != null ? mc.thePlayer.dimension : 0);
+                    }
+                    if (ws == null) ws = mc.theWorld;
+                    if (ws == null) return "ERROR: No world";
+
+                    TileEntityManager mgr = (TileEntityManager) ws.getTileEntity(mx, my, mz);
+                    if (mgr == null) return "ERROR: No manager at " + mx + "," + my + "," + mz;
+
+                    ItemStack disk = mgr.getStackInSlot(0);
+                    if (disk == null || disk.getItem() != ModItems.disk) {
+                        disk = new ItemStack(ModItems.disk);
+                    }
+                    LabelPositionHolder holder = new LabelPositionHolder();
+                    LabelPositionHolder.saveTo(disk, holder);
+                    mgr.setInventorySlotContents(0, disk);
+                    mgr.markDirty();
+                    return "LABELS_CLEARED";
+                }
+
+                case "programmanager": {
+                    String[] sp = arg.trim()
+                        .split("\\s+", 4);
+                    if (sp.length < 4) return "ERROR: Usage: programmanager <mx> <my> <mz> <code>";
+                    int mx = Integer.parseInt(sp[0]);
+                    int my = Integer.parseInt(sp[1]);
+                    int mz = Integer.parseInt(sp[2]);
+                    String pCode = sp[3].replace("\\n", "\n");
+
+                    net.minecraft.world.World ws = null;
+                    if (net.minecraft.server.MinecraftServer.getServer() != null) {
+                        ws = net.minecraft.server.MinecraftServer.getServer()
+                            .worldServerForDimension(mc.thePlayer != null ? mc.thePlayer.dimension : 0);
+                    }
+                    if (ws == null) ws = mc.theWorld;
+                    if (ws == null) return "ERROR: No world";
+
+                    TileEntityManager mgr = (TileEntityManager) ws.getTileEntity(mx, my, mz);
+                    if (mgr == null) return "ERROR: No manager at " + mx + "," + my + "," + mz;
+
+                    ItemStack disk = mgr.getStackInSlot(0);
+                    if (disk == null || disk.getItem() != ModItems.disk) {
+                        disk = new ItemStack(ModItems.disk);
+                    }
+                    ItemDisk.setProgramString(disk, pCode);
+                    mgr.setInventorySlotContents(0, disk);
+                    mgr.recompile(pCode);
+                    mgr.setLogLevel(LogLevel.DEBUG);
+                    mgr.markDirty();
+                    return "PROGRAM_SET: " + (mgr.hasCompiledProgram() ? "VALID" : "INVALID");
+                }
+
+                case "getmanagerstatus": {
+                    String[] sp = arg.trim()
+                        .split("\\s+");
+                    if (sp.length < 3) return "ERROR: Usage: getmanagerstatus <mx> <my> <mz>";
+                    int mx = Integer.parseInt(sp[0]);
+                    int my = Integer.parseInt(sp[1]);
+                    int mz = Integer.parseInt(sp[2]);
+
+                    net.minecraft.world.World ws = null;
+                    if (net.minecraft.server.MinecraftServer.getServer() != null) {
+                        ws = net.minecraft.server.MinecraftServer.getServer()
+                            .worldServerForDimension(mc.thePlayer != null ? mc.thePlayer.dimension : 0);
+                    }
+                    if (ws == null) ws = mc.theWorld;
+                    if (ws == null) return "ERROR: No world";
+
+                    TileEntityManager mgr = (TileEntityManager) ws.getTileEntity(mx, my, mz);
+                    if (mgr == null) return "ERROR: No manager at " + mx + "," + my + "," + mz;
+
+                    return String.format(
+                        "{\"tick\":%d,\"running\":%s,\"hasDisk\":%s,\"hasProgram\":%s,\"status\":\"%s\"}",
+                        mgr.getManagerTick(),
+                        mgr.isRunning(),
+                        mgr.getDisk() != null,
+                        mgr.hasCompiledProgram(),
+                        mgr.getStatusMessage()
+                            .replace("\"", "\\\""));
+                }
+
+                case "stepmanager": {
+                    String[] sp = arg.trim()
+                        .split("\\s+");
+                    if (sp.length < 3) return "ERROR: Usage: stepmanager <mx> <my> <mz> [ticks]";
+                    int mx = Integer.parseInt(sp[0]);
+                    int my = Integer.parseInt(sp[1]);
+                    int mz = Integer.parseInt(sp[2]);
+                    int steps = sp.length > 3 ? Integer.parseInt(sp[3]) : 1;
+
+                    net.minecraft.world.World ws = null;
+                    if (net.minecraft.server.MinecraftServer.getServer() != null) {
+                        ws = net.minecraft.server.MinecraftServer.getServer()
+                            .worldServerForDimension(mc.thePlayer != null ? mc.thePlayer.dimension : 0);
+                    }
+                    if (ws == null) ws = mc.theWorld;
+                    if (ws == null) return "ERROR: No world";
+
+                    TileEntityManager mgr = (TileEntityManager) ws.getTileEntity(mx, my, mz);
+                    if (mgr == null) return "ERROR: No manager at " + mx + "," + my + "," + mz;
+
+                    for (int s = 0; s < steps; s++) {
+                        mgr.updateEntity();
+                    }
+                    return "STEPPED: " + steps + " (tick=" + mgr.getManagerTick() + ")";
+                }
 
                 case "opengui":
                     if ("labelgun".equalsIgnoreCase(arg)) {
@@ -725,9 +878,19 @@ public class TestAutomationController {
 
     private void launchWorld(String worldName) {
         Minecraft mc = Minecraft.getMinecraft();
-        WorldSettings settings = new WorldSettings(0L, WorldSettings.GameType.CREATIVE, false, false, WorldType.FLAT);
-        settings.enableCommands();
-        mc.launchIntegratedServer(worldName, worldName, settings);
+        if (mc.getSaveLoader() != null && mc.getSaveLoader()
+            .canLoadWorld(worldName)) {
+            mc.launchIntegratedServer(worldName, worldName, (WorldSettings) null);
+        } else {
+            WorldSettings settings = new WorldSettings(
+                0L,
+                WorldSettings.GameType.CREATIVE,
+                false,
+                false,
+                WorldType.FLAT);
+            settings.enableCommands();
+            mc.launchIntegratedServer(worldName, worldName, settings);
+        }
     }
 
     @SubscribeEvent
@@ -754,7 +917,7 @@ public class TestAutomationController {
         }
 
         String autoWorld = System.getProperty("gtnh.autoworld");
-        if (autoWorld != null && !autoWorldTriggered) {
+        if (autoWorld != null && !autoWorldTriggered && !"false".equalsIgnoreCase(autoWorld)) {
             if (mc.currentScreen instanceof GuiMainMenu) {
                 ticksInMainMenu++;
                 if (ticksInMainMenu > 20) {

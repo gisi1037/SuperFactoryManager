@@ -337,6 +337,14 @@ public class TileEntityManager extends TileEntity implements IInventory {
         return diskStack;
     }
 
+    public Program getCompiledProgram() {
+        return compiledProgram;
+    }
+
+    public boolean hasCompiledProgram() {
+        return compiledProgram != null;
+    }
+
     public String getStatusMessage() {
         return statusMessage;
     }
