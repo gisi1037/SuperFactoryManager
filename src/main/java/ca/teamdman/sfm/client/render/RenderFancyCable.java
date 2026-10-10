@@ -46,7 +46,7 @@ public class RenderFancyCable implements ISimpleBlockRenderingHandler {
         tess.startDrawingQuads();
 
         // Render Core
-        renderCore(tess, 0, 0, 0, icon, 0, true, false, false, false, false, true, true);
+        renderCore(tess, 0, 0, 0, icon, 0, true);
 
         // Render West & East arms so it looks like a connected cable in inventory
         renderArmWest(tess, 0, 0, 0, icon, 0, true, false);
@@ -75,37 +75,37 @@ public class RenderFancyCable implements ISimpleBlockRenderingHandler {
         boolean connEast = cable.canConnectTo(world, x, y, z, ForgeDirection.EAST);
 
         // Render central core box
-        renderCore(tess, x, y, z, icon, brightness, false, connDown, connUp, connNorth, connSouth, connWest, connEast);
+        renderCore(tess, x, y, z, icon, brightness, false);
 
         // Render connection arms
         if (connDown) {
-            boolean skipCap = world.getBlock(x, y - 1, z)
-                .isOpaqueCube();
+            Block b = world.getBlock(x, y - 1, z);
+            boolean skipCap = b.isOpaqueCube() || b instanceof BlockCable;
             renderArmDown(tess, x, y, z, icon, brightness, false, skipCap);
         }
         if (connUp) {
-            boolean skipCap = world.getBlock(x, y + 1, z)
-                .isOpaqueCube();
+            Block b = world.getBlock(x, y + 1, z);
+            boolean skipCap = b.isOpaqueCube() || b instanceof BlockCable;
             renderArmUp(tess, x, y, z, icon, brightness, false, skipCap);
         }
         if (connNorth) {
-            boolean skipCap = world.getBlock(x, y, z - 1)
-                .isOpaqueCube();
+            Block b = world.getBlock(x, y, z - 1);
+            boolean skipCap = b.isOpaqueCube() || b instanceof BlockCable;
             renderArmNorth(tess, x, y, z, icon, brightness, false, skipCap);
         }
         if (connSouth) {
-            boolean skipCap = world.getBlock(x, y, z + 1)
-                .isOpaqueCube();
+            Block b = world.getBlock(x, y, z + 1);
+            boolean skipCap = b.isOpaqueCube() || b instanceof BlockCable;
             renderArmSouth(tess, x, y, z, icon, brightness, false, skipCap);
         }
         if (connWest) {
-            boolean skipCap = world.getBlock(x - 1, y, z)
-                .isOpaqueCube();
+            Block b = world.getBlock(x - 1, y, z);
+            boolean skipCap = b.isOpaqueCube() || b instanceof BlockCable;
             renderArmWest(tess, x, y, z, icon, brightness, false, skipCap);
         }
         if (connEast) {
-            boolean skipCap = world.getBlock(x + 1, y, z)
-                .isOpaqueCube();
+            Block b = world.getBlock(x + 1, y, z);
+            boolean skipCap = b.isOpaqueCube() || b instanceof BlockCable;
             renderArmEast(tess, x, y, z, icon, brightness, false, skipCap);
         }
 
@@ -113,121 +113,93 @@ public class RenderFancyCable implements ISimpleBlockRenderingHandler {
     }
 
     private void renderCore(Tessellator tess, double x, double y, double z, IIcon icon, int brightness,
-        boolean isInventory, boolean connDown, boolean connUp, boolean connNorth, boolean connSouth, boolean connWest,
-        boolean connEast) {
+        boolean isInventory) {
         double uMin = icon.getInterpolatedU(8.0);
         double uMax = icon.getInterpolatedU(16.0);
         double vMin = icon.getInterpolatedV(0.0);
         double vMax = icon.getInterpolatedV(8.0);
 
-        if (!connDown) {
-            renderFaceDown(
-                tess,
-                x,
-                y,
-                z,
-                C_MIN,
-                C_MIN,
-                C_MIN,
-                C_MAX,
-                C_MAX,
-                uMin,
-                vMin,
-                uMax,
-                vMax,
-                brightness,
-                isInventory);
-        }
-        if (!connUp) {
-            renderFaceUp(
-                tess,
-                x,
-                y,
-                z,
-                C_MIN,
-                C_MAX,
-                C_MIN,
-                C_MAX,
-                C_MAX,
-                uMin,
-                vMin,
-                uMax,
-                vMax,
-                brightness,
-                isInventory);
-        }
-        if (!connNorth) {
-            renderFaceNorth(
-                tess,
-                x,
-                y,
-                z,
-                C_MIN,
-                C_MAX,
-                C_MIN,
-                C_MAX,
-                C_MIN,
-                uMin,
-                vMin,
-                uMax,
-                vMax,
-                brightness,
-                isInventory);
-        }
-        if (!connSouth) {
-            renderFaceSouth(
-                tess,
-                x,
-                y,
-                z,
-                C_MIN,
-                C_MAX,
-                C_MIN,
-                C_MAX,
-                C_MAX,
-                uMin,
-                vMin,
-                uMax,
-                vMax,
-                brightness,
-                isInventory);
-        }
-        if (!connWest) {
-            renderFaceWest(
-                tess,
-                x,
-                y,
-                z,
-                C_MIN,
-                C_MIN,
-                C_MAX,
-                C_MIN,
-                C_MAX,
-                uMin,
-                vMin,
-                uMax,
-                vMax,
-                brightness,
-                isInventory);
-        }
-        if (!connEast) {
-            renderFaceEast(
-                tess,
-                x,
-                y,
-                z,
-                C_MAX,
-                C_MIN,
-                C_MAX,
-                C_MIN,
-                C_MAX,
-                uMin,
-                vMin,
-                uMax,
-                vMax,
-                brightness,
-                isInventory);
-        }
+        renderFaceDown(
+            tess,
+            x,
+            y,
+            z,
+            C_MIN,
+            C_MIN,
+            C_MIN,
+            C_MAX,
+            C_MAX,
+            uMin,
+            vMin,
+            uMax,
+            vMax,
+            brightness,
+            isInventory);
+        renderFaceUp(tess, x, y, z, C_MIN, C_MAX, C_MIN, C_MAX, C_MAX, uMin, vMin, uMax, vMax, brightness, isInventory);
+        renderFaceNorth(
+            tess,
+            x,
+            y,
+            z,
+            C_MIN,
+            C_MAX,
+            C_MIN,
+            C_MAX,
+            C_MIN,
+            uMin,
+            vMin,
+            uMax,
+            vMax,
+            brightness,
+            isInventory);
+        renderFaceSouth(
+            tess,
+            x,
+            y,
+            z,
+            C_MIN,
+            C_MAX,
+            C_MIN,
+            C_MAX,
+            C_MAX,
+            uMin,
+            vMin,
+            uMax,
+            vMax,
+            brightness,
+            isInventory);
+        renderFaceWest(
+            tess,
+            x,
+            y,
+            z,
+            C_MIN,
+            C_MIN,
+            C_MAX,
+            C_MIN,
+            C_MAX,
+            uMin,
+            vMin,
+            uMax,
+            vMax,
+            brightness,
+            isInventory);
+        renderFaceEast(
+            tess,
+            x,
+            y,
+            z,
+            C_MAX,
+            C_MIN,
+            C_MAX,
+            C_MIN,
+            C_MAX,
+            uMin,
+            vMin,
+            uMax,
+            vMax,
+            brightness,
+            isInventory);
     }
 
     private void renderArmNorth(Tessellator tess, double x, double y, double z, IIcon icon, int brightness,
