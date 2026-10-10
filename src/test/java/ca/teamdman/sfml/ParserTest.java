@@ -7,6 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
+import ca.teamdman.sfm.common.label.LabelPositionHolder;
+import ca.teamdman.sfm.common.util.BlockPos;
 import ca.teamdman.sfml.ast.BoolConjunction;
 import ca.teamdman.sfml.ast.BoolHas;
 import ca.teamdman.sfml.ast.BoolNegation;
@@ -193,6 +195,86 @@ public class ParserTest {
             out.getLabelAccess()
                 .getLabels()
                 .size());
+    }
+
+    @Test
+    public void testRoundRobinAlternationByLabel() {
+        String code = "EVERY 20 TICKS DO\n" + "  INPUT FROM chest\n"
+            + "  OUTPUT TO furnace1, furnace2 ROUND ROBIN BY LABEL\n"
+            + "END";
+        ProgramBuildResult res = new ProgramBuilder(code).build();
+        assertTrue(res.isSuccess());
+        OutputStatement out = (OutputStatement) ((TimerTrigger) res.getProgram()
+            .getTriggers()
+            .get(0)).getBlock()
+                .getStatements()
+                .get(1);
+
+        LabelPositionHolder holder = new LabelPositionHolder();
+        holder.addPosition("furnace1", new BlockPos(1, 0, 0));
+        holder.addPosition("furnace2", new BlockPos(2, 0, 0));
+
+        // When queried across statements, it alternates 1, 2, 1, 2
+        assertEquals(
+            new BlockPos(1, 0, 0),
+            out.getLabelAccess()
+                .getPositions(holder)
+                .get(0));
+        assertEquals(
+            new BlockPos(2, 0, 0),
+            out.getLabelAccess()
+                .getPositions(holder)
+                .get(0));
+        assertEquals(
+            new BlockPos(1, 0, 0),
+            out.getLabelAccess()
+                .getPositions(holder)
+                .get(0));
+        assertEquals(
+            new BlockPos(2, 0, 0),
+            out.getLabelAccess()
+                .getPositions(holder)
+                .get(0));
+    }
+
+    @Test
+    public void testRoundRobinAlternationByBlock() {
+        String code = "EVERY 20 TICKS DO\n" + "  INPUT FROM chest\n"
+            + "  OUTPUT TO chests ROUND ROBIN BY BLOCK\n"
+            + "END";
+        ProgramBuildResult res = new ProgramBuilder(code).build();
+        assertTrue(res.isSuccess());
+        OutputStatement out = (OutputStatement) ((TimerTrigger) res.getProgram()
+            .getTriggers()
+            .get(0)).getBlock()
+                .getStatements()
+                .get(1);
+
+        LabelPositionHolder holder = new LabelPositionHolder();
+        holder.addPosition("chests", new BlockPos(10, 0, 0));
+        holder.addPosition("chests", new BlockPos(20, 0, 0));
+
+        // Alternates across blocks registered under the same label
+        assertEquals(
+            new BlockPos(10, 0, 0),
+            out.getLabelAccess()
+                .getPositions(holder)
+                .get(0));
+        assertEquals(
+            new BlockPos(20, 0, 0),
+            out.getLabelAccess()
+                .getPositions(holder)
+                .get(0));
+        assertEquals(
+            new BlockPos(10, 0, 0),
+            out.getLabelAccess()
+                .getPositions(holder)
+                .get(0));
+        assertEquals(
+            new BlockPos(20, 0, 0),
+            out.getLabelAccess()
+                .getPositions(holder)
+                .get(0));
     }
 
     @Test

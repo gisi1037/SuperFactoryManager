@@ -112,6 +112,10 @@ public final class ResourceIdentifier implements ASTNode {
         if (type == Type.FLUID) {
             return false;
         }
+        if (this == MATCH_ALL
+            || (tagPattern == null && ".*".equals(namespace) && ".*".equals(name) && metadata == -1)) {
+            return true;
+        }
 
         // Tag match (OreDictionary)
         if (tagPattern != null) {
@@ -126,7 +130,10 @@ public final class ResourceIdentifier implements ASTNode {
             return false;
         }
 
-        String fullId = Item.itemRegistry.getNameForObject(stack.getItem());
+        String fullId = Item.itemRegistry != null ? Item.itemRegistry.getNameForObject(stack.getItem()) : null;
+        if (fullId == null && stack.getItem().delegate != null) {
+            fullId = stack.getItem().delegate.name();
+        }
         if (fullId == null) {
             return false;
         }

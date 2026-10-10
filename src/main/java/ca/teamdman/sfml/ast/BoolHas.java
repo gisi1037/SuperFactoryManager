@@ -1,7 +1,13 @@
 package ca.teamdman.sfml.ast;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
+
+import net.minecraft.tileentity.TileEntity;
+import net.minecraft.tileentity.TileEntityChest;
 
 import ca.teamdman.sfm.common.inventory.InventoryUtils;
 import ca.teamdman.sfm.common.program.ProgramContext;
@@ -35,8 +41,22 @@ public final class BoolHas implements BoolExpr {
         List<BlockPos> positions = labelAccess.getPositions(context.getLabelPositionHolder());
         long overallCount = 0;
         List<Boolean> satisfactionResults = new ArrayList<>();
+        Set<TileEntityChest> seenChests = Collections.newSetFromMap(new IdentityHashMap<>());
 
         for (BlockPos pos : positions) {
+            if (context.getWorld() != null) {
+                TileEntity te = context.getWorld()
+                    .getTileEntity(pos.x, pos.y, pos.z);
+                if (te instanceof TileEntityChest) {
+                    TileEntityChest c = (TileEntityChest) te;
+                    if (seenChests.contains(c)) {
+                        continue;
+                    }
+                    seenChests.add(c);
+                    TileEntityChest adj = InventoryUtils.getAdjacentChest(c);
+                    if (adj != null) seenChests.add(adj);
+                }
+            }
             long inThisBlock = 0;
             if (resourceIds.hasItemType()) {
                 inThisBlock += InventoryUtils.countMatchingItems(

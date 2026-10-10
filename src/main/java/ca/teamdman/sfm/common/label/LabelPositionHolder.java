@@ -1,8 +1,8 @@
 package ca.teamdman.sfm.common.label;
 
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -16,7 +16,7 @@ public final class LabelPositionHolder {
 
     public static final String NBT_KEY = "sfm:labels";
 
-    private final Map<String, Set<BlockPos>> labels = new HashMap<>();
+    private final Map<String, Set<BlockPos>> labels = new LinkedHashMap<>();
 
     public Set<BlockPos> getPositions(String label) {
         if (label == null) return Collections.emptySet();
@@ -26,7 +26,7 @@ public final class LabelPositionHolder {
 
     public Set<String> getLabelsForPosition(BlockPos pos) {
         if (pos == null) return Collections.emptySet();
-        Set<String> result = new HashSet<>();
+        Set<String> result = new LinkedHashSet<>();
         for (Map.Entry<String, Set<BlockPos>> entry : labels.entrySet()) {
             if (entry.getValue()
                 .contains(pos)) {
@@ -38,7 +38,7 @@ public final class LabelPositionHolder {
 
     public void addPosition(String label, BlockPos pos) {
         if (label == null || pos == null) return;
-        labels.computeIfAbsent(label, k -> new HashSet<>())
+        labels.computeIfAbsent(label, k -> new LinkedHashSet<>())
             .add(pos);
     }
 
@@ -68,7 +68,7 @@ public final class LabelPositionHolder {
     public void addReferencedLabel(String label) {
         if (label == null || label.trim()
             .isEmpty()) return;
-        labels.computeIfAbsent(label.trim(), k -> new HashSet<>());
+        labels.computeIfAbsent(label.trim(), k -> new LinkedHashSet<>());
     }
 
     public void prune() {
@@ -95,7 +95,7 @@ public final class LabelPositionHolder {
         for (Object keyObj : labelCompound.func_150296_c()) {
             String label = (String) keyObj;
             NBTTagList list = labelCompound.getTagList(label, 11); // 11 = NBTTagIntArray
-            Set<BlockPos> posSet = new HashSet<>();
+            Set<BlockPos> posSet = new LinkedHashSet<>();
             for (int i = 0; i < list.tagCount(); i++) {
                 int[] coords = list.func_150306_c(i);
                 if (coords.length >= 3) {

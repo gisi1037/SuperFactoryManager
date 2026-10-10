@@ -1,12 +1,19 @@
 package ca.teamdman.sfm.common.inventory;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 
 import net.minecraft.inventory.IInventory;
 import net.minecraft.inventory.ISidedInventory;
+import net.minecraft.inventory.InventoryLargeChest;
 import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.tileentity.TileEntityChest;
 import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
 import net.minecraftforge.fluids.FluidTankInfo;
@@ -27,6 +34,23 @@ public final class InventoryUtils {
     public static IInventory getInventory(World world, BlockPos pos) {
         if (world == null || pos == null) return null;
         TileEntity te = pos.getTileEntity(world);
+        if (te instanceof TileEntityChest) {
+            TileEntityChest chest = (TileEntityChest) te;
+            chest.checkForAdjacentChests();
+            if (chest.adjacentChestXNeg != null) {
+                return new InventoryLargeChest("container.chestDouble", chest.adjacentChestXNeg, chest);
+            }
+            if (chest.adjacentChestXPos != null) {
+                return new InventoryLargeChest("container.chestDouble", chest, chest.adjacentChestXPos);
+            }
+            if (chest.adjacentChestZNeg != null) {
+                return new InventoryLargeChest("container.chestDouble", chest.adjacentChestZNeg, chest);
+            }
+            if (chest.adjacentChestZPos != null) {
+                return new InventoryLargeChest("container.chestDouble", chest, chest.adjacentChestZPos);
+            }
+            return chest;
+        }
         if (te instanceof IInventory) {
             return (IInventory) te;
         }
@@ -38,6 +62,16 @@ public final class InventoryUtils {
                 }
             } catch (Throwable ignored) {}
         }
+        return null;
+    }
+
+    public static TileEntityChest getAdjacentChest(TileEntityChest chest) {
+        if (chest == null) return null;
+        chest.checkForAdjacentChests();
+        if (chest.adjacentChestXNeg != null) return chest.adjacentChestXNeg;
+        if (chest.adjacentChestXPos != null) return chest.adjacentChestXPos;
+        if (chest.adjacentChestZNeg != null) return chest.adjacentChestZNeg;
+        if (chest.adjacentChestZPos != null) return chest.adjacentChestZPos;
         return null;
     }
 
@@ -192,23 +226,36 @@ public final class InventoryUtils {
     public static long countMatchingItems(World world, BlockPos pos, SideQualifier sides, NumberRangeSet slots,
         ResourceIdSet resourceIds, With with, ResourceIdSet except) {
         IInventory inv = getInventory(world, pos);
+        return countMatchingItems(inv, sides, slots, resourceIds, with, except);
+    }
+
+    public static long countMatchingItems(IInventory inv, SideQualifier sides, NumberRangeSet slots,
+        ResourceIdSet resourceIds, With with, ResourceIdSet except) {
         if (inv == null) return 0;
 
         long count = 0;
-        List<ForgeDirection> directions = sides != null ? sides.resolveDirections() : null;
-        if (directions == null || directions.isEmpty()) {
-            directions = java.util.Collections.singletonList(ForgeDirection.UNKNOWN);
+        boolean isSided = inv instanceof ISidedInventory;
+        List<ForgeDirection> directions;
+        if (!isSided) {
+            // Unsided inventory: querying multiple faces accesses the same backing slots
+            directions = Collections.singletonList(ForgeDirection.UNKNOWN);
+        } else if (sides != null) {
+            directions = sides.resolveDirections();
+        } else {
+            directions = Arrays.asList(ForgeDirection.VALID_DIRECTIONS);
         }
 
+        Set<Integer> countedSlots = new HashSet<>();
         for (ForgeDirection side : directions) {
             int[] accessible = getAccessibleSlots(inv, side, slots);
             for (int slot : accessible) {
+                if (!countedSlots.add(slot)) continue;
                 ItemStack stack = inv.getStackInSlot(slot);
                 if (stack == null) continue;
                 if (except != null && except.matchesItem(stack)) continue;
-                if (resourceIds.matchesItem(stack) && with.matches(stack)) {
-                    count += stack.stackSize;
-                }
+                if (resourceIds != null && !resourceIds.matchesItem(stack)) continue;
+                if (with != null && !with.matches(stack)) continue;
+                count += stack.stackSize;
             }
         }
         return count;
@@ -217,23 +264,40 @@ public final class InventoryUtils {
     public static long countMatchingFluids(World world, BlockPos pos, SideQualifier sides, ResourceIdSet resourceIds,
         ResourceIdSet except) {
         IFluidHandler handler = getFluidHandler(world, pos);
+        return countMatchingFluids(handler, sides, resourceIds, except);
+    }
+
+    public static long countMatchingFluids(IFluidHandler handler, SideQualifier sides, ResourceIdSet resourceIds,
+        ResourceIdSet except) {
         if (handler == null) return 0;
 
         long count = 0;
-        List<ForgeDirection> directions = sides != null ? sides.resolveDirections() : null;
-        if (directions == null || directions.isEmpty()) {
-            directions = java.util.Collections.singletonList(ForgeDirection.UNKNOWN);
+        List<ForgeDirection> directions;
+        if (sides == null || sides.getSides()
+            .isEmpty()
+            || sides.getSides()
+                .contains(ca.teamdman.sfml.ast.Side.NULL)) {
+            // Unspecified side: check UNKNOWN first so single-tank handlers aren't counted 6 times
+            FluidTankInfo[] unknownTanks = handler.getTankInfo(ForgeDirection.UNKNOWN);
+            if (unknownTanks != null && unknownTanks.length > 0) {
+                directions = Collections.singletonList(ForgeDirection.UNKNOWN);
+            } else {
+                directions = Arrays.asList(ForgeDirection.VALID_DIRECTIONS);
+            }
+        } else {
+            directions = sides.resolveDirections();
         }
 
+        Set<FluidTankInfo> seenTanks = Collections.newSetFromMap(new IdentityHashMap<>());
         for (ForgeDirection side : directions) {
             FluidTankInfo[] tanks = handler.getTankInfo(side);
             if (tanks == null) continue;
             for (FluidTankInfo tank : tanks) {
+                if (tank == null || !seenTanks.add(tank)) continue;
                 if (tank.fluid == null) continue;
                 if (except != null && except.matchesFluid(tank.fluid)) continue;
-                if (resourceIds.matchesFluid(tank.fluid)) {
-                    count += tank.fluid.amount;
-                }
+                if (resourceIds != null && !resourceIds.matchesFluid(tank.fluid)) continue;
+                count += tank.fluid.amount;
             }
         }
         return count;

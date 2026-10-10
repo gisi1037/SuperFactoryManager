@@ -3,6 +3,7 @@ package ca.teamdman.sfm.common.program;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -10,6 +11,8 @@ import java.util.Set;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.inventory.ISidedInventory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.tileentity.TileEntity;
+import net.minecraft.tileentity.TileEntityChest;
 import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
 import net.minecraftforge.fluids.FluidStack;
@@ -200,8 +203,12 @@ public final class ProgramContext {
     public void executeOutput(OutputStatement outputStmt) {
         if (inputs.isEmpty()) return;
 
+        List<BlockPos> outPositions = outputStmt.getLabelAccess()
+            .getPositions(labelPositions);
+
         // --- Items Gathering & Transfer ---
         List<InputSlot> inputSlots = new ArrayList<>();
+        Map<InputStatement, List<BlockPos>> inPositionsMap = new IdentityHashMap<>();
         for (InputStatement inputStmt : inputs) {
             log(LogLevel.DEBUG, "Gathering slots for IO statement \n```\n" + inputStmt.toStringPretty() + "\n```\n");
             log(LogLevel.TRACE, "Statement cache miss - this is the first time this statement is being gathered");
@@ -217,6 +224,7 @@ public final class ProgramContext {
 
             List<BlockPos> inPositions = inputStmt.getLabelAccess()
                 .getPositions(labelPositions);
+            inPositionsMap.put(inputStmt, inPositions);
             List<ForgeDirection> inSides = inputStmt.getLabelAccess()
                 .getSides()
                 .resolveDirections();
@@ -228,10 +236,22 @@ public final class ProgramContext {
                         .get(0)
                         .getName();
 
+            Set<TileEntityChest> seenInChests = Collections.newSetFromMap(new IdentityHashMap<>());
             for (BlockPos inPos : inPositions) {
                 if (!network.isConnected(inPos)) {
                     log(LogLevel.TRACE, "Block not connected to cable network: " + inPos);
                     continue;
+                }
+                TileEntity te = inPos.getTileEntity(world);
+                if (te instanceof TileEntityChest) {
+                    TileEntityChest c = (TileEntityChest) te;
+                    if (seenInChests.contains(c)) {
+                        log(LogLevel.TRACE, "Double chest partner already gathered: " + inPos);
+                        continue;
+                    }
+                    seenInChests.add(c);
+                    TileEntityChest adj = InventoryUtils.getAdjacentChest(c);
+                    if (adj != null) seenInChests.add(adj);
                 }
                 IInventory inInv = InventoryUtils.getInventory(world, inPos);
                 if (inInv == null) continue;
@@ -280,7 +300,7 @@ public final class ProgramContext {
         log(LogLevel.INFO, String.format("Discovered %d input slots", inputSlots.size()));
         if (inputSlots.isEmpty()) {
             log(LogLevel.DEBUG, "No input slots, skipping");
-            transferFluidsOnly(outputStmt);
+            transferFluidsOnly(outputStmt, outPositions, inPositionsMap);
             inputs.clear();
             return;
         }
@@ -297,8 +317,6 @@ public final class ProgramContext {
                 .getSlots());
 
         List<OutputSlot> outputSlots = new ArrayList<>();
-        List<BlockPos> outPositions = outputStmt.getLabelAccess()
-            .getPositions(labelPositions);
         List<ForgeDirection> outSides = outputStmt.getLabelAccess()
             .getSides()
             .resolveDirections();
@@ -310,10 +328,22 @@ public final class ProgramContext {
                     .get(0)
                     .getName();
 
+        Set<TileEntityChest> seenOutChests = Collections.newSetFromMap(new IdentityHashMap<>());
         for (BlockPos outPos : outPositions) {
             if (!network.isConnected(outPos)) {
                 log(LogLevel.TRACE, "Block not connected to cable network: " + outPos);
                 continue;
+            }
+            TileEntity te = outPos.getTileEntity(world);
+            if (te instanceof TileEntityChest) {
+                TileEntityChest c = (TileEntityChest) te;
+                if (seenOutChests.contains(c)) {
+                    log(LogLevel.TRACE, "Double chest partner already gathered for output: " + outPos);
+                    continue;
+                }
+                seenOutChests.add(c);
+                TileEntityChest adj = InventoryUtils.getAdjacentChest(c);
+                if (adj != null) seenOutChests.add(adj);
             }
             IInventory outInv = InventoryUtils.getInventory(world, outPos);
             if (outInv == null) continue;
@@ -353,7 +383,7 @@ public final class ProgramContext {
         log(LogLevel.INFO, String.format("Discovered %d output slots", outputSlots.size()));
         if (outputSlots.isEmpty()) {
             log(LogLevel.DEBUG, "No output slots, skipping");
-            transferFluidsOnly(outputStmt);
+            transferFluidsOnly(outputStmt, outPositions, inPositionsMap);
             inputs.clear();
             return;
         }
@@ -460,11 +490,14 @@ public final class ProgramContext {
             }
         }
 
-        transferFluidsOnly(outputStmt);
+        transferFluidsOnly(outputStmt, outPositions, inPositionsMap);
         inputs.clear();
     }
 
-    private void transferFluidsOnly(OutputStatement out) {
+    private void transferFluidsOnly(OutputStatement out, List<BlockPos> outPositions,
+        Map<InputStatement, List<BlockPos>> inPositionsMap) {
+        Map<ResourceLimit, Long> movedPerLimit = new HashMap<>();
+
         for (InputStatement in : inputs) {
             ResourceLimits inLimits = in.getResourceLimits();
             ResourceLimits outLimits = out.getResourceLimits();
@@ -476,10 +509,15 @@ public final class ProgramContext {
                 .getSides()
                 .resolveDirections();
 
-            List<BlockPos> inPositions = in.getLabelAccess()
-                .getPositions(labelPositions);
-            List<BlockPos> outPositions = out.getLabelAccess()
-                .getPositions(labelPositions);
+            List<BlockPos> inPositions = inPositionsMap != null ? inPositionsMap.get(in) : null;
+            if (inPositions == null) {
+                inPositions = in.getLabelAccess()
+                    .getPositions(labelPositions);
+            }
+            if (outPositions == null) {
+                outPositions = out.getLabelAccess()
+                    .getPositions(labelPositions);
+            }
 
             for (BlockPos inPos : inPositions) {
                 if (!network.isConnected(inPos)) continue;
@@ -500,10 +538,14 @@ public final class ProgramContext {
                         .getRetention()
                         .getAmount() : 0;
 
+                    long alreadyMoved = inLimit != null ? movedPerLimit.getOrDefault(inLimit, 0L) : 0L;
+                    long remainingQuota = maxAllowed - alreadyMoved;
+                    if (remainingQuota <= 0) continue;
+
                     long availableAfterRetention = drainedSim.amount - retention;
                     if (availableAfterRetention <= 0) continue;
 
-                    int toDrain = (int) Math.min(availableAfterRetention, maxAllowed);
+                    int toDrain = (int) Math.min(availableAfterRetention, remainingQuota);
 
                     for (BlockPos outPos : outPositions) {
                         if (!network.isConnected(outPos)) continue;
@@ -520,6 +562,10 @@ public final class ProgramContext {
                                 if (actualDrained != null && actualDrained.amount > 0) {
                                     outTank.fill(outSide, actualDrained, true);
                                     toDrain -= actualDrained.amount;
+                                    if (inLimit != null) {
+                                        alreadyMoved += actualDrained.amount;
+                                        movedPerLimit.put(inLimit, alreadyMoved);
+                                    }
 
                                     String fluidName = actualDrained.getFluid()
                                         .getName();
