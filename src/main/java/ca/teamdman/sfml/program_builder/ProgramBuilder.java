@@ -29,6 +29,8 @@ public final class ProgramBuilder {
             return ProgramBuildResult.failure(Collections.singletonList("Program is empty"));
         }
 
+        if (source.length() > 32767)
+            return ProgramBuildResult.failure(Collections.singletonList("Program exceeds 32767 characters"));
         List<String> errors = new ArrayList<>();
         BaseErrorListener errorListener = new BaseErrorListener() {
 
@@ -45,6 +47,35 @@ public final class ProgramBuilder {
             lexer.addErrorListener(errorListener);
 
             CommonTokenStream tokens = new CommonTokenStream(lexer);
+            tokens.fill();
+            int nesting = 0;
+            int unary = 0;
+            int dataNesting = 0, dataUnary = 0;
+            boolean hasData = false;
+            for (org.antlr.v4.runtime.Token token : tokens.getTokens()) {
+                if (token.getType() == SFMLLexer.VARIABLE || token.getType() == SFMLLexer.LBRACKET
+                    || token.getType() == SFMLLexer.LBRACE) hasData = true;
+            }
+            for (org.antlr.v4.runtime.Token token : tokens.getTokens()) {
+                int type = token.getType();
+                if (token.getChannel() != org.antlr.v4.runtime.Token.DEFAULT_CHANNEL) continue;
+                if (type == SFMLLexer.DO || type == SFMLLexer.IF || type == SFMLLexer.LPAREN) nesting++;
+                if (type == SFMLLexer.END || type == SFMLLexer.RPAREN) nesting--;
+                unary = type == SFMLLexer.NOT ? unary + 1 : 0;
+                if (hasData) {
+                    if (type == SFMLLexer.LPAREN || type == SFMLLexer.LBRACKET || type == SFMLLexer.LBRACE)
+                        dataNesting++;
+                    if (type == SFMLLexer.RPAREN || type == SFMLLexer.RBRACKET || type == SFMLLexer.RBRACE)
+                        dataNesting--;
+                    dataUnary = type == SFMLLexer.NOT || type == SFMLLexer.PLUS || type == SFMLLexer.DASH
+                        ? dataUnary + 1
+                        : 0;
+                    if (dataNesting > 32 || dataUnary > 32) return ProgramBuildResult
+                        .failure(Collections.singletonList("Data expression nesting exceeds 32"));
+                }
+                if (nesting > 128 || unary > 128)
+                    return ProgramBuildResult.failure(Collections.singletonList("Program nesting exceeds 128"));
+            }
             SFMLParser parser = new SFMLParser(tokens);
             parser.removeErrorListeners();
             parser.addErrorListener(errorListener);
@@ -58,6 +89,8 @@ public final class ProgramBuilder {
             ASTBuilder builder = new ASTBuilder();
             Program program = (Program) builder.visit(tree);
             return ProgramBuildResult.success(program);
+        } catch (StackOverflowError e) {
+            return ProgramBuildResult.failure(Collections.singletonList("Program expression is too complex"));
         } catch (Exception e) {
             errors.add("Compilation failed: " + e.getMessage());
             return ProgramBuildResult.failure(errors);

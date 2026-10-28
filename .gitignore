@@ -35,3 +35,16 @@ addon.local.gradle.kts
 addon.late.local.gradle
 addon.late.local.gradle.kts
 layout.json
+
+# Python report tools
+__pycache__/
+
+# Local workspaces, launchers, reports and internal project notes
+/.setup/
+/.reference/
+/.agents/
+/.codex/
+/integration/
+/docs/internal/
+*.log
+*.dmp

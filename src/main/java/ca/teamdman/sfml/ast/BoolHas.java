@@ -18,13 +18,25 @@ public final class BoolHas implements BoolExpr {
     private final SetOperator setOperator;
     private final LabelAccess labelAccess;
     private final ComparisonOperator comparisonOperator;
-    private final long quantity;
+    private final ResourceQuantity quantity;
     private final ResourceIdSet resourceIds;
     private final With with;
     private final ResourceIdSet except;
 
     public BoolHas(SetOperator setOperator, LabelAccess labelAccess, ComparisonOperator comparisonOperator,
         long quantity, ResourceIdSet resourceIds, With with, ResourceIdSet except) {
+        this(
+            setOperator,
+            labelAccess,
+            comparisonOperator,
+            new ResourceQuantity(quantity, false),
+            resourceIds,
+            with,
+            except);
+    }
+
+    public BoolHas(SetOperator setOperator, LabelAccess labelAccess, ComparisonOperator comparisonOperator,
+        ResourceQuantity quantity, ResourceIdSet resourceIds, With with, ResourceIdSet except) {
         this.setOperator = setOperator != null ? setOperator : SetOperator.OVERALL;
         this.labelAccess = labelAccess;
         this.comparisonOperator = comparisonOperator != null ? comparisonOperator : ComparisonOperator.GREATER;
@@ -36,6 +48,7 @@ public final class BoolHas implements BoolExpr {
 
     @Override
     public boolean evaluate(ProgramContext context) {
+        long threshold = quantity.evaluate(context);
         if (labelAccess == null) return false;
 
         List<BlockPos> positions = labelAccess.getPositions(context.getLabelPositionHolder());
@@ -44,6 +57,8 @@ public final class BoolHas implements BoolExpr {
         Set<TileEntityChest> seenChests = Collections.newSetFromMap(new IdentityHashMap<>());
 
         for (BlockPos pos : positions) {
+            if (context.getNetwork() == null || !context.getNetwork()
+                .isConnected(pos)) continue;
             if (context.getWorld() != null) {
                 TileEntity te = context.getWorld()
                     .getTileEntity(pos.x, pos.y, pos.z);
@@ -74,10 +89,10 @@ public final class BoolHas implements BoolExpr {
             }
 
             overallCount += inThisBlock;
-            satisfactionResults.add(comparisonOperator.test(inThisBlock, quantity));
+            satisfactionResults.add(comparisonOperator.test(inThisBlock, threshold));
         }
 
-        boolean overallSatisfied = comparisonOperator.test(overallCount, quantity);
+        boolean overallSatisfied = comparisonOperator.test(overallCount, threshold);
         return setOperator.test(overallSatisfied, satisfactionResults);
     }
 
@@ -94,7 +109,7 @@ public final class BoolHas implements BoolExpr {
     }
 
     public long getQuantity() {
-        return quantity;
+        return quantity.getAmount();
     }
 
     public ResourceIdSet getResourceIds() {

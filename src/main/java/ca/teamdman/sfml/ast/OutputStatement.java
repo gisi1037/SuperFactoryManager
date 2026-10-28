@@ -65,4 +65,9 @@ public final class OutputStatement implements Statement {
     public boolean isEmptySlotsOnly() {
         return emptySlotsOnly;
     }
+
+    public OutputStatement resolve(ProgramContext context) {
+        ResourceLimits resolved = resourceLimits.resolve(context);
+        return resolved == resourceLimits ? this : new OutputStatement(labelAccess, resolved, each, emptySlotsOnly);
+    }
 }

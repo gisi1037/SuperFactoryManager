@@ -18,6 +18,8 @@ import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.GL11;
 
 import ca.teamdman.sfm.client.gui.syntax.GuiAutocompletePopup;
+import ca.teamdman.sfm.client.gui.syntax.SfmlHighlighter;
+import ca.teamdman.sfm.client.gui.syntax.SfmlSyntaxRenderer;
 import ca.teamdman.sfm.client.gui.syntax.SnippetCategory;
 import ca.teamdman.sfm.client.gui.syntax.SyntaxRegistry;
 import ca.teamdman.sfm.client.gui.syntax.SyntaxSnippet;
@@ -99,6 +101,7 @@ public class GuiCodeEditor extends GuiScreen {
     private final List<VisualRow> visualRows = new ArrayList<>();
 
     // Syntax validation status
+    private SfmlHighlighter.Highlighted highlighted = SfmlHighlighter.highlight("");
     private String syntaxStatus = "Ready";
     private boolean syntaxValid = true;
 
@@ -122,7 +125,8 @@ public class GuiCodeEditor extends GuiScreen {
 
         // Load code from disk
         if (manager.getDisk() != null) {
-            String code = ItemDisk.getProgramString(manager.getDisk());
+            String code = ca.teamdman.sfm.client.blueprint.BlueprintDocument
+                .withoutMetadata(ItemDisk.getProgramString(manager.getDisk()));
             if (!code.isEmpty()) {
                 lines.addAll(Arrays.asList(code.split("\n", -1)));
             }
@@ -329,6 +333,7 @@ public class GuiCodeEditor extends GuiScreen {
 
     private void validateSyntax() {
         String code = String.join("\n", lines);
+        highlighted = SfmlHighlighter.highlight(code);
         if (code.trim()
             .isEmpty()) {
             syntaxStatus = EnumChatFormatting.GRAY + "Empty program";
@@ -1355,14 +1360,14 @@ public class GuiCodeEditor extends GuiScreen {
                 drawRect(codeAreaX, y - 1, codeAreaX + codeAreaW, y + lineHeight - 1, 0xFF181818);
             }
 
-            // Check if comment
-            String fullLine = lines.get(vr.physicalLine);
-            int commentIdx = fullLine.indexOf("//");
-            if (commentIdx == -1) commentIdx = fullLine.indexOf("#");
-            boolean isFullComment = (commentIdx != -1 && vr.startChar >= commentIdx);
-
-            // Syntax highlighted code
-            renderSyntaxLine(vr.text, codeAreaX + 4 - scrollColOffset, y, isFullComment);
+            SfmlSyntaxRenderer.draw(
+                fontRendererObj,
+                highlighted,
+                vr.physicalLine,
+                vr.startChar,
+                vr.endChar,
+                codeAreaX + 4 - scrollColOffset,
+                y);
 
             // Cursor rendering
             if (rowIdx == cursorVisualRow && (System.currentTimeMillis() / 450) % 2 == 0) {
@@ -1522,72 +1527,6 @@ public class GuiCodeEditor extends GuiScreen {
                 drawRect(cx - 1, cy - 3, cx, cy - 1, color);
                 drawRect(cx - 3, cy - 3, cx - 2, cy - 2, color);
                 break;
-        }
-    }
-
-    private static final Pattern TOKEN_PATTERN = Pattern.compile(
-        "(<[^>]+>)|(\"[^\"]*\")|(\\b(EVERY|TICKS|REDSTONE|LEVEL|LEVELS|PULSE|INPUT|OUTPUT|FORGET|IF|FROM|TO|EACH|ROUND_ROBIN|WITH|TRUE|FALSE|AND|OR|NOT|NAME)\\b)",
-        Pattern.CASE_INSENSITIVE);
-
-    private void renderSyntaxLine(String text, int x, int y, boolean isComment) {
-        if (text.isEmpty()) return;
-
-        if (isComment) {
-            fontRendererObj.drawString(text, x, y, 0x6A9955);
-            return;
-        }
-
-        // Check for comment within this line
-        int commentIdx = text.indexOf("//");
-        if (commentIdx == -1) commentIdx = text.indexOf("#");
-
-        String codePart = commentIdx != -1 ? text.substring(0, commentIdx) : text;
-        String commentPart = commentIdx != -1 ? text.substring(commentIdx) : null;
-
-        // Render code part with token highlighting
-        int curX = x;
-        int lastIndex = 0;
-        Matcher m = TOKEN_PATTERN.matcher(codePart);
-        while (m.find()) {
-            if (m.start() > lastIndex) {
-                String sub = codePart.substring(lastIndex, m.start());
-                fontRendererObj.drawString(sub, curX, y, 0xE0E0E0);
-                curX += fontRendererObj.getStringWidth(sub);
-            }
-            String match = m.group();
-            if (m.group(1) != null) {
-                // <placeholder> -> warm gold/amber
-                fontRendererObj.drawString(match, curX, y, 0xE5C07B);
-            } else if (m.group(2) != null) {
-                // "string literal" -> green
-                fontRendererObj.drawString(match, curX, y, 0x98C379);
-            } else if (m.group(3) != null) {
-                // Keyword
-                int kwColor = 0x569CD6; // VS Code style keyword blue
-                String upper = match.toUpperCase();
-                if (upper.equals("INPUT")) kwColor = 0x4EC9B0; // Cyan
-                else if (upper.equals("OUTPUT")) kwColor = 0xCE9178; // Orange/Coral
-                else if (upper.equals("EVERY") || upper.equals("TICKS")
-                    || upper.equals("REDSTONE")
-                    || upper.equals("LEVEL")
-                    || upper.equals("LEVELS")
-                    || upper.equals("PULSE")) kwColor = 0xDCDCAA; // Yellow
-                else if (upper.equals("IF") || upper.equals("TRUE") || upper.equals("FALSE")) kwColor = 0xC586C0; // Purple
-
-                fontRendererObj.drawString(match, curX, y, kwColor);
-            }
-            curX += fontRendererObj.getStringWidth(match);
-            lastIndex = m.end();
-        }
-        if (lastIndex < codePart.length()) {
-            String rest = codePart.substring(lastIndex);
-            fontRendererObj.drawString(rest, curX, y, 0xE0E0E0);
-            curX += fontRendererObj.getStringWidth(rest);
-        }
-
-        // Render comment part in green
-        if (commentPart != null) {
-            fontRendererObj.drawString(commentPart, curX, y, 0x6A9955);
         }
     }
 

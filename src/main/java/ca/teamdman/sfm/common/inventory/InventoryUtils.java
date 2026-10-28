@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 
@@ -106,21 +105,17 @@ public final class InventoryUtils {
             }
         }
 
-        if (slotFilter == null || slotFilter == NumberRangeSet.ALL) {
-            return rawSlots;
-        }
-
-        List<Integer> filtered = new ArrayList<>(rawSlots.length);
+        int size = inv.getSizeInventory();
+        boolean[] seen = new boolean[size];
+        int[] result = new int[Math.min(size, rawSlots.length)];
+        int count = 0;
         for (int slot : rawSlots) {
-            if (slotFilter.contains(slot)) {
-                filtered.add(slot);
+            if (slot >= 0 && slot < size && !seen[slot] && (slotFilter == null || slotFilter.contains(slot))) {
+                seen[slot] = true;
+                result[count++] = slot;
             }
         }
-        int[] result = new int[filtered.size()];
-        for (int i = 0; i < filtered.size(); i++) {
-            result[i] = filtered.get(i);
-        }
-        return result;
+        return Arrays.copyOf(result, count);
     }
 
     public static boolean canExtract(IInventory inv, int slot, ItemStack stack, ForgeDirection side) {
@@ -158,15 +153,8 @@ public final class InventoryUtils {
         extracted.stackSize = toExtract;
 
         if (!simulate) {
-            ItemStack decr = inv.decrStackSize(slot, toExtract);
-            if (decr != null && decr.stackSize > 0) {
-                extracted = decr;
-            } else if (inSlot.stackSize <= toExtract) {
-                inv.setInventorySlotContents(slot, null);
-            } else {
-                inSlot.stackSize -= toExtract;
-                inv.setInventorySlotContents(slot, inSlot);
-            }
+            extracted = inv.decrStackSize(slot, toExtract);
+            if (extracted == null || extracted.stackSize <= 0) return null;
             inv.markDirty();
         }
 
@@ -189,6 +177,7 @@ public final class InventoryUtils {
         }
 
         int maxLimit = Math.min(inv.getInventoryStackLimit(), stack.getMaxStackSize());
+        if (maxLimit <= 0) return 0;
 
         if (inSlot == null) {
             int toInsert = Math.min(stack.stackSize, maxLimit);
@@ -272,34 +261,45 @@ public final class InventoryUtils {
         if (handler == null) return 0;
 
         long count = 0;
-        List<ForgeDirection> directions;
-        if (sides == null || sides.getSides()
-            .isEmpty()
-            || sides.getSides()
-                .contains(ca.teamdman.sfml.ast.Side.NULL)) {
-            // Unspecified side: check UNKNOWN first so single-tank handlers aren't counted 6 times
-            FluidTankInfo[] unknownTanks = handler.getTankInfo(ForgeDirection.UNKNOWN);
-            if (unknownTanks != null && unknownTanks.length > 0) {
-                directions = Collections.singletonList(ForgeDirection.UNKNOWN);
-            } else {
-                directions = Arrays.asList(ForgeDirection.VALID_DIRECTIONS);
-            }
-        } else {
-            directions = sides.resolveDirections();
+        for (net.minecraftforge.fluids.FluidStack stack : getVisibleFluids(handler, sides)) {
+            if (except != null && except.matchesFluid(stack)) continue;
+            if (resourceIds != null && !resourceIds.matchesFluid(stack)) continue;
+            count += stack.amount;
         }
+        return count;
+    }
 
-        Set<FluidTankInfo> seenTanks = Collections.newSetFromMap(new IdentityHashMap<>());
+    /**
+     * Prefer UNKNOWN when available, otherwise use the largest per-face total for each fluid.
+     * Forge does not identify tanks across faces; summing snapshots would count shared tanks repeatedly.
+     */
+    public static List<net.minecraftforge.fluids.FluidStack> getVisibleFluids(IFluidHandler handler,
+        SideQualifier sides) {
+        java.util.Map<net.minecraftforge.fluids.Fluid, net.minecraftforge.fluids.FluidStack> maximum = new java.util.LinkedHashMap<>();
+        List<ForgeDirection> directions = sides == null ? SideQualifier.DEFAULT.resolveDirections()
+            : sides.resolveDirections();
+        if (sides == null || sides == SideQualifier.DEFAULT) {
+            FluidTankInfo[] unknown = handler.getTankInfo(ForgeDirection.UNKNOWN);
+            if (unknown != null && unknown.length > 0) directions = Collections.singletonList(ForgeDirection.UNKNOWN);
+        }
         for (ForgeDirection side : directions) {
             FluidTankInfo[] tanks = handler.getTankInfo(side);
             if (tanks == null) continue;
+            java.util.Map<net.minecraftforge.fluids.Fluid, net.minecraftforge.fluids.FluidStack> perFace = new java.util.LinkedHashMap<>();
             for (FluidTankInfo tank : tanks) {
-                if (tank == null || !seenTanks.add(tank)) continue;
-                if (tank.fluid == null) continue;
-                if (except != null && except.matchesFluid(tank.fluid)) continue;
-                if (resourceIds != null && !resourceIds.matchesFluid(tank.fluid)) continue;
-                count += tank.fluid.amount;
+                if (tank == null || tank.fluid == null || tank.fluid.amount <= 0) continue;
+                net.minecraftforge.fluids.Fluid fluid = tank.fluid.getFluid();
+                net.minecraftforge.fluids.FluidStack total = perFace.get(fluid);
+                if (total == null) perFace.put(fluid, tank.fluid.copy());
+                else total.amount = (int) Math.min(Integer.MAX_VALUE, (long) total.amount + tank.fluid.amount);
+            }
+            for (java.util.Map.Entry<net.minecraftforge.fluids.Fluid, net.minecraftforge.fluids.FluidStack> entry : perFace
+                .entrySet()) {
+                net.minecraftforge.fluids.FluidStack prior = maximum.get(entry.getKey());
+                if (prior == null || prior.amount < entry.getValue().amount)
+                    maximum.put(entry.getKey(), entry.getValue());
             }
         }
-        return count;
+        return new ArrayList<>(maximum.values());
     }
 }

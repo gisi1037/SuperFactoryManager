@@ -15,6 +15,7 @@ import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.EnumChatFormatting;
 import net.minecraft.world.World;
 
+import ca.teamdman.sfm.SuperFactoryManager;
 import ca.teamdman.sfm.common.label.LabelPositionHolder;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 import ca.teamdman.sfm.common.util.BlockPos;
@@ -200,8 +201,7 @@ public class ItemLabelGun extends Item {
         if (world.isRemote) {
             String activeLabel = getActiveLabel(stack);
             if (activeLabel.isEmpty() && !player.isSneaking()) {
-                net.minecraft.client.Minecraft.getMinecraft()
-                    .displayGuiScreen(new ca.teamdman.sfm.common.gui.GuiLabelGun(player, stack));
+                SuperFactoryManager.proxy.openLabelGun(player, stack);
                 return true;
             }
 
@@ -226,18 +226,7 @@ public class ItemLabelGun extends Item {
                 LabelPositionHolder.saveTo(stack, gunHolder);
             }
 
-            net.minecraft.client.Minecraft.getMinecraft()
-                .getNetHandler()
-                .addToSendQueue(
-                    new net.minecraft.network.play.client.C08PacketPlayerBlockPlacement(
-                        x,
-                        y,
-                        z,
-                        side,
-                        stack,
-                        hitX,
-                        hitY,
-                        hitZ));
+            SuperFactoryManager.proxy.sendLabelGunUse(stack, x, y, z, side, hitX, hitY, hitZ);
             return true;
         }
 
@@ -429,8 +418,7 @@ public class ItemLabelGun extends Item {
     @Override
     public ItemStack onItemRightClick(ItemStack stack, World world, EntityPlayer player) {
         if (world.isRemote) {
-            net.minecraft.client.Minecraft.getMinecraft()
-                .displayGuiScreen(new ca.teamdman.sfm.common.gui.GuiLabelGun(player, stack));
+            SuperFactoryManager.proxy.openLabelGun(player, stack);
         }
         return stack;
     }

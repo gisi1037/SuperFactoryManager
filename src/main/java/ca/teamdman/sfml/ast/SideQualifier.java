@@ -11,7 +11,7 @@ import net.minecraftforge.common.util.ForgeDirection;
 public final class SideQualifier implements ASTNode {
 
     public static final SideQualifier ALL = new SideQualifier(
-        Arrays.asList(Side.TOP, Side.BOTTOM, Side.NORTH, Side.SOUTH, Side.EAST, Side.WEST, Side.NULL));
+        Arrays.asList(Side.TOP, Side.BOTTOM, Side.NORTH, Side.SOUTH, Side.EAST, Side.WEST));
     public static final SideQualifier NULL = new SideQualifier(Collections.singletonList(Side.NULL));
     public static final SideQualifier DEFAULT = ALL;
 
@@ -29,10 +29,10 @@ public final class SideQualifier implements ASTNode {
         List<ForgeDirection> directions = new ArrayList<>();
         for (Side side : sides) {
             if (side == Side.NULL) {
-                // If NULL or ALL, include all valid directions plus UNKNOWN
-                return Arrays.asList(ForgeDirection.VALID_DIRECTIONS);
+                directions.add(ForgeDirection.UNKNOWN);
+                continue;
             }
-            directions.add(side.getDirection());
+            if (!directions.contains(side.getDirection())) directions.add(side.getDirection());
         }
         return directions;
     }

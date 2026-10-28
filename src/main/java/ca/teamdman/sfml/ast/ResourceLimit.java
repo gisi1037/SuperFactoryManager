@@ -12,7 +12,7 @@ public final class ResourceLimit implements ASTNode {
 
     public static final ResourceLimit DEFAULT_OUTPUT = new ResourceLimit(
         ResourceIdSet.MATCH_ALL,
-        new Limit(ResourceQuantity.UNLIMITED, ResourceQuantity.ZERO),
+        new Limit(ResourceQuantity.UNLIMITED, ResourceQuantity.UNLIMITED),
         With.ALWAYS_TRUE);
 
     private final ResourceIdSet resourceIds;
@@ -51,6 +51,35 @@ public final class ResourceLimit implements ASTNode {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
+        if (limit.getQuantity()
+            .isDynamic()
+            || limit.getRetention()
+                .isDynamic()) {
+            // Keep both retention extremes and EACH, without leaking internal wildcard patterns.
+            sb.append(limit.getQuantity())
+                .append(" RETAIN ")
+                .append(limit.getRetention())
+                .append(" ");
+            for (int i = 0; i < resourceIds.getIdentifiers()
+                .size(); i++) {
+                if (i > 0) sb.append(" OR ");
+                ResourceIdentifier id = resourceIds.getIdentifiers()
+                    .get(i);
+                if (id == ResourceIdentifier.MATCH_ALL) sb.append("*");
+                else sb.append('"')
+                    .append(
+                        id.toString()
+                            .replace("\"", "\\\""))
+                    .append('"');
+            }
+            if (with.getTagMatcher() != null) {
+                sb.append(with.isNegated() ? " WITHOUT TAG " : " WITH TAG ");
+                sb.append(
+                    with.getTagMatcher()
+                        .getPatternString());
+            }
+            return sb.toString();
+        }
         if (limit != null && limit.getQuantity()
             .getAmount() != Long.MAX_VALUE) {
             sb.append(

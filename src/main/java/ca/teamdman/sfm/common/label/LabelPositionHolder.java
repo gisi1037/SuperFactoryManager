@@ -87,23 +87,31 @@ public final class LabelPositionHolder {
     }
 
     public void readFromNBT(NBTTagCompound tag) {
+        readFromNBT(tag, null);
+    }
+
+    /** Decode one execution snapshot; null selects all labels for tools and editors. */
+    public void readFromNBT(NBTTagCompound tag, Set<String> selectedLabels) {
         labels.clear();
-        if (tag == null || !tag.hasKey(NBT_KEY)) {
-            return;
-        }
+        if (tag == null || !tag.hasKey(NBT_KEY)) return;
         NBTTagCompound labelCompound = tag.getCompoundTag(NBT_KEY);
-        for (Object keyObj : labelCompound.func_150296_c()) {
-            String label = (String) keyObj;
-            NBTTagList list = labelCompound.getTagList(label, 11); // 11 = NBTTagIntArray
-            Set<BlockPos> posSet = new LinkedHashSet<>();
-            for (int i = 0; i < list.tagCount(); i++) {
-                int[] coords = list.func_150306_c(i);
-                if (coords.length >= 3) {
-                    posSet.add(new BlockPos(coords[0], coords[1], coords[2]));
-                }
+        if (selectedLabels == null) {
+            for (Object key : labelCompound.func_150296_c()) readLabel(labelCompound, (String) key);
+        } else {
+            for (String label : selectedLabels) {
+                if (labelCompound.hasKey(label)) readLabel(labelCompound, label);
             }
-            labels.put(label, posSet);
         }
+    }
+
+    private void readLabel(NBTTagCompound labelCompound, String label) {
+        NBTTagList list = labelCompound.getTagList(label, 11); // 11 = NBTTagIntArray
+        Set<BlockPos> positions = new LinkedHashSet<>();
+        for (int i = 0; i < list.tagCount(); i++) {
+            int[] coords = list.func_150306_c(i);
+            if (coords.length >= 3) positions.add(new BlockPos(coords[0], coords[1], coords[2]));
+        }
+        labels.put(label, positions);
     }
 
     public void writeToNBT(NBTTagCompound tag) {
@@ -120,10 +128,12 @@ public final class LabelPositionHolder {
     }
 
     public static LabelPositionHolder from(ItemStack stack) {
+        return from(stack, null);
+    }
+
+    public static LabelPositionHolder from(ItemStack stack, Set<String> selectedLabels) {
         LabelPositionHolder holder = new LabelPositionHolder();
-        if (stack != null && stack.hasTagCompound()) {
-            holder.readFromNBT(stack.getTagCompound());
-        }
+        if (stack != null && stack.hasTagCompound()) holder.readFromNBT(stack.getTagCompound(), selectedLabels);
         return holder;
     }
 

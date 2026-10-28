@@ -1,10 +1,18 @@
 package ca.teamdman.sfm;
 
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.item.ItemStack;
+import net.minecraft.world.World;
+
 import ca.teamdman.sfm.common.block.ModBlocks;
+import ca.teamdman.sfm.common.command.CommandSfmProfile;
+import ca.teamdman.sfm.common.command.CommandSfmRecovery;
+import ca.teamdman.sfm.common.diagnostics.ManagerTickProfiler;
 import ca.teamdman.sfm.common.gui.GuiHandler;
 import ca.teamdman.sfm.common.item.ModItems;
 import ca.teamdman.sfm.common.net.SFMNetwork;
 import ca.teamdman.sfm.common.recipe.ModRecipes;
+import cpw.mods.fml.common.FMLCommonHandler;
 import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPostInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
@@ -20,6 +28,10 @@ public class CommonProxy {
         ModBlocks.init();
         ModItems.init();
         SFMNetwork.init();
+        net.minecraftforge.common.MinecraftForge.EVENT_BUS.register(new ca.teamdman.sfm.common.network.NetworkEvents());
+        FMLCommonHandler.instance()
+            .bus()
+            .register(ManagerTickProfiler.INSTANCE);
     }
 
     public void init(FMLInitializationEvent event) {
@@ -31,5 +43,19 @@ public class CommonProxy {
         ModRecipes.postInit();
     }
 
-    public void serverStarting(FMLServerStartingEvent event) {}
+    public void serverStarting(FMLServerStartingEvent event) {
+        ManagerTickProfiler.INSTANCE.reset();
+        event.registerServerCommand(new CommandSfmProfile());
+        event.registerServerCommand(new CommandSfmRecovery());
+    }
+
+    // Client hooks use common types so server class verification never resolves GUI classes.
+    public void openLabelGun(EntityPlayer player, ItemStack stack) {}
+
+    public void sendLabelGunUse(ItemStack stack, int x, int y, int z, int side, float hitX, float hitY, float hitZ) {}
+
+    public Object getClientGuiElement(int id, EntityPlayer player, World world, int x, int y, int z) {
+        return null;
+    }
+
 }

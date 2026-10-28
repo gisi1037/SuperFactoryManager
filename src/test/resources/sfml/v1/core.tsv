@@ -1,0 +1,15 @@
+# id	sourceStart	destStart	sourceEnd	destEnd	errorContains	program
+transfer-all	10	0	0	10		EVERY 20 TICKS DO INPUT FROM source OUTPUT TO dest END
+output-cap	10	0	7	3		EVERY 20 TICKS DO INPUT FROM source OUTPUT 3 TO dest END
+input-cap	10	0	6	4		EVERY 20 TICKS DO INPUT 4 FROM source OUTPUT TO dest END
+input-retain	10	0	4	6		EVERY 20 TICKS DO INPUT RETAIN 4 FROM source OUTPUT TO dest END
+output-retain	10	2	7	5		EVERY 20 TICKS DO INPUT FROM source OUTPUT RETAIN 5 TO dest END
+quota-across-outputs	10	0	6	4		EVERY 20 TICKS DO INPUT 4 FROM source OUTPUT 3 TO dest OUTPUT 3 TO dest END
+input-survives-output	10	0	8	2		EVERY 20 TICKS DO INPUT FROM source OUTPUT 1 TO dest OUTPUT 1 TO dest END
+forget-label	10	0	10	0		EVERY 20 TICKS DO INPUT FROM source FORGET source OUTPUT TO dest END
+forget-all	10	0	10	0		EVERY 20 TICKS DO INPUT FROM source FORGET OUTPUT TO dest END
+trigger-isolation	10	0	10	0		EVERY 20 TICKS DO INPUT FROM source END EVERY 20 TICKS DO OUTPUT TO dest END
+reject-relative	10	0	10	0	Unsupported side	EVERY 20 TICKS DO INPUT FROM source LEFT SIDE END
+reject-compound-with	10	0	10	0	Compound WITH	EVERY 20 TICKS DO INPUT WITH (TAG iron AND TAG gold) FROM source END
+reject-zero-interval	10	0	10	0	Interval must be positive	EVERY 0 TICKS DO END
+reject-interval-overflow	10	0	10	0	Compilation failed	EVERY 2147483647 SECONDS DO END

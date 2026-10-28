@@ -842,6 +842,26 @@ public class SFMLBaseListener implements SFMLListener {
      * </p>
      */
     @Override
+    public void enterBooleanData(SFMLParser.BooleanDataContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitBooleanData(SFMLParser.BooleanDataContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
     public void enterBooleanConjunction(SFMLParser.BooleanConjunctionContext ctx) {}
 
     /**
@@ -1133,6 +1153,346 @@ public class SFMLBaseListener implements SFMLListener {
      */
     @Override
     public void exitIdentifier(SFMLParser.IdentifierContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterStateDeclaration(SFMLParser.StateDeclarationContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitStateDeclaration(SFMLParser.StateDeclarationContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterDataDeclaration(SFMLParser.DataDeclarationContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitDataDeclaration(SFMLParser.DataDeclarationContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterDataAssignment(SFMLParser.DataAssignmentContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitDataAssignment(SFMLParser.DataAssignmentContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterDataTarget(SFMLParser.DataTargetContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitDataTarget(SFMLParser.DataTargetContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterDataExpression(SFMLParser.DataExpressionContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitDataExpression(SFMLParser.DataExpressionContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterDataOr(SFMLParser.DataOrContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitDataOr(SFMLParser.DataOrContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterDataAnd(SFMLParser.DataAndContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitDataAnd(SFMLParser.DataAndContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterDataNot(SFMLParser.DataNotContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitDataNot(SFMLParser.DataNotContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterDataComparison(SFMLParser.DataComparisonContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitDataComparison(SFMLParser.DataComparisonContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterDataAdd(SFMLParser.DataAddContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitDataAdd(SFMLParser.DataAddContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterDataMultiply(SFMLParser.DataMultiplyContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitDataMultiply(SFMLParser.DataMultiplyContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterMultiplyOperator(SFMLParser.MultiplyOperatorContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitMultiplyOperator(SFMLParser.MultiplyOperatorContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterDataSign(SFMLParser.DataSignContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitDataSign(SFMLParser.DataSignContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterDataPostfix(SFMLParser.DataPostfixContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitDataPostfix(SFMLParser.DataPostfixContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterDataPrimary(SFMLParser.DataPrimaryContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitDataPrimary(SFMLParser.DataPrimaryContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterDataField(SFMLParser.DataFieldContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitDataField(SFMLParser.DataFieldContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterDataName(SFMLParser.DataNameContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitDataName(SFMLParser.DataNameContext ctx) {}
 
     /**
      * {@inheritDoc}

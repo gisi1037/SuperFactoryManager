@@ -24,7 +24,7 @@ public enum Side implements ASTNode {
 
     public static Side from(String name) {
         if (name == null) return NULL;
-        switch (name.toUpperCase()) {
+        switch (name.toUpperCase(java.util.Locale.ROOT)) {
             case "TOP":
             case "UP":
                 return TOP;
@@ -39,8 +39,10 @@ public enum Side implements ASTNode {
                 return EAST;
             case "WEST":
                 return WEST;
-            default:
+            case "NULL":
                 return NULL;
+            default:
+                throw new IllegalArgumentException("Unsupported side: " + name + "; use an absolute direction");
         }
     }
 }

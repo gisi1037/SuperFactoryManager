@@ -48,11 +48,12 @@ public final class LabelAccess implements ASTNode {
             return new ArrayList<>(holder.getPositions(l.getName()));
         }
 
-        List<BlockPos> result = new ArrayList<>();
+        java.util.Set<BlockPos> unique = new java.util.LinkedHashSet<>();
         for (Label l : labels) {
-            result.addAll(holder.getPositions(l.getName()));
+            unique.addAll(holder.getPositions(l.getName()));
         }
 
+        List<BlockPos> result = new ArrayList<>(unique);
         if (roundRobin.isEnabled() && roundRobin.getMode() == RoundRobin.Mode.BY_BLOCK && !result.isEmpty()) {
             int selectedBlockIdx = roundRobin.nextIndex(result.size());
             return Collections.singletonList(result.get(selectedBlockIdx));

@@ -58,4 +58,9 @@ public final class InputStatement implements Statement {
     public boolean isEach() {
         return each;
     }
+
+    public InputStatement resolve(ProgramContext context) {
+        ResourceLimits resolved = resourceLimits.resolve(context);
+        return resolved == resourceLimits ? this : new InputStatement(labelAccess, resolved, each);
+    }
 }

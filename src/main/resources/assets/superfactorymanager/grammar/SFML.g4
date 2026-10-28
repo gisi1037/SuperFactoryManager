@@ -6,7 +6,7 @@ package ca.teamdman.langs;
     public boolean INCLUDE_UNUSED = false; // we want syntax highlighting to not break on unexpected tokens
 }
 
-program : name? trigger* EOF;
+program : name? stateDeclaration* trigger* EOF;
 
 name: NAME string ;
 
@@ -26,7 +26,9 @@ interval: NUMBER? GLOBAL? (PLUS NUMBER)? (TICKS | TICK | SECONDS | SECOND)      
 //
 
 block           : statement* ;
-statement       : inputStatement
+statement       : dataDeclaration
+                | dataAssignment
+                | inputStatement
                 | redstoneOutputStatement
                 | outputStatement
                 | ifStatement
@@ -60,8 +62,8 @@ limit           : quantity retention    #QuantityRetentionLimit
                 | quantity              #QuantityLimit
                 ;
 
-quantity        : number EACH?;
-retention       : RETAIN number EACH?;
+quantity        : (number | LPAREN dataExpression RPAREN) EACH?;
+retention       : RETAIN (number | LPAREN dataExpression RPAREN) EACH?;
 
 resourceExclusion       : EXCEPT resourceIdList;
 
@@ -114,11 +116,12 @@ ifStatement     : IF boolexpr THEN block (ELSE IF boolexpr THEN block)* (ELSE bl
 boolexpr        : TRUE                              #BooleanTrue
                 | FALSE                             #BooleanFalse
                 | LPAREN boolexpr RPAREN            #BooleanParen
+                | LPAREN dataExpression RPAREN      #BooleanData
                 | NOT boolexpr                      #BooleanNegation
                 | boolexpr AND boolexpr             #BooleanConjunction
                 | boolexpr OR boolexpr              #BooleanDisjunction
-                | setOp? labelAccess HAS comparisonOp number resourceIdDisjunction? with? (EXCEPT resourceIdList)?  #BooleanHas
-                | REDSTONE (LEVEL | LEVELS)? (comparisonOp number)?   #BooleanRedstone
+                | setOp? labelAccess HAS comparisonOp (number | LPAREN dataExpression RPAREN) resourceIdDisjunction? with? (EXCEPT resourceIdList)?  #BooleanHas
+                | REDSTONE (LEVEL | LEVELS)? (comparisonOp (number | LPAREN dataExpression RPAREN))?   #BooleanRedstone
                 ;
 
 comparisonOp    : GT
@@ -156,7 +159,34 @@ label           : (identifier)  #RawLabel
 
 emptyslots      : EMPTY (SLOTS | SLOT) IN ;
 
-identifier : (IDENTIFIER | REDSTONE | LEVEL | LEVELS | GLOBAL | SECOND | SECONDS | TOP | BOTTOM | LEFT | RIGHT | FRONT | BACK) ;
+identifier : (IDENTIFIER | LET | SET | STATE | REDSTONE | LEVEL | LEVELS | GLOBAL | SECOND | SECONDS | TOP | BOTTOM | LEFT | RIGHT | FRONT | BACK) ;
+
+// Typed data expressions. Multiplication retains the legacy wildcard token.
+stateDeclaration : STATE VARIABLE EQ_SYMBOL dataExpression;
+dataDeclaration : LET VARIABLE EQ_SYMBOL dataExpression;
+dataAssignment : SET dataTarget EQ_SYMBOL dataExpression;
+dataTarget : VARIABLE (DOT dataName | LBRACKET dataExpression RBRACKET)*;
+dataExpression : dataOr;
+dataOr : dataAnd (OR dataAnd)*;
+dataAnd : dataNot (AND dataNot)*;
+dataNot : NOT dataNot | dataComparison;
+dataComparison : dataAdd (comparisonOp dataAdd)?;
+dataAdd : dataMultiply ((PLUS | DASH) dataMultiply)*;
+dataMultiply : dataSign ((multiplyOperator | SLASH | PERCENT) dataSign)*;
+multiplyOperator : {_input.LT(1).getText().equals("*")}? IDENTIFIER;
+dataSign : (PLUS | DASH) dataSign | dataPostfix;
+dataPostfix : dataPrimary (DOT dataName | LBRACKET dataExpression RBRACKET)*;
+dataPrimary : NUMBER | STRING | VARIABLE | TRUE | FALSE | LPAREN dataExpression RPAREN
+            | LBRACKET (dataExpression (COMMA dataExpression)* COMMA?)? RBRACKET
+            | LBRACE (dataField (COMMA dataField)* COMMA?)? RBRACE;
+dataField : dataName COLON dataExpression;
+// All legacy keyword spellings are legal fixed field names.
+dataName : IDENTIFIER | LET | SET | STATE | IF | THEN | ELSE | HAS | OVERALL | SOME | ONE | LONE
+         | TRUE | FALSE | NOT | AND | OR | GT | LT | EQ | LE | GE | FROM | TO | INPUT | OUTPUT
+         | WHERE | SLOTS | SLOT | RETAIN | EACH | EXCEPT | FORGET | EMPTY | IN | WITHOUT | WITH
+         | TAG | ROUND | ROBIN | BY | LABEL | BLOCK | TOP | BOTTOM | NORTH | EAST | SOUTH | WEST
+         | SIDE | LEFT | RIGHT | FRONT | BACK | NULL | TICKS | TICK | SECONDS | SECOND | GLOBAL
+         | REDSTONE | LEVEL | LEVELS | PULSE | DO | END | NAME | EVERY | PLUS;
 
 // GENERAL
 string: STRING ;
@@ -168,6 +198,17 @@ number: NUMBER ;
 // LEXER
 //
 
+// DATA STATEMENTS
+LET : L E T;
+SET : S E T;
+STATE : S T A T E;
+VARIABLE : '$' [a-zA-Z_] [a-zA-Z0-9_]*;
+LBRACKET : '[';
+RBRACKET : ']';
+LBRACE : '{';
+RBRACE : '}';
+DOT : '.';
+PERCENT : '%';
 // IF STATEMENT
 IF      : I F ;
 THEN    : T H E N ;
@@ -276,7 +317,8 @@ NUMBER_WITH_G_SUFFIX    : [0-9]+[gG] ;
 NUMBER                  : [0-9]+ ;
 IDENTIFIER              : [a-zA-Z_*][a-zA-Z0-9_*]* | '*'; // Note that the * in the square brackets is a literl
 
-STRING : '"' (~'"'|'\\"')* '"' ;
+// Pair backslashes before considering a closing quote. Legacy label decoding stays unchanged.
+STRING : '"' ('\\' . | ~["\\])* '"' ;
 
 LINE_COMMENT : '--' ~[\r\n]* -> channel(HIDDEN);
 //LINE_COMMENT : '--' ~[\r\n]* (EOF|'\r'? '\n');

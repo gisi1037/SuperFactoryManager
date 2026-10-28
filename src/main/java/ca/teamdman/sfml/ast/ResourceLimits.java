@@ -14,11 +14,20 @@ public final class ResourceLimits implements ASTNode {
 
     private final List<ResourceLimit> limits;
     private final ResourceIdSet exclusions;
+    private final boolean dynamic;
 
     public ResourceLimits(List<ResourceLimit> limits, ResourceIdSet exclusions) {
         this.limits = limits != null && !limits.isEmpty() ? limits
             : Collections.singletonList(ResourceLimit.DEFAULT_INPUT);
         this.exclusions = exclusions;
+        boolean found = false;
+        for (ResourceLimit entry : this.limits) found |= entry.getLimit()
+            .getQuantity()
+            .isDynamic()
+            || entry.getLimit()
+                .getRetention()
+                .isDynamic();
+        this.dynamic = found;
     }
 
     public List<ResourceLimit> getLimits() {
@@ -92,5 +101,19 @@ public final class ResourceLimits implements ASTNode {
                 .append(exclusions);
         }
         return sb.toString();
+    }
+
+    public ResourceLimits resolve(ca.teamdman.sfm.common.program.ProgramContext context) {
+        if (!dynamic) return this;
+        List<ResourceLimit> resolved = new java.util.ArrayList<>(limits.size());
+        for (ResourceLimit entry : limits) {
+            Limit value = entry.getLimit();
+            ResourceQuantity quantity = value.getQuantity()
+                .resolve(context);
+            ResourceQuantity retention = value.getRetention()
+                .resolve(context);
+            resolved.add(new ResourceLimit(entry.getResourceIds(), new Limit(quantity, retention), entry.getWith()));
+        }
+        return new ResourceLimits(resolved, exclusions);
     }
 }

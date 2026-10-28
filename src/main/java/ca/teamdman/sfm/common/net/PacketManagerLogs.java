@@ -65,6 +65,7 @@ public class PacketManagerLogs implements IMessage {
         z = buf.readInt();
         logLevel = ByteBufUtils.readUTF8String(buf);
         int count = buf.readInt();
+        if (count < 0 || count > 200) throw new IllegalArgumentException("Invalid log count");
         logs = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             long ts = buf.readLong();
@@ -81,19 +82,32 @@ public class PacketManagerLogs implements IMessage {
         buf.writeInt(z);
         ByteBufUtils.writeUTF8String(buf, logLevel);
 
-        // Cap to latest 200 logs across network to prevent large packets
-        int count = Math.min(logs.size(), 200);
-        int startIndex = logs.size() - count;
+        // Bound encoded bytes as well as entry count (UTF-8 can use multiple bytes per character).
+        int count = 0;
+        int bytes = 0;
+        for (int i = logs.size() - 1; i >= 0 && count < 200; i--) {
+            int size = clipped(
+                logs.get(i)
+                    .getMessage()).getBytes(java.nio.charset.StandardCharsets.UTF_8).length
+                + 32;
+            if (bytes + size > 24000) break;
+            bytes += size;
+            count++;
+        }
         buf.writeInt(count);
-        for (int i = startIndex; i < logs.size(); i++) {
+        for (int i = logs.size() - count; i < logs.size(); i++) {
             LogEntry entry = logs.get(i);
             buf.writeLong(entry.getTimestamp());
             ByteBufUtils.writeUTF8String(
                 buf,
                 entry.getLevel()
                     .name());
-            ByteBufUtils.writeUTF8String(buf, entry.getMessage());
+            ByteBufUtils.writeUTF8String(buf, clipped(entry.getMessage()));
         }
+    }
+
+    private static String clipped(String message) {
+        return message.length() <= 1024 ? message : message.substring(0, 1024);
     }
 
     public static class Handler implements IMessageHandler<PacketManagerLogs, IMessage> {

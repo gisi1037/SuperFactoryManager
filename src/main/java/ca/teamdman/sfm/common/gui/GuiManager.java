@@ -25,7 +25,7 @@ import ca.teamdman.sfm.common.tileentity.LogEntry;
 import ca.teamdman.sfm.common.tileentity.LogLevel;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 
-public class GuiManager extends GuiContainer {
+public class GuiManager extends GuiContainer implements net.minecraft.client.gui.GuiYesNoCallback {
 
     private static final ResourceLocation GUI_TEXTURE = new ResourceLocation(
         "superfactorymanager:textures/gui/manager.png");
@@ -38,6 +38,7 @@ public class GuiManager extends GuiContainer {
     private GuiButton btnExamples;
     private GuiButton btnDiscord;
     private GuiButton btnCopy;
+    private GuiButton btnRun;
     private GuiButton btnLogs;
     private GuiButton btnRebuild;
     private GuiButton btnServerConfig;
@@ -68,14 +69,18 @@ public class GuiManager extends GuiContainer {
 
         // Left button stack (matching modern SFM positions)
         btnPaste = new GuiButton(1, btnX, guiTop + 16, buttonWidth, buttonHeight, "Paste from clipboard");
-        btnEdit = new GuiButton(2, btnX, guiTop + 66, buttonWidth, buttonHeight, "Edit");
+        btnEdit = new GuiButton(2, btnX, guiTop + 66, 39, buttonHeight, "Text");
+        buttonList.add(new GuiButton(11, btnX + 40, guiTop + 66, 39, buttonHeight, "Visual"));
+        buttonList.add(new GuiButton(12, btnX + 80, guiTop + 66, 40, buttonHeight, "State"));
         btnExamples = new GuiButton(3, btnX, guiTop + 82, buttonWidth, buttonHeight, "View examples");
         if (Config.showDiscordButton) {
             btnDiscord = new GuiButton(4, btnX, guiTop + 112, buttonWidth, buttonHeight, "Discord");
         } else {
             btnDiscord = null;
         }
-        btnCopy = new GuiButton(5, btnX, guiTop + 128, buttonWidth, buttonHeight, "Copy to clipboard");
+        btnCopy = new GuiButton(5, btnX, guiTop + 128, 79, buttonHeight, "Copy code");
+        btnRun = new GuiButton(13, btnX + 80, guiTop + 128, 40, buttonHeight, "Run");
+        buttonList.add(btnRun);
         btnLogs = new GuiButton(6, btnX, guiTop + 144, buttonWidth, buttonHeight, "View logs");
         btnRebuild = new GuiButton(7, btnX, guiTop + 160, buttonWidth, buttonHeight, "Rebuild cable network");
         btnServerConfig = new GuiButton(8, btnX, guiTop + 176, buttonWidth, buttonHeight, "View server config");
@@ -104,7 +109,11 @@ public class GuiManager extends GuiContainer {
         boolean hasDisk = manager.getDisk() != null;
         btnPaste.enabled = hasDisk;
         btnEdit.enabled = hasDisk;
+        for (Object obj : buttonList)
+            if (((GuiButton) obj).id == 11 || ((GuiButton) obj).id == 12) ((GuiButton) obj).enabled = hasDisk;
         btnCopy.enabled = hasDisk;
+        btnRun.enabled = hasDisk && manager.hasCompiledProgram() && !manager.hasPendingRecovery();
+        btnRun.displayString = manager.isRunning() ? "Stop" : "Run";
         btnLogs.enabled = hasDisk;
         btnRebuild.enabled = hasDisk;
         btnReset.enabled = hasDisk;
@@ -133,6 +142,22 @@ public class GuiManager extends GuiContainer {
         } else if (button.id == 2) {
             // Edit
             mc.displayGuiScreen(new GuiCodeEditor(manager, this));
+        } else if (button.id == 13) {
+            SFMNetwork.WRAPPER.sendToServer(
+                new PacketManagerAction(
+                    manager.xCoord,
+                    manager.yCoord,
+                    manager.zCoord,
+                    PacketManagerAction.ACTION_TOGGLE_RUNNING));
+        } else if (button.id == 12) {
+            mc.displayGuiScreen(
+                new net.minecraft.client.gui.GuiYesNo(
+                    this,
+                    "Reset persistent variables?",
+                    "Program, labels and recovery records are kept.",
+                    12));
+        } else if (button.id == 11) {
+            mc.displayGuiScreen(new ca.teamdman.sfm.client.gui.GuiBlueprintEditor(manager, this));
         } else if (button.id == 3) {
             // View examples
             String exampleProgram = "name \"Transfer Iron\"\n\nevery 20 ticks do\n  input from chest_in\n  output to chest_out\nend\n";
@@ -205,6 +230,17 @@ public class GuiManager extends GuiContainer {
                 }
             }
         }
+    }
+
+    @Override
+    public void confirmClicked(boolean confirmed, int id) {
+        if (confirmed && id == 12) SFMNetwork.WRAPPER.sendToServer(
+            new PacketManagerAction(
+                manager.xCoord,
+                manager.yCoord,
+                manager.zCoord,
+                PacketManagerAction.ACTION_RESET_STATE));
+        mc.displayGuiScreen(this);
     }
 
     public void onLogsReceived(String logLevel, List<LogEntry> logs) {

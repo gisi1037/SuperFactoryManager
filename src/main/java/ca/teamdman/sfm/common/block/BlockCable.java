@@ -21,6 +21,18 @@ public class BlockCable extends Block {
         setCreativeTab(CreativeTabs.tabRedstone);
     }
 
+    @Override
+    public void onBlockAdded(net.minecraft.world.World world, int x, int y, int z) {
+        ca.teamdman.sfm.common.network.CableNetwork.invalidate(world);
+        super.onBlockAdded(world, x, y, z);
+    }
+
+    @Override
+    public void breakBlock(net.minecraft.world.World world, int x, int y, int z, Block block, int meta) {
+        ca.teamdman.sfm.common.network.CableNetwork.invalidate(world);
+        super.breakBlock(world, x, y, z, block, meta);
+    }
+
     public boolean canConnectTo(IBlockAccess world, int x, int y, int z, ForgeDirection side) {
         int targetX = x + side.offsetX;
         int targetY = y + side.offsetY;

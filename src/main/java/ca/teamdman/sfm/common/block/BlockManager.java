@@ -29,6 +29,7 @@ public class BlockManager extends BlockContainer {
     private net.minecraft.util.IIcon iconSide;
 
     @Override
+    @cpw.mods.fml.relauncher.SideOnly(cpw.mods.fml.relauncher.Side.CLIENT)
     public void registerBlockIcons(net.minecraft.client.renderer.texture.IIconRegister reg) {
         iconTop = reg.registerIcon("superfactorymanager:manager_top");
         iconBot = reg.registerIcon("superfactorymanager:manager_bot");
@@ -37,6 +38,7 @@ public class BlockManager extends BlockContainer {
     }
 
     @Override
+    @cpw.mods.fml.relauncher.SideOnly(cpw.mods.fml.relauncher.Side.CLIENT)
     public net.minecraft.util.IIcon getIcon(int side, int meta) {
         if (side == 1) return iconTop;
         if (side == 0) return iconBot;
@@ -51,8 +53,8 @@ public class BlockManager extends BlockContainer {
     @Override
     public void onNeighborBlockChange(World world, int x, int y, int z, net.minecraft.block.Block block) {
         TileEntity te = world.getTileEntity(x, y, z);
-        if (te instanceof TileEntityManager) {
-            ((TileEntityManager) te).rebuildNetwork();
+        if (!world.isRemote && te instanceof TileEntityManager) {
+            ca.teamdman.sfm.common.network.CableNetwork.invalidate(world);
         }
         super.onNeighborBlockChange(world, x, y, z, block);
     }
@@ -69,8 +71,9 @@ public class BlockManager extends BlockContainer {
     @Override
     public void breakBlock(World world, int x, int y, int z, net.minecraft.block.Block block, int meta) {
         TileEntity te = world.getTileEntity(x, y, z);
-        if (te instanceof TileEntityManager) {
+        if (!world.isRemote && te instanceof TileEntityManager) {
             TileEntityManager manager = (TileEntityManager) te;
+            manager.flushProgramState();
             ItemStack disk = manager.getDisk();
             if (disk != null) {
                 float rx = world.rand.nextFloat() * 0.8F + 0.1F;

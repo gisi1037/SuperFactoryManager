@@ -97,7 +97,7 @@ public class TestAutomationController {
                 handleClient(client);
             }
         } catch (IOException e) {
-            if (!serverSocket.isClosed()) {
+            if (serverSocket == null || !serverSocket.isClosed()) {
                 SuperFactoryManager.LOG.error("[TestAutomation] Server socket error: " + e.getMessage());
             }
         }
@@ -134,6 +134,82 @@ public class TestAutomationController {
         CompletableFuture<String> future = executeOnClient(() -> {
             Minecraft mc = Minecraft.getMinecraft();
             switch (cmd) {
+                case "blueprintfixture": {
+                    if (mc.thePlayer == null || mc.getIntegratedServer() == null)
+                        return "ERROR: Integrated test world required";
+                    net.minecraft.world.WorldServer serverWorld = mc.getIntegratedServer()
+                        .worldServerForDimension(0);
+                    int bx = (int) Math.floor(mc.thePlayer.posX), by = 200, bz = (int) Math.floor(mc.thePlayer.posZ);
+                    serverWorld.setBlock(bx, by, bz, ModBlocks.manager);
+                    TileEntityManager manager = (TileEntityManager) serverWorld.getTileEntity(bx, by, bz);
+                    ItemStack disk = new ItemStack(ModItems.disk);
+                    ca.teamdman.sfm.common.item.ItemDisk.setProgramString(
+                        disk,
+                        "NAME \"Visual test\"\nEVERY 20 TICKS DO INPUT 8 RETAIN 2 FROM source IF dest HAS < 32 THEN OUTPUT 4 TO dest ELSE FORGET END OUTPUT 1 TO dest END");
+                    manager.setInventorySlotContents(0, disk);
+                    manager.setRunning(false);
+                    mc.thePlayer.setPosition(bx + 0.5, by + 1, bz + 0.5);
+                    if (mc.theWorld.getTileEntity(bx, by, bz) instanceof TileEntityManager)
+                        return "FIXTURE_ALREADY_SYNCED";
+                    serverWorld.markBlockForUpdate(bx, by, bz);
+                    return "BLUEPRINT_FIXTURE: " + bx + " " + by + " " + bz;
+                }
+                case "blueprintstate": {
+                    if (!(mc.currentScreen instanceof ca.teamdman.sfm.client.gui.GuiBlueprintEditor))
+                        return "NOT_BLUEPRINT_EDITOR";
+                    StringBuilder state = new StringBuilder();
+                    for (String name : new String[] { "status", "valid", "dirty", "pendingSave", "selected", "zoom",
+                        "panX", "panY" }) {
+                        Field f = mc.currentScreen.getClass()
+                            .getDeclaredField(name);
+                        f.setAccessible(true);
+                        Object value = f.get(mc.currentScreen);
+                        state.append(name)
+                            .append('=')
+                            .append(name.equals("pendingSave") ? value != null : value)
+                            .append(" | ");
+                    }
+                    Field f = mc.currentScreen.getClass()
+                        .getDeclaredField("graph");
+                    f.setAccessible(true);
+                    ca.teamdman.sfm.client.blueprint.BlueprintGraph graph = (ca.teamdman.sfm.client.blueprint.BlueprintGraph) f
+                        .get(mc.currentScreen);
+                    if (graph != null) for (ca.teamdman.sfm.client.blueprint.BlueprintGraph.Node node : graph.nodes())
+                        state.append(node.type)
+                            .append('@')
+                            .append(node.x())
+                            .append(',')
+                            .append(node.y())
+                            .append(';');
+                    return state.toString();
+                }
+                case "resolution": {
+                    String[] size = arg.trim()
+                        .split("\\s+");
+                    int w = Integer.parseInt(size[0]), h = Integer.parseInt(size[1]);
+                    if (w < 640 || h < 480 || w > 1920 || h > 1080) return "ERROR: Test resolution outside bounds";
+                    org.lwjgl.opengl.Display.setDisplayMode(new org.lwjgl.opengl.DisplayMode(w, h));
+                    Method resize = Minecraft.class.getDeclaredMethod("resize", int.class, int.class);
+                    resize.setAccessible(true);
+                    resize.invoke(mc, w, h);
+                    return "RESOLUTION: " + w + "x" + h;
+                }
+                case "guiscale":
+                    mc.gameSettings.guiScale = Integer.parseInt(arg.trim());
+                    net.minecraft.client.gui.ScaledResolution scaled = new net.minecraft.client.gui.ScaledResolution(
+                        mc,
+                        mc.displayWidth,
+                        mc.displayHeight);
+                    if (mc.currentScreen != null)
+                        mc.currentScreen.setWorldAndResolution(mc, scaled.getScaledWidth(), scaled.getScaledHeight());
+                    return "GUI_SCALE: " + mc.gameSettings.guiScale
+                        + " "
+                        + scaled.getScaledWidth()
+                        + "x"
+                        + scaled.getScaledHeight();
+                case "quit":
+                    mc.shutdown();
+                    return "SHUTTING_DOWN";
                 case "status":
                     if (mc.thePlayer != null && mc.theWorld != null) {
                         String gui = mc.currentScreen != null ? mc.currentScreen.getClass()
@@ -229,6 +305,15 @@ public class TestAutomationController {
                             cIn.setInventorySlotContents(0, new ItemStack(net.minecraft.init.Items.apple, 64));
                         pCode = "NAME \"Test 2\"\nEVERY 20 TICKS DO\n  IF a HAS >= 1 THEN\n    INPUT FROM a\n    OUTPUT TO b\n  END\nEND\n";
                         pLvl = LogLevel.DEBUG;
+                    } else if (scen == 4) {
+                        if (cIn != null)
+                            cIn.setInventorySlotContents(0, new ItemStack(net.minecraft.init.Items.apple, 64));
+                        pCode = "NAME \"Manual data demo\"\nSTATE $stats = { runs: 0 }\nEVERY 20 TICKS DO\n"
+                            + "  LET $amounts = [1, 2, 4]\n  LET $config = { reserve: 8, target: 16 }\n"
+                            + "  SET $stats.runs = $stats.runs + 1\n"
+                            + "  INPUT ($amounts[2]) RETAIN ($config.reserve) FROM a\n"
+                            + "  OUTPUT RETAIN ($config.target) TO b\nEND";
+                        pLvl = LogLevel.OFF;
                     } else {
                         pCode = "NAME \"Test 3\"\nEVERY 20 TICKS DO\n  INPUT FROM a\n  OUTPUT TO b\nEND\n";
                         pLvl = LogLevel.DEBUG;
@@ -253,6 +338,7 @@ public class TestAutomationController {
                     mgr.recompile(pCode);
                     mgr.setLogLevel(pLvl);
                     mgr.setManagerTick(19);
+                    if (scen == 4) mgr.setRunning(false);
 
                     mgr.updateEntity();
                     Config.exportLogsToFile = prevExport;

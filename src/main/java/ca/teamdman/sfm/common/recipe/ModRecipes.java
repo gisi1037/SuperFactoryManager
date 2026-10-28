@@ -44,25 +44,7 @@ public final class ModRecipes {
             GameRegistry.addShapelessRecipe(new ItemStack(ModBlocks.fancyCable), new ItemStack(ModBlocks.cable));
             GameRegistry.addShapelessRecipe(new ItemStack(ModBlocks.cable), new ItemStack(ModBlocks.fancyCable));
         } else {
-            // When Steve's Factory Manager is present:
-            // 1) Allow players with leftover SuperFM regular cables to convert them to SteveFM cables
-            // 2) Allow converting SteveFM cables <-> Fancy cables in both directions
-            try {
-                if (vswe.stevesfactory.blocks.ModBlocks.blockCable != null) {
-                    // Leftover SuperFM cable -> SteveFM cable (one-way cleanup)
-                    GameRegistry.addShapelessRecipe(
-                        new ItemStack(vswe.stevesfactory.blocks.ModBlocks.blockCable),
-                        new ItemStack(ModBlocks.cable));
-
-                    // SteveFM cable <-> Fancy cable (both directions)
-                    GameRegistry.addShapelessRecipe(
-                        new ItemStack(ModBlocks.fancyCable),
-                        new ItemStack(vswe.stevesfactory.blocks.ModBlocks.blockCable));
-                    GameRegistry.addShapelessRecipe(
-                        new ItemStack(vswe.stevesfactory.blocks.ModBlocks.blockCable),
-                        new ItemStack(ModBlocks.fancyCable));
-                }
-            } catch (Throwable ignored) {}
+            ca.teamdman.sfm.compat.stevefm.SteveFMRecipes.registerCableConversions();
         }
 
         // Disk

@@ -1,6 +1,5 @@
 package ca.teamdman.sfm.common.net;
 
-import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
@@ -13,6 +12,8 @@ public class PacketManagerAction implements IMessage {
 
     public static final int ACTION_RESET = 1;
     public static final int ACTION_REBUILD = 2;
+    public static final int ACTION_RESET_STATE = 3;
+    public static final int ACTION_TOGGLE_RUNNING = 4;
 
     private int x;
     private int y;
@@ -50,14 +51,19 @@ public class PacketManagerAction implements IMessage {
         public IMessage onMessage(PacketManagerAction msg, MessageContext ctx) {
             World world = ctx.getServerHandler().playerEntity.worldObj;
             if (world != null) {
-                TileEntity te = world.getTileEntity(msg.x, msg.y, msg.z);
-                if (te instanceof TileEntityManager) {
-                    TileEntityManager manager = (TileEntityManager) te;
+                TileEntityManager manager = ManagerAccess.get(ctx.getServerHandler().playerEntity, msg.x, msg.y, msg.z);
+                if (manager != null) {
                     if (msg.action == ACTION_RESET) {
                         manager.reset();
+                    } else if (msg.action == ACTION_TOGGLE_RUNNING) {
+                        if (manager.hasCompiledProgram() && !manager.hasPendingRecovery())
+                            manager.setRunning(!manager.isRunning());
+                    } else if (msg.action == ACTION_RESET_STATE) {
+                        manager.resetProgramState();
                     } else if (msg.action == ACTION_REBUILD) {
                         manager.rebuildNetwork();
                     }
+                    world.markBlockForUpdate(msg.x, msg.y, msg.z);
                 }
             }
             return null;

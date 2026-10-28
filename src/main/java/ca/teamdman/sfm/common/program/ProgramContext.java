@@ -11,6 +11,7 @@ import java.util.Set;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.inventory.ISidedInventory;
 import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.tileentity.TileEntityChest;
 import net.minecraft.world.World;
@@ -21,6 +22,7 @@ import net.minecraftforge.fluids.IFluidHandler;
 import ca.teamdman.sfm.common.inventory.InventoryUtils;
 import ca.teamdman.sfm.common.label.LabelPositionHolder;
 import ca.teamdman.sfm.common.network.CableNetwork;
+import ca.teamdman.sfm.common.recovery.ItemRecovery;
 import ca.teamdman.sfm.common.tileentity.LogLevel;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 import ca.teamdman.sfm.common.util.BlockPos;
@@ -35,21 +37,53 @@ import ca.teamdman.sfml.ast.ResourceLimits;
 
 public final class ProgramContext {
 
+    private ca.teamdman.sfml.data.StateAccess stateAccess;
+    private ca.teamdman.sfml.data.DataRuntime dataRuntime;
+
+    public void setStateAccess(ca.teamdman.sfml.data.StateAccess stateAccess) {
+        this.stateAccess = stateAccess;
+    }
+
+    public ca.teamdman.sfml.data.StateAccess getStateAccess() {
+        return stateAccess;
+    }
+
+    public ca.teamdman.sfml.data.DataRuntime getDataRuntime() {
+        if (dataRuntime == null) throw new IllegalStateException("Data execution frame has not started");
+        return dataRuntime;
+    }
+
+    public void beginDataInvocation(int localCount, boolean needsState) {
+        if (needsState && stateAccess == null)
+            throw new IllegalStateException("Persistent STATE requires an active disk state store");
+        dataRuntime = new ca.teamdman.sfml.data.DataRuntime(stateAccess, localCount);
+    }
+
     private final World world;
     private final TileEntityManager manager;
     private final CableNetwork network;
-    private final LabelPositionHolder labelPositions;
+    private LabelPositionHolder labelPositions;
+    private final Set<String> referencedLabels;
     private final long managerTick;
     private final boolean redstonePulse;
     private final List<InputStatement> inputs = new ArrayList<>();
+    private final Map<InputStatement, List<InputSlot>> inputCache = new IdentityHashMap<>();
+    private final Map<InputStatement, List<BlockPos>> inputPositions = new IdentityHashMap<>();
+    private final Map<InputStatement, Map<Object, Map<ResourceLimit, TransferQuota>>> fluidInputQuotas = new IdentityHashMap<>();
     private boolean didSomething = false;
 
     public ProgramContext(World world, TileEntityManager manager, CableNetwork network,
         LabelPositionHolder labelPositions, long managerTick, boolean redstonePulse) {
+        this(world, manager, network, labelPositions, managerTick, redstonePulse, null);
+    }
+
+    public ProgramContext(World world, TileEntityManager manager, CableNetwork network,
+        LabelPositionHolder labelPositions, long managerTick, boolean redstonePulse, Set<String> referencedLabels) {
+        this.referencedLabels = referencedLabels;
         this.world = world;
         this.manager = manager;
         this.network = network;
-        this.labelPositions = labelPositions != null ? labelPositions : new LabelPositionHolder();
+        this.labelPositions = labelPositions;
         this.managerTick = managerTick;
         this.redstonePulse = redstonePulse;
     }
@@ -91,6 +125,8 @@ public final class ProgramContext {
     }
 
     public LabelPositionHolder getLabelPositionHolder() {
+        if (labelPositions == null) labelPositions = manager == null ? new LabelPositionHolder()
+            : LabelPositionHolder.from(manager.getDisk(), referencedLabels);
         return labelPositions;
     }
 
@@ -135,8 +171,8 @@ public final class ProgramContext {
     }
 
     public int getRedstonePower(String label) {
-        if (labelPositions == null || label == null) return 0;
-        Set<BlockPos> positions = labelPositions.getPositions(label);
+        if (label == null) return 0;
+        Set<BlockPos> positions = getLabelPositionHolder().getPositions(label);
         int max = 0;
         for (BlockPos pos : positions) {
             int p = getRedstonePower(pos);
@@ -149,27 +185,69 @@ public final class ProgramContext {
     }
 
     public void addInputStatement(InputStatement stmt) {
+        stmt = stmt.resolve(this);
         inputs.add(stmt);
+        inputCache.remove(stmt);
+        inputPositions.remove(stmt);
+        fluidInputQuotas.remove(stmt);
+        fluidReservations.remove(stmt);
+        reservedFluids.remove(stmt);
     }
 
     public void clearInputsForLabel(String label) {
-        inputs.removeIf(stmt -> {
-            for (Label l : stmt.getLabelAccess()
+        for (int i = inputs.size() - 1; i >= 0; i--) {
+            InputStatement old = inputs.get(i);
+            List<Label> keep = new ArrayList<>();
+            boolean found = false;
+            for (Label entry : old.getLabelAccess()
                 .getLabels()) {
-                if (l.getName()
-                    .equals(label)) return true;
+                if (entry.getName()
+                    .equals(label)) found = true;
+                else keep.add(entry);
             }
-            return false;
-        });
+            if (!found) continue;
+            if (keep.isEmpty()) {
+                inputs.remove(i);
+                continue;
+            }
+            ca.teamdman.sfml.ast.LabelAccess access = new ca.teamdman.sfml.ast.LabelAccess(
+                keep,
+                old.getLabelAccess()
+                    .getSides(),
+                old.getLabelAccess()
+                    .getSlots(),
+                old.getLabelAccess()
+                    .getRoundRobin());
+            InputStatement replacement = new InputStatement(access, old.getResourceLimits(), old.isEach());
+            inputs.set(i, replacement);
+            Set<BlockPos> remaining = new java.util.LinkedHashSet<>();
+            for (Label entry : keep) remaining.addAll(getLabelPositionHolder().getPositions(entry.getName()));
+            if (inputCache.containsKey(old)) {
+                List<InputSlot> slots = new ArrayList<>(inputCache.get(old));
+                slots.removeIf(slot -> !remaining.contains(slot.pos));
+                inputCache.put(replacement, slots);
+                List<BlockPos> positions = new ArrayList<>(inputPositions.get(old));
+                positions.retainAll(remaining);
+                inputPositions.put(replacement, positions);
+            }
+            if (fluidInputQuotas.containsKey(old)) fluidInputQuotas.put(replacement, fluidInputQuotas.get(old));
+            if (fluidReservations.containsKey(old)) fluidReservations.put(replacement, fluidReservations.get(old));
+            if (reservedFluids.containsKey(old)) reservedFluids.put(replacement, reservedFluids.get(old));
+        }
     }
 
     public void clearAllInputs() {
         inputs.clear();
+        inputCache.clear();
+        inputPositions.clear();
+        fluidInputQuotas.clear();
+        fluidReservations.clear();
+        reservedFluids.clear();
     }
 
     public void executeRedstoneOutput(RedstoneOutputStatement stmt) {
         List<BlockPos> outPositions = stmt.getLabelAccess()
-            .getPositions(labelPositions);
+            .getPositions(getLabelPositionHolder());
         List<ForgeDirection> outSides = stmt.getLabelAccess()
             .getSides()
             .resolveDirections();
@@ -180,14 +258,15 @@ public final class ProgramContext {
         if (Compat.isSFMLoaded()) {
             for (BlockPos outPos : outPositions) {
                 if (!network.isConnected(outPos)) {
-                    log(LogLevel.TRACE, "Block not connected to cable network: " + outPos);
+                    if (isLogging(LogLevel.TRACE))
+                        log(LogLevel.TRACE, "Block not connected to cable network: " + outPos);
                     continue;
                 }
                 if (SteveFMCompat.isEmitter(world, outPos)) {
                     boolean success = SteveFMCompat.setRedstoneOutput(world, outPos, outSides, strength, true);
                     if (success) {
                         anyEmitted = true;
-                        log(
+                        if (isLogging(LogLevel.INFO)) log(
                             LogLevel.INFO,
                             String.format("Set redstone emitter at %s to strength %d", outPos, strength));
                     }
@@ -201,29 +280,40 @@ public final class ProgramContext {
     }
 
     public void executeOutput(OutputStatement outputStmt) {
+        outputStmt = outputStmt.resolve(this);
         if (inputs.isEmpty()) return;
 
         List<BlockPos> outPositions = outputStmt.getLabelAccess()
-            .getPositions(labelPositions);
+            .getPositions(getLabelPositionHolder());
 
         // --- Items Gathering & Transfer ---
         List<InputSlot> inputSlots = new ArrayList<>();
-        Map<InputStatement, List<BlockPos>> inPositionsMap = new IdentityHashMap<>();
+        Map<InputStatement, List<BlockPos>> inPositionsMap = inputPositions;
         for (InputStatement inputStmt : inputs) {
-            log(LogLevel.DEBUG, "Gathering slots for IO statement \n```\n" + inputStmt.toStringPretty() + "\n```\n");
-            log(LogLevel.TRACE, "Statement cache miss - this is the first time this statement is being gathered");
-            log(
+            if (inputCache.containsKey(inputStmt)) {
+                inputSlots.addAll(inputCache.get(inputStmt));
+                continue;
+            }
+            List<InputSlot> gathered = new ArrayList<>();
+            inputCache.put(inputStmt, gathered);
+            Map<Object, Map<ResourceLimit, TransferQuota>> inputQuotas = new HashMap<>();
+            if (isLogging(LogLevel.DEBUG)) log(
+                LogLevel.DEBUG,
+                "Gathering slots for IO statement \n```\n" + inputStmt.toStringPretty() + "\n```\n");
+            if (isLogging(LogLevel.TRACE))
+                log(LogLevel.TRACE, "Statement cache miss - this is the first time this statement is being gathered");
+            if (isLogging(LogLevel.DEBUG)) log(
                 LogLevel.DEBUG,
                 inputStmt.isEach() ? "EACH keyword used - trackers will be unique to each block"
                     : "EACH keyword not used - trackers will be shared between blocks");
-            log(LogLevel.DEBUG, "Gathering for: Item (Item)");
-            log(
+            if (isLogging(LogLevel.DEBUG)) log(LogLevel.DEBUG, "Gathering for: Item (Item)");
+            if (isLogging(LogLevel.DEBUG)) log(
                 LogLevel.DEBUG,
                 "Gathering slots in range set: " + inputStmt.getLabelAccess()
                     .getSlots());
 
             List<BlockPos> inPositions = inputStmt.getLabelAccess()
-                .getPositions(labelPositions);
+                .getPositions(getLabelPositionHolder());
             inPositionsMap.put(inputStmt, inPositions);
             List<ForgeDirection> inSides = inputStmt.getLabelAccess()
                 .getSides()
@@ -239,14 +329,16 @@ public final class ProgramContext {
             Set<TileEntityChest> seenInChests = Collections.newSetFromMap(new IdentityHashMap<>());
             for (BlockPos inPos : inPositions) {
                 if (!network.isConnected(inPos)) {
-                    log(LogLevel.TRACE, "Block not connected to cable network: " + inPos);
+                    if (isLogging(LogLevel.TRACE))
+                        log(LogLevel.TRACE, "Block not connected to cable network: " + inPos);
                     continue;
                 }
                 TileEntity te = inPos.getTileEntity(world);
                 if (te instanceof TileEntityChest) {
                     TileEntityChest c = (TileEntityChest) te;
                     if (seenInChests.contains(c)) {
-                        log(LogLevel.TRACE, "Double chest partner already gathered: " + inPos);
+                        if (isLogging(LogLevel.TRACE))
+                            log(LogLevel.TRACE, "Double chest partner already gathered: " + inPos);
                         continue;
                     }
                     seenInChests.add(c);
@@ -260,6 +352,7 @@ public final class ProgramContext {
                 List<ForgeDirection> inSidesToCheck = isInSided ? inSides
                     : Collections.singletonList(ForgeDirection.UNKNOWN);
 
+                Set<Integer> seenSlots = new java.util.HashSet<>();
                 for (ForgeDirection inSide : inSidesToCheck) {
                     int[] accessibleSlots = InventoryUtils.getAccessibleSlots(
                         inInv,
@@ -269,21 +362,25 @@ public final class ProgramContext {
                     for (int slot : accessibleSlots) {
                         ItemStack inStack = inInv.getStackInSlot(slot);
                         if (inStack == null || inStack.stackSize <= 0) {
-                            log(LogLevel.TRACE, String.format("Slot %d - skipping - null", slot));
+                            if (isLogging(LogLevel.TRACE))
+                                log(LogLevel.TRACE, String.format("Slot %d - skipping - null", slot));
                             continue;
                         }
                         if (!InventoryUtils.canExtract(inInv, slot, inStack, inSide)) {
-                            log(LogLevel.TRACE, String.format("Slot %d - skipping - cannot extract", slot));
+                            if (isLogging(LogLevel.TRACE))
+                                log(LogLevel.TRACE, String.format("Slot %d - skipping - cannot extract", slot));
                             continue;
                         }
                         if (!inputStmt.getResourceLimits()
                             .matchesItem(inStack)) {
-                            log(LogLevel.TRACE, String.format("Slot %d - skipping - %s", slot, getItemName(inStack)));
+                            if (isLogging(LogLevel.TRACE)) log(
+                                LogLevel.TRACE,
+                                String.format("Slot %d - skipping - %s", slot, getItemName(inStack)));
                             continue;
                         }
                         ResourceLimit matchingLimit = inputStmt.getResourceLimits()
                             .getFirstMatchingLimit(inStack);
-                        log(
+                        if (isLogging(LogLevel.TRACE)) log(
                             LogLevel.TRACE,
                             String.format(
                                 "Slot %d - tracking - %dx %s - %s",
@@ -291,32 +388,40 @@ public final class ProgramContext {
                                 inStack.stackSize,
                                 getItemName(inStack),
                                 (matchingLimit != null ? matchingLimit.toString() : "all")));
-                        inputSlots.add(new InputSlot(labelStr, inPos, inSide, slot, inInv, matchingLimit, inStack));
+                        if (!seenSlots.add(slot)) continue;
+                        TransferQuota quota = quota(inputQuotas, inputStmt.isEach() ? inPos : null, matchingLimit);
+                        long retained = quota.reserve(TransferQuota.key(inStack), inStack.stackSize);
+                        InputSlot entry = new InputSlot(labelStr, inPos, inSide, slot, inInv, matchingLimit, inStack);
+                        entry.quota = quota;
+                        entry.retained = retained;
+                        gathered.add(entry);
+                        inputSlots.add(entry);
                     }
                 }
             }
         }
 
-        log(LogLevel.INFO, String.format("Discovered %d input slots", inputSlots.size()));
+        if (isLogging(LogLevel.INFO)) log(LogLevel.INFO, String.format("Discovered %d input slots", inputSlots.size()));
         if (inputSlots.isEmpty()) {
-            log(LogLevel.DEBUG, "No input slots, skipping");
+            if (isLogging(LogLevel.DEBUG)) log(LogLevel.DEBUG, "No input slots, skipping");
             transferFluidsOnly(outputStmt, outPositions, inPositionsMap);
-            inputs.clear();
             return;
         }
 
-        log(LogLevel.DEBUG, "Gathering slots for IO statement \n```\n" + outputStmt.toStringPretty() + "\n```\n");
-        log(
+        if (isLogging(LogLevel.DEBUG))
+            log(LogLevel.DEBUG, "Gathering slots for IO statement \n```\n" + outputStmt.toStringPretty() + "\n```\n");
+        if (isLogging(LogLevel.DEBUG)) log(
             LogLevel.DEBUG,
             outputStmt.isEach() ? "EACH keyword used - trackers will be unique to each block"
                 : "EACH keyword not used - trackers will be shared between blocks");
-        log(LogLevel.DEBUG, "Gathering for: Item (Item)");
-        log(
+        if (isLogging(LogLevel.DEBUG)) log(LogLevel.DEBUG, "Gathering for: Item (Item)");
+        if (isLogging(LogLevel.DEBUG)) log(
             LogLevel.DEBUG,
             "Gathering slots in range set: " + outputStmt.getLabelAccess()
                 .getSlots());
 
         List<OutputSlot> outputSlots = new ArrayList<>();
+        Map<Object, Map<ResourceLimit, TransferQuota>> outputQuotas = new HashMap<>();
         List<ForgeDirection> outSides = outputStmt.getLabelAccess()
             .getSides()
             .resolveDirections();
@@ -331,14 +436,15 @@ public final class ProgramContext {
         Set<TileEntityChest> seenOutChests = Collections.newSetFromMap(new IdentityHashMap<>());
         for (BlockPos outPos : outPositions) {
             if (!network.isConnected(outPos)) {
-                log(LogLevel.TRACE, "Block not connected to cable network: " + outPos);
+                if (isLogging(LogLevel.TRACE)) log(LogLevel.TRACE, "Block not connected to cable network: " + outPos);
                 continue;
             }
             TileEntity te = outPos.getTileEntity(world);
             if (te instanceof TileEntityChest) {
                 TileEntityChest c = (TileEntityChest) te;
                 if (seenOutChests.contains(c)) {
-                    log(LogLevel.TRACE, "Double chest partner already gathered for output: " + outPos);
+                    if (isLogging(LogLevel.TRACE))
+                        log(LogLevel.TRACE, "Double chest partner already gathered for output: " + outPos);
                     continue;
                 }
                 seenOutChests.add(c);
@@ -352,6 +458,7 @@ public final class ProgramContext {
             List<ForgeDirection> outSidesToCheck = isOutSided ? outSides
                 : Collections.singletonList(ForgeDirection.UNKNOWN);
 
+            Set<Integer> observedSlots = new java.util.HashSet<>();
             for (ForgeDirection outSide : outSidesToCheck) {
                 int[] accessibleSlots = InventoryUtils.getAccessibleSlots(
                     outInv,
@@ -360,7 +467,15 @@ public final class ProgramContext {
                         .getSlots());
                 for (int slot : accessibleSlots) {
                     ItemStack outStack = outInv.getStackInSlot(slot);
-                    log(
+                    if (outStack != null && observedSlots.add(slot)
+                        && outputStmt.getResourceLimits()
+                            .matchesItem(outStack)) {
+                        ResourceLimit limit = outputStmt.getResourceLimits()
+                            .getFirstMatchingLimit(outStack);
+                        quota(outputQuotas, outputStmt.isEach() ? outPos : null, limit)
+                            .observe(TransferQuota.key(outStack), outStack.stackSize);
+                    }
+                    if (isLogging(LogLevel.TRACE)) log(
                         LogLevel.TRACE,
                         String.format(
                             "Slot %d - tracking - %s - %s",
@@ -380,236 +495,242 @@ public final class ProgramContext {
             }
         }
 
-        log(LogLevel.INFO, String.format("Discovered %d output slots", outputSlots.size()));
+        if (isLogging(LogLevel.INFO))
+            log(LogLevel.INFO, String.format("Discovered %d output slots", outputSlots.size()));
         if (outputSlots.isEmpty()) {
-            log(LogLevel.DEBUG, "No output slots, skipping");
+            if (isLogging(LogLevel.DEBUG)) log(LogLevel.DEBUG, "No output slots, skipping");
             transferFluidsOnly(outputStmt, outPositions, inPositionsMap);
-            inputs.clear();
             return;
         }
 
-        Map<ResourceLimit, Long> movedPerLimit = new HashMap<>();
-
-        for (InputSlot inSlot : inputSlots) {
-            ItemStack currentInStack = inSlot.inv.getStackInSlot(inSlot.slot);
-            if (currentInStack == null || currentInStack.stackSize <= 0) continue;
-            if (!outputStmt.getResourceLimits()
-                .matchesItem(currentInStack)) {
-                continue;
-            }
-
-            ResourceLimit inLimit = inSlot.limit;
-            long maxAllowedToMove = inLimit != null ? inLimit.getLimit()
+        TransferQuota sharedOutputQuota = null;
+        if (!outputStmt.isEach() && outputStmt.getResourceLimits()
+            .getLimits()
+            .size() == 1) {
+            ResourceLimit limit = outputStmt.getResourceLimits()
+                .getLimits()
+                .get(0);
+            if (!limit.getLimit()
                 .getQuantity()
-                .getAmount() : Long.MAX_VALUE;
-            long retentionRequired = inLimit != null ? inLimit.getLimit()
-                .getRetention()
-                .getAmount() : 0;
-
-            long alreadyMoved = movedPerLimit.getOrDefault(inLimit, 0L);
-            long remainingQuota = maxAllowedToMove - alreadyMoved;
-            if (remainingQuota <= 0) continue;
-
-            long availableAfterRetention = currentInStack.stackSize - retentionRequired;
-            if (retentionRequired > 0) {
-                log(
-                    LogLevel.TRACE,
-                    String.format(
-                        "Promised to leave %d in the source slot, still obligated to leave %d",
-                        retentionRequired,
-                        Math.max(0, retentionRequired - (currentInStack.stackSize - availableAfterRetention))));
-            }
-            if (availableAfterRetention <= 0) {
-                log(
-                    LogLevel.TRACE,
-                    "Nothing to move after retention obligations, marking source slot done and skipping");
-                continue;
-            }
-
-            long toTransfer = Math.min(availableAfterRetention, remainingQuota);
-
+                .isEach()
+                && !limit.getLimit()
+                    .getRetention()
+                    .isEach())
+                sharedOutputQuota = quota(outputQuotas, null, limit);
+        }
+        for (InputSlot inSlot : inputSlots) {
+            if (sharedOutputQuota != null && sharedOutputQuota.remaining(null, true) == 0) break;
+            ItemStack current = inSlot.inv.getStackInSlot(inSlot.slot);
+            if (current == null || !InventoryUtils.areItemStacksEqual(current, inSlot.stack)) continue;
+            if (!outputStmt.getResourceLimits()
+                .matchesItem(current)) continue;
+            Object key = TransferQuota.key(current);
+            ResourceLimit outLimit = outputStmt.getResourceLimits()
+                .getFirstMatchingLimit(current);
             for (OutputSlot outSlot : outputSlots) {
-                if (toTransfer <= 0) break;
-
-                log(LogLevel.TRACE, "Begin moving " + inSlot + " into " + outSlot);
-
-                long maxStackSize = currentInStack.getMaxStackSize();
-                long toMove = Math.min(toTransfer, maxStackSize);
-                log(
-                    LogLevel.TRACE,
-                    String.format(
-                        "Max transferable dest=%d, source=%d, stack limit=%d; new toMove=%d",
-                        maxStackSize,
-                        currentInStack.stackSize,
-                        maxStackSize,
-                        toMove));
-
-                if (toMove <= 0) {
-                    log(LogLevel.TRACE, "toMove=0, skipping");
-                    continue;
-                }
-
-                ItemStack probe = currentInStack.copy();
-                probe.stackSize = (int) toMove;
-
+                current = inSlot.inv.getStackInSlot(inSlot.slot);
+                if (current == null || !InventoryUtils.areItemStacksEqual(current, inSlot.stack)) break;
+                // Do not count a no-op transfer as satisfying an OUTPUT quota.
+                if (inSlot.inv == outSlot.inv && inSlot.slot == outSlot.slot) continue;
+                if (inSlot.pos.equals(outSlot.pos) && inSlot.slot == outSlot.slot) continue;
+                TransferQuota target = quota(outputQuotas, outputStmt.isEach() ? outSlot.pos : null, outLimit);
+                long available = Math.min(current.stackSize - inSlot.retained, inSlot.quota.remaining(key, false));
+                if (available <= 0) break;
+                int amount = (int) Math
+                    .min(Math.min(available, target.remaining(key, true)), current.getMaxStackSize());
+                if (amount <= 0) continue;
+                ItemStack probe = current.copy();
+                probe.stackSize = amount;
                 int accepted = InventoryUtils
                     .insertItem(outSlot.inv, outSlot.slot, outSlot.side, probe, true, outSlot.emptySlotsOnly);
-                if (accepted <= 0) {
-                    log(
-                        LogLevel.TRACE,
-                        String.format(
-                            "Got remainder %d after simulated insertion of potential %d (0 to move), skipping",
-                            toMove,
-                            toMove));
-                    continue;
+                if (accepted <= 0) continue;
+                ItemStack extracted;
+                try {
+                    extracted = InventoryUtils.extractItem(inSlot.inv, inSlot.slot, inSlot.side, accepted, false);
+                } catch (RuntimeException e) {
+                    // Extraction/markDirty can throw after changing the source: ownership is unknown.
+                    probe.stackSize = accepted;
+                    preserveItem(inSlot, outSlot, probe, true, "extraction");
+                    throw e;
                 }
-
-                ItemStack extracted = InventoryUtils.extractItem(inSlot.inv, inSlot.slot, inSlot.side, accepted, false);
-                if (extracted == null || extracted.stackSize <= 0) {
-                    log(LogLevel.TRACE, "extracted nothing, marking this input slot as done");
-                    break;
+                if (extracted == null) break;
+                int inserted;
+                try {
+                    inserted = InventoryUtils
+                        .insertItem(outSlot.inv, outSlot.slot, outSlot.side, extracted, false, outSlot.emptySlotsOnly);
+                } catch (RuntimeException e) {
+                    preserveItem(inSlot, outSlot, extracted, true, "destination insertion");
+                    throw e;
                 }
-
-                log(LogLevel.DEBUG, String.format("Extracted %d from slot %d", extracted.stackSize, inSlot.slot));
-
-                InventoryUtils
-                    .insertItem(outSlot.inv, outSlot.slot, outSlot.side, extracted, false, outSlot.emptySlotsOnly);
-
-                toTransfer -= extracted.stackSize;
-                movedPerLimit.put(inLimit, alreadyMoved + extracted.stackSize);
-                alreadyMoved += extracted.stackSize;
-
-                log(
-                    LogLevel.INFO,
-                    String.format(
-                        "Moved %d %s - source=%s, dest=%s",
-                        extracted.stackSize,
-                        getItemName(extracted),
-                        inSlot,
-                        outSlot));
+                if (inserted < extracted.stackSize) {
+                    ItemStack remainder = extracted.copy();
+                    remainder.stackSize -= inserted;
+                    restoreItem(inSlot, outSlot, remainder);
+                }
+                inSlot.quota.moved(key, inserted, false);
+                target.moved(key, inserted, true);
+                if (isLogging(LogLevel.INFO))
+                    log(LogLevel.INFO, "Moved " + inserted + " items from " + inSlot + " into " + outSlot);
+                // Only successful bookkeeping can exhaust this quota; rejected pairs need no extra check.
+                if (sharedOutputQuota != null && sharedOutputQuota.remaining(null, true) == 0) break;
             }
         }
 
         transferFluidsOnly(outputStmt, outPositions, inPositionsMap);
-        inputs.clear();
+    }
+
+    private static TransferQuota quota(Map<Object, Map<ResourceLimit, TransferQuota>> scopes, Object scope,
+        ResourceLimit limit) {
+        return scopes.computeIfAbsent(scope, k -> new IdentityHashMap<>())
+            .computeIfAbsent(limit, TransferQuota::new);
+    }
+
+    private void restoreItem(InputSlot source, OutputSlot target, ItemStack remainder) {
+        try {
+            ItemStack current = source.inv.getStackInSlot(source.slot);
+            if (current == null) source.inv.setInventorySlotContents(source.slot, remainder.copy());
+            else if (InventoryUtils.areItemStacksEqual(current, remainder)
+                && (long) current.stackSize + remainder.stackSize <= source.inv.getInventoryStackLimit()) {
+                    ItemStack restored = current.copy();
+                    restored.stackSize += remainder.stackSize;
+                    source.inv.setInventorySlotContents(source.slot, restored);
+                } else {
+                    // Entity spawning can be cancelled. Preserve the known remainder on the disk instead.
+                    preserveItem(source, target, remainder, false, "rollback conflict");
+                    throw new IllegalStateException("Item transfer paused: remainder preserved on disk");
+                }
+            source.inv.markDirty();
+        } catch (RuntimeException e) {
+            if (manager == null || !manager.hasPendingRecovery())
+                preserveItem(source, target, remainder, true, "source rollback");
+            throw e;
+        }
+    }
+
+    private void preserveItem(InputSlot source, OutputSlot target, ItemStack stack, boolean uncertain, String stage) {
+        if (manager == null) throw new IllegalStateException("Item recovery requires a manager");
+        NBTTagCompound record = manager.preserveItem(stack, source.pos, source.slot, source.side, uncertain, stage);
+        ItemRecovery.setTarget(record, target.pos, target.slot, target.side, world.provider.dimensionId);
+        manager.markDirty();
+    }
+
+    public boolean isLogging(LogLevel level) {
+        return manager != null && (manager.getLogLevel()
+            .includes(level) || level == LogLevel.ERROR
+            || level == LogLevel.WARN);
     }
 
     private void transferFluidsOnly(OutputStatement out, List<BlockPos> outPositions,
         Map<InputStatement, List<BlockPos>> inPositionsMap) {
-        Map<ResourceLimit, Long> movedPerLimit = new HashMap<>();
-
+        Map<Object, Map<ResourceLimit, TransferQuota>> outputQuotas = new HashMap<>();
+        List<ForgeDirection> outSides = out.getLabelAccess()
+            .getSides()
+            .resolveDirections();
+        // Observe each destination once. Forge 1.7 tank snapshots do not expose tank identity.
+        for (BlockPos pos : outPositions) {
+            if (!network.isConnected(pos)) continue;
+            IFluidHandler tank = InventoryUtils.getFluidHandler(world, pos);
+            if (tank == null) continue;
+            for (FluidStack stack : InventoryUtils.getVisibleFluids(
+                tank,
+                out.getLabelAccess()
+                    .getSides())) {
+                if (!out.getResourceLimits()
+                    .matchesFluid(stack)) continue;
+                ResourceLimit limit = out.getResourceLimits()
+                    .getFirstMatchingLimit(stack);
+                quota(outputQuotas, out.isEach() ? pos : null, limit).observe(TransferQuota.key(stack), stack.amount);
+            }
+        }
         for (InputStatement in : inputs) {
-            ResourceLimits inLimits = in.getResourceLimits();
-            ResourceLimits outLimits = out.getResourceLimits();
-
-            List<ForgeDirection> inSides = in.getLabelAccess()
+            Map<Object, Map<ResourceLimit, TransferQuota>> sourceQuotas = fluidInputQuotas
+                .computeIfAbsent(in, k -> new HashMap<>());
+            List<ForgeDirection> sides = in.getLabelAccess()
                 .getSides()
                 .resolveDirections();
-            List<ForgeDirection> outSides = out.getLabelAccess()
-                .getSides()
-                .resolveDirections();
-
-            List<BlockPos> inPositions = inPositionsMap != null ? inPositionsMap.get(in) : null;
-            if (inPositions == null) {
-                inPositions = in.getLabelAccess()
-                    .getPositions(labelPositions);
-            }
-            if (outPositions == null) {
-                outPositions = out.getLabelAccess()
-                    .getPositions(labelPositions);
-            }
-
-            for (BlockPos inPos : inPositions) {
-                if (!network.isConnected(inPos)) continue;
-                IFluidHandler inTank = InventoryUtils.getFluidHandler(world, inPos);
-                if (inTank == null) continue;
-
-                for (ForgeDirection inSide : inSides) {
-                    FluidStack drainedSim = inTank.drain(inSide, Integer.MAX_VALUE, false);
-                    if (drainedSim == null || drainedSim.amount <= 0) continue;
-                    if (!inLimits.matchesFluid(drainedSim)) continue;
-                    if (!outLimits.matchesFluid(drainedSim)) continue;
-
-                    ResourceLimit inLimit = inLimits.getFirstMatchingLimit(drainedSim);
-                    long maxAllowed = inLimit != null ? inLimit.getLimit()
-                        .getQuantity()
-                        .getAmount() : Long.MAX_VALUE;
-                    long retention = inLimit != null ? inLimit.getLimit()
-                        .getRetention()
-                        .getAmount() : 0;
-
-                    long alreadyMoved = inLimit != null ? movedPerLimit.getOrDefault(inLimit, 0L) : 0L;
-                    long remainingQuota = maxAllowed - alreadyMoved;
-                    if (remainingQuota <= 0) continue;
-
-                    long availableAfterRetention = drainedSim.amount - retention;
-                    if (availableAfterRetention <= 0) continue;
-
-                    int toDrain = (int) Math.min(availableAfterRetention, remainingQuota);
-
-                    for (BlockPos outPos : outPositions) {
-                        if (!network.isConnected(outPos)) continue;
-                        IFluidHandler outTank = InventoryUtils.getFluidHandler(world, outPos);
-                        if (outTank == null) continue;
-
-                        for (ForgeDirection outSide : outSides) {
-                            FluidStack candidate = drainedSim.copy();
-                            candidate.amount = toDrain;
-
-                            int filled = outTank.fill(outSide, candidate, false);
-                            if (filled > 0) {
-                                FluidStack actualDrained = inTank.drain(inSide, filled, true);
-                                if (actualDrained != null && actualDrained.amount > 0) {
-                                    outTank.fill(outSide, actualDrained, true);
-                                    toDrain -= actualDrained.amount;
-                                    if (inLimit != null) {
-                                        alreadyMoved += actualDrained.amount;
-                                        movedPerLimit.put(inLimit, alreadyMoved);
-                                    }
-
-                                    String fluidName = actualDrained.getFluid()
-                                        .getName();
-                                    String srcStr = "LimitedInputSlot{label=" + (in.getLabelAccess()
-                                        .getLabels()
-                                        .isEmpty() ? ""
-                                            : in.getLabelAccess()
-                                                .getLabels()
-                                                .get(0)
-                                                .getName())
-                                        + ", pos="
-                                        + inPos
-                                        + ", direction="
-                                        + inSide
-                                        + "}";
-                                    String dstStr = "LimitedOutputSlot{label=" + (out.getLabelAccess()
-                                        .getLabels()
-                                        .isEmpty() ? ""
-                                            : out.getLabelAccess()
-                                                .getLabels()
-                                                .get(0)
-                                                .getName())
-                                        + ", pos="
-                                        + outPos
-                                        + ", direction="
-                                        + outSide
-                                        + "}";
-                                    log(
-                                        LogLevel.INFO,
-                                        String.format(
-                                            "Moved %dmB %s - source=%s, dest=%s",
-                                            actualDrained.amount,
-                                            fluidName,
-                                            srcStr,
-                                            dstStr));
+            for (BlockPos sourcePos : inPositionsMap.get(in)) {
+                if (!network.isConnected(sourcePos)) continue;
+                IFluidHandler source = InventoryUtils.getFluidHandler(world, sourcePos);
+                if (source == null) continue;
+                // A single physical tank is commonly visible through every face.
+                Set<Object> seenResources = new java.util.HashSet<>();
+                for (ForgeDirection side : sides) {
+                    FluidStack available = source.drain(side, Integer.MAX_VALUE, false);
+                    if (available == null || available.amount <= 0
+                        || !in.getResourceLimits()
+                            .matchesFluid(available)
+                        || !out.getResourceLimits()
+                            .matchesFluid(available))
+                        continue;
+                    Object key = TransferQuota.key(available);
+                    if (!seenResources.add(key)) continue;
+                    ResourceLimit inLimit = in.getResourceLimits()
+                        .getFirstMatchingLimit(available);
+                    ResourceLimit outLimit = out.getResourceLimits()
+                        .getFirstMatchingLimit(available);
+                    TransferQuota sourceQuota = quota(sourceQuotas, in.isEach() ? sourcePos : null, inLimit);
+                    long retained = fluidRetention(in, sourcePos, key, available.amount, inLimit);
+                    int remaining = (int) Math
+                        .max(0, Math.min(available.amount - retained, sourceQuota.remaining(key, false)));
+                    for (BlockPos destPos : outPositions) {
+                        if (remaining <= 0) break;
+                        if (sourcePos.equals(destPos) || !network.isConnected(destPos)) continue;
+                        IFluidHandler dest = InventoryUtils.getFluidHandler(world, destPos);
+                        if (dest == null || dest == source) continue;
+                        TransferQuota target = quota(outputQuotas, out.isEach() ? destPos : null, outLimit);
+                        for (ForgeDirection destSide : outSides) {
+                            int requested = (int) Math.min(remaining, target.remaining(key, true));
+                            if (requested <= 0) break;
+                            FluidStack candidate = available.copy();
+                            candidate.amount = requested;
+                            int accepted = Math.max(0, Math.min(requested, dest.fill(destSide, candidate, false)));
+                            if (accepted == 0) continue;
+                            candidate.amount = accepted;
+                            // Fluid-specific drain prevents extracting a different fluid after callbacks.
+                            FluidStack extracted = source.drain(side, candidate, true);
+                            if (extracted == null || extracted.amount <= 0) continue;
+                            int inserted = extracted.isFluidEqual(candidate)
+                                ? Math.max(0, Math.min(extracted.amount, dest.fill(destSide, extracted.copy(), true)))
+                                : 0;
+                            int leftover = extracted.amount - inserted;
+                            if (leftover > 0) {
+                                FluidStack remainder = extracted.copy();
+                                remainder.amount = leftover;
+                                int returned = Math
+                                    .max(0, Math.min(leftover, source.fill(side, remainder.copy(), true)));
+                                remainder.amount -= returned;
+                                if (remainder.amount > 0) {
+                                    if (manager == null)
+                                        throw new IllegalStateException("Fluid rollback requires a manager");
+                                    manager.preserveFluid(remainder, sourcePos, side);
+                                    throw new IllegalStateException(
+                                        "Fluid transfer paused: remainder preserved on disk");
                                 }
                             }
-                            if (toDrain <= 0) break;
+                            remaining -= inserted;
+                            sourceQuota.moved(key, inserted, false);
+                            target.moved(key, inserted, true);
+                            if (inserted > 0 && isLogging(LogLevel.INFO))
+                                log(LogLevel.INFO, "Moved " + inserted + "mB from " + sourcePos + " to " + destPos);
                         }
-                        if (toDrain <= 0) break;
                     }
                 }
             }
         }
+    }
+
+    private final Map<InputStatement, Map<Object, Map<ResourceLimit, TransferQuota>>> fluidReservations = new IdentityHashMap<>();
+    private final Map<InputStatement, Map<BlockPos, Map<Object, Long>>> reservedFluids = new IdentityHashMap<>();
+
+    private long fluidRetention(InputStatement statement, BlockPos pos, Object key, int amount, ResourceLimit limit) {
+        Map<Object, Long> byResource = reservedFluids.computeIfAbsent(statement, k -> new HashMap<>())
+            .computeIfAbsent(pos, k -> new HashMap<>());
+        return byResource.computeIfAbsent(
+            key,
+            k -> quota(
+                fluidReservations.computeIfAbsent(statement, ignored -> new HashMap<>()),
+                statement.isEach() ? pos : null,
+                limit).reserve(key, amount));
     }
 
     public static class InputSlot {
@@ -621,6 +742,8 @@ public final class ProgramContext {
         public final IInventory inv;
         public final ResourceLimit limit;
         public final ItemStack stack;
+        private TransferQuota quota;
+        private long retained;
 
         public InputSlot(String label, BlockPos pos, ForgeDirection side, int slot, IInventory inv, ResourceLimit limit,
             ItemStack stack) {
@@ -630,7 +753,7 @@ public final class ProgramContext {
             this.slot = slot;
             this.inv = inv;
             this.limit = limit;
-            this.stack = stack;
+            this.stack = stack.copy();
         }
 
         @Override

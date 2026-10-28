@@ -20,6 +20,12 @@ public class ContainerManager extends Container {
         addSlotToContainer(new Slot(manager, 0, 15, 47) {
 
             @Override
+            public ItemStack getStack() {
+                // GUI polling observes the last snapshot without serializing live STATE each frame/tick.
+                return manager.getDisk();
+            }
+
+            @Override
             public boolean isItemValid(ItemStack stack) {
                 return stack != null && stack.getItem() instanceof ItemDisk;
             }
@@ -48,7 +54,16 @@ public class ContainerManager extends Container {
     }
 
     @Override
+    public ItemStack slotClick(int slotId, int button, int mode, EntityPlayer player) {
+        // Vanilla may copy the disk before removing it in several click modes.
+        manager.flushProgramState();
+        return super.slotClick(slotId, button, mode, player);
+    }
+
+    @Override
     public ItemStack transferStackInSlot(EntityPlayer player, int slotIndex) {
+        if (slotIndex < 0 || slotIndex >= inventorySlots.size()) return null;
+        manager.flushProgramState();
         ItemStack itemstack = null;
         Slot slot = (Slot) this.inventorySlots.get(slotIndex);
 

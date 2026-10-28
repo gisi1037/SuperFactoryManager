@@ -31,7 +31,7 @@ public final class ForgetStatement implements Statement {
 
     @Override
     public String toString() {
-        if (labels.isEmpty()) return "FORGET ALL";
+        if (labels.isEmpty()) return "FORGET";
         StringBuilder sb = new StringBuilder("FORGET ");
         for (int i = 0; i < labels.size(); i++) {
             if (i > 0) sb.append(", ");

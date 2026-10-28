@@ -94,15 +94,14 @@ public final class ResourceIdentifier implements ASTNode {
         if (globOrRegex == null || globOrRegex.isEmpty() || globOrRegex.equals(".*") || globOrRegex.equals("*")) {
             return Pattern.compile(".*");
         }
-        // If it already looks like a regex with .* or ^, compile directly
-        if (globOrRegex.contains(".*")) {
-            return Pattern.compile(globOrRegex, Pattern.CASE_INSENSITIVE);
+        StringBuilder regex = new StringBuilder();
+        for (int i = 0; i < globOrRegex.length(); i++) {
+            char c = globOrRegex.charAt(i);
+            if (c == '*') regex.append(".*");
+            else if (c == '?') regex.append('.');
+            else regex.append(Pattern.quote(String.valueOf(c)));
         }
-        // Convert glob wildcard '*' to '.*'
-        String regex = globOrRegex.replace(".", "\\.")
-            .replace("*", ".*")
-            .replace("?", ".");
-        return Pattern.compile("^" + regex + "$", Pattern.CASE_INSENSITIVE);
+        return Pattern.compile(regex.toString(), Pattern.CASE_INSENSITIVE);
     }
 
     public boolean matchesItem(ItemStack stack) {

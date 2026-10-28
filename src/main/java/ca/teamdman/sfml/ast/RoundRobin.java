@@ -27,7 +27,8 @@ public final class RoundRobin implements ASTNode {
 
     public int nextIndex(int size) {
         if (size <= 0) return 0;
-        int idx = Math.abs(counter++) % size;
+        int idx = Math.floorMod(counter, size);
+        counter = idx + 1;
         return idx;
     }
 }

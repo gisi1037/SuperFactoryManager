@@ -359,6 +359,15 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     T visitBooleanHas(SFMLParser.BooleanHasContext ctx);
 
     /**
+     * Visit a parse tree produced by the {@code BooleanData}
+     * labeled alternative in {@link SFMLParser#boolexpr}.
+     * 
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitBooleanData(SFMLParser.BooleanDataContext ctx);
+
+    /**
      * Visit a parse tree produced by the {@code BooleanConjunction}
      * labeled alternative in {@link SFMLParser#boolexpr}.
      * 
@@ -486,6 +495,142 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
      * @return the visitor result
      */
     T visitIdentifier(SFMLParser.IdentifierContext ctx);
+
+    /**
+     * Visit a parse tree produced by {@link SFMLParser#stateDeclaration}.
+     * 
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitStateDeclaration(SFMLParser.StateDeclarationContext ctx);
+
+    /**
+     * Visit a parse tree produced by {@link SFMLParser#dataDeclaration}.
+     * 
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitDataDeclaration(SFMLParser.DataDeclarationContext ctx);
+
+    /**
+     * Visit a parse tree produced by {@link SFMLParser#dataAssignment}.
+     * 
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitDataAssignment(SFMLParser.DataAssignmentContext ctx);
+
+    /**
+     * Visit a parse tree produced by {@link SFMLParser#dataTarget}.
+     * 
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitDataTarget(SFMLParser.DataTargetContext ctx);
+
+    /**
+     * Visit a parse tree produced by {@link SFMLParser#dataExpression}.
+     * 
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitDataExpression(SFMLParser.DataExpressionContext ctx);
+
+    /**
+     * Visit a parse tree produced by {@link SFMLParser#dataOr}.
+     * 
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitDataOr(SFMLParser.DataOrContext ctx);
+
+    /**
+     * Visit a parse tree produced by {@link SFMLParser#dataAnd}.
+     * 
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitDataAnd(SFMLParser.DataAndContext ctx);
+
+    /**
+     * Visit a parse tree produced by {@link SFMLParser#dataNot}.
+     * 
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitDataNot(SFMLParser.DataNotContext ctx);
+
+    /**
+     * Visit a parse tree produced by {@link SFMLParser#dataComparison}.
+     * 
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitDataComparison(SFMLParser.DataComparisonContext ctx);
+
+    /**
+     * Visit a parse tree produced by {@link SFMLParser#dataAdd}.
+     * 
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitDataAdd(SFMLParser.DataAddContext ctx);
+
+    /**
+     * Visit a parse tree produced by {@link SFMLParser#dataMultiply}.
+     * 
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitDataMultiply(SFMLParser.DataMultiplyContext ctx);
+
+    /**
+     * Visit a parse tree produced by {@link SFMLParser#multiplyOperator}.
+     * 
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitMultiplyOperator(SFMLParser.MultiplyOperatorContext ctx);
+
+    /**
+     * Visit a parse tree produced by {@link SFMLParser#dataSign}.
+     * 
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitDataSign(SFMLParser.DataSignContext ctx);
+
+    /**
+     * Visit a parse tree produced by {@link SFMLParser#dataPostfix}.
+     * 
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitDataPostfix(SFMLParser.DataPostfixContext ctx);
+
+    /**
+     * Visit a parse tree produced by {@link SFMLParser#dataPrimary}.
+     * 
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitDataPrimary(SFMLParser.DataPrimaryContext ctx);
+
+    /**
+     * Visit a parse tree produced by {@link SFMLParser#dataField}.
+     * 
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitDataField(SFMLParser.DataFieldContext ctx);
+
+    /**
+     * Visit a parse tree produced by {@link SFMLParser#dataName}.
+     * 
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitDataName(SFMLParser.DataNameContext ctx);
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#string}.

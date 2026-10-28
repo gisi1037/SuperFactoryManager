@@ -619,6 +619,22 @@ public interface SFMLListener extends ParseTreeListener {
     void exitBooleanHas(SFMLParser.BooleanHasContext ctx);
 
     /**
+     * Enter a parse tree produced by the {@code BooleanData}
+     * labeled alternative in {@link SFMLParser#boolexpr}.
+     * 
+     * @param ctx the parse tree
+     */
+    void enterBooleanData(SFMLParser.BooleanDataContext ctx);
+
+    /**
+     * Exit a parse tree produced by the {@code BooleanData}
+     * labeled alternative in {@link SFMLParser#boolexpr}.
+     * 
+     * @param ctx the parse tree
+     */
+    void exitBooleanData(SFMLParser.BooleanDataContext ctx);
+
+    /**
      * Enter a parse tree produced by the {@code BooleanConjunction}
      * labeled alternative in {@link SFMLParser#boolexpr}.
      * 
@@ -845,6 +861,244 @@ public interface SFMLListener extends ParseTreeListener {
      * @param ctx the parse tree
      */
     void exitIdentifier(SFMLParser.IdentifierContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#stateDeclaration}.
+     * 
+     * @param ctx the parse tree
+     */
+    void enterStateDeclaration(SFMLParser.StateDeclarationContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#stateDeclaration}.
+     * 
+     * @param ctx the parse tree
+     */
+    void exitStateDeclaration(SFMLParser.StateDeclarationContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#dataDeclaration}.
+     * 
+     * @param ctx the parse tree
+     */
+    void enterDataDeclaration(SFMLParser.DataDeclarationContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataDeclaration}.
+     * 
+     * @param ctx the parse tree
+     */
+    void exitDataDeclaration(SFMLParser.DataDeclarationContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#dataAssignment}.
+     * 
+     * @param ctx the parse tree
+     */
+    void enterDataAssignment(SFMLParser.DataAssignmentContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataAssignment}.
+     * 
+     * @param ctx the parse tree
+     */
+    void exitDataAssignment(SFMLParser.DataAssignmentContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#dataTarget}.
+     * 
+     * @param ctx the parse tree
+     */
+    void enterDataTarget(SFMLParser.DataTargetContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataTarget}.
+     * 
+     * @param ctx the parse tree
+     */
+    void exitDataTarget(SFMLParser.DataTargetContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#dataExpression}.
+     * 
+     * @param ctx the parse tree
+     */
+    void enterDataExpression(SFMLParser.DataExpressionContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataExpression}.
+     * 
+     * @param ctx the parse tree
+     */
+    void exitDataExpression(SFMLParser.DataExpressionContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#dataOr}.
+     * 
+     * @param ctx the parse tree
+     */
+    void enterDataOr(SFMLParser.DataOrContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataOr}.
+     * 
+     * @param ctx the parse tree
+     */
+    void exitDataOr(SFMLParser.DataOrContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#dataAnd}.
+     * 
+     * @param ctx the parse tree
+     */
+    void enterDataAnd(SFMLParser.DataAndContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataAnd}.
+     * 
+     * @param ctx the parse tree
+     */
+    void exitDataAnd(SFMLParser.DataAndContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#dataNot}.
+     * 
+     * @param ctx the parse tree
+     */
+    void enterDataNot(SFMLParser.DataNotContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataNot}.
+     * 
+     * @param ctx the parse tree
+     */
+    void exitDataNot(SFMLParser.DataNotContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#dataComparison}.
+     * 
+     * @param ctx the parse tree
+     */
+    void enterDataComparison(SFMLParser.DataComparisonContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataComparison}.
+     * 
+     * @param ctx the parse tree
+     */
+    void exitDataComparison(SFMLParser.DataComparisonContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#dataAdd}.
+     * 
+     * @param ctx the parse tree
+     */
+    void enterDataAdd(SFMLParser.DataAddContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataAdd}.
+     * 
+     * @param ctx the parse tree
+     */
+    void exitDataAdd(SFMLParser.DataAddContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#dataMultiply}.
+     * 
+     * @param ctx the parse tree
+     */
+    void enterDataMultiply(SFMLParser.DataMultiplyContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataMultiply}.
+     * 
+     * @param ctx the parse tree
+     */
+    void exitDataMultiply(SFMLParser.DataMultiplyContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#multiplyOperator}.
+     * 
+     * @param ctx the parse tree
+     */
+    void enterMultiplyOperator(SFMLParser.MultiplyOperatorContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#multiplyOperator}.
+     * 
+     * @param ctx the parse tree
+     */
+    void exitMultiplyOperator(SFMLParser.MultiplyOperatorContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#dataSign}.
+     * 
+     * @param ctx the parse tree
+     */
+    void enterDataSign(SFMLParser.DataSignContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataSign}.
+     * 
+     * @param ctx the parse tree
+     */
+    void exitDataSign(SFMLParser.DataSignContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#dataPostfix}.
+     * 
+     * @param ctx the parse tree
+     */
+    void enterDataPostfix(SFMLParser.DataPostfixContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataPostfix}.
+     * 
+     * @param ctx the parse tree
+     */
+    void exitDataPostfix(SFMLParser.DataPostfixContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#dataPrimary}.
+     * 
+     * @param ctx the parse tree
+     */
+    void enterDataPrimary(SFMLParser.DataPrimaryContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataPrimary}.
+     * 
+     * @param ctx the parse tree
+     */
+    void exitDataPrimary(SFMLParser.DataPrimaryContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#dataField}.
+     * 
+     * @param ctx the parse tree
+     */
+    void enterDataField(SFMLParser.DataFieldContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataField}.
+     * 
+     * @param ctx the parse tree
+     */
+    void exitDataField(SFMLParser.DataFieldContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#dataName}.
+     * 
+     * @param ctx the parse tree
+     */
+    void enterDataName(SFMLParser.DataNameContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataName}.
+     * 
+     * @param ctx the parse tree
+     */
+    void exitDataName(SFMLParser.DataNameContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#string}.

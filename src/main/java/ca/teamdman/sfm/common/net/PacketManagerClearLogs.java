@@ -1,7 +1,6 @@
 package ca.teamdman.sfm.common.net;
 
 import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.tileentity.TileEntity;
 
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
@@ -43,9 +42,8 @@ public class PacketManagerClearLogs implements IMessage {
         public IMessage onMessage(PacketManagerClearLogs message, MessageContext ctx) {
             EntityPlayerMP player = ctx.getServerHandler().playerEntity;
             if (player != null && player.worldObj != null) {
-                TileEntity te = player.worldObj.getTileEntity(message.x, message.y, message.z);
-                if (te instanceof TileEntityManager) {
-                    TileEntityManager manager = (TileEntityManager) te;
+                TileEntityManager manager = ManagerAccess.get(player, message.x, message.y, message.z);
+                if (manager != null) {
                     manager.clearLogs();
                     return new PacketManagerLogs(
                         message.x,

@@ -6,12 +6,18 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
 import ca.teamdman.langs.SFMLBaseVisitor;
 import ca.teamdman.langs.SFMLParser;
+import ca.teamdman.sfml.data.DataCompiler;
+import ca.teamdman.sfml.data.DataExpression;
 
 public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
+
+    private boolean outputLimits;
+    private final DataCompiler data = new DataCompiler();
 
     private final Set<String> usedLabels = new HashSet<>();
 
@@ -34,6 +40,17 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
             }
         }
 
+        for (SFMLParser.StateDeclarationContext declaration : ctx.stateDeclaration()) {
+            data.declareState(
+                declaration.VARIABLE()
+                    .getText()
+                    .substring(1),
+                source(declaration.dataExpression()),
+                declaration.getStart()
+                    .getLine(),
+                declaration.getStart()
+                    .getCharPositionInLine());
+        }
         List<Trigger> triggers = new ArrayList<>();
         if (ctx.trigger() != null) {
             for (SFMLParser.TriggerContext tCtx : ctx.trigger()) {
@@ -44,11 +61,12 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
             }
         }
 
-        return new Program(name, triggers, usedLabels);
+        return new Program(name, triggers, usedLabels, data.getStateSchema(), data.isUsed(), data.getMaxLocals());
     }
 
     @Override
     public ASTNode visitTimerTrigger(SFMLParser.TimerTriggerContext ctx) {
+        data.beginTrigger();
         Interval interval = (Interval) visit(ctx.interval());
         Block block = visitBlock(ctx.block());
         return new TimerTrigger(interval, block);
@@ -56,6 +74,7 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
 
     @Override
     public ASTNode visitPulseTrigger(SFMLParser.PulseTriggerContext ctx) {
+        data.beginTrigger();
         Block block = visitBlock(ctx.block());
         return new PulseTrigger(block);
     }
@@ -67,10 +86,12 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
         if (firstNumNode != null) {
             try {
                 ticks = Integer.parseInt(firstNumNode.getText());
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Interval out of range", e);
+            }
         }
         if (ctx.SECONDS() != null || ctx.SECOND() != null) {
-            ticks *= 20;
+            ticks = Math.multiplyExact(ticks, 20);
         }
 
         boolean isGlobal = ctx.GLOBAL() != null;
@@ -79,12 +100,15 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
         if (secondNumNode != null) {
             try {
                 offset = Integer.parseInt(secondNumNode.getText());
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Interval out of range", e);
+            }
             if (ctx.SECONDS() != null || ctx.SECOND() != null) {
-                offset *= 20;
+                offset = Math.multiplyExact(offset, 20);
             }
         }
 
+        if (ticks <= 0) throw new IllegalArgumentException("Interval must be positive");
         return new Interval(ticks, isGlobal, offset);
     }
 
@@ -96,10 +120,12 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
         int ticks = 1;
         try {
             ticks = Integer.parseInt(digits);
-        } catch (NumberFormatException ignored) {}
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Interval out of range", e);
+        }
 
         if (ctx.SECONDS() != null || ctx.SECOND() != null) {
-            ticks *= 20;
+            ticks = Math.multiplyExact(ticks, 20);
         }
 
         int offset = 0;
@@ -107,12 +133,15 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
         if (secondNumNode != null) {
             try {
                 offset = Integer.parseInt(secondNumNode.getText());
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("Interval out of range", e);
+            }
             if (ctx.SECONDS() != null || ctx.SECOND() != null) {
-                offset *= 20;
+                offset = Math.multiplyExact(offset, 20);
             }
         }
 
+        if (ticks <= 0) throw new IllegalArgumentException("Interval must be positive");
         return new Interval(ticks, true, offset);
     }
 
@@ -121,11 +150,16 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
             return new Block(Collections.emptyList());
         }
         List<Statement> statements = new ArrayList<>();
-        for (SFMLParser.StatementContext sCtx : ctx.statement()) {
-            ASTNode node = visit(sCtx);
-            if (node instanceof Statement) {
-                statements.add((Statement) node);
+        data.pushScope();
+        try {
+            for (SFMLParser.StatementContext sCtx : ctx.statement()) {
+                ASTNode node = visit(sCtx);
+                if (node instanceof Statement) {
+                    statements.add((Statement) node);
+                }
             }
+        } finally {
+            data.popScope();
         }
         return new Block(statements);
     }
@@ -145,6 +179,10 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
 
     @Override
     public ASTNode visitRedstoneOutputStatement(SFMLParser.RedstoneOutputStatementContext ctx) {
+        for (SFMLParser.QuantityContext quantity : ctx.quantity()) {
+            if (quantity.dataExpression() != null)
+                throw new IllegalArgumentException("Dynamic redstone OUTPUT levels are not supported yet");
+        }
         LabelAccess labelAccess = (LabelAccess) visit(ctx.labelAccess());
         int level = 15;
         boolean each = ctx.EACH() != null;
@@ -152,6 +190,8 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
             .isEmpty()) {
             ResourceQuantity q = (ResourceQuantity) visit(ctx.quantity(0));
             if (q != null) {
+                if (q.isDynamic())
+                    throw new IllegalArgumentException("Dynamic redstone OUTPUT levels are not supported yet");
                 level = (int) Math.min(15, Math.max(0, q.getAmount()));
                 if (q.isEach()) {
                     each = true;
@@ -164,8 +204,14 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
     @Override
     public ASTNode visitOutputStatement(SFMLParser.OutputStatementContext ctx) {
         LabelAccess labelAccess = (LabelAccess) visit(ctx.labelAccess());
-        ResourceLimits limits = ctx.outputResourceLimits() != null ? (ResourceLimits) visit(ctx.outputResourceLimits())
-            : ResourceLimits.DEFAULT;
+        outputLimits = true;
+        ResourceLimits limits;
+        try {
+            limits = ctx.outputResourceLimits() != null ? (ResourceLimits) visit(ctx.outputResourceLimits())
+                : new ResourceLimits(Collections.singletonList(ResourceLimit.DEFAULT_OUTPUT), null);
+        } finally {
+            outputLimits = false;
+        }
         if (ctx.resourceExclusion() != null) {
             ResourceIdSet exclusions = (ResourceIdSet) visit(ctx.resourceExclusion());
             limits = new ResourceLimits(limits.getLimits(), exclusions);
@@ -300,7 +346,8 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
 
     @Override
     public ASTNode visitResourceLimit(SFMLParser.ResourceLimitContext ctx) {
-        Limit limit = ctx.limit() != null ? (Limit) visit(ctx.limit()) : Limit.UNLIMITED;
+        Limit limit = ctx.limit() != null ? (Limit) visit(ctx.limit())
+            : new Limit(ResourceQuantity.UNLIMITED, outputLimits ? ResourceQuantity.UNLIMITED : ResourceQuantity.ZERO);
         ResourceIdSet resourceIds = ctx.resourceIdDisjunction() != null
             ? (ResourceIdSet) visit(ctx.resourceIdDisjunction())
             : ResourceIdSet.MATCH_ALL;
@@ -325,25 +372,27 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
     @Override
     public ASTNode visitQuantityLimit(SFMLParser.QuantityLimitContext ctx) {
         ResourceQuantity quantity = (ResourceQuantity) visit(ctx.quantity());
-        return new Limit(quantity, ResourceQuantity.ZERO);
+        return new Limit(quantity, outputLimits ? ResourceQuantity.UNLIMITED : ResourceQuantity.ZERO);
     }
 
     @Override
     public ASTNode visitQuantity(SFMLParser.QuantityContext ctx) {
-        long amount = Long.parseLong(
-            ctx.number()
-                .getText());
         boolean each = ctx.EACH() != null;
-        return new ResourceQuantity(amount, each);
+        return ctx.dataExpression() == null ? new ResourceQuantity(
+            Long.parseLong(
+                ctx.number()
+                    .getText()),
+            each) : new ResourceQuantity(expression(ctx.dataExpression()), each);
     }
 
     @Override
     public ASTNode visitRetention(SFMLParser.RetentionContext ctx) {
-        long amount = Long.parseLong(
-            ctx.number()
-                .getText());
         boolean each = ctx.EACH() != null;
-        return new ResourceQuantity(amount, each);
+        return ctx.dataExpression() == null ? new ResourceQuantity(
+            Long.parseLong(
+                ctx.number()
+                    .getText()),
+            each) : new ResourceQuantity(expression(ctx.dataExpression()), each);
     }
 
     @Override
@@ -395,7 +444,7 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
             SFMLParser.TagMatcherContext tmCtx = ((SFMLParser.WithTagContext) ctx).tagMatcher();
             return new TagMatcher(tmCtx.getText());
         }
-        return null;
+        throw new IllegalArgumentException("Compound WITH clauses are not supported by this backport");
     }
 
     @Override
@@ -434,6 +483,8 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
             ctx.comparisonOp()
                 .getText())
             : ComparisonOperator.GREATER;
+        if (ctx.dataExpression() != null)
+            return new BoolRedstone(op, new ResourceQuantity(expression(ctx.dataExpression()), false));
         int val = ctx.number() != null ? Integer.parseInt(
             ctx.number()
                 .getText())
@@ -451,14 +502,66 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
         ComparisonOperator compOp = ComparisonOperator.from(
             ctx.comparisonOp()
                 .getText());
-        long quantity = Long.parseLong(
-            ctx.number()
-                .getText());
+        ResourceQuantity quantity = ctx.dataExpression() == null ? new ResourceQuantity(
+            Long.parseLong(
+                ctx.number()
+                    .getText()),
+            false) : new ResourceQuantity(expression(ctx.dataExpression()), false);
         ResourceIdSet resIds = ctx.resourceIdDisjunction() != null ? (ResourceIdSet) visit(ctx.resourceIdDisjunction())
             : ResourceIdSet.MATCH_ALL;
         With with = ctx.with() != null ? (With) visit(ctx.with()) : With.ALWAYS_TRUE;
         ResourceIdSet except = ctx.resourceIdList() != null ? (ResourceIdSet) visit(ctx.resourceIdList()) : null;
 
         return new BoolHas(setOp, labelAccess, compOp, quantity, resIds, with, except);
+    }
+
+    private static String source(ParserRuleContext context) {
+        return context.getStart()
+            .getInputStream()
+            .getText(
+                new org.antlr.v4.runtime.misc.Interval(
+                    context.getStart()
+                        .getStartIndex(),
+                    context.getStop()
+                        .getStopIndex()));
+    }
+
+    private DataExpression expression(SFMLParser.DataExpressionContext context) {
+        return data.compile(
+            source(context),
+            context.getStart()
+                .getLine(),
+            context.getStart()
+                .getCharPositionInLine());
+    }
+
+    @Override
+    public ASTNode visitDataDeclaration(SFMLParser.DataDeclarationContext ctx) {
+        DataExpression value = expression(ctx.dataExpression());
+        return new DataDeclarationStatement(
+            data.declareLocal(
+                ctx.VARIABLE()
+                    .getText()
+                    .substring(1),
+                value.getType()),
+            value);
+    }
+
+    @Override
+    public ASTNode visitDataAssignment(SFMLParser.DataAssignmentContext ctx) {
+        DataExpression value = expression(ctx.dataExpression());
+        return new DataAssignmentStatement(
+            data.assignment(
+                source(ctx.dataTarget()),
+                value,
+                ctx.getStart()
+                    .getLine(),
+                ctx.getStart()
+                    .getCharPositionInLine()));
+    }
+
+    @Override
+    public ASTNode visitBooleanData(SFMLParser.BooleanDataContext ctx) {
+        return new DataBoolExpr(expression(ctx.dataExpression()));
     }
 }

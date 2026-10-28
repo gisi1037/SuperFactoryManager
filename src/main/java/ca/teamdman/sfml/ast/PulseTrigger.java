@@ -22,11 +22,11 @@ public final class PulseTrigger implements Trigger {
 
     @Override
     public String toStringCondensed() {
-        return "ON REDSTONE PULSE DO";
+        return "EVERY REDSTONE PULSE DO";
     }
 
     @Override
     public String toString() {
-        return "ON REDSTONE PULSE DO\n" + block.toString() + "\nEND";
+        return "EVERY REDSTONE PULSE DO\n" + block.toString() + "\nEND";
     }
 }

@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
@@ -20,10 +21,13 @@ import net.minecraft.network.play.server.S35PacketUpdateTileEntity;
 import net.minecraft.tileentity.TileEntity;
 
 import ca.teamdman.sfm.Config;
+import ca.teamdman.sfm.common.diagnostics.ManagerPhaseProfiler;
+import ca.teamdman.sfm.common.diagnostics.ManagerTickProfiler;
 import ca.teamdman.sfm.common.item.ItemDisk;
 import ca.teamdman.sfm.common.label.LabelPositionHolder;
 import ca.teamdman.sfm.common.network.CableNetwork;
 import ca.teamdman.sfm.common.program.ProgramContext;
+import ca.teamdman.sfm.common.program.ProgramStateStore;
 import ca.teamdman.sfm.common.util.BlockPos;
 import ca.teamdman.sfm.compat.Compat;
 import ca.teamdman.sfm.compat.stevefm.SteveFMCompat;
@@ -35,6 +39,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     private ItemStack diskStack = null;
     private Program compiledProgram = null;
+    private ProgramStateStore programState;
     private String lastCodeCompiled = null;
     private String statusMessage = "No Disk";
     private boolean isRunning = true;
@@ -51,6 +56,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     private double peakTickTimeMs = 0.0;
     private final double[] tickTimes = new double[20];
     private int tickTimeIndex = 0;
+    private long timedUpdateCount;
 
     @Override
     public void updateEntity() {
@@ -58,10 +64,40 @@ public class TileEntityManager extends TileEntity implements IInventory {
             return;
         }
 
-        if (cableNetwork == null) {
-            rebuildNetwork();
+        // Include recovery, idle checks, compilation, discovery and compatibility work.
+        long startNs = System.nanoTime();
+        try {
+            updateServer();
+        } finally {
+            long elapsedNs = System.nanoTime() - startNs;
+            lastTickTimeMs = elapsedNs / 1_000_000.0;
+            peakTickTimeMs = Math.max(peakTickTimeMs, lastTickTimeMs);
+            tickTimes[tickTimeIndex] = lastTickTimeMs;
+            tickTimeIndex = (tickTimeIndex + 1) % tickTimes.length;
+            timedUpdateCount++;
+            ManagerTickProfiler.INSTANCE.recordUpdate(elapsedNs);
+            ManagerPhaseProfiler.update(elapsedNs);
         }
+    }
 
+    private void updateServer() {
+        if (blockItemRecovery() || recoverFluid()) return;
+        if (diskStack == null || !(diskStack.getItem() instanceof ItemDisk) || !isRunning) {
+            lastRedstonePower = worldObj.getBlockPowerInput(xCoord, yCoord, zCoord);
+            if (diskStack == null) {
+                compiledProgram = null;
+                lastCodeCompiled = null;
+                statusMessage = "No Disk";
+            }
+            return;
+        }
+        String code = ItemDisk.getProgramString(diskStack);
+        if (!code.equals(lastCodeCompiled) || programState != null && !programState.isCurrent(diskStack))
+            recompile(code);
+        if (compiledProgram == null) return;
+        if (cableNetwork == null) rebuildNetwork();
+
+        long compatibilityStart = ManagerPhaseProfiler.begin();
         int currentPower = worldObj.getBlockPowerInput(xCoord, yCoord, zCoord);
         if (Compat.isSFMLoaded()) {
             try {
@@ -79,6 +115,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
         }
         boolean pulse = (currentPower > 0 && lastRedstonePower == 0) || budPulse;
         lastRedstonePower = currentPower;
+        ManagerPhaseProfiler.compatibility(compatibilityStart);
 
         if (pulse && logLevel.includes(LogLevel.DEBUG)) {
             if (budPulse) {
@@ -110,24 +147,26 @@ public class TileEntityManager extends TileEntity implements IInventory {
             rebuildNetwork();
         }
 
-        LabelPositionHolder labelPositions = LabelPositionHolder.from(diskStack);
-        ProgramContext context = new ProgramContext(worldObj, this, cableNetwork, labelPositions, managerTick, pulse);
+        LabelPositionHolder labelPositions = null;
+        ProgramContext context = new ProgramContext(
+            worldObj,
+            this,
+            cableNetwork,
+            labelPositions,
+            managerTick,
+            pulse,
+            compiledProgram.getReferencedLabels());
 
+        context.setStateAccess(programState);
         long startNs = System.nanoTime();
         try {
             compiledProgram.tick(context);
 
             if (context.didSomething()) {
-                long elapsedNs = System.nanoTime() - startNs;
-                lastTickTimeMs = elapsedNs / 1_000_000.0;
-                if (lastTickTimeMs > peakTickTimeMs) {
-                    peakTickTimeMs = lastTickTimeMs;
-                }
-                tickTimes[tickTimeIndex] = lastTickTimeMs;
-                tickTimeIndex = (tickTimeIndex + 1) % 20;
-
                 if (logLevel.includes(LogLevel.TRACE)) {
-                    log(LogLevel.TRACE, String.format("Program tick took %.2f ms", lastTickTimeMs));
+                    log(
+                        LogLevel.TRACE,
+                        String.format("Program tick took %.2f ms", (System.nanoTime() - startNs) / 1e6));
                 }
 
                 if (logLevel == LogLevel.TRACE || logLevel == LogLevel.DEBUG || logLevel == LogLevel.INFO) {
@@ -135,13 +174,168 @@ public class TileEntityManager extends TileEntity implements IInventory {
                 }
             }
         } catch (Exception e) {
-            statusMessage = "Runtime error: " + e.getMessage();
+            isRunning = false;
+            markDirty();
+            statusMessage = "Runtime error (paused): " + e.getMessage();
             log(LogLevel.ERROR, "Runtime exception: " + e.getMessage());
+        } finally {
+            if (programState != null && programState.isDirty()) markDirty();
+            ManagerPhaseProfiler.program(startNs);
         }
+    }
+
+    private static final String RECOVERY_ITEM = "sfm:recovery_item";
+    private static final String RECOVERY_FLUID = "sfm:recovery_fluid";
+    private static final int RECOVERY_VERSION = 1;
+
+    public boolean hasPendingRecovery() {
+        return diskStack != null && diskStack.hasTagCompound()
+            && (diskStack.getTagCompound()
+                .hasKey(RECOVERY_ITEM)
+                || diskStack.getTagCompound()
+                    .hasKey(RECOVERY_FLUID));
+    }
+
+    private void requireRecoverySpace() {
+        if (diskStack == null || !(diskStack.getItem() instanceof ItemDisk))
+            throw new IllegalStateException("No disk for transfer recovery");
+        if (hasPendingRecovery()) throw new IllegalStateException("Resolve pending recovery before another transfer");
+        if (!diskStack.hasTagCompound()) diskStack.setTagCompound(new NBTTagCompound());
+    }
+
+    /** A pending stack is owned by the disk; an uncertain stack is evidence, not safe to replay. */
+    public NBTTagCompound preserveItem(ItemStack stack, BlockPos source, int slot,
+        net.minecraftforge.common.util.ForgeDirection side, boolean uncertain, String stage) {
+        requireRecoverySpace();
+        NBTTagCompound entry = new NBTTagCompound();
+        entry.setInteger("version", RECOVERY_VERSION);
+        entry.setString(
+            "recoveryId",
+            UUID.randomUUID()
+                .toString());
+        entry.setString("state", uncertain ? "uncertain" : "pending");
+        entry.setString("stage", stage);
+        entry.setTag(
+            "stack",
+            stack.copy()
+                .writeToNBT(new NBTTagCompound()));
+        entry.setInteger("sourceX", source.x);
+        entry.setInteger("sourceY", source.y);
+        entry.setInteger("sourceZ", source.z);
+        entry.setInteger("sourceSlot", slot);
+        entry.setInteger("sourceSide", side.ordinal());
+        entry.setInteger("sourceDimension", worldObj.provider.dimensionId);
+        diskStack.getTagCompound()
+            .setTag(RECOVERY_ITEM, entry);
+        setRunning(false);
+        markDirty();
+        return entry;
+    }
+
+    public void itemRecoveryResolved() {
+        statusMessage = "Item recovery resolved; restart manager when ready";
+        if (isRunning) setRunning(false);
+        markDirty();
+    }
+
+    private boolean blockItemRecovery() {
+        if (diskStack == null || !diskStack.hasTagCompound()
+            || !diskStack.getTagCompound()
+                .hasKey(RECOVERY_ITEM))
+            return false;
+        if (isRunning) setRunning(false);
+        // Never guess where to return a stack after source replacement or an uncertain callback.
+        // Keep even unknown/corrupt records intact for an explicit recovery workflow.
+        statusMessage = "Item recovery pending; use /sfmrecovery x y z inspect";
+        return true;
+    }
+
+    public void preserveFluid(net.minecraftforge.fluids.FluidStack fluid, BlockPos source,
+        net.minecraftforge.common.util.ForgeDirection side) {
+        requireRecoverySpace();
+        NBTTagCompound entry = new NBTTagCompound();
+        entry.setInteger("version", RECOVERY_VERSION);
+        entry.setString(
+            "recoveryId",
+            UUID.randomUUID()
+                .toString());
+        fluid.writeToNBT(entry);
+        entry.setInteger("sourceX", source.x);
+        entry.setInteger("sourceY", source.y);
+        entry.setInteger("sourceZ", source.z);
+        entry.setInteger("sourceSide", side.ordinal());
+        entry.setInteger("sourceDimension", worldObj.provider.dimensionId);
+        diskStack.getTagCompound()
+            .setTag(RECOVERY_FLUID, entry);
+        setRunning(false);
+        markDirty();
+    }
+
+    private boolean recoverFluid() {
+        if (diskStack == null || !diskStack.hasTagCompound()
+            || !diskStack.getTagCompound()
+                .hasKey(RECOVERY_FLUID))
+            return false;
+        if (isRunning) setRunning(false);
+        NBTTagCompound entry = diskStack.getTagCompound()
+            .getCompoundTag(RECOVERY_FLUID);
+        // Records from the audit build have no version (0); keep them readable.
+        if (!diskStack.getTagCompound()
+            .hasKey(RECOVERY_FLUID, 10) || entry.getInteger("version") < 0
+            || entry.getInteger("version") > RECOVERY_VERSION) {
+            statusMessage = "Unsupported fluid recovery record; program paused";
+            return true;
+        }
+        if (entry.getBoolean("recoveryBlocked")) {
+            statusMessage = "Fluid recovery blocked; inspect source and disk before retrying";
+            return true;
+        }
+        statusMessage = "Fluid recovery pending; program paused";
+        if (worldObj.getTotalWorldTime() % 20 != 0) return true;
+        try {
+            return recoverFluid(entry);
+        } catch (Exception e) {
+            // A callback may throw after mutating its tank. Do not automatically retry
+            // an uncertain transfer; retain the record for operator reconciliation.
+            entry.setBoolean("recoveryBlocked", true);
+            markDirty();
+            statusMessage = "Fluid recovery blocked: " + e.getMessage();
+            log(LogLevel.ERROR, statusMessage);
+            return true;
+        }
+    }
+
+    private boolean recoverFluid(NBTTagCompound entry) {
+        if (entry.getInteger("sourceDimension") != worldObj.provider.dimensionId) return true;
+        BlockPos pos = new BlockPos(
+            entry.getInteger("sourceX"),
+            entry.getInteger("sourceY"),
+            entry.getInteger("sourceZ"));
+        net.minecraftforge.fluids.IFluidHandler source = ca.teamdman.sfm.common.inventory.InventoryUtils
+            .getFluidHandler(worldObj, pos);
+        net.minecraftforge.fluids.FluidStack fluid = net.minecraftforge.fluids.FluidStack.loadFluidStackFromNBT(entry);
+        if (source == null || fluid == null) return true;
+        int returned = Math.max(
+            0,
+            Math.min(
+                fluid.amount,
+                source.fill(
+                    net.minecraftforge.common.util.ForgeDirection.getOrientation(entry.getInteger("sourceSide")),
+                    fluid.copy(),
+                    true)));
+        fluid.amount -= returned;
+        if (fluid.amount == 0) {
+            diskStack.getTagCompound()
+                .removeTag(RECOVERY_FLUID);
+            statusMessage = "Recovered fluid; restart manager";
+        } else fluid.writeToNBT(entry);
+        if (returned > 0) markDirty();
+        return true;
     }
 
     public void runOnceWithLogLevel(LogLevel level) {
         if (worldObj == null || worldObj.isRemote) return;
+        if (blockItemRecovery() || recoverFluid()) return;
         LogLevel prev = this.logLevel;
         this.logLevel = level;
 
@@ -152,7 +346,8 @@ public class TileEntityManager extends TileEntity implements IInventory {
         }
 
         if (diskStack != null && diskStack.getItem() instanceof ItemDisk) {
-            if (compiledProgram == null) {
+            if (!ItemDisk.getProgramString(diskStack)
+                .equals(lastCodeCompiled) || programState != null && !programState.isCurrent(diskStack)) {
                 recompile(ItemDisk.getProgramString(diskStack));
             }
 
@@ -167,15 +362,17 @@ public class TileEntityManager extends TileEntity implements IInventory {
                     } catch (Throwable ignored) {}
                 }
                 boolean pulse = currentPower > 0;
-                LabelPositionHolder labelPositions = LabelPositionHolder.from(diskStack);
+                LabelPositionHolder labelPositions = null;
                 ProgramContext context = new ProgramContext(
                     worldObj,
                     this,
                     cableNetwork,
                     labelPositions,
                     managerTick,
-                    pulse);
+                    pulse,
+                    compiledProgram.getReferencedLabels());
 
+                context.setStateAccess(programState);
                 long startNs = System.nanoTime();
                 try {
                     compiledProgram.tick(context);
@@ -183,7 +380,12 @@ public class TileEntityManager extends TileEntity implements IInventory {
                     double ms = elapsedNs / 1_000_000.0;
                     log(LogLevel.INFO, String.format("Manual run completed in %.2f ms", ms));
                 } catch (Exception e) {
+                    isRunning = false;
+                    markDirty();
+                    statusMessage = "Runtime error (paused): " + e.getMessage();
                     log(LogLevel.ERROR, "Manual run failed: " + e.getMessage());
+                } finally {
+                    if (programState != null && programState.isDirty()) markDirty();
                 }
             } else {
                 log(LogLevel.ERROR, "Cannot run: program is invalid or missing.");
@@ -193,9 +395,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
         }
 
         // Revert log level if it was OFF
-        if (prev == LogLevel.OFF) {
-            this.logLevel = LogLevel.OFF;
-        }
+        this.logLevel = prev;
     }
 
     public void log(LogLevel level, String message) {
@@ -203,6 +403,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
         if (!this.logLevel.includes(level) && level != LogLevel.ERROR && level != LogLevel.WARN) {
             return;
         }
+        if (message.length() > 4096) message = message.substring(0, 4096) + " [truncated]";
         synchronized (logs) {
             logs.add(new LogEntry(level, message));
             if (logs.size() > MAX_LOGS) {
@@ -226,6 +427,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     public void logNetworkDiagnostics(ProgramContext context) {
+        if (!logLevel.includes(LogLevel.TRACE)) return;
         log(LogLevel.TRACE, "======= Cable network =======");
         log(LogLevel.TRACE, "Cable positions:");
         if (cableNetwork != null) {
@@ -298,11 +500,26 @@ public class TileEntityManager extends TileEntity implements IInventory {
         return lastTickTimeMs;
     }
 
+    public long getTimedUpdateCount() {
+        return timedUpdateCount;
+    }
+
     public double getPeakTickTimeMs() {
         return peakTickTimeMs;
     }
 
     public void recompile(String code) {
+        // Preserve the last accepted heap values before replacing/reconciling their schema.
+        try {
+            flushProgramState();
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            compiledProgram = null;
+            isRunning = false;
+            statusMessage = "Persistent state conflict (paused): " + e.getMessage();
+            log(LogLevel.ERROR, statusMessage);
+            return;
+        }
+        programState = null;
         lastCodeCompiled = code;
         if (code == null || code.trim()
             .isEmpty()) {
@@ -315,7 +532,27 @@ public class TileEntityManager extends TileEntity implements IInventory {
         ProgramBuilder builder = new ProgramBuilder(code);
         ProgramBuildResult result = builder.build();
         if (result.isSuccess()) {
-            compiledProgram = result.getProgram();
+            Program candidate = result.getProgram();
+            try {
+                // Old programs with no state payload skip all value/schema allocation.
+                if (diskStack != null && (candidate.getStateSchema()
+                    .size() != 0 || diskStack.hasTagCompound()
+                        && diskStack.getTagCompound()
+                            .hasKey(ProgramStateStore.NBT_KEY))) {
+                    ProgramStateStore candidateState = ProgramStateStore
+                        .activate(diskStack, candidate.getStateSchema());
+                    candidateState.flush();
+                    for (String warning : candidateState.getActivationWarnings()) log(LogLevel.WARN, warning);
+                    programState = candidateState;
+                }
+            } catch (IllegalArgumentException | IllegalStateException e) {
+                compiledProgram = null;
+                isRunning = false;
+                statusMessage = "Persistent state error (paused): " + e.getMessage();
+                log(LogLevel.ERROR, statusMessage);
+                return;
+            }
+            compiledProgram = candidate;
             statusMessage = "Running";
             log(LogLevel.INFO, "Program recompiled successfully: " + compiledProgram.getName());
         } else {
@@ -327,10 +564,47 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     public void saveCodeAndRecompile(String newCode) {
         if (diskStack != null && diskStack.getItem() instanceof ItemDisk) {
+            flushProgramState();
             ItemDisk.setProgramString(diskStack, newCode);
             markDirty();
         }
-        recompile(newCode);
+        if (diskStack != null && diskStack.getItem() instanceof ItemDisk) recompile(newCode);
+    }
+
+    /** Snapshot only at save/exposure/lifecycle boundaries; ordinary SET and manager ticks stay in heap. */
+    public void flushProgramState() {
+        if (programState != null && programState.flush()) markDirty();
+    }
+
+    public ProgramStateStore getProgramState() {
+        return programState;
+    }
+
+    /** Explicitly discard persistent values, preserving program, labels and transfer recovery evidence. */
+    public void resetProgramState() {
+        if (diskStack == null) return;
+        setRunning(false);
+        String source = ItemDisk.getProgramString(diskStack);
+        ProgramBuildResult result = new ProgramBuilder(source).build();
+        if (!result.isSuccess()) {
+            statusMessage = "State not reset: fix the program first. " + result.getErrorMessage();
+            log(LogLevel.ERROR, statusMessage);
+            return;
+        }
+        try {
+            Program candidateProgram = result.getProgram();
+            ProgramStateStore candidate = ProgramStateStore.reset(diskStack, candidateProgram.getStateSchema());
+            // Validation/publication completes before replacing the accepted live cache.
+            candidate.flush();
+            programState = candidate;
+            compiledProgram = candidateProgram;
+            lastCodeCompiled = source;
+            statusMessage = "Persistent variables reset; program paused";
+            markDirty();
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            statusMessage = "State not reset: " + e.getMessage();
+            log(LogLevel.ERROR, statusMessage);
+        }
     }
 
     public ItemStack getDisk() {
@@ -355,6 +629,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     public void setRunning(boolean running) {
         this.isRunning = running;
+        markDirty();
         log(LogLevel.INFO, running ? "Manager started (RUNNING)" : "Manager paused (STOPPED)");
     }
 
@@ -377,10 +652,16 @@ public class TileEntityManager extends TileEntity implements IInventory {
         return result;
     }
 
+    @Override
+    public void onChunkUnload() {
+        cableNetwork = null;
+        super.onChunkUnload();
+    }
+
     public void rebuildNetwork() {
         if (worldObj != null) {
             cableNetwork = new CableNetwork(worldObj, new BlockPos(xCoord, yCoord, zCoord));
-            cableNetwork.scan();
+
             log(
                 LogLevel.INFO,
                 "Cable network rebuilt (" + cableNetwork.getPeripherals()
@@ -391,9 +672,12 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     public void reset() {
         if (diskStack != null) {
+            flushProgramState();
+            programState = null;
+            if (diskStack.hasTagCompound()) diskStack.getTagCompound()
+                .removeTag(ProgramStateStore.NBT_KEY);
             ItemDisk.setProgramString(diskStack, "");
-            LabelPositionHolder.from(diskStack)
-                .clear();
+            LabelPositionHolder.saveTo(diskStack, new LabelPositionHolder());
             recompile("");
             markDirty();
             log(LogLevel.INFO, "Program and labels reset");
@@ -409,14 +693,17 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     @Override
     public ItemStack getStackInSlot(int slot) {
+        if (slot == 0) flushProgramState();
         return slot == 0 ? diskStack : null;
     }
 
     @Override
     public ItemStack decrStackSize(int slot, int amount) {
-        if (slot == 0 && diskStack != null) {
+        if (slot == 0 && diskStack != null && amount > 0) {
+            flushProgramState();
             ItemStack result = diskStack;
             diskStack = null;
+            programState = null;
             compiledProgram = null;
             lastCodeCompiled = null;
             statusMessage = "No Disk";
@@ -435,6 +722,8 @@ public class TileEntityManager extends TileEntity implements IInventory {
     @Override
     public void setInventorySlotContents(int slot, ItemStack stack) {
         if (slot == 0) {
+            flushProgramState();
+            programState = null;
             diskStack = stack;
             if (diskStack != null && diskStack.getItem() instanceof ItemDisk) {
                 log(LogLevel.INFO, "Disk inserted");
@@ -465,7 +754,11 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     @Override
     public boolean isUseableByPlayer(EntityPlayer player) {
-        return worldObj.getTileEntity(xCoord, yCoord, zCoord) == this
+        return player != null && worldObj != null
+            && player.worldObj == worldObj
+            && !isInvalid()
+            && worldObj.blockExists(xCoord, yCoord, zCoord)
+            && worldObj.getTileEntity(xCoord, yCoord, zCoord) == this
             && player.getDistanceSq(xCoord + 0.5D, yCoord + 0.5D, zCoord + 0.5D) <= 64.0D;
     }
 
@@ -484,6 +777,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     @Override
     public void writeToNBT(NBTTagCompound tag) {
+        flushProgramState();
         super.writeToNBT(tag);
         tag.setBoolean("isRunning", isRunning);
         tag.setLong("managerTick", managerTick);
@@ -504,6 +798,12 @@ public class TileEntityManager extends TileEntity implements IInventory {
     @Override
     public void readFromNBT(NBTTagCompound tag) {
         super.readFromNBT(tag);
+        compiledProgram = null;
+        programState = null;
+        lastCodeCompiled = null;
+        cableNetwork = null;
+        timedUpdateCount = 0;
+        statusMessage = "No Disk";
         isRunning = tag.getBoolean("isRunning");
         managerTick = tag.getLong("managerTick");
         if (tag.hasKey("logLevel")) {
@@ -516,7 +816,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
             peakTickTimeMs = tag.getDouble("peakTickTimeMs");
         }
         if (tag.hasKey("tt_idx")) {
-            tickTimeIndex = tag.getInteger("tt_idx");
+            tickTimeIndex = Math.floorMod(tag.getInteger("tt_idx"), tickTimes.length);
         }
         for (int i = 0; i < 20; i++) {
             if (tag.hasKey("tt_" + i)) {

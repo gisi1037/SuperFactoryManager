@@ -34,13 +34,13 @@ public enum ComparisonOperator implements ASTNode {
             case LESSER:
                 return "<";
             case EQUALS:
-                return "==";
+                return "=";
             case LESSER_OR_EQUAL:
                 return "<=";
             case GREATER_OR_EQUAL:
                 return ">=";
             default:
-                return "==";
+                return "=";
         }
     }
 

@@ -2,7 +2,6 @@ package ca.teamdman.sfm.common.inventory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import java.lang.reflect.Field;
 import java.util.Collections;
 
 import net.minecraft.entity.player.EntityPlayer;
@@ -153,32 +152,7 @@ public class InventoryUtilsTest {
 
     @Test
     public void testFluidHandlerUnqualifiedSideNotMultiCounted() throws Exception {
-        Field fUnsafe = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
-        fUnsafe.setAccessible(true);
-        sun.misc.Unsafe unsafe = (sun.misc.Unsafe) fUnsafe.get(null);
-
-        FluidStack stack = (FluidStack) unsafe.allocateInstance(FluidStack.class);
-        stack.amount = 5000;
-        Fluid fluid = new Fluid("water");
-        Field fDelegate = FluidStack.class.getDeclaredField("fluidDelegate");
-        fDelegate.setAccessible(true);
-        fDelegate.set(stack, new cpw.mods.fml.common.registry.RegistryDelegate<Fluid>() {
-
-            @Override
-            public Fluid get() {
-                return fluid;
-            }
-
-            @Override
-            public String name() {
-                return "water";
-            }
-
-            @Override
-            public Class<Fluid> type() {
-                return Fluid.class;
-            }
-        });
+        FluidStack stack = ca.teamdman.sfm.audit.TestFluid.water(5000);
         FluidTankInfo info = new FluidTankInfo(stack, 10000);
 
         IFluidHandler handler = new IFluidHandler() {

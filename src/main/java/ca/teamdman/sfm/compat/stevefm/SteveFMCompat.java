@@ -40,7 +40,7 @@ public final class SteveFMCompat {
     }
 
     public static IInventory getInventory(World world, BlockPos pos, TileEntity te) {
-        if (world == null || pos == null || te == null) return null;
+        if (world == null || pos == null || !pos.isLoaded(world) || te == null) return null;
         try {
             if (te instanceof vswe.stevesfactory.blocks.TileEntityCluster) {
                 vswe.stevesfactory.blocks.TileEntityCluster cluster = (vswe.stevesfactory.blocks.TileEntityCluster) te;
@@ -56,7 +56,7 @@ public final class SteveFMCompat {
     }
 
     public static IFluidHandler getFluidHandler(World world, BlockPos pos, TileEntity te) {
-        if (world == null || pos == null || te == null) return null;
+        if (world == null || pos == null || !pos.isLoaded(world) || te == null) return null;
         try {
             if (te instanceof vswe.stevesfactory.blocks.TileEntityCluster) {
                 vswe.stevesfactory.blocks.TileEntityCluster cluster = (vswe.stevesfactory.blocks.TileEntityCluster) te;
@@ -83,7 +83,7 @@ public final class SteveFMCompat {
     }
 
     public static boolean isReceiver(World world, BlockPos pos) {
-        if (world == null || pos == null) return false;
+        if (world == null || pos == null || !pos.isLoaded(world)) return false;
         try {
             return vswe.stevesfactory.blocks.TileEntityCluster
                 .getTileEntity(vswe.stevesfactory.blocks.TileEntityInput.class, world, pos.x, pos.y, pos.z) != null;
@@ -93,7 +93,7 @@ public final class SteveFMCompat {
     }
 
     public static int getReceiverPower(World world, BlockPos pos) {
-        if (world == null || pos == null) return 0;
+        if (world == null || pos == null || !pos.isLoaded(world)) return 0;
         try {
             vswe.stevesfactory.blocks.TileEntityInput input = vswe.stevesfactory.blocks.TileEntityCluster
                 .getTileEntity(vswe.stevesfactory.blocks.TileEntityInput.class, world, pos.x, pos.y, pos.z);
@@ -115,6 +115,7 @@ public final class SteveFMCompat {
         if (world == null || peripherals == null || peripherals.isEmpty()) return 0;
         int max = 0;
         for (BlockPos pos : peripherals) {
+            if (!pos.isLoaded(world)) continue;
             int p = getReceiverPower(world, pos);
             if (p > max) {
                 max = p;
@@ -125,7 +126,7 @@ public final class SteveFMCompat {
     }
 
     public static boolean isEmitter(World world, BlockPos pos) {
-        if (world == null || pos == null) return false;
+        if (world == null || pos == null || !pos.isLoaded(world)) return false;
         try {
             return vswe.stevesfactory.blocks.TileEntityCluster
                 .getTileEntity(vswe.stevesfactory.blocks.TileEntityOutput.class, world, pos.x, pos.y, pos.z) != null;
@@ -151,7 +152,7 @@ public final class SteveFMCompat {
 
     public static boolean setRedstoneOutput(World world, BlockPos pos, List<ForgeDirection> sides, int strength,
         boolean strong) {
-        if (world == null || pos == null) return false;
+        if (world == null || pos == null || !pos.isLoaded(world)) return false;
         try {
             initReflection();
             TileEntity te = world.getTileEntity(pos.x, pos.y, pos.z);
@@ -204,7 +205,7 @@ public final class SteveFMCompat {
     }
 
     public static boolean isBUD(World world, BlockPos pos) {
-        if (world == null || pos == null) return false;
+        if (world == null || pos == null || !pos.isLoaded(world)) return false;
         try {
             return vswe.stevesfactory.blocks.TileEntityCluster
                 .getTileEntity(vswe.stevesfactory.blocks.TileEntityBUD.class, world, pos.x, pos.y, pos.z) != null;
@@ -217,6 +218,7 @@ public final class SteveFMCompat {
         if (world == null || peripherals == null || peripherals.isEmpty()) return false;
         boolean updated = false;
         for (BlockPos pos : peripherals) {
+            if (!pos.isLoaded(world)) continue;
             try {
                 vswe.stevesfactory.blocks.TileEntityBUD bud = vswe.stevesfactory.blocks.TileEntityCluster
                     .getTileEntity(vswe.stevesfactory.blocks.TileEntityBUD.class, world, pos.x, pos.y, pos.z);
@@ -228,6 +230,7 @@ public final class SteveFMCompat {
                     int nx = pos.x + dir.offsetX;
                     int ny = pos.y + dir.offsetY;
                     int nz = pos.z + dir.offsetZ;
+                    if (!world.blockExists(nx, ny, nz)) continue;
                     Block b = world.getBlock(nx, ny, nz);
                     int meta = world.getBlockMetadata(nx, ny, nz);
                     int currentVal = (Block.getIdFromBlock(b) << 4) | (meta & 15);

@@ -1,10 +1,9 @@
 package ca.teamdman.sfm.common.util;
 
-import java.util.Objects;
-
 import net.minecraft.block.Block;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.IBlockAccess;
+import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
 
 public final class BlockPos {
@@ -45,15 +44,19 @@ public final class BlockPos {
     }
 
     public TileEntity getTileEntity(IBlockAccess world) {
-        return world != null ? world.getTileEntity(x, y, z) : null;
+        return isLoaded(world) ? world.getTileEntity(x, y, z) : null;
     }
 
     public Block getBlock(IBlockAccess world) {
-        return world != null ? world.getBlock(x, y, z) : null;
+        return isLoaded(world) ? world.getBlock(x, y, z) : null;
     }
 
     public int getBlockMetadata(IBlockAccess world) {
-        return world != null ? world.getBlockMetadata(x, y, z) : 0;
+        return isLoaded(world) ? world.getBlockMetadata(x, y, z) : 0;
+    }
+
+    public boolean isLoaded(IBlockAccess world) {
+        return world != null && (!(world instanceof World) || ((World) world).blockExists(x, y, z));
     }
 
     @Override
@@ -65,7 +68,7 @@ public final class BlockPos {
 
     @Override
     public int hashCode() {
-        return Objects.hash(x, y, z);
+        return (31 * x + y) * 31 + z;
     }
 
     @Override

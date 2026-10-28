@@ -1,7 +1,6 @@
 package ca.teamdman.sfm.common.net;
 
 import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.tileentity.TileEntity;
 
 import ca.teamdman.sfm.common.tileentity.LogLevel;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
@@ -53,9 +52,8 @@ public class PacketManagerSetLogLevel implements IMessage {
         public IMessage onMessage(PacketManagerSetLogLevel message, MessageContext ctx) {
             EntityPlayerMP player = ctx.getServerHandler().playerEntity;
             if (player != null && player.worldObj != null) {
-                TileEntity te = player.worldObj.getTileEntity(message.x, message.y, message.z);
-                if (te instanceof TileEntityManager) {
-                    TileEntityManager manager = (TileEntityManager) te;
+                TileEntityManager manager = ManagerAccess.get(player, message.x, message.y, message.z);
+                if (manager != null) {
                     LogLevel level = LogLevel.fromString(message.logLevel);
 
                     if (message.runOnce) {
