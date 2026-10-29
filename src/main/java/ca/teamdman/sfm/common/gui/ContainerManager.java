@@ -9,9 +9,10 @@ import net.minecraft.item.ItemStack;
 import ca.teamdman.sfm.common.item.ItemDisk;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 
-public class ContainerManager extends Container {
+public class ContainerManager extends Container implements ManagerEditContext {
 
     private final TileEntityManager manager;
+    private final ManagerEditContext.State edits = new ManagerEditContext.State();
 
     public ContainerManager(InventoryPlayer playerInv, TileEntityManager manager) {
         this.manager = manager;
@@ -42,6 +43,11 @@ public class ContainerManager extends Container {
         for (int col = 0; col < 9; col++) {
             addSlotToContainer(new Slot(playerInv, col, 8 + col * 18, 142));
         }
+    }
+
+    @Override
+    public ManagerEditContext.State getEditState() {
+        return edits;
     }
 
     public TileEntityManager getManager() {

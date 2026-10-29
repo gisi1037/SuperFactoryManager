@@ -1,0 +1,116 @@
+{
+  "functions": {
+    "label": {
+      "signatures": ["label(\"name\") -> label_ref"],
+      "description": "Construct a handle for one exact, case-sensitive disk label group. The argument must be a nonempty quoted source literal of at most 256 characters, without surrounding whitespace; computed strings are not accepted. The handle selects locations rather than capturing inventory contents. The constructor name ignores case.",
+      "example": "let $source = label(\"inputs\")"
+    },
+    "item": {
+      "signatures": ["item(\"namespace:name\") -> resource_selector", "item(\"*\") -> resource_selector"],
+      "description": "Construct an item filter from one quoted source literal. An exact, case-sensitive registry ID matches every metadata/NBT variant of that item; '*' matches all items. This is a RESOURCE_SELECTOR, not an exact ITEM_KEY. No item: prefix, metadata suffix, glob pattern, NBT filter or fluid selector is accepted. Unknown valid IDs match nothing; the constructor name ignores case.",
+      "example": "let $iron = item(\"minecraft:iron_ingot\")"
+    },
+    "ore": {
+      "signatures": ["ore(\"oreName\") -> resource_selector"],
+      "description": "Construct an OreDictionary filter from one exact, case-sensitive quoted source literal of 1–256 ASCII letters, digits or underscores. Registered alternatives and wildcard metadata registrations are supported. Unknown names match nothing and do not register a new ore category. No ore: prefix, pattern or computed string is accepted. This is a RESOURCE_SELECTOR, not an exact ITEM_KEY; the constructor name ignores case.",
+      "example": "let $iron = ore(\"ingotIron\")"
+    },
+    "min": {
+      "signatures": ["min(a: integer, b: integer) -> integer"],
+      "description": "Return the smaller of two signed 64-bit integers. Both arguments evaluate once, left to right. The built-in name ignores case; an exact-name player function takes precedence.",
+      "example": "let $batch = min(16, 64)"
+    },
+    "max": {
+      "signatures": ["max(a: integer, b: integer) -> integer"],
+      "description": "Return the larger of two signed 64-bit integers. Both arguments evaluate once, left to right. The built-in name ignores case; an exact-name player function takes precedence.",
+      "example": "let $batch = max(0, 16)"
+    },
+    "clamp": {
+      "signatures": ["clamp(value: integer, low: integer, high: integer) -> integer"],
+      "description": "Restrict a signed 64-bit integer to the inclusive low/high bounds. Reversed bounds fault. Arguments evaluate once, left to right. The built-in name ignores case; an exact-name player function takes precedence.",
+      "example": "let $level = clamp(20, 0, 15)"
+    },
+    "abs": {
+      "signatures": ["abs(value: integer) -> integer"],
+      "description": "Return the absolute value of a signed 64-bit integer. The minimum signed value (-9223372036854775808) faults because its positive counterpart cannot fit. The built-in name ignores case; an exact-name player function takes precedence.",
+      "example": "let $distance = abs(-12)"
+    },
+    "len": {
+      "signatures": ["len(values: T[N]) -> integer", "len(text: string) -> integer", "len(contents: item_contents) -> integer", "len(locations: item_locations) -> integer"],
+      "description": "Return the outer entry count of a fixed array or a captured native ITEM_CONTENTS/ITEM_LOCATIONS sequence, including zero. For a string, return its Unicode code-point count rather than UTF-8 bytes or displayed grapheme clusters. Does not rescan inventories. The built-in name ignores case; an exact-name player function takes precedence.",
+      "example": "let $stock = label(\"inputs\").contents()\nif (len($stock) > 0) then\n  print($stock[0].total)\nend"
+    },
+    "total": {
+      "signatures": ["total(contents: item_contents) -> integer", "total(locations: item_locations) -> integer"],
+      "description": "Sum captured group totals or physical-location amounts using checked signed 64-bit arithmetic. Accepts native ITEM_CONTENTS/ITEM_LOCATIONS sequences, not ordinary arrays. Walks captured rows under shared work limits without rescanning inventories; overflow faults. The built-in name ignores case; an exact-name player function takes precedence.",
+      "example": "let $stock = label(\"inputs\").contents(ore(\"ingotIron\"))\nprint(total($stock))"
+    },
+    "stock": {
+      "signatures": ["stock(contents: item_contents, itemKey: item_key) -> integer"],
+      "description": "Read the captured total for one exact ITEM_KEY, or zero if absent. The key includes registry ID, metadata and canonical NBT; ITEM/ORE selectors are not accepted. Walks the captured groups under shared work limits without rescanning inventories. The built-in name ignores case; an exact-name player function takes precedence.",
+      "example": "let $snapshot = label(\"inputs\").contents()\nif (len($snapshot) > 0) then\n  print(stock($snapshot, $snapshot[0].item))\nend"
+    },
+    "shortage": {
+      "signatures": ["shortage(required: integer, available: integer) -> integer"],
+      "description": "Return the additional amount needed: required minus available, clamped to zero. Both signed 64-bit integer arguments must be nonnegative or execution faults. This calculation does not query inventories. The built-in name ignores case; an exact-name player function takes precedence.",
+      "example": "let $missing = shortage(32, label(\"assembly\").count(item(\"minecraft:iron_ingot\")))"
+    },
+    "transfer": {
+      "signatures": ["transfer(source: label_ref, destination: label_ref) [into $result]", "transfer(source: label_ref, destination: label_ref, selection: resource_selector | item_key) [into $result]", "transfer(source: label_ref, destination: label_ref, selection: resource_selector | item_key, amount: integer) [into $result]"],
+      "description": "An item-moving statement, not a value-returning function. Two arguments select all items; three select matching items; an omitted amount observes matching visible source stock. Four arguments provide one nonnegative aggregate cap across variants and containers. ITEM/ORE selectors are broad; an ITEM_KEY from contents() selects exact metadata/NBT. Optional INTO declares a fresh local record with integer requested/moved/remaining and string status (complete, partial, no_match, no_capacity or unavailable). Unavailable automatic preflight can report requested=0 without proving emptiness. Provider errors, exhausted work limits and recovery uncertainty fault; earlier confirmed transfers remain committed. Cannot appear inside a data expression or player function. The statement name ignores case.",
+      "example": "let $source = label(\"inputs\")\nlet $destination = label(\"assembly\")\ntransfer($source, $destination, item(\"minecraft:iron_ingot\"), 16) into $result\nprint($result.moved, $result.remaining, $result.status)"
+    },
+    "print": {
+      "signatures": ["print(value1 [, value2, ... value8])"],
+      "description": "A debug-output statement accepting 1–8 typed expressions; it does not return a value. Arguments evaluate only while output capture is enabled and allowance remains. Use in triggers, not player function bodies or data expressions. The statement name ignores case.",
+      "example": "print(\"stock\", label(\"inputs\").count(item(\"minecraft:iron_ingot\")))"
+    }
+  },
+  "methods": {
+    "contents": {
+      "signatures": ["$label.contents() -> item_contents", "$label.contents(selector: resource_selector) -> item_contents"],
+      "description": "Capture a read-only native sequence of exact visible-item groups from a LABEL_REF. Each group has item (ITEM_KEY including registry ID, metadata and NBT), id, metadata, total and locations (ITEM_LOCATIONS). Locations expose dimension/x/y/z/slot/sideMask/amount. An optional ITEM/ORE selector filters the scan; an exact ITEM_KEY is not accepted here. Complete empty access produces zero groups; missing, incomplete, unsupported or over-budget access faults without a partial result. Captured data is not a reservation or a live view, and cannot be stored in STATE. The method name ignores case; fields are case-sensitive.",
+      "example": "let $stock = label(\"inputs\").contents(ore(\"ingotIron\"))\nfor $group in $stock do\n  print($group.id, $group.metadata, $group.total)\nend"
+    },
+    "count": {
+      "signatures": ["$label.count(selector: resource_selector) -> integer"],
+      "description": "Count matching visible items in the current selected LABEL_REF view using checked signed 64-bit arithmetic. Requires one ITEM/ORE selector, not an exact ITEM_KEY. Counts visible stock even when extraction is refused; it is not a capacity or reservation check. Missing, incomplete, unsupported or over-budget access faults. The method name ignores case.",
+      "example": "let $source = label(\"inputs\")\nif ($source.available()) then\n  print($source.count(item(\"minecraft:iron_ingot\")))\nend"
+    },
+    "empty": {
+      "signatures": ["$label.empty() -> boolean", "$label.empty(selector: resource_selector) -> boolean"],
+      "description": "Return true only when the complete available LABEL_REF view contains no visible matching items. With no selector, checks all visible items. Missing, incomplete or unsupported access returns false; provider errors and exhausted work limits fault. Does not inspect fluids, free space or insertion capacity. An optional filter must be an ITEM/ORE selector, not an exact ITEM_KEY. The method name ignores case.",
+      "example": "if (label(\"ped\").empty()) then\n  print(\"No visible pedestal items\")\nend"
+    },
+    "available": {
+      "signatures": ["$label.available() -> boolean", "$label.available(selector: resource_selector) -> boolean"],
+      "description": "Check that the nonempty selected LABEL_REF group is connected, loaded and supported, with visible permitted inventory slots in every distinct view. Missing, incomplete, unsupported or entirely hidden access returns false; provider errors and exhausted work limits fault. This checks access, not matching stock, extraction permission, free space or insertion capacity. An optional ITEM/ORE selector does not change this access-only meaning. For native redstone ports use redstoneAvailable(). The method name ignores case.",
+      "example": "let $source = label(\"inputs\")\nif ($source.available()) then\n  print($source.count(item(\"*\")))\nend"
+    },
+    "side": {
+      "signatures": ["$label.side(\"direction\") -> label_ref"],
+      "description": "Return a new LABEL_REF restricted to one absolute physical block face. Requires a quoted source literal: down/up/north/south/west/east, with bottom/top aliases, ignoring case. Relative directions, NULL and computed strings are not accepted. Replaces the handle's previous side restriction while preserving its slots; leaves the original handle unchanged. Does not alter a separate INPUT/OUTPUT statement naming the same label. The method name ignores case.",
+      "example": "let $north = label(\"inputs\").side(\"north\")"
+    },
+    "slots": {
+      "signatures": ["$label.slots(first: integer, last: integer) -> label_ref"],
+      "description": "Return a new LABEL_REF restricted to an inclusive backend slot-index range. Bounds must satisfy 0 <= first <= last <= 2147483647 or execution faults. Slot indices start at zero and may differ from GUI order; a combined chest uses west/north-half-first ordering. Replaces the previous slot restriction while preserving the selected side; leaves the original handle unchanged. Does not bypass face visibility or transfer permissions. Slot restrictions are invalid for redstone queries. The method name ignores case.",
+      "example": "let $feed = label(\"inputs\").side(\"up\").slots(1, 26)"
+    },
+    "redstone": {
+      "signatures": ["$label.redstone() -> integer"],
+      "description": "Read the maximum native Redstone Port input level across all selected ports and faces of a LABEL_REF. Omitted side selects all six faces; slot restrictions are invalid. Missing, unloaded, disconnected, unsupported or incomplete access faults instead of returning zero. Provider errors and exhausted work limits also fault. This is separate from the manager's bare REDSTONE condition. The method name ignores case.",
+      "example": "let $port = label(\"signal\").side(\"north\")\nif ($port.redstoneAvailable()) then\n  print($port.redstone())\nend"
+    },
+    "powered": {
+      "signatures": ["$label.powered() -> boolean"],
+      "description": "Return whether the maximum native Redstone Port input level for the selected LABEL_REF ports/faces is greater than zero. Uses the same access contract as redstone(): unavailable access faults rather than returning false. Slot restrictions are invalid; omitted side selects all six faces. The method name ignores case.",
+      "example": "let $port = label(\"signal\")\nif ($port.redstoneAvailable() and $port.powered()) then\n  print(\"Signal is high\")\nend"
+    },
+    "redstoneavailable": {
+      "signatures": ["$label.redstoneAvailable() -> boolean"],
+      "description": "Check that every selected native Redstone Port and face is present, connected, loaded and readable. Missing, unsupported or incomplete access returns false; provider errors and exhausted work limits fault. Slot restrictions are invalid. This is the native signal endpoint check; ordinary available() checks item inventory access. The method name ignores case.",
+      "example": "let $port = label(\"signal\").side(\"north\")\nif ($port.redstoneAvailable()) then\n  print($port.redstone())\nend"
+    }
+  }
+}

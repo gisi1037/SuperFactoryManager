@@ -41,18 +41,22 @@ public class PacketManagerRequestLogs implements IMessage {
         @Override
         public IMessage onMessage(PacketManagerRequestLogs message, MessageContext ctx) {
             EntityPlayerMP player = ctx.getServerHandler().playerEntity;
-            if (player != null && player.worldObj != null) {
+            ServerUiTasks.enqueue(() -> {
+                if (player == null || player.worldObj == null) return;
                 TileEntityManager manager = ManagerAccess.get(player, message.x, message.y, message.z);
                 if (manager != null) {
-                    return new PacketManagerLogs(
-                        message.x,
-                        message.y,
-                        message.z,
-                        manager.getLogLevel()
-                            .name(),
-                        manager.getLogs());
+
+                    SFMNetwork.WRAPPER.sendTo(
+                        new PacketManagerLogs(
+                            message.x,
+                            message.y,
+                            message.z,
+                            manager.getLogLevel()
+                                .name(),
+                            manager.getLogs()),
+                        player);
                 }
-            }
+            });
             return null;
         }
     }

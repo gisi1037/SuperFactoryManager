@@ -9,7 +9,6 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 
-import ca.teamdman.sfm.SuperFactoryManager;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 
 public class BlockManager extends BlockContainer {
@@ -54,7 +53,7 @@ public class BlockManager extends BlockContainer {
     public void onNeighborBlockChange(World world, int x, int y, int z, net.minecraft.block.Block block) {
         TileEntity te = world.getTileEntity(x, y, z);
         if (!world.isRemote && te instanceof TileEntityManager) {
-            ca.teamdman.sfm.common.network.CableNetwork.invalidate(world);
+            ca.teamdman.sfm.common.network.CableNetwork.invalidate(world, x, y, z);
         }
         super.onNeighborBlockChange(world, x, y, z, block);
     }
@@ -63,7 +62,9 @@ public class BlockManager extends BlockContainer {
     public boolean onBlockActivated(World world, int x, int y, int z, EntityPlayer player, int side, float hitX,
         float hitY, float hitZ) {
         if (!world.isRemote) {
-            player.openGui(SuperFactoryManager.instance, 0, world, x, y, z);
+            TileEntity tile = world.getTileEntity(x, y, z);
+            if (tile instanceof TileEntityManager)
+                ca.teamdman.sfm.integration.mui2.ManagerMui2Factory.INSTANCE.open(player, (TileEntityManager) tile);
         }
         return true;
     }

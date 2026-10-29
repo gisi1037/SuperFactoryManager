@@ -6,12 +6,18 @@ import ca.teamdman.sfm.common.tileentity.LogLevel;
 public final class RedstoneOutputStatement implements Statement {
 
     private final LabelAccess labelAccess;
-    private final int level;
+    private final ResourceQuantity level;
     private final boolean each;
 
     public RedstoneOutputStatement(LabelAccess labelAccess, int level, boolean each) {
+        this(labelAccess, new ResourceQuantity(Math.max(0, Math.min(15, level)), false), each);
+    }
+
+    public RedstoneOutputStatement(LabelAccess labelAccess, ResourceQuantity level, boolean each) {
+        if (level == null) throw new IllegalArgumentException("Redstone OUTPUT requires a level");
         this.labelAccess = labelAccess;
-        this.level = Math.max(0, Math.min(15, level));
+        this.level = level.isDynamic() ? level
+            : new ResourceQuantity(Math.max(0, Math.min(15, level.getAmount())), false);
         this.each = each;
     }
 
@@ -20,7 +26,17 @@ public final class RedstoneOutputStatement implements Statement {
     }
 
     public int getLevel() {
-        return level;
+        return (int) level.getAmount();
+    }
+
+    public boolean isDynamic() {
+        return level.isDynamic();
+    }
+
+    public int evaluateLevel(ProgramContext context) {
+        long strength = level.evaluate(context);
+        if (strength > 15) throw new IllegalArgumentException("Dynamic redstone OUTPUT level must be between 0 and 15");
+        return (int) strength;
     }
 
     public boolean isEach() {

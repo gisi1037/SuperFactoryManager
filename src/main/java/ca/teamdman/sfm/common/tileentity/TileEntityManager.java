@@ -26,6 +26,7 @@ import ca.teamdman.sfm.common.diagnostics.ManagerTickProfiler;
 import ca.teamdman.sfm.common.item.ItemDisk;
 import ca.teamdman.sfm.common.label.LabelPositionHolder;
 import ca.teamdman.sfm.common.network.CableNetwork;
+import ca.teamdman.sfm.common.program.DebugConsole;
 import ca.teamdman.sfm.common.program.ProgramContext;
 import ca.teamdman.sfm.common.program.ProgramStateStore;
 import ca.teamdman.sfm.common.util.BlockPos;
@@ -40,12 +41,61 @@ public class TileEntityManager extends TileEntity implements IInventory {
     private ItemStack diskStack = null;
     private Program compiledProgram = null;
     private ProgramStateStore programState;
+    private Program globalProgram;
+    private ca.teamdman.sfml.data.ProgramGlobals programGlobals;
+    private DebugConsole debugConsole;
+
+    public ca.teamdman.sfml.data.ProgramGlobals getProgramGlobals(Program program) {
+        if (globalProgram != program || programGlobals == null) {
+            globalProgram = program;
+            programGlobals = new ca.teamdman.sfml.data.ProgramGlobals(program.getGlobalDeclarations());
+        }
+        return programGlobals;
+    }
+
+    public void setProgramGlobals(Program program, ca.teamdman.sfml.data.ProgramGlobals values) {
+        globalProgram = program;
+        programGlobals = values;
+    }
+
+    private void clearProgramGlobals() {
+        globalProgram = null;
+        programGlobals = null;
+    }
+
+    public DebugConsole getDebugConsole() {
+        if (debugConsole == null) debugConsole = new DebugConsole();
+        return debugConsole;
+    }
+
+    public boolean hasDebugOutputEnabled() {
+        return debugConsole != null && debugConsole.isEnabled();
+    }
+
     private String lastCodeCompiled = null;
     private String statusMessage = "No Disk";
     private boolean isRunning = true;
 
     private long managerTick = 0;
+    private long diskGeneration;
+
+    public long getDiskGeneration() {
+        return diskGeneration;
+    }
+
     private int lastRedstonePower = 0;
+    private ca.teamdman.sfm.common.program.RedstoneTriggerTracker redstoneTriggerTracker;
+
+    public ca.teamdman.sfm.common.program.RedstoneTriggerTracker getRedstoneTriggerTracker() {
+        if (redstoneTriggerTracker == null)
+            redstoneTriggerTracker = new ca.teamdman.sfm.common.program.RedstoneTriggerTracker();
+        return redstoneTriggerTracker;
+    }
+
+    private void resetRedstoneTriggerTracker() {
+        if (redstoneTriggerTracker != null) redstoneTriggerTracker.reset();
+    }
+
     private CableNetwork cableNetwork = null;
 
     // Logging & Diagnostics
@@ -81,11 +131,16 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     private void updateServer() {
-        if (blockItemRecovery() || recoverFluid()) return;
+        if (blockItemRecovery() || recoverFluid()) {
+            resetRedstoneTriggerTracker();
+            return;
+        }
         if (diskStack == null || !(diskStack.getItem() instanceof ItemDisk) || !isRunning) {
+            resetRedstoneTriggerTracker();
             lastRedstonePower = worldObj.getBlockPowerInput(xCoord, yCoord, zCoord);
             if (diskStack == null) {
                 compiledProgram = null;
+                clearProgramGlobals();
                 lastCodeCompiled = null;
                 statusMessage = "No Disk";
             }
@@ -127,6 +182,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
         if (diskStack == null || !(diskStack.getItem() instanceof ItemDisk)) {
             compiledProgram = null;
+            clearProgramGlobals();
             lastCodeCompiled = null;
             statusMessage = "No Disk";
             return;
@@ -175,6 +231,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
             }
         } catch (Exception e) {
             isRunning = false;
+            resetRedstoneTriggerTracker();
             markDirty();
             statusMessage = "Runtime error (paused): " + e.getMessage();
             log(LogLevel.ERROR, "Runtime exception: " + e.getMessage());
@@ -238,6 +295,12 @@ public class TileEntityManager extends TileEntity implements IInventory {
         markDirty();
     }
 
+    public void fluidRecoveryResolved() {
+        statusMessage = "Fluid recovery resolved; restart manager when ready";
+        if (isRunning) setRunning(false);
+        markDirty();
+    }
+
     private boolean blockItemRecovery() {
         if (diskStack == null || !diskStack.hasTagCompound()
             || !diskStack.getTagCompound()
@@ -252,9 +315,19 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     public void preserveFluid(net.minecraftforge.fluids.FluidStack fluid, BlockPos source,
         net.minecraftforge.common.util.ForgeDirection side) {
+        preserveFluid(fluid, source, side, false, "rollback conflict");
+    }
+
+    /** Unknown callback ownership is evidence only and must never be automatically replayed. */
+    public NBTTagCompound preserveFluid(net.minecraftforge.fluids.FluidStack fluid, BlockPos source,
+        net.minecraftforge.common.util.ForgeDirection side, boolean uncertain, String stage) {
+        if (fluid == null || fluid.amount <= 0) throw new IllegalArgumentException("Positive recovery fluid required");
         requireRecoverySpace();
         NBTTagCompound entry = new NBTTagCompound();
         entry.setInteger("version", RECOVERY_VERSION);
+        entry.setString("state", uncertain ? "uncertain" : "pending");
+        entry.setString("stage", stage);
+        entry.setBoolean("recoveryBlocked", uncertain);
         entry.setString(
             "recoveryId",
             UUID.randomUUID()
@@ -269,6 +342,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
             .setTag(RECOVERY_FLUID, entry);
         setRunning(false);
         markDirty();
+        return entry;
     }
 
     private boolean recoverFluid() {
@@ -286,6 +360,11 @@ public class TileEntityManager extends TileEntity implements IInventory {
             statusMessage = "Unsupported fluid recovery record; program paused";
             return true;
         }
+        // Older records lack state. Unknown or uncertain records stay intact and paused.
+        if (entry.hasKey("state") && (!entry.hasKey("state", 8) || !"pending".equals(entry.getString("state")))) {
+            statusMessage = "Fluid recovery ownership uncertain; inspect source, destination and disk";
+            return true;
+        }
         if (entry.getBoolean("recoveryBlocked")) {
             statusMessage = "Fluid recovery blocked; inspect source and disk before retrying";
             return true;
@@ -298,6 +377,8 @@ public class TileEntityManager extends TileEntity implements IInventory {
             // A callback may throw after mutating its tank. Do not automatically retry
             // an uncertain transfer; retain the record for operator reconciliation.
             entry.setBoolean("recoveryBlocked", true);
+            entry.setString("state", "uncertain");
+            entry.setString("stage", "automatic source return");
             markDirty();
             statusMessage = "Fluid recovery blocked: " + e.getMessage();
             log(LogLevel.ERROR, statusMessage);
@@ -335,7 +416,11 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     public void runOnceWithLogLevel(LogLevel level) {
         if (worldObj == null || worldObj.isRemote) return;
-        if (blockItemRecovery() || recoverFluid()) return;
+        if (!isRunning) resetRedstoneTriggerTracker();
+        if (blockItemRecovery() || recoverFluid()) {
+            resetRedstoneTriggerTracker();
+            return;
+        }
         LogLevel prev = this.logLevel;
         this.logLevel = level;
 
@@ -381,6 +466,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
                     log(LogLevel.INFO, String.format("Manual run completed in %.2f ms", ms));
                 } catch (Exception e) {
                     isRunning = false;
+                    resetRedstoneTriggerTracker();
                     markDirty();
                     statusMessage = "Runtime error (paused): " + e.getMessage();
                     log(LogLevel.ERROR, "Manual run failed: " + e.getMessage());
@@ -396,6 +482,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
         // Revert log level if it was OFF
         this.logLevel = prev;
+        if (!isRunning) resetRedstoneTriggerTracker();
     }
 
     public void log(LogLevel level, String message) {
@@ -471,6 +558,14 @@ public class TileEntityManager extends TileEntity implements IInventory {
         }
     }
 
+    /** Copy only the requested tail for on-demand terminal inspection, without changing log capture. */
+    public List<LogEntry> getRecentLogs(int maximum) {
+        synchronized (logs) {
+            int count = Math.max(0, Math.min(maximum, MAX_LOGS));
+            return new ArrayList<>(logs.subList(Math.max(0, logs.size() - count), logs.size()));
+        }
+    }
+
     public void clearLogs() {
         synchronized (logs) {
             logs.clear();
@@ -509,6 +604,8 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     public void recompile(String code) {
+        clearProgramGlobals();
+        resetRedstoneTriggerTracker();
         // Preserve the last accepted heap values before replacing/reconciling their schema.
         try {
             flushProgramState();
@@ -562,6 +659,58 @@ public class TileEntityManager extends TileEntity implements IInventory {
         }
     }
 
+    /** Validate a private candidate before replacing the installed executable document. */
+    public String trySaveProgram(String newCode) {
+        if (diskStack == null || !(diskStack.getItem() instanceof ItemDisk)) return "No program disk";
+        try {
+            ca.teamdman.sfm.common.program.ProgramDocument.validateSource(newCode);
+        } catch (IllegalArgumentException error) {
+            return error.getMessage();
+        }
+        String installedSource = ItemDisk.getProgramString(diskStack);
+        boolean reuseExecutable = compiledProgram != null && installedSource.equals(lastCodeCompiled)
+            && ca.teamdman.sfm.common.util.ProgramRevision.sameExecutableTokens(installedSource, newCode);
+        Program candidateProgram = compiledProgram;
+        if (!reuseExecutable) {
+            ProgramBuildResult result = new ProgramBuilder(newCode).build();
+            if (!result.isSuccess()) return result.getErrorMessage();
+            candidateProgram = result.getProgram();
+        }
+        try {
+            flushProgramState();
+            ItemStack candidateDisk = diskStack.copy();
+            ca.teamdman.sfm.common.program.ProgramDocument.ensure(candidateDisk);
+            String previousSource = ItemDisk.getProgramString(candidateDisk);
+            ItemDisk.setProgramString(candidateDisk, newCode);
+            if (previousSource.equals(newCode)) ca.teamdman.sfm.common.program.ProgramDocument.advance(candidateDisk);
+            ProgramStateStore candidateState = null;
+            if (candidateProgram.getStateSchema()
+                .size() != 0 || candidateDisk.hasTagCompound()
+                    && candidateDisk.getTagCompound()
+                        .hasKey(ProgramStateStore.NBT_KEY)) {
+                candidateState = ProgramStateStore.activate(candidateDisk, candidateProgram.getStateSchema());
+                candidateState.flush();
+            }
+            ProgramStateStore.validateCompleteDisk(candidateDisk);
+            long nextGeneration = Math.incrementExact(diskGeneration);
+            // No fallible compilation or schema reconciliation after publication.
+            diskStack = candidateDisk;
+            diskGeneration = nextGeneration;
+            compiledProgram = candidateProgram;
+            programState = candidateState;
+            lastCodeCompiled = newCode;
+            if (!reuseExecutable) {
+                resetRedstoneTriggerTracker();
+                clearProgramGlobals();
+            }
+            statusMessage = isRunning ? "Running" : "Program saved; paused";
+            markDirty();
+            return null;
+        } catch (IllegalArgumentException | IllegalStateException | ArithmeticException error) {
+            return "Program not saved: " + error.getMessage();
+        }
+    }
+
     public void saveCodeAndRecompile(String newCode) {
         if (diskStack != null && diskStack.getItem() instanceof ItemDisk) {
             flushProgramState();
@@ -598,6 +747,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
             candidate.flush();
             programState = candidate;
             compiledProgram = candidateProgram;
+            clearProgramGlobals();
             lastCodeCompiled = source;
             statusMessage = "Persistent variables reset; program paused";
             markDirty();
@@ -628,6 +778,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     public void setRunning(boolean running) {
+        if (this.isRunning != running) resetRedstoneTriggerTracker();
         this.isRunning = running;
         markDirty();
         log(LogLevel.INFO, running ? "Manager started (RUNNING)" : "Manager paused (STOPPED)");
@@ -654,6 +805,8 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     @Override
     public void onChunkUnload() {
+        resetRedstoneTriggerTracker();
+        clearProgramGlobals();
         cableNetwork = null;
         super.onChunkUnload();
     }
@@ -702,9 +855,11 @@ public class TileEntityManager extends TileEntity implements IInventory {
         if (slot == 0 && diskStack != null && amount > 0) {
             flushProgramState();
             ItemStack result = diskStack;
+            diskGeneration = Math.incrementExact(diskGeneration);
             diskStack = null;
             programState = null;
             compiledProgram = null;
+            clearProgramGlobals();
             lastCodeCompiled = null;
             statusMessage = "No Disk";
             log(LogLevel.INFO, "Disk removed");
@@ -724,7 +879,9 @@ public class TileEntityManager extends TileEntity implements IInventory {
         if (slot == 0) {
             flushProgramState();
             programState = null;
+            diskGeneration = Math.incrementExact(diskGeneration);
             diskStack = stack;
+            clearProgramGlobals();
             if (diskStack != null && diskStack.getItem() instanceof ItemDisk) {
                 log(LogLevel.INFO, "Disk inserted");
                 recompile(ItemDisk.getProgramString(diskStack));
@@ -799,6 +956,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     public void readFromNBT(NBTTagCompound tag) {
         super.readFromNBT(tag);
         compiledProgram = null;
+        clearProgramGlobals();
         programState = null;
         lastCodeCompiled = null;
         cableNetwork = null;

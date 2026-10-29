@@ -1,4 +1,6 @@
 tile.sfm.manager.name=Factory Manager
+tile.sfm.programmingStation.name=Programming Station
+tile.sfm.redstonePort.name=Redstone Port
 tile.sfm.cable.name=Inventory Cable
 tile.sfm.fancyCable.name=Fancy Inventory Cable
 item.sfm.disk.name=Factory Disk

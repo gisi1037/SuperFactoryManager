@@ -1,0 +1,20 @@
+NAME "Maintain assembly stock"
+
+-- Put every eligible input inventory in the logistics_inputs label group.
+-- This read-only function computes a request; the explicit action below moves items.
+FUNCTION logistics.missing($target: INTEGER, $destination: LABEL_REF, $item: RESOURCE_SELECTOR) RETURNS INTEGER DO
+  RETURN SHORTAGE($target, $destination.count($item))
+END
+
+EVERY 20 TICKS DO
+  LET $source = LABEL("logistics_inputs")
+  LET $destination = LABEL("assembly")
+  LET $item = ITEM("minecraft:iron_ingot")
+  IF ($source.available() AND $destination.available()) THEN
+    LET $missing = logistics.missing(32, $destination, $item)
+    TRANSFER ($source, $destination, $item, $missing) INTO $result
+    PRINT("moved", $result.moved, "remaining", $result.remaining, $result.status)
+  ELSE
+    PRINT("Inventory group unavailable")
+  END
+END

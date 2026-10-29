@@ -37,6 +37,97 @@ public class SFMLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements S
      * </p>
      */
     @Override
+    public T visitFunctionDefinition(SFMLParser.FunctionDefinitionContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
+    public T visitFunctionName(SFMLParser.FunctionNameContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
+    public T visitFunctionParameter(SFMLParser.FunctionParameterContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
+    public T visitDataType(SFMLParser.DataTypeContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
+    public T visitTypeField(SFMLParser.TypeFieldContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
+    public T visitFunctionCall(SFMLParser.FunctionCallContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
+    public T visitReturnStatement(SFMLParser.ReturnStatementContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
     public T visitName(SFMLParser.NameContext ctx) {
         return visitChildren(ctx);
     }
@@ -64,6 +155,19 @@ public class SFMLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements S
      */
     @Override
     public T visitPulseTrigger(SFMLParser.PulseTriggerContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
+    public T visitNamedRedstoneTrigger(SFMLParser.NamedRedstoneTriggerContext ctx) {
         return visitChildren(ctx);
     }
 
@@ -544,6 +648,45 @@ public class SFMLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements S
      * </p>
      */
     @Override
+    public T visitCountedFor(SFMLParser.CountedForContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
+    public T visitArrayFor(SFMLParser.ArrayForContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
+    public T visitWhileStatement(SFMLParser.WhileStatementContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
     public T visitBooleanHas(SFMLParser.BooleanHasContext ctx) {
         return visitChildren(ctx);
     }
@@ -804,6 +947,32 @@ public class SFMLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements S
      * </p>
      */
     @Override
+    public T visitPrintStatement(SFMLParser.PrintStatementContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
+    public T visitTransferStatement(SFMLParser.TransferStatementContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
     public T visitDataTarget(SFMLParser.DataTargetContext ctx) {
         return visitChildren(ctx);
     }
@@ -870,6 +1039,58 @@ public class SFMLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements S
      */
     @Override
     public T visitDataComparison(SFMLParser.DataComparisonContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
+    public T visitDataBitOr(SFMLParser.DataBitOrContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
+    public T visitDataBitXor(SFMLParser.DataBitXorContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
+    public T visitDataBitAnd(SFMLParser.DataBitAndContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
+    public T visitDataShift(SFMLParser.DataShiftContext ctx) {
         return visitChildren(ctx);
     }
 

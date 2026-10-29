@@ -1,0 +1,125 @@
+{
+  "name": "sfml-language",
+  "displayName": "SFML for Super Factory Manager",
+  "description": "SFML colors, function hovers, snippets and compiler-backed diagnostics for Super Factory Manager GTNH.",
+  "version": "0.2.1",
+  "publisher": "gisi1037",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets"
+  ],
+  "keywords": [
+    "sfml",
+    "sfm",
+    "minecraft",
+    "gtnh",
+    "super factory manager"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gisi1037/SuperFactoryManager.git",
+    "directory": "editors/vscode-sfml"
+  },
+  "bugs": {
+    "url": "https://github.com/gisi1037/SuperFactoryManager/issues"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": true
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "sfml",
+        "aliases": [
+          "SFML",
+          "sfml"
+        ],
+        "extensions": [
+          ".sfml"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "sfml",
+        "scopeName": "source.sfml",
+        "path": "./syntaxes/sfml.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "sfml",
+        "path": "./snippets/sfml.json"
+      }
+    ],
+    "configurationDefaults": {
+      "[sfml]": {
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true
+      }
+    },
+    "colors": [
+      {
+        "id": "sfml.variableForeground",
+        "description": "SFML variable foreground color",
+        "defaults": {
+          "dark": "#9CDCFE",
+          "light": "#001080",
+          "highContrast": "#9CDCFE",
+          "highContrastLight": "#001080"
+        }
+      }
+    ],
+    "configuration": {
+      "title": "SFML",
+      "properties": {
+        "sfml.variableHighlighting.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Apply the SFML variable color, customizable through sfml.variableForeground in workbench.colorCustomizations."
+        },
+        "sfml.compiler.enabled": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Run the actual SFML compiler in trusted workspaces when a prepared compiler manifest is available."
+        },
+        "sfml.compiler.manifestPath": {
+          "type": "string",
+          "default": "build/sfml-compiler.json",
+          "scope": "resource",
+          "description": "Prepared compiler manifest path, absolute or relative to the workspace folder. Run the mod project Gradle task prepareSfmlCompiler after compiler changes."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "sfml.restartCompiler",
+        "title": "SFML: Restart Compiler"
+      }
+    ]
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "prepackage": "npm test",
+    "package": "node scripts/package.mjs"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "4.1.0",
+    "vscode-oniguruma": "2.0.1",
+    "vscode-textmate": "9.3.2"
+  },
+  "main": "./src/extension.cjs",
+  "activationEvents": [
+    "onLanguage:sfml"
+  ]
+}

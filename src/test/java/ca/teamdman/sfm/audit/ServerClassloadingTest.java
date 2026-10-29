@@ -45,11 +45,22 @@ class ServerClassloadingTest {
         for (String name : new String[] { "ca.teamdman.sfm.common.item.ItemDisk",
             "ca.teamdman.sfm.common.item.ItemLabelGun", "ca.teamdman.sfm.CommonProxy",
             "ca.teamdman.sfm.common.gui.GuiHandler", "ca.teamdman.sfm.common.recipe.ModRecipes",
-            "ca.teamdman.sfm.common.net.PacketSaveProgram" }) {
+            "ca.teamdman.sfm.common.net.PacketSaveProgram", "ca.teamdman.sfm.common.net.PacketDebugTerminalRequest",
+            "ca.teamdman.sfm.common.net.PacketDebugTerminalReply", "ca.teamdman.sfm.common.net.PacketStationRequest",
+            "ca.teamdman.sfm.common.net.PacketStationReply", "ca.teamdman.sfm.common.net.PacketStationDebugRequest",
+            "ca.teamdman.sfm.common.net.PacketStationDebugReply",
+            "ca.teamdman.sfm.common.tileentity.TileEntityProgrammingStation" }) {
             assertNotNull(
                 Class.forName(name, true, loader)
                     .getConstructor()
                     .newInstance());
+        }
+        for (String name : new String[] { "ca.teamdman.sfm.common.program.DebugConsole",
+            "ca.teamdman.sfm.common.program.DebugValueFormatter", "ca.teamdman.sfm.common.program.DebugTerminalService",
+            "ca.teamdman.sfml.ast.PrintStatement", "ca.teamdman.sfm.common.program.project.StationProjectService" }) {
+            assertNotNull(
+                Class.forName(name, true, loader)
+                    .getDeclaredMethods());
         }
     }
 }

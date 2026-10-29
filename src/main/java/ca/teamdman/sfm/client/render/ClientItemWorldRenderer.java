@@ -38,6 +38,9 @@ public class ClientItemWorldRenderer {
         Minecraft mc = Minecraft.getMinecraft();
         EntityPlayer player = mc.thePlayer;
         if (player == null) return;
+        ca.teamdman.sfm.common.net.LabelGunAccess.Token token = ca.teamdman.sfm.client.gui.ClientLabelGunSession
+            .current(player);
+        if (token == null) return;
 
         ItemStack held = player.getHeldItem();
         if (held != null && held.getItem() instanceof ItemLabelGun && player.isSneaking()) {
@@ -45,7 +48,7 @@ public class ClientItemWorldRenderer {
             String next = ItemLabelGun.getNextLabel(held, dir);
             if (!next.isEmpty()) {
                 ItemLabelGun.setActiveLabel(held, next);
-                SFMNetwork.WRAPPER.sendToServer(new PacketSetLabel(next));
+                SFMNetwork.WRAPPER.sendToServer(new PacketSetLabel(next, token));
                 event.setCanceled(true);
             }
         }
@@ -57,6 +60,9 @@ public class ClientItemWorldRenderer {
         if (mc.currentScreen != null) return;
         EntityPlayer player = mc.thePlayer;
         if (player == null) return;
+        ca.teamdman.sfm.common.net.LabelGunAccess.Token token = ca.teamdman.sfm.client.gui.ClientLabelGunSession
+            .current(player);
+        if (token == null) return;
 
         ItemStack held = player.getHeldItem();
         if (held == null || !(held.getItem() instanceof ItemLabelGun)) return;
@@ -67,9 +73,10 @@ public class ClientItemWorldRenderer {
                 ItemLabelGun.cycleViewMode(held);
                 SFMNetwork.WRAPPER.sendToServer(
                     new ca.teamdman.sfm.common.net.PacketLabelGunAction(
-                        ca.teamdman.sfm.common.net.PacketLabelGunAction.ACTION_CYCLE_VIEW));
+                        ca.teamdman.sfm.common.net.PacketLabelGunAction.ACTION_CYCLE_VIEW,
+                        token));
             } else if (key == Keyboard.KEY_G || key == Keyboard.KEY_L) {
-                mc.displayGuiScreen(new ca.teamdman.sfm.common.gui.GuiLabelGun(player, held));
+                ca.teamdman.sfm.client.gui.mui2.Mui2LabelGun.open(player, held);
             }
         }
     }

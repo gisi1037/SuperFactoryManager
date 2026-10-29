@@ -12,28 +12,126 @@ public interface SFMLListener extends ParseTreeListener {
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#program}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterProgram(SFMLParser.ProgramContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#program}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitProgram(SFMLParser.ProgramContext ctx);
 
     /**
+     * Enter a parse tree produced by {@link SFMLParser#functionDefinition}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterFunctionDefinition(SFMLParser.FunctionDefinitionContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#functionDefinition}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitFunctionDefinition(SFMLParser.FunctionDefinitionContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#functionName}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterFunctionName(SFMLParser.FunctionNameContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#functionName}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitFunctionName(SFMLParser.FunctionNameContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#functionParameter}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterFunctionParameter(SFMLParser.FunctionParameterContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#functionParameter}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitFunctionParameter(SFMLParser.FunctionParameterContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#dataType}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterDataType(SFMLParser.DataTypeContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataType}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitDataType(SFMLParser.DataTypeContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#typeField}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterTypeField(SFMLParser.TypeFieldContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#typeField}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitTypeField(SFMLParser.TypeFieldContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#functionCall}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterFunctionCall(SFMLParser.FunctionCallContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#functionCall}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitFunctionCall(SFMLParser.FunctionCallContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#returnStatement}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterReturnStatement(SFMLParser.ReturnStatementContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#returnStatement}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitReturnStatement(SFMLParser.ReturnStatementContext ctx);
+
+    /**
      * Enter a parse tree produced by {@link SFMLParser#name}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterName(SFMLParser.NameContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#name}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitName(SFMLParser.NameContext ctx);
@@ -41,7 +139,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code TimerTrigger}
      * labeled alternative in {@link SFMLParser#trigger}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterTimerTrigger(SFMLParser.TimerTriggerContext ctx);
@@ -49,7 +147,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code TimerTrigger}
      * labeled alternative in {@link SFMLParser#trigger}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitTimerTrigger(SFMLParser.TimerTriggerContext ctx);
@@ -57,7 +155,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code PulseTrigger}
      * labeled alternative in {@link SFMLParser#trigger}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterPulseTrigger(SFMLParser.PulseTriggerContext ctx);
@@ -65,15 +163,31 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code PulseTrigger}
      * labeled alternative in {@link SFMLParser#trigger}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitPulseTrigger(SFMLParser.PulseTriggerContext ctx);
 
     /**
+     * Enter a parse tree produced by the {@code NamedRedstoneTrigger}
+     * labeled alternative in {@link SFMLParser#trigger}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterNamedRedstoneTrigger(SFMLParser.NamedRedstoneTriggerContext ctx);
+
+    /**
+     * Exit a parse tree produced by the {@code NamedRedstoneTrigger}
+     * labeled alternative in {@link SFMLParser#trigger}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitNamedRedstoneTrigger(SFMLParser.NamedRedstoneTriggerContext ctx);
+
+    /**
      * Enter a parse tree produced by the {@code IntervalSpace}
      * labeled alternative in {@link SFMLParser#interval}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterIntervalSpace(SFMLParser.IntervalSpaceContext ctx);
@@ -81,7 +195,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code IntervalSpace}
      * labeled alternative in {@link SFMLParser#interval}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitIntervalSpace(SFMLParser.IntervalSpaceContext ctx);
@@ -89,7 +203,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code IntervalNoSpace}
      * labeled alternative in {@link SFMLParser#interval}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterIntervalNoSpace(SFMLParser.IntervalNoSpaceContext ctx);
@@ -97,147 +211,147 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code IntervalNoSpace}
      * labeled alternative in {@link SFMLParser#interval}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitIntervalNoSpace(SFMLParser.IntervalNoSpaceContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#block}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterBlock(SFMLParser.BlockContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#block}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitBlock(SFMLParser.BlockContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#statement}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterStatement(SFMLParser.StatementContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#statement}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitStatement(SFMLParser.StatementContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#redstoneOutputStatement}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterRedstoneOutputStatement(SFMLParser.RedstoneOutputStatementContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#redstoneOutputStatement}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitRedstoneOutputStatement(SFMLParser.RedstoneOutputStatementContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#forgetStatement}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterForgetStatement(SFMLParser.ForgetStatementContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#forgetStatement}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitForgetStatement(SFMLParser.ForgetStatementContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#inputStatement}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterInputStatement(SFMLParser.InputStatementContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#inputStatement}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitInputStatement(SFMLParser.InputStatementContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#outputStatement}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterOutputStatement(SFMLParser.OutputStatementContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#outputStatement}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitOutputStatement(SFMLParser.OutputStatementContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#inputResourceLimits}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterInputResourceLimits(SFMLParser.InputResourceLimitsContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#inputResourceLimits}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitInputResourceLimits(SFMLParser.InputResourceLimitsContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#outputResourceLimits}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterOutputResourceLimits(SFMLParser.OutputResourceLimitsContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#outputResourceLimits}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitOutputResourceLimits(SFMLParser.OutputResourceLimitsContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#resourceLimitList}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterResourceLimitList(SFMLParser.ResourceLimitListContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#resourceLimitList}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitResourceLimitList(SFMLParser.ResourceLimitListContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#resourceLimit}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterResourceLimit(SFMLParser.ResourceLimitContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#resourceLimit}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitResourceLimit(SFMLParser.ResourceLimitContext ctx);
@@ -245,7 +359,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code QuantityRetentionLimit}
      * labeled alternative in {@link SFMLParser#limit}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterQuantityRetentionLimit(SFMLParser.QuantityRetentionLimitContext ctx);
@@ -253,7 +367,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code QuantityRetentionLimit}
      * labeled alternative in {@link SFMLParser#limit}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitQuantityRetentionLimit(SFMLParser.QuantityRetentionLimitContext ctx);
@@ -261,7 +375,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code RetentionLimit}
      * labeled alternative in {@link SFMLParser#limit}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterRetentionLimit(SFMLParser.RetentionLimitContext ctx);
@@ -269,7 +383,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code RetentionLimit}
      * labeled alternative in {@link SFMLParser#limit}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitRetentionLimit(SFMLParser.RetentionLimitContext ctx);
@@ -277,7 +391,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code QuantityLimit}
      * labeled alternative in {@link SFMLParser#limit}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterQuantityLimit(SFMLParser.QuantityLimitContext ctx);
@@ -285,49 +399,49 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code QuantityLimit}
      * labeled alternative in {@link SFMLParser#limit}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitQuantityLimit(SFMLParser.QuantityLimitContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#quantity}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterQuantity(SFMLParser.QuantityContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#quantity}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitQuantity(SFMLParser.QuantityContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#retention}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterRetention(SFMLParser.RetentionContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#retention}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitRetention(SFMLParser.RetentionContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#resourceExclusion}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterResourceExclusion(SFMLParser.ResourceExclusionContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#resourceExclusion}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitResourceExclusion(SFMLParser.ResourceExclusionContext ctx);
@@ -335,7 +449,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code Resource}
      * labeled alternative in {@link SFMLParser#resourceId}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterResource(SFMLParser.ResourceContext ctx);
@@ -343,7 +457,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code Resource}
      * labeled alternative in {@link SFMLParser#resourceId}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitResource(SFMLParser.ResourceContext ctx);
@@ -351,7 +465,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code StringResource}
      * labeled alternative in {@link SFMLParser#resourceId}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterStringResource(SFMLParser.StringResourceContext ctx);
@@ -359,49 +473,49 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code StringResource}
      * labeled alternative in {@link SFMLParser#resourceId}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitStringResource(SFMLParser.StringResourceContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#resourceIdList}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterResourceIdList(SFMLParser.ResourceIdListContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#resourceIdList}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitResourceIdList(SFMLParser.ResourceIdListContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#resourceIdDisjunction}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterResourceIdDisjunction(SFMLParser.ResourceIdDisjunctionContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#resourceIdDisjunction}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitResourceIdDisjunction(SFMLParser.ResourceIdDisjunctionContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#with}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterWith(SFMLParser.WithContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#with}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitWith(SFMLParser.WithContext ctx);
@@ -409,7 +523,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code WithConjunction}
      * labeled alternative in {@link SFMLParser#withClause}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterWithConjunction(SFMLParser.WithConjunctionContext ctx);
@@ -417,7 +531,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code WithConjunction}
      * labeled alternative in {@link SFMLParser#withClause}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitWithConjunction(SFMLParser.WithConjunctionContext ctx);
@@ -425,7 +539,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code WithParen}
      * labeled alternative in {@link SFMLParser#withClause}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterWithParen(SFMLParser.WithParenContext ctx);
@@ -433,7 +547,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code WithParen}
      * labeled alternative in {@link SFMLParser#withClause}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitWithParen(SFMLParser.WithParenContext ctx);
@@ -441,7 +555,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code WithNegation}
      * labeled alternative in {@link SFMLParser#withClause}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterWithNegation(SFMLParser.WithNegationContext ctx);
@@ -449,7 +563,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code WithNegation}
      * labeled alternative in {@link SFMLParser#withClause}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitWithNegation(SFMLParser.WithNegationContext ctx);
@@ -457,7 +571,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code WithTag}
      * labeled alternative in {@link SFMLParser#withClause}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterWithTag(SFMLParser.WithTagContext ctx);
@@ -465,7 +579,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code WithTag}
      * labeled alternative in {@link SFMLParser#withClause}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitWithTag(SFMLParser.WithTagContext ctx);
@@ -473,7 +587,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code WithDisjunction}
      * labeled alternative in {@link SFMLParser#withClause}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterWithDisjunction(SFMLParser.WithDisjunctionContext ctx);
@@ -481,21 +595,21 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code WithDisjunction}
      * labeled alternative in {@link SFMLParser#withClause}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitWithDisjunction(SFMLParser.WithDisjunctionContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#tagMatcher}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterTagMatcher(SFMLParser.TagMatcherContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#tagMatcher}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitTagMatcher(SFMLParser.TagMatcherContext ctx);
@@ -503,7 +617,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code EachSide}
      * labeled alternative in {@link SFMLParser#sidequalifier}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterEachSide(SFMLParser.EachSideContext ctx);
@@ -511,7 +625,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code EachSide}
      * labeled alternative in {@link SFMLParser#sidequalifier}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitEachSide(SFMLParser.EachSideContext ctx);
@@ -519,7 +633,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code ListedSides}
      * labeled alternative in {@link SFMLParser#sidequalifier}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterListedSides(SFMLParser.ListedSidesContext ctx);
@@ -527,85 +641,131 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code ListedSides}
      * labeled alternative in {@link SFMLParser#sidequalifier}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitListedSides(SFMLParser.ListedSidesContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#side}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterSide(SFMLParser.SideContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#side}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitSide(SFMLParser.SideContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#slotqualifier}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterSlotqualifier(SFMLParser.SlotqualifierContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#slotqualifier}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitSlotqualifier(SFMLParser.SlotqualifierContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#rangeset}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterRangeset(SFMLParser.RangesetContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#rangeset}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitRangeset(SFMLParser.RangesetContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#range}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterRange(SFMLParser.RangeContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#range}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitRange(SFMLParser.RangeContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#ifStatement}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterIfStatement(SFMLParser.IfStatementContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#ifStatement}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitIfStatement(SFMLParser.IfStatementContext ctx);
 
     /**
+     * Enter a parse tree produced by the {@code CountedFor}
+     * labeled alternative in {@link SFMLParser#forStatement}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterCountedFor(SFMLParser.CountedForContext ctx);
+
+    /**
+     * Exit a parse tree produced by the {@code CountedFor}
+     * labeled alternative in {@link SFMLParser#forStatement}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitCountedFor(SFMLParser.CountedForContext ctx);
+
+    /**
+     * Enter a parse tree produced by the {@code ArrayFor}
+     * labeled alternative in {@link SFMLParser#forStatement}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterArrayFor(SFMLParser.ArrayForContext ctx);
+
+    /**
+     * Exit a parse tree produced by the {@code ArrayFor}
+     * labeled alternative in {@link SFMLParser#forStatement}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitArrayFor(SFMLParser.ArrayForContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#whileStatement}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterWhileStatement(SFMLParser.WhileStatementContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#whileStatement}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitWhileStatement(SFMLParser.WhileStatementContext ctx);
+
+    /**
      * Enter a parse tree produced by the {@code BooleanHas}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterBooleanHas(SFMLParser.BooleanHasContext ctx);
@@ -613,7 +773,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code BooleanHas}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitBooleanHas(SFMLParser.BooleanHasContext ctx);
@@ -621,7 +781,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code BooleanData}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterBooleanData(SFMLParser.BooleanDataContext ctx);
@@ -629,7 +789,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code BooleanData}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitBooleanData(SFMLParser.BooleanDataContext ctx);
@@ -637,7 +797,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code BooleanConjunction}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterBooleanConjunction(SFMLParser.BooleanConjunctionContext ctx);
@@ -645,7 +805,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code BooleanConjunction}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitBooleanConjunction(SFMLParser.BooleanConjunctionContext ctx);
@@ -653,7 +813,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code BooleanRedstone}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterBooleanRedstone(SFMLParser.BooleanRedstoneContext ctx);
@@ -661,7 +821,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code BooleanRedstone}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitBooleanRedstone(SFMLParser.BooleanRedstoneContext ctx);
@@ -669,7 +829,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code BooleanDisjunction}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterBooleanDisjunction(SFMLParser.BooleanDisjunctionContext ctx);
@@ -677,7 +837,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code BooleanDisjunction}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitBooleanDisjunction(SFMLParser.BooleanDisjunctionContext ctx);
@@ -685,7 +845,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code BooleanFalse}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterBooleanFalse(SFMLParser.BooleanFalseContext ctx);
@@ -693,7 +853,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code BooleanFalse}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitBooleanFalse(SFMLParser.BooleanFalseContext ctx);
@@ -701,7 +861,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code BooleanParen}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterBooleanParen(SFMLParser.BooleanParenContext ctx);
@@ -709,7 +869,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code BooleanParen}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitBooleanParen(SFMLParser.BooleanParenContext ctx);
@@ -717,7 +877,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code BooleanNegation}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterBooleanNegation(SFMLParser.BooleanNegationContext ctx);
@@ -725,7 +885,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code BooleanNegation}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitBooleanNegation(SFMLParser.BooleanNegationContext ctx);
@@ -733,7 +893,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code BooleanTrue}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterBooleanTrue(SFMLParser.BooleanTrueContext ctx);
@@ -741,63 +901,63 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code BooleanTrue}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitBooleanTrue(SFMLParser.BooleanTrueContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#comparisonOp}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterComparisonOp(SFMLParser.ComparisonOpContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#comparisonOp}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitComparisonOp(SFMLParser.ComparisonOpContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#setOp}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterSetOp(SFMLParser.SetOpContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#setOp}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitSetOp(SFMLParser.SetOpContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#labelAccess}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterLabelAccess(SFMLParser.LabelAccessContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#labelAccess}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitLabelAccess(SFMLParser.LabelAccessContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#roundrobin}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterRoundrobin(SFMLParser.RoundrobinContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#roundrobin}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitRoundrobin(SFMLParser.RoundrobinContext ctx);
@@ -805,7 +965,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code RawLabel}
      * labeled alternative in {@link SFMLParser#label}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterRawLabel(SFMLParser.RawLabelContext ctx);
@@ -813,7 +973,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code RawLabel}
      * labeled alternative in {@link SFMLParser#label}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitRawLabel(SFMLParser.RawLabelContext ctx);
@@ -821,7 +981,7 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Enter a parse tree produced by the {@code StringLabel}
      * labeled alternative in {@link SFMLParser#label}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterStringLabel(SFMLParser.StringLabelContext ctx);
@@ -829,301 +989,385 @@ public interface SFMLListener extends ParseTreeListener {
     /**
      * Exit a parse tree produced by the {@code StringLabel}
      * labeled alternative in {@link SFMLParser#label}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitStringLabel(SFMLParser.StringLabelContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#emptyslots}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterEmptyslots(SFMLParser.EmptyslotsContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#emptyslots}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitEmptyslots(SFMLParser.EmptyslotsContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#identifier}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterIdentifier(SFMLParser.IdentifierContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#identifier}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitIdentifier(SFMLParser.IdentifierContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#stateDeclaration}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterStateDeclaration(SFMLParser.StateDeclarationContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#stateDeclaration}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitStateDeclaration(SFMLParser.StateDeclarationContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#dataDeclaration}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterDataDeclaration(SFMLParser.DataDeclarationContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#dataDeclaration}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitDataDeclaration(SFMLParser.DataDeclarationContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#dataAssignment}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterDataAssignment(SFMLParser.DataAssignmentContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#dataAssignment}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitDataAssignment(SFMLParser.DataAssignmentContext ctx);
 
     /**
+     * Enter a parse tree produced by {@link SFMLParser#printStatement}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterPrintStatement(SFMLParser.PrintStatementContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#printStatement}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitPrintStatement(SFMLParser.PrintStatementContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#transferStatement}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterTransferStatement(SFMLParser.TransferStatementContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#transferStatement}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitTransferStatement(SFMLParser.TransferStatementContext ctx);
+
+    /**
      * Enter a parse tree produced by {@link SFMLParser#dataTarget}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterDataTarget(SFMLParser.DataTargetContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#dataTarget}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitDataTarget(SFMLParser.DataTargetContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#dataExpression}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterDataExpression(SFMLParser.DataExpressionContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#dataExpression}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitDataExpression(SFMLParser.DataExpressionContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#dataOr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterDataOr(SFMLParser.DataOrContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#dataOr}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitDataOr(SFMLParser.DataOrContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#dataAnd}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterDataAnd(SFMLParser.DataAndContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#dataAnd}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitDataAnd(SFMLParser.DataAndContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#dataNot}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterDataNot(SFMLParser.DataNotContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#dataNot}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitDataNot(SFMLParser.DataNotContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#dataComparison}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterDataComparison(SFMLParser.DataComparisonContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#dataComparison}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitDataComparison(SFMLParser.DataComparisonContext ctx);
 
     /**
+     * Enter a parse tree produced by {@link SFMLParser#dataBitOr}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterDataBitOr(SFMLParser.DataBitOrContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataBitOr}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitDataBitOr(SFMLParser.DataBitOrContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#dataBitXor}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterDataBitXor(SFMLParser.DataBitXorContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataBitXor}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitDataBitXor(SFMLParser.DataBitXorContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#dataBitAnd}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterDataBitAnd(SFMLParser.DataBitAndContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataBitAnd}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitDataBitAnd(SFMLParser.DataBitAndContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#dataShift}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterDataShift(SFMLParser.DataShiftContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#dataShift}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitDataShift(SFMLParser.DataShiftContext ctx);
+
+    /**
      * Enter a parse tree produced by {@link SFMLParser#dataAdd}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterDataAdd(SFMLParser.DataAddContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#dataAdd}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitDataAdd(SFMLParser.DataAddContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#dataMultiply}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterDataMultiply(SFMLParser.DataMultiplyContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#dataMultiply}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitDataMultiply(SFMLParser.DataMultiplyContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#multiplyOperator}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterMultiplyOperator(SFMLParser.MultiplyOperatorContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#multiplyOperator}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitMultiplyOperator(SFMLParser.MultiplyOperatorContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#dataSign}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterDataSign(SFMLParser.DataSignContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#dataSign}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitDataSign(SFMLParser.DataSignContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#dataPostfix}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterDataPostfix(SFMLParser.DataPostfixContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#dataPostfix}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitDataPostfix(SFMLParser.DataPostfixContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#dataPrimary}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterDataPrimary(SFMLParser.DataPrimaryContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#dataPrimary}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitDataPrimary(SFMLParser.DataPrimaryContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#dataField}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterDataField(SFMLParser.DataFieldContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#dataField}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitDataField(SFMLParser.DataFieldContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#dataName}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterDataName(SFMLParser.DataNameContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#dataName}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitDataName(SFMLParser.DataNameContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#string}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterString(SFMLParser.StringContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#string}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitString(SFMLParser.StringContext ctx);
 
     /**
      * Enter a parse tree produced by {@link SFMLParser#number}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void enterNumber(SFMLParser.NumberContext ctx);
 
     /**
      * Exit a parse tree produced by {@link SFMLParser#number}.
-     * 
+     *
      * @param ctx the parse tree
      */
     void exitNumber(SFMLParser.NumberContext ctx);

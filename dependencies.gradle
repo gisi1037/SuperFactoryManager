@@ -36,6 +36,17 @@
 dependencies {
     shadowImplementation("org.antlr:antlr4-runtime:4.13.2")
 
+    // Public UI builders expose MUI2 types. Keep MUI2 as an ordinary mod dependency.
+    api("com.github.GTNewHorizons:ModularUI2:2.3.93-1.7.10:dev")
+    // Match daily-803 rather than MUI2's older GTNHLib/GTNHExtLib transitive defaults.
+    implementation("com.github.GTNewHorizons:GTNHLib:0.11.54:dev")
+    // A plain test JVM does not run Forge's optional-interface stripping.
+    testRuntimeOnly("com.github.GTNewHorizons:ModularUI:1.3.4:dev") { transitive = false }
+    testRuntimeOnly("com.github.GTNewHorizons:lwjgl3ify:3.0.40:api") { transitive = false }
+    testRuntimeOnly("curse.maven:neverenoughanimation-1062347:7664003-sources-7663978") { transitive = false }
+    // GTNHLib supplies this in-game; real MUI2 panel construction also needs it in plain JUnit.
+    testRuntimeOnly("it.unimi.dsi:fastutil:8.5.18") { transitive = false }
+
     compileOnly("com.github.GTNewHorizons:Steve-s-Factory-Manager:1.3.9-GTNH:dev") { transitive = false }
     compileOnly("com.github.GTNewHorizons:StevesAddons:0.15.2:dev") { transitive = false }
     compileOnly("com.github.GTNewHorizons:NotEnoughItems:2.8.139-GTNH:dev") { transitive = false }

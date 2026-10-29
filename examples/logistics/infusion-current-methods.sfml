@@ -1,0 +1,54 @@
+name "Infusion - current language with exact item transfers"
+
+-- One prepared recipe in a 27-slot chest: center ingredient in slot 0,
+-- surrounding ingredients in slots 1-26. Each pedestal receives at most one item.
+-- Current-language workaround: pulse the MANAGER after the infusion completes.
+-- The pulse is completion confirmation, not automatic NBT-change detection.
+-- Exact .item keys preserve/check registry ID, metadata and NBT during transfer.
+-- phase: 0 idle, 1 loading pedestals, 2 waiting for completion, 3 collecting.
+state $phase = 0
+
+every redstone pulse do
+  if ($phase = 2) then
+    set $phase = 3
+  end
+end
+
+every 20 ticks do
+  let $peds = label("ped")
+  let $center = label("pedc")
+  let $centerInput = label("chestin").slots(0, 0)
+  let $feed = label("chestin").slots(1, 26)
+  let $output = label("chestout")
+
+  if ($phase = 0) then
+    if ($peds.empty() and $center.empty() and $centerInput.available()) then
+      let $items = $centerInput.contents()
+      if (len($items) > 0) then
+        transfer($centerInput, $center, $items[0].item, 1) into $loaded
+        if ($loaded.moved = 1) then
+          set $phase = 1
+        end
+      end
+    end
+  else if ($phase = 1) then
+    if ($peds.available() and $feed.available()) then
+      input item:* from chestin slots 1-26
+      output 1 retain 1 item:* to each ped
+      forget
+      if ($feed.empty()) then
+        set $phase = 2
+      end
+    end
+  else if ($phase = 3) then
+    if ($center.available() and $output.available()) then
+      let $items = $center.contents()
+      if (len($items) > 0) then
+        transfer($center, $output, $items[0].item, 1) into $collected
+        if ($collected.moved = 1) then
+          set $phase = 0
+        end
+      end
+    end
+  end
+end

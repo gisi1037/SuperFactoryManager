@@ -3,8 +3,10 @@ package ca.teamdman.sfm.common.network;
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.WeakHashMap;
 
 import net.minecraft.block.Block;
 import net.minecraft.tileentity.TileEntity;
@@ -20,13 +22,46 @@ import ca.teamdman.sfm.compat.stevefm.SteveFMCompat;
 public final class CableNetwork {
 
     private static final java.util.Map<World, Long> VERSIONS = new java.util.WeakHashMap<>();
+    // Only networks that have observed named native edges register here. Both levels
+    // are weak: the event registry must not keep managers or unloaded worlds alive.
+    private static final Map<World, Map<CableNetwork, Boolean>> EDGE_NETWORKS = new WeakHashMap<>();
     private static final int SCAN_INTERVAL = 21;
+    private boolean trackingTopology;
+    private long topologyGeneration;
+    private Set<BlockPos> topologyPositions = Collections.emptySet();
+    private Set<Long> topologyChunks = Collections.emptySet();
     private long version;
     private final int scanPhase;
     private long nextScanTime;
 
+    /** Unknown edit location: retain the conservative history reset for every subscriber. */
     public static synchronized void invalidate(World world) {
-        if (world != null && !world.isRemote) VERSIONS.put(world, VERSIONS.getOrDefault(world, 0L) + 1);
+        invalidate(world, null, null);
+    }
+
+    public static synchronized void invalidate(World world, int x, int y, int z) {
+        invalidate(world, new BlockPos(x, y, z), null);
+    }
+
+    public static synchronized void invalidateChunk(World world, int chunkX, int chunkZ) {
+        invalidate(world, null, chunkKey(chunkX, chunkZ));
+    }
+
+    private static void invalidate(World world, BlockPos pos, Long chunk) {
+        if (world == null || world.isRemote) return;
+        VERSIONS.put(world, VERSIONS.getOrDefault(world, 0L) + 1);
+        Map<CableNetwork, Boolean> subscribers = EDGE_NETWORKS.get(world);
+        if (subscribers == null) return;
+        // O(native-subscribed networks), constant-time footprint checks, no world
+        // reads. Ordinary discovery-only managers do not participate in this loop.
+        for (CableNetwork network : subscribers.keySet()) {
+            if (pos == null && chunk == null || pos != null && network.topologyPositions.contains(pos)
+                || chunk != null && network.topologyChunks.contains(chunk)) network.topologyGeneration++;
+        }
+    }
+
+    private static long chunkKey(int x, int z) {
+        return (long) x << 32 | z & 0xffffffffL;
     }
 
     private static synchronized long version(World world) {
@@ -86,6 +121,11 @@ public final class CableNetwork {
             }
         }
 
+        int visitedCount = visited.size();
+        if (trackingTopology) {
+            visited.add(managerPos);
+            updateTopologyFootprint(visited);
+        }
         lastScanTime = world.getTotalWorldTime();
         version = version(world);
         // Refresh every 21 ticks on a stable position-based phase instead of aligning
@@ -94,7 +134,7 @@ public final class CableNetwork {
         long delay = Math.floorMod(scanPhase - Math.floorMod(lastScanTime, (long) SCAN_INTERVAL), (long) SCAN_INTERVAL);
         if (delay == 0) delay = SCAN_INTERVAL;
         nextScanTime = lastScanTime > Long.MAX_VALUE - delay ? Long.MAX_VALUE : lastScanTime + delay;
-        return visited.size();
+        return visitedCount;
     }
 
     private void checkAndAdd(BlockPos pos, Queue<BlockPos> queue, Set<BlockPos> visited) {
@@ -129,6 +169,41 @@ public final class CableNetwork {
             scan();
         }
         return peripherals.contains(pos) || cables.contains(pos);
+    }
+
+    /** Scoped edit history survives transient gaps even when no manager observes the gap. */
+    public long getTopologyGeneration() {
+        synchronized (CableNetwork.class) {
+            if (!trackingTopology && world != null && !world.isRemote && managerPos != null) {
+                trackingTopology = true;
+                Set<BlockPos> positions = new HashSet<>(cables);
+                positions.addAll(peripherals);
+                // Manager neighbor notifications carry its own coordinate; these
+                // remain conservative local rebases even without a proven cable gap.
+                positions.add(managerPos);
+                for (ForgeDirection direction : ForgeDirection.VALID_DIRECTIONS) {
+                    positions.add(managerPos.offset(direction));
+                    for (BlockPos cable : cables) positions.add(cable.offset(direction));
+                }
+                updateTopologyFootprint(positions);
+                EDGE_NETWORKS.computeIfAbsent(world, ignored -> new WeakHashMap<>())
+                    .put(this, Boolean.TRUE);
+            }
+            return topologyGeneration;
+        }
+    }
+
+    private void updateTopologyFootprint(Set<BlockPos> positions) {
+        topologyPositions = positions;
+        Set<Long> chunks = new HashSet<>();
+        for (BlockPos pos : positions) chunks.add(chunkKey(pos.x >> 4, pos.z >> 4));
+        // Native inputs can conduct through a solid neighbor to a second block.
+        // Include provider chunk gaps without querying or polling those providers.
+        for (BlockPos pos : peripherals) {
+            for (int x = (pos.x - 2) >> 4; x <= (pos.x + 2) >> 4; x++)
+                for (int z = (pos.z - 2) >> 4; z <= (pos.z + 2) >> 4; z++) chunks.add(chunkKey(x, z));
+        }
+        topologyChunks = chunks;
     }
 
     public Set<BlockPos> getPeripherals() {

@@ -13,6 +13,32 @@ import cpw.mods.fml.common.registry.GameRegistry;
 public final class ModRecipes {
 
     public static void init() {
+        // One peripheral detects inputs and emits independent signals on all six faces.
+        GameRegistry.addRecipe(
+            new ItemStack(ModBlocks.redstonePort),
+            "IRI",
+            "RCR",
+            "IRI",
+            'I',
+            Items.iron_ingot,
+            'R',
+            Items.redstone,
+            'C',
+            ModBlocks.cable);
+        // The station authors world-owned projects; it is separate from execution managers.
+        GameRegistry.addRecipe(
+            new ItemStack(ModBlocks.programmingStation),
+            "IRI",
+            "BCB",
+            "III",
+            'I',
+            Items.iron_ingot,
+            'R',
+            Items.redstone,
+            'B',
+            Items.book,
+            'C',
+            Blocks.crafting_table);
         // Manager Block
         GameRegistry.addRecipe(
             new ItemStack(ModBlocks.manager),

@@ -1,0 +1,62 @@
+name "Infusion - automatic exact item and NBT comparison"
+
+-- One prepared recipe in a 27-slot chest: center ingredient in slot 0,
+-- surrounding ingredients in slots 1-26. Label each surrounding pedestal ped.
+-- Place/connect the center pedestal before starting: its initial contents query
+-- establishes a typed empty snapshot. LET globals stay in this manager's RAM.
+-- A reload/recompile resets them; a plain pause/resume keeps them.
+let $peds = label("ped")
+let $center = label("pedc")
+let $centerInput = label("chestin").slots(0, 0)
+let $feed = label("chestin").slots(1, 26)
+let $output = label("chestout")
+let $original = $center.contents()
+let $phase = 0
+
+every 20 ticks do
+  if ($phase == 0) then
+    if ($peds.empty() && $center.empty() && $centerInput.available()) then
+      let $items = $centerInput.contents()
+      if (len($items) > 0) then
+        transfer($centerInput, $center, $items[0].item, 1) into $loaded
+        if ($loaded.moved == 1) then
+          $original = $items
+          $phase = 1
+        end
+      end
+    end
+  else if ($phase == 1) then
+    if ($peds.available() && $feed.available()) then
+      -- Cap total contents at ONE per pedestal, even when retried next run.
+      input item:* from chestin slots 1-26
+      output 1 retain 1 item:* to each ped
+      forget
+      if ($feed.empty()) then
+        $phase = 2
+      end
+    end
+  else if ($phase == 2) then
+    if ($peds.empty() && $center.available()) then
+      let $current = $center.contents()
+      if (len($current) > 0 && len($original) > 0) then
+        -- ITEM_KEY compares registry ID, metadata AND full NBT automatically.
+        -- Count is separate. This detects a change, not a universal recipe-done
+        -- signal: use it only when the finished result changes that identity.
+        if ($current[0].item != $original[0].item) then
+          $phase = 3
+        end
+      end
+    end
+  end
+
+  if ($phase == 3 && $center.available() && $output.available()) then
+    let $result = $center.contents()
+    if (len($result) > 0) then
+      transfer($center, $output, $result[0].item, 1) into $collected
+      -- A full destination leaves the program in collection mode for retry.
+      if ($collected.moved == 1) then
+        $phase = 0
+      end
+    end
+  end
+end

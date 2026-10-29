@@ -7,6 +7,7 @@ import java.util.List;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 
@@ -24,6 +25,15 @@ public final class ProgramBuilder {
     }
 
     public ProgramBuildResult build() {
+        return build(false);
+    }
+
+    /** Retains successful syntax for one authoring operation; never stored in the runtime Program. */
+    public ProgramBuildResult buildWithSyntax() {
+        return build(true);
+    }
+
+    private ProgramBuildResult build(boolean retainSyntax) {
         if (source.trim()
             .isEmpty()) {
             return ProgramBuildResult.failure(Collections.singletonList("Program is empty"));
@@ -59,24 +69,24 @@ public final class ProgramBuilder {
             for (org.antlr.v4.runtime.Token token : tokens.getTokens()) {
                 int type = token.getType();
                 if (token.getChannel() != org.antlr.v4.runtime.Token.DEFAULT_CHANNEL) continue;
-                if (type == SFMLLexer.DO || type == SFMLLexer.IF || type == SFMLLexer.LPAREN) nesting++;
-                if (type == SFMLLexer.END || type == SFMLLexer.RPAREN) nesting--;
+                if (type == SFMLLexer.LPAREN) nesting++;
+                if (type == SFMLLexer.RPAREN) nesting--;
                 unary = type == SFMLLexer.NOT ? unary + 1 : 0;
                 if (hasData) {
                     if (type == SFMLLexer.LPAREN || type == SFMLLexer.LBRACKET || type == SFMLLexer.LBRACE)
                         dataNesting++;
                     if (type == SFMLLexer.RPAREN || type == SFMLLexer.RBRACKET || type == SFMLLexer.RBRACE)
                         dataNesting--;
-                    dataUnary = type == SFMLLexer.NOT || type == SFMLLexer.PLUS || type == SFMLLexer.DASH
-                        ? dataUnary + 1
-                        : 0;
+                    dataUnary = type == SFMLLexer.NOT || type == SFMLLexer.PLUS
+                        || type == SFMLLexer.DASH
+                        || type == SFMLLexer.BIT_NOT ? dataUnary + 1 : 0;
                     if (dataNesting > 32 || dataUnary > 32) return ProgramBuildResult
                         .failure(Collections.singletonList("Data expression nesting exceeds 32"));
                 }
                 if (nesting > 128 || unary > 128)
                     return ProgramBuildResult.failure(Collections.singletonList("Program nesting exceeds 128"));
             }
-            SFMLParser parser = new SFMLParser(tokens);
+            SFMLParser parser = new NestingGuardParser(tokens);
             parser.removeErrorListeners();
             parser.addErrorListener(errorListener);
 
@@ -88,12 +98,40 @@ public final class ProgramBuilder {
 
             ASTBuilder builder = new ASTBuilder();
             Program program = (Program) builder.visit(tree);
-            return ProgramBuildResult.success(program);
+            return retainSyntax ? ProgramBuildResult.success(program, tree, tokens)
+                : ProgramBuildResult.success(program);
         } catch (StackOverflowError e) {
             return ProgramBuildResult.failure(Collections.singletonList("Program expression is too complex"));
         } catch (Exception e) {
             errors.add("Compilation failed: " + e.getMessage());
             return ProgramBuildResult.failure(errors);
+        }
+    }
+
+    /** Count actual block entries before parsing their children, not keyword-shaped data names. */
+    private static final class NestingGuardParser extends SFMLParser {
+
+        private int blockDepth;
+
+        NestingGuardParser(CommonTokenStream tokens) {
+            super(tokens);
+        }
+
+        @Override
+        public void enterRule(ParserRuleContext context, int state, int ruleIndex) {
+            if (ruleIndex == RULE_block && blockDepth >= 128) throw new IllegalArgumentException(
+                "Line " + getCurrentToken().getLine()
+                    + ", Col "
+                    + getCurrentToken().getCharPositionInLine()
+                    + ": Program nesting exceeds 128");
+            super.enterRule(context, state, ruleIndex);
+            if (ruleIndex == RULE_block) blockDepth++;
+        }
+
+        @Override
+        public void exitRule() {
+            if (_ctx.getRuleIndex() == RULE_block) blockDepth--;
+            super.exitRule();
         }
     }
 }

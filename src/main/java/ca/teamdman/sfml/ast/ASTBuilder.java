@@ -13,10 +13,12 @@ import ca.teamdman.langs.SFMLBaseVisitor;
 import ca.teamdman.langs.SFMLParser;
 import ca.teamdman.sfml.data.DataCompiler;
 import ca.teamdman.sfml.data.DataExpression;
+import ca.teamdman.sfml.data.DataType;
 
 public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
 
     private boolean outputLimits;
+    private int loopDepth;
     private final DataCompiler data = new DataCompiler();
 
     private final Set<String> usedLabels = new HashSet<>();
@@ -51,6 +53,18 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
                 declaration.getStart()
                     .getCharPositionInLine());
         }
+        new ca.teamdman.sfml.data.FunctionCompiler(data).compile(ctx.functionDefinition());
+        for (SFMLParser.DataDeclarationContext declaration : ctx.dataDeclaration()) {
+            data.declareGlobal(
+                declaration.VARIABLE()
+                    .getText()
+                    .substring(1),
+                source(declaration.dataExpression()),
+                declaration.getStart()
+                    .getLine(),
+                declaration.getStart()
+                    .getCharPositionInLine());
+        }
         List<Trigger> triggers = new ArrayList<>();
         if (ctx.trigger() != null) {
             for (SFMLParser.TriggerContext tCtx : ctx.trigger()) {
@@ -61,7 +75,16 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
             }
         }
 
-        return new Program(name, triggers, usedLabels, data.getStateSchema(), data.isUsed(), data.getMaxLocals());
+        usedLabels.addAll(data.getReferencedLabels());
+        return new Program(
+            name,
+            triggers,
+            usedLabels,
+            data.getStateSchema(),
+            data.isUsed(),
+            data.getMaxLocals(),
+            data.getFunctions(),
+            data.getGlobalDeclarations());
     }
 
     @Override
@@ -77,6 +100,18 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
         data.beginTrigger();
         Block block = visitBlock(ctx.block());
         return new PulseTrigger(block);
+    }
+
+    @Override
+    public ASTNode visitNamedRedstoneTrigger(SFMLParser.NamedRedstoneTriggerContext ctx) {
+        data.beginTrigger();
+        if (ctx.labelAccess()
+            .roundrobin() != null
+            || ctx.labelAccess()
+                .slotqualifier() != null)
+            throw new IllegalArgumentException("Named redstone triggers do not accept round robin or slots");
+        LabelAccess source = (LabelAccess) visit(ctx.labelAccess());
+        return new NamedRedstoneTrigger(source, ctx.FALLING() != null, visitBlock(ctx.block()));
     }
 
     @Override
@@ -179,20 +214,22 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
 
     @Override
     public ASTNode visitRedstoneOutputStatement(SFMLParser.RedstoneOutputStatementContext ctx) {
-        for (SFMLParser.QuantityContext quantity : ctx.quantity()) {
-            if (quantity.dataExpression() != null)
-                throw new IllegalArgumentException("Dynamic redstone OUTPUT levels are not supported yet");
+        // Historic syntax allows two quantities but only the first determines the level.
+        // Reject an expression in the ignored position rather than silently skipping its evaluation.
+        for (int index = 1; index < ctx.quantity()
+            .size(); index++) {
+            if (ctx.quantity(index)
+                .dataExpression() != null)
+                throw new IllegalArgumentException("Dynamic redstone OUTPUT cannot use an ignored second quantity");
         }
         LabelAccess labelAccess = (LabelAccess) visit(ctx.labelAccess());
-        int level = 15;
+        ResourceQuantity level = new ResourceQuantity(15, false);
         boolean each = ctx.EACH() != null;
         if (ctx.quantity() != null && !ctx.quantity()
             .isEmpty()) {
             ResourceQuantity q = (ResourceQuantity) visit(ctx.quantity(0));
             if (q != null) {
-                if (q.isDynamic())
-                    throw new IllegalArgumentException("Dynamic redstone OUTPUT levels are not supported yet");
-                level = (int) Math.min(15, Math.max(0, q.getAmount()));
+                level = q;
                 if (q.isEach()) {
                     each = true;
                 }
@@ -241,6 +278,69 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
         }
 
         return currentIf != null ? currentIf : new IfStatement(BoolFalse.INSTANCE, new Block(null), null);
+    }
+
+    private void beginLoop() {
+        if (++loopDepth > 16) throw new IllegalArgumentException("Loop nesting exceeds 16");
+        data.markUsed();
+        data.pushScope();
+    }
+
+    private void endLoop() {
+        data.popScope();
+        loopDepth--;
+    }
+
+    @Override
+    public ASTNode visitCountedFor(SFMLParser.CountedForContext ctx) {
+        // Resolve the bounds in the surrounding scope before introducing the binder.
+        DataExpression first = expression(ctx.dataExpression(0));
+        DataExpression last = expression(ctx.dataExpression(1));
+        DataExpression step = ctx.STEP() == null ? null : expression(ctx.dataExpression(2));
+        if (first.getType() != DataType.INTEGER || last.getType() != DataType.INTEGER
+            || step != null && step.getType() != DataType.INTEGER)
+            throw new IllegalArgumentException("FOR bounds and STEP require INTEGER values");
+        beginLoop();
+        try {
+            DataCompiler.Binding binding = data.declareReadOnlyLocal(
+                ctx.VARIABLE()
+                    .getText()
+                    .substring(1),
+                DataType.INTEGER);
+            return new CountedForStatement(binding, first, last, step, visitBlock(ctx.block()));
+        } finally {
+            endLoop();
+        }
+    }
+
+    @Override
+    public ASTNode visitArrayFor(SFMLParser.ArrayForContext ctx) {
+        DataExpression array = expression(ctx.dataExpression());
+        if (!array.getType()
+            .isSequence()) throw new IllegalArgumentException("FOR IN requires a sequence value");
+        beginLoop();
+        try {
+            DataCompiler.Binding binding = data.declareReadOnlyLocal(
+                ctx.VARIABLE()
+                    .getText()
+                    .substring(1),
+                array.getType()
+                    .getElementType());
+            return new ArrayForStatement(binding, array, visitBlock(ctx.block()));
+        } finally {
+            endLoop();
+        }
+    }
+
+    @Override
+    public ASTNode visitWhileStatement(SFMLParser.WhileStatementContext ctx) {
+        BoolExpr condition = (BoolExpr) visit(ctx.boolexpr());
+        beginLoop();
+        try {
+            return new WhileStatement(condition, visitBlock(ctx.block()));
+        } finally {
+            endLoop();
+        }
     }
 
     @Override
@@ -426,10 +526,9 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
 
     @Override
     public ASTNode visitStringResource(SFMLParser.StringResourceContext ctx) {
-        String raw = ctx.string()
-            .getText();
-        String text = raw.length() >= 2 ? raw.substring(1, raw.length() - 1) : raw;
-        return ResourceIdentifier.fromString(text);
+        return ResourceIdentifier.fromSourceLiteral(
+            ctx.string()
+                .getText());
     }
 
     @Override
@@ -536,6 +635,35 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
     }
 
     @Override
+    public ASTNode visitTransferStatement(SFMLParser.TransferStatementContext ctx) {
+        List<DataExpression> arguments = new ArrayList<>();
+        for (SFMLParser.DataExpressionContext argument : ctx.dataExpression()) arguments.add(expression(argument));
+        DataType[] expected = { DataType.LABEL_REF, DataType.LABEL_REF, null, DataType.INTEGER };
+        for (int i = 0; i < arguments.size(); i++) {
+            DataType actual = arguments.get(i)
+                .getType();
+            boolean valid = expected[i] == null ? actual == DataType.ITEM_KEY || actual == DataType.RESOURCE_SELECTOR
+                : actual.equals(expected[i]);
+            if (!valid) throw new IllegalArgumentException(
+                "Line " + ctx.getStart()
+                    .getLine()
+                    + ", Col "
+                    + ctx.getStart()
+                        .getCharPositionInLine()
+                    + ": Invalid TRANSFER argument "
+                    + (i + 1));
+        }
+        return new TransferStatement(
+            arguments,
+            ctx.VARIABLE() == null ? null
+                : data.declareLocal(
+                    ctx.VARIABLE()
+                        .getText()
+                        .substring(1),
+                    TransferStatement.RESULT_TYPE));
+    }
+
+    @Override
     public ASTNode visitDataDeclaration(SFMLParser.DataDeclarationContext ctx) {
         DataExpression value = expression(ctx.dataExpression());
         return new DataDeclarationStatement(
@@ -558,6 +686,33 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
                     .getLine(),
                 ctx.getStart()
                     .getCharPositionInLine()));
+    }
+
+    @Override
+    public ASTNode visitReturnStatement(SFMLParser.ReturnStatementContext ctx) {
+        throw new IllegalArgumentException(
+            "Line " + ctx.getStart()
+                .getLine()
+                + ", Col "
+                + ctx.getStart()
+                    .getCharPositionInLine()
+                + ": RETURN is only valid inside a FUNCTION");
+    }
+
+    @Override
+    public ASTNode visitPrintStatement(SFMLParser.PrintStatementContext ctx) {
+        if (ctx.dataExpression()
+            .size() > PrintStatement.MAX_ARGUMENTS)
+            throw new IllegalArgumentException(
+                "Line " + ctx.getStart()
+                    .getLine()
+                    + ", Col "
+                    + ctx.getStart()
+                        .getCharPositionInLine()
+                    + ": PRINT requires 1 to 8 arguments");
+        List<DataExpression> arguments = new ArrayList<>();
+        for (SFMLParser.DataExpressionContext argument : ctx.dataExpression()) arguments.add(expression(argument));
+        return new PrintStatement(arguments);
     }
 
     @Override

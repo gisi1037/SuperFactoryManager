@@ -1,0 +1,254 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "SFML",
+  "scopeName": "source.sfml",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#function-declaration"
+    },
+    {
+      "include": "#variables"
+    },
+    {
+      "include": "#structures"
+    },
+    {
+      "include": "#arrays"
+    },
+    {
+      "include": "#parentheses"
+    },
+    {
+      "include": "#methods"
+    },
+    {
+      "include": "#properties"
+    },
+    {
+      "include": "#builtins"
+    },
+    {
+      "include": "#resources"
+    },
+    {
+      "include": "#booleans"
+    },
+    {
+      "include": "#types"
+    },
+    {
+      "include": "#word-operators"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#functions"
+    },
+    {
+      "include": "#numbers"
+    },
+    {
+      "include": "#operators"
+    },
+    {
+      "include": "#punctuation"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "name": "comment.line.double-dash.sfml",
+      "begin": "--",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.comment.sfml"
+        }
+      },
+      "end": "$"
+    },
+    "strings": {
+      "name": "string.quoted.double.sfml",
+      "begin": "\"",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.begin.sfml"
+        }
+      },
+      "end": "\"",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.string.end.sfml"
+        }
+      },
+      "patterns": [
+        {
+          "name": "constant.character.escape.sfml",
+          "match": "\\\\(?:[\"\\\\nrtbf]|u[0-9a-fA-F]{4})"
+        },
+        {
+          "name": "invalid.illegal.escape.sfml",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "function-declaration": {
+      "match": "(?i:\\b(function))\\s+([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*)",
+      "captures": {
+        "1": {
+          "name": "storage.type.function.sfml"
+        },
+        "2": {
+          "name": "entity.name.function.sfml"
+        }
+      }
+    },
+    "variables": {
+      "name": "variable.other.readwrite.sfml",
+      "match": "(\\$)[A-Za-z_][A-Za-z0-9_]*",
+      "captures": {
+        "1": {
+          "name": "punctuation.definition.variable.sfml"
+        }
+      }
+    },
+    "structures": {
+      "name": "meta.structure.sfml",
+      "begin": "\\{",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.section.braces.begin.sfml"
+        }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.braces.end.sfml"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#strings"
+        },
+        {
+          "match": "\\b([A-Za-z_][A-Za-z0-9_]*)(\\s*)(:)",
+          "captures": {
+            "1": {
+              "name": "variable.other.property.sfml"
+            },
+            "3": {
+              "name": "punctuation.separator.key-value.sfml"
+            }
+          }
+        },
+        {
+          "include": "$self"
+        }
+      ]
+    },
+    "arrays": {
+      "name": "meta.array.sfml",
+      "begin": "\\[",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.section.brackets.begin.sfml"
+        }
+      },
+      "end": "\\]",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.brackets.end.sfml"
+        }
+      },
+      "patterns": [
+        {
+          "include": "$self"
+        }
+      ]
+    },
+    "parentheses": {
+      "name": "meta.group.sfml",
+      "begin": "\\(",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.section.parens.begin.sfml"
+        }
+      },
+      "end": "\\)",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.parens.end.sfml"
+        }
+      },
+      "patterns": [
+        {
+          "include": "$self"
+        }
+      ]
+    },
+    "methods": {
+      "name": "support.function.sfml",
+      "match": "(?<=\\.)(?i:contents|count|empty|available|side|slots|redstoneAvailable|redstone|powered)\\b(?=\\s*\\()"
+    },
+    "properties": {
+      "name": "variable.other.property.sfml",
+      "match": "(?<=\\.)[A-Za-z_][A-Za-z0-9_]*(?![A-Za-z0-9_]|\\s*\\()"
+    },
+    "builtins": {
+      "name": "support.function.sfml",
+      "match": "(?i:\\b(?:label|item|ore|min|max|clamp|abs|len|total|stock|shortage|print|transfer))\\b(?=\\s*\\()"
+    },
+    "resources": {
+      "patterns": [
+        {
+          "name": "support.constant.resource.sfml",
+          "match": "(?<![\\w$])(?:[A-Za-z_*][A-Za-z0-9_*]*:){1,3}[A-Za-z0-9_*]*"
+        },
+        {
+          "name": "support.constant.ore-dictionary.sfml",
+          "match": "#[A-Za-z_*][A-Za-z0-9_*]*(?::[A-Za-z0-9_*]+)?(?:/[A-Za-z0-9_*]+)*"
+        }
+      ]
+    },
+    "booleans": {
+      "name": "constant.language.boolean.sfml",
+      "match": "(?i:\\b(?:true|false))\\b"
+    },
+    "types": {
+      "name": "storage.type.sfml",
+      "match": "(?i:\\b(?:integer|boolean|string|label_ref|resource_selector|item_key|item_contents|item_locations))\\b"
+    },
+    "word-operators": {
+      "name": "keyword.operator.word.sfml",
+      "match": "(?i:\\b(?:not|and|or|gt|lt|eq|le|ge|plus))\\b"
+    },
+    "keywords": {
+      "name": "keyword.control.sfml",
+      "match": "(?i:\\b(?:print|transfer|name|let|set|state|every|global|g|tick|ticks|second|seconds|do|end|if|then|else|for|while|step|in|into|function|returns|return|input|output|from|to|forget|retain|each|except|has|overall|some|one|lone|empty|slots|slot|where|with|without|tag|round|robin|by|label|block|top|bottom|north|east|south|west|left|right|front|back|null|side|redstone|level|levels|pulse|rising|falling))\\b"
+    },
+    "functions": {
+      "name": "entity.name.function.sfml",
+      "match": "(?<![\\w$])[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*(?=\\s*\\()"
+    },
+    "numbers": {
+      "name": "constant.numeric.integer.sfml",
+      "match": "(?<![A-Za-z0-9_$])\\b[0-9]+[gG]?\\b"
+    },
+    "operators": {
+      "name": "keyword.operator.sfml",
+      "match": ">>>|>>|<<|!=|==|>=|<=|&&|\\|\\||[!~&|^+\\-*/%=<>]"
+    },
+    "punctuation": {
+      "name": "punctuation.separator.sfml",
+      "match": "[.,:]"
+    }
+  }
+}

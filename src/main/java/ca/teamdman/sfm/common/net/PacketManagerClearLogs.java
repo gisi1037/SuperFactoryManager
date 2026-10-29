@@ -10,6 +10,9 @@ import io.netty.buffer.ByteBuf;
 
 public class PacketManagerClearLogs implements IMessage {
 
+    private static final int MAGIC = 0x53464d4c;
+    private ca.teamdman.sfm.common.gui.ManagerControlToken token;
+    private boolean valid;
     private int x;
     private int y;
     private int z;
@@ -22,38 +25,60 @@ public class PacketManagerClearLogs implements IMessage {
         this.z = z;
     }
 
+    public PacketManagerClearLogs(int x, int y, int z, ca.teamdman.sfm.common.gui.ManagerControlToken token) {
+        this(x, y, z);
+        this.token = token;
+        valid = token != null;
+    }
+
     @Override
     public void fromBytes(ByteBuf buf) {
-        x = buf.readInt();
-        y = buf.readInt();
-        z = buf.readInt();
+        valid = false;
+        token = null;
+        try {
+            if (buf.readableBytes() > 80 || buf.readInt() != MAGIC) return;
+            x = buf.readInt();
+            y = buf.readInt();
+            z = buf.readInt();
+            token = ca.teamdman.sfm.common.gui.ManagerControlToken.read(buf);
+            valid = !buf.isReadable();
+        } catch (RuntimeException malformed) {
+            token = null;
+        }
     }
 
     @Override
     public void toBytes(ByteBuf buf) {
+        buf.writeInt(MAGIC);
+        if (token == null) return; // Old coordinate-only callers fail closed.
         buf.writeInt(x);
         buf.writeInt(y);
         buf.writeInt(z);
+        token.write(buf);
     }
 
     public static class Handler implements IMessageHandler<PacketManagerClearLogs, IMessage> {
 
         @Override
         public IMessage onMessage(PacketManagerClearLogs message, MessageContext ctx) {
+            if (!message.valid) return null;
             EntityPlayerMP player = ctx.getServerHandler().playerEntity;
-            if (player != null && player.worldObj != null) {
-                TileEntityManager manager = ManagerAccess.get(player, message.x, message.y, message.z);
+            ServerUiTasks.enqueue(() -> {
+                if (player == null || player.worldObj == null) return;
+                TileEntityManager manager = ManagerAccess.get(player, message.x, message.y, message.z, message.token);
                 if (manager != null) {
                     manager.clearLogs();
-                    return new PacketManagerLogs(
-                        message.x,
-                        message.y,
-                        message.z,
-                        manager.getLogLevel()
-                            .name(),
-                        manager.getLogs());
+                    SFMNetwork.WRAPPER.sendTo(
+                        new PacketManagerLogs(
+                            message.x,
+                            message.y,
+                            message.z,
+                            manager.getLogLevel()
+                                .name(),
+                            manager.getLogs()),
+                        player);
                 }
-            }
+            });
             return null;
         }
     }

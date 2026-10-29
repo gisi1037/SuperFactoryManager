@@ -1,0 +1,16 @@
+NAME "Move one exact observed variant"
+
+EVERY 20 TICKS DO
+  LET $source = LABEL("logistics_inputs")
+  LET $destination = LABEL("assembly")
+  IF ($source.available() AND $destination.available()) THEN
+    LET $stock = $source.contents(ITEM("minecraft:iron_ingot"))
+    PRINT("observed matching amount", TOTAL($stock))
+    IF (LEN($stock) > 0) THEN
+      -- The key preserves metadata and NBT. Its old quantity is not a reservation.
+      LET $requested = MIN(8, STOCK($stock, $stock[0].item))
+      TRANSFER ($source, $destination, $stock[0].item, $requested) INTO $result
+      PRINT($result.moved, $result.remaining, $result.status)
+    END
+  END
+END

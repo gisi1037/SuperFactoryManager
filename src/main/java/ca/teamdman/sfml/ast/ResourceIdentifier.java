@@ -1,7 +1,6 @@
 package ca.teamdman.sfml.ast;
 
 import java.util.Locale;
-import java.util.regex.Pattern;
 
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -24,9 +23,9 @@ public final class ResourceIdentifier implements ASTNode {
     private final int metadata;
     private final String tag;
 
-    private final Pattern namespacePattern;
-    private final Pattern namePattern;
-    private final Pattern tagPattern;
+    private final GlobMatcher namespacePattern;
+    private final GlobMatcher namePattern;
+    private final GlobMatcher tagPattern;
 
     public ResourceIdentifier(Type type, String namespace, String name, int metadata, String tag) {
         this.type = type != null ? type : Type.ANY;
@@ -76,32 +75,83 @@ public final class ResourceIdentifier implements ASTNode {
         } else if (parts.length == 2) {
             namespace = parts[0];
             name = parts[1];
-        } else if (parts.length >= 3) {
+        } else if (parts.length == 3) {
             namespace = parts[0];
             name = parts[1];
-            try {
-                meta = Integer.parseInt(parts[2]);
-            } catch (NumberFormatException ignored) {}
+            String supplied = parts[2];
+            // Preserve explicit historic wildcard spellings, but never broaden a malformed filter.
+            if (!supplied.isEmpty() && !supplied.equals("*") && !supplied.equals("-1")) {
+                if (!supplied.matches("[0-9]+"))
+                    throw new IllegalArgumentException("Resource metadata must be a nonnegative integer or wildcard");
+                try {
+                    meta = Integer.parseInt(supplied);
+                } catch (NumberFormatException exception) {
+                    throw new IllegalArgumentException("Resource metadata exceeds signed 32-bit range", exception);
+                }
+            }
+        } else {
+            throw new IllegalArgumentException("Resource selector has unsupported extra colon segments");
         }
-
         if (namespace.isEmpty()) namespace = ".*";
         if (name.isEmpty()) name = ".*";
 
         return new ResourceIdentifier(type, namespace, name, meta, null);
     }
 
-    private static Pattern compilePattern(String globOrRegex) {
-        if (globOrRegex == null || globOrRegex.isEmpty() || globOrRegex.equals(".*") || globOrRegex.equals("*")) {
-            return Pattern.compile(".*");
+    /** Source-only decoding; direct selector construction keeps fromString's literal semantics. */
+    public static ResourceIdentifier fromSourceLiteral(String quoted) {
+        if (quoted == null || quoted.length() < 2
+            || quoted.charAt(0) != '"'
+            || quoted.charAt(quoted.length() - 1) != '"')
+            throw new IllegalArgumentException("Resource literal requires surrounding quotes");
+        StringBuilder decoded = new StringBuilder(quoted.length() - 2);
+        for (int i = 1; i < quoted.length() - 1; i++) {
+            char c = quoted.charAt(i);
+            if (c == '\\') {
+                if (++i >= quoted.length() - 1) throw new IllegalArgumentException("Incomplete resource escape");
+                c = quoted.charAt(i);
+                switch (c) {
+                    case '"':
+                    case '\\':
+                        break;
+                    case 'n':
+                        c = '\n';
+                        break;
+                    case 'r':
+                        c = '\r';
+                        break;
+                    case 't':
+                        c = '\t';
+                        break;
+                    case 'b':
+                        c = '\b';
+                        break;
+                    case 'f':
+                        c = '\f';
+                        break;
+                    case 'u':
+                        if (i + 4 >= quoted.length() - 1)
+                            throw new IllegalArgumentException("Resource Unicode escape requires four digits");
+                        int value = 0;
+                        for (int digit = 0; digit < 4; digit++) {
+                            int next = Character.digit(quoted.charAt(++i), 16);
+                            if (next < 0) throw new IllegalArgumentException("Invalid resource Unicode escape");
+                            value = value * 16 + next;
+                        }
+                        c = (char) value;
+                        break;
+                    default:
+                        throw new IllegalArgumentException("Unknown resource escape: \\" + c);
+                }
+            }
+            decoded.append(c);
         }
-        StringBuilder regex = new StringBuilder();
-        for (int i = 0; i < globOrRegex.length(); i++) {
-            char c = globOrRegex.charAt(i);
-            if (c == '*') regex.append(".*");
-            else if (c == '?') regex.append('.');
-            else regex.append(Pattern.quote(String.valueOf(c)));
-        }
-        return Pattern.compile(regex.toString(), Pattern.CASE_INSENSITIVE);
+        return fromString(decoded.toString());
+    }
+
+    private static GlobMatcher compilePattern(String glob) {
+        // Resource identifiers historically expose ".*" as an explicit match-all alias.
+        return new GlobMatcher(glob == null || glob.isEmpty() || glob.equals(".*") ? "*" : glob);
     }
 
     public boolean matchesItem(ItemStack stack) {
@@ -121,8 +171,7 @@ public final class ResourceIdentifier implements ASTNode {
             int[] oreIds = OreDictionary.getOreIDs(stack);
             for (int id : oreIds) {
                 String oreName = OreDictionary.getOreName(id);
-                if (tagPattern.matcher(oreName)
-                    .matches()) {
+                if (tagPattern.matches(oreName)) {
                     return true;
                 }
             }
@@ -145,12 +194,10 @@ public final class ResourceIdentifier implements ASTNode {
             stackName = fullId.substring(colonIdx + 1);
         }
 
-        if (!namespacePattern.matcher(stackNamespace)
-            .matches()) {
+        if (!namespacePattern.matches(stackNamespace)) {
             return false;
         }
-        if (!namePattern.matcher(stackName)
-            .matches()) {
+        if (!namePattern.matches(stackName)) {
             return false;
         }
 
@@ -171,8 +218,7 @@ public final class ResourceIdentifier implements ASTNode {
 
         String fluidName = fluid.getFluid()
             .getName();
-        if (namePattern.matcher(fluidName)
-            .matches()) {
+        if (namePattern.matches(fluidName)) {
             return true;
         }
         return false;
@@ -200,8 +246,50 @@ public final class ResourceIdentifier implements ASTNode {
 
     @Override
     public String toString() {
-        if (tag != null) return "#" + tag;
-        return (type != Type.ANY ? type.name()
-            .toLowerCase(Locale.ROOT) + ":" : "") + namespace + ":" + name + (metadata >= 0 ? ":" + metadata : "");
+        String source = this == MATCH_ALL ? "*"
+            : tag != null ? "#" + tag
+                : (type != Type.ANY ? type.name()
+                    .toLowerCase(Locale.ROOT) + ":" : "") + sourcePattern(namespace)
+                    + ":"
+                    + sourcePattern(name)
+                    + (metadata >= 0 ? ":" + metadata : "");
+        StringBuilder quoted = new StringBuilder(source.length() + 2).append('"');
+        for (int i = 0; i < source.length(); i++) {
+            char c = source.charAt(i);
+            switch (c) {
+                case '"':
+                case '\\':
+                    quoted.append('\\')
+                        .append(c);
+                    break;
+                case '\n':
+                    quoted.append("\\n");
+                    break;
+                case '\r':
+                    quoted.append("\\r");
+                    break;
+                case '\t':
+                    quoted.append("\\t");
+                    break;
+                case '\b':
+                    quoted.append("\\b");
+                    break;
+                case '\f':
+                    quoted.append("\\f");
+                    break;
+                default:
+                    if (c < 0x20 || c == 0x7f) {
+                        quoted.append("\\u");
+                        for (int shift = 12; shift >= 0; shift -= 4)
+                            quoted.append("0123456789abcdef".charAt(c >>> shift & 15));
+                    } else quoted.append(c);
+            }
+        }
+        return quoted.append('"')
+            .toString();
+    }
+
+    private static String sourcePattern(String pattern) {
+        return pattern == null || pattern.isEmpty() || pattern.equals(".*") ? "*" : pattern;
     }
 }

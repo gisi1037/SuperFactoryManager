@@ -13,8 +13,13 @@ public final class DataType {
         INTEGER,
         BOOLEAN,
         STRING,
+        LABEL_REF,
+        RESOURCE_SELECTOR,
         ARRAY,
-        STRUCT
+        STRUCT,
+        ITEM_KEY,
+        ITEM_CONTENTS,
+        ITEM_LOCATIONS
     }
 
     public static final DataType INTEGER = new DataType(
@@ -35,12 +40,43 @@ public final class DataType {
         0,
         Collections.emptyList(),
         Collections.emptyList());
+    public static final DataType LABEL_REF = new DataType(
+        Kind.LABEL_REF,
+        null,
+        0,
+        Collections.emptyList(),
+        Collections.emptyList());
+    public static final DataType RESOURCE_SELECTOR = new DataType(
+        Kind.RESOURCE_SELECTOR,
+        null,
+        0,
+        Collections.emptyList(),
+        Collections.emptyList());
+    public static final DataType ITEM_KEY = new DataType(
+        Kind.ITEM_KEY,
+        null,
+        0,
+        Collections.emptyList(),
+        Collections.emptyList());
+    public static final DataType ITEM_LOCATIONS = new DataType(
+        Kind.ITEM_LOCATIONS,
+        locationRow(),
+        0,
+        Collections.emptyList(),
+        Collections.emptyList());
+    public static final DataType ITEM_CONTENTS = new DataType(
+        Kind.ITEM_CONTENTS,
+        contentsRow(),
+        0,
+        Collections.emptyList(),
+        Collections.emptyList());
     private final Kind kind;
     private final DataType element;
     private final int length, cells, depth;
     private final List<String> names;
     private final List<DataType> fields;
     private final String signature;
+    private final boolean persistable;
 
     private DataType(Kind kind, DataType element, int length, List<String> names, List<DataType> fields) {
         if (length < 0 || length > 256) throw new IllegalArgumentException("Collection width exceeds 256");
@@ -50,8 +86,13 @@ public final class DataType {
         this.names = Collections.unmodifiableList(new ArrayList<>(names));
         this.fields = Collections.unmodifiableList(new ArrayList<>(fields));
         int count = 1, nesting = 1;
+        boolean persistent = kind != Kind.LABEL_REF && kind != Kind.RESOURCE_SELECTOR
+            && kind != Kind.ITEM_KEY
+            && kind != Kind.ITEM_CONTENTS
+            && kind != Kind.ITEM_LOCATIONS;
         StringBuilder out = new StringBuilder(kind.name());
         if (kind == Kind.ARRAY) {
+            persistent = element.persistable;
             count = Math.addExact(1, Math.multiplyExact(length, element.cells));
             nesting = element.depth + 1;
             out.append('[')
@@ -59,10 +100,15 @@ public final class DataType {
                 .append(':')
                 .append(element.signature)
                 .append(']');
+        } else if (kind == Kind.ITEM_CONTENTS || kind == Kind.ITEM_LOCATIONS) {
+            // A sequence type describes one invocation-owned handle, not a padded fixed array.
+            // Construction separately charges the actual rows, scalar cells and child references.
+            nesting = element.depth + 1;
         } else if (kind == Kind.STRUCT) {
             out.append('{');
             for (int i = 0; i < fields.size(); i++) {
                 DataType type = fields.get(i);
+                persistent &= type.persistable;
                 count = Math.addExact(count, type.cells);
                 nesting = Math.max(nesting, type.depth + 1);
                 out.append(names.get(i))
@@ -77,11 +123,29 @@ public final class DataType {
         cells = count;
         depth = nesting;
         signature = out.toString();
+        persistable = persistent;
     }
 
     public static DataType array(DataType element, int length) {
         if (element == null) throw new IllegalArgumentException("Array element type required");
         return new DataType(Kind.ARRAY, element, length, Collections.emptyList(), Collections.emptyList());
+    }
+
+    private static DataType locationRow() {
+        Map<String, DataType> fields = new TreeMap<>();
+        for (String name : new String[] { "dimension", "x", "y", "z", "slot", "sideMask", "amount" })
+            fields.put(name, INTEGER);
+        return struct(fields);
+    }
+
+    private static DataType contentsRow() {
+        Map<String, DataType> fields = new TreeMap<>();
+        fields.put("item", ITEM_KEY);
+        fields.put("id", STRING);
+        fields.put("metadata", INTEGER);
+        fields.put("total", INTEGER);
+        fields.put("locations", ITEM_LOCATIONS);
+        return struct(fields);
     }
 
     public static DataType struct(Map<String, DataType> fields) {
@@ -98,6 +162,15 @@ public final class DataType {
 
     public Kind getKind() {
         return kind;
+    }
+
+    public boolean isPersistable() {
+        return persistable;
+    }
+
+    /** Fixed arrays and the two immutable native observation sequences support index/LEN/FOR. */
+    public boolean isSequence() {
+        return kind == Kind.ARRAY || kind == Kind.ITEM_CONTENTS || kind == Kind.ITEM_LOCATIONS;
     }
 
     public DataType getElementType() {

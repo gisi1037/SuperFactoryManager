@@ -17,26 +17,61 @@ public final class DataValue {
     private final long scalar;
     private final DataValue[] children;
     private final String text;
+    private final Object opaque;
     private final int stringCharacterCount, stringNbtBytes;
+    private final int retainedCellCount, retainedCharacters, retainedOpaqueBytes;
 
     private DataValue(DataType type, long scalar, DataValue[] children) {
-        this(type, scalar, children, null, countStrings(children, false), countStrings(children, true));
+        this(type, scalar, children, null, 0, 0);
     }
 
     private DataValue(DataType type, long scalar, DataValue[] children, String text, int characters, int nbtBytes) {
+        this(type, scalar, children, text, characters, nbtBytes, null);
+    }
+
+    private DataValue(DataType type, long scalar, DataValue[] children, String text, int characters, int nbtBytes,
+        Object opaque) {
+        int cells = 1, retained = characters, opaqueBytes = 0;
+        if (type == DataType.LABEL_REF) retained = ((LabelReference) opaque).getName()
+            .length();
+        else if (type == DataType.RESOURCE_SELECTOR) retained = ((ResourceSelector) opaque).getId()
+            .length();
+        else if (type == DataType.ITEM_KEY) {
+            retained = ((ItemIdentity) opaque).getRetainedCharacters();
+            opaqueBytes = ((ItemIdentity) opaque).getRetainedOpaqueBytes();
+        }
+        if (children != null) for (DataValue child : children) {
+            characters = Math.addExact(characters, child.stringCharacterCount);
+            nbtBytes = Math.addExact(nbtBytes, child.stringNbtBytes);
+            cells = Math.addExact(cells, child.retainedCellCount);
+            retained = Math.addExact(retained, child.retainedCharacters);
+            opaqueBytes = Math.addExact(opaqueBytes, child.retainedOpaqueBytes);
+        }
         this.type = type;
+        this.opaque = opaque;
         this.scalar = scalar;
         this.children = children;
         this.text = text;
         this.stringCharacterCount = characters;
         this.stringNbtBytes = nbtBytes;
+        this.retainedCellCount = cells;
+        this.retainedCharacters = retained;
+        this.retainedOpaqueBytes = opaqueBytes;
     }
 
-    private static int countStrings(DataValue[] children, boolean bytes) {
-        int count = 0;
-        if (children != null) for (DataValue child : children)
-            count = Math.addExact(count, bytes ? child.stringNbtBytes : child.stringCharacterCount);
-        return count;
+    /** Ancestor copies already know every aggregate from the replaced child's cached delta. */
+    private DataValue(DataType type, DataValue[] children, int characters, int nbtBytes, int cells, int retained,
+        int opaqueBytes) {
+        this.type = type;
+        this.scalar = 0;
+        this.children = children;
+        this.text = null;
+        this.opaque = null;
+        this.stringCharacterCount = characters;
+        this.stringNbtBytes = nbtBytes;
+        this.retainedCellCount = cells;
+        this.retainedCharacters = retained;
+        this.retainedOpaqueBytes = opaqueBytes;
     }
 
     public static DataValue integer(long value) {
@@ -65,6 +100,41 @@ public final class DataValue {
         return new DataValue(DataType.STRING, 0, null, value, value.length(), bytes);
     }
 
+    public static DataValue label(LabelReference label) {
+        if (label == null) throw new IllegalArgumentException("Label reference required");
+        return new DataValue(DataType.LABEL_REF, 0, null, null, 0, 0, label);
+    }
+
+    public static DataValue selector(ResourceSelector selector) {
+        if (selector == null) throw new IllegalArgumentException("Resource selector required");
+        return new DataValue(DataType.RESOURCE_SELECTOR, 0, null, null, 0, 0, selector);
+    }
+
+    public static DataValue itemIdentity(ItemIdentity item) {
+        if (item == null) throw new IllegalArgumentException("Item identity required");
+        return new DataValue(DataType.ITEM_KEY, 0, null, null, 0, 0, item);
+    }
+
+    /** Eager, immutable rows; owner verification and all budgets precede our row/array allocation. */
+    public static DataValue contents(ItemContents contents, QueryBudget owner, DataRuntime runtime) {
+        return ItemContentsValues.materialize(contents, owner, runtime);
+    }
+
+    public ItemIdentity asItemIdentity() {
+        if (type != DataType.ITEM_KEY) throw new IllegalArgumentException("Item identity required");
+        return (ItemIdentity) opaque;
+    }
+
+    public LabelReference asLabel() {
+        if (type != DataType.LABEL_REF) throw new IllegalArgumentException("Label reference required");
+        return (LabelReference) opaque;
+    }
+
+    public ResourceSelector asSelector() {
+        if (type != DataType.RESOURCE_SELECTOR) throw new IllegalArgumentException("Resource selector required");
+        return (ResourceSelector) opaque;
+    }
+
     public String asString() {
         if (type != DataType.STRING) throw new IllegalArgumentException("String required");
         return text;
@@ -78,6 +148,21 @@ public final class DataValue {
     /** Aggregate modified UTF-8 payload, excluding NBT tag headers and length prefixes. */
     public int getStringNbtBytes() {
         return stringNbtBytes;
+    }
+
+    /** Actual logical cells, including native observation rows and repeated shared children. */
+    public int getRetainedCellCount() {
+        return retainedCellCount;
+    }
+
+    /** UTF-16 payload retained by strings, labels, selectors, item IDs and canonical NBT key names. */
+    public int getRetainedCharacters() {
+        return retainedCharacters;
+    }
+
+    /** Conservative item-key storage, including allocated NBT capacity and retained key sidecars. */
+    public int getRetainedOpaqueBytes() {
+        return retainedOpaqueBytes;
     }
 
     public static DataValue array(List<DataValue> values) {
@@ -116,6 +201,16 @@ public final class DataValue {
         return new DataValue(type, 0, values);
     }
 
+    /** Only the bounded materializer may adopt fresh sequence arrays. Public collection() stays fixed-shape. */
+    static DataValue ownedSequence(DataType type, DataValue[] values) {
+        int limit = type == DataType.ITEM_CONTENTS ? ItemContents.MAX_GROUPS
+            : type == DataType.ITEM_LOCATIONS ? ItemContents.MAX_LOCATIONS : -1;
+        if (limit < 0 || values.length > limit) throw new IllegalArgumentException("Invalid item observation sequence");
+        for (DataValue value : values) if (value == null || !type.getElementType()
+            .equals(value.type)) throw new IllegalArgumentException("Observation row type mismatch");
+        return new DataValue(type, 0, values);
+    }
+
     public DataType getType() {
         return type;
     }
@@ -146,6 +241,8 @@ public final class DataValue {
     }
 
     public DataValue with(int index, DataValue replacement) {
+        if (type == DataType.ITEM_CONTENTS || type == DataType.ITEM_LOCATIONS)
+            throw new IllegalArgumentException("Item observation sequences are immutable");
         DataValue old = get(index);
         if (!old.type.equals(replacement.type)) throw new IllegalArgumentException("Assignment type/shape mismatch");
         DataValue[] copy = children.clone();
@@ -153,11 +250,16 @@ public final class DataValue {
         // Ancestor updates use cached payload deltas; they never scan nested string contents.
         return new DataValue(
             type,
-            0,
             copy,
-            null,
-            stringCharacterCount - old.stringCharacterCount + replacement.stringCharacterCount,
-            stringNbtBytes - old.stringNbtBytes + replacement.stringNbtBytes);
+            replaceCount(stringCharacterCount, old.stringCharacterCount, replacement.stringCharacterCount),
+            replaceCount(stringNbtBytes, old.stringNbtBytes, replacement.stringNbtBytes),
+            replaceCount(retainedCellCount, old.retainedCellCount, replacement.retainedCellCount),
+            replaceCount(retainedCharacters, old.retainedCharacters, replacement.retainedCharacters),
+            replaceCount(retainedOpaqueBytes, old.retainedOpaqueBytes, replacement.retainedOpaqueBytes));
+    }
+
+    private static int replaceCount(int total, int old, int replacement) {
+        return Math.addExact(Math.subtractExact(total, old), replacement);
     }
 
     @Override
@@ -165,7 +267,12 @@ public final class DataValue {
         if (type == DataType.INTEGER) return Long.toString(scalar);
         if (type == DataType.BOOLEAN) return scalar == 0 ? "FALSE" : "TRUE";
         if (type == DataType.STRING) return quote(text);
-        StringBuilder out = new StringBuilder(type.getKind() == DataType.Kind.ARRAY ? "[" : "{");
+        if (type == DataType.ITEM_KEY) {
+            ItemIdentity item = asItemIdentity();
+            return "ITEM_KEY(" + quote(item.getRegistryId()) + ", " + item.getMetadata() + ")";
+        }
+        if (type == DataType.LABEL_REF || type == DataType.RESOURCE_SELECTOR) return opaque.toString();
+        StringBuilder out = new StringBuilder(type.isSequence() ? "[" : "{");
         for (int i = 0; i < children.length; i++) {
             if (i > 0) out.append(", ");
             if (type.getKind() == DataType.Kind.STRUCT) out.append(
@@ -174,7 +281,7 @@ public final class DataValue {
                 .append(": ");
             out.append(children[i]);
         }
-        return out.append(type.getKind() == DataType.Kind.ARRAY ? ']' : '}')
+        return out.append(type.isSequence() ? ']' : '}')
             .toString();
     }
 

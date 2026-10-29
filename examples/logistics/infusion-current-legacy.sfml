@@ -1,0 +1,42 @@
+name "Infusion - current language without methods"
+
+-- Same prepared chest layout as infusion-current-methods.sfml.
+-- Keep all labelled inventories connected/loaded: HAS skips disconnected views.
+-- Pulse the MANAGER only after the infusion completes.
+-- Ordinary IO preserves stack NBT but cannot explicitly compare arbitrary NBT.
+-- This is an operational equivalent with manual completion confirmation,
+-- not an equivalent implementation of automatic exact-NBT change detection.
+state $phase = 0
+
+every redstone pulse do
+  if ($phase = 2) then
+    set $phase = 3
+  end
+end
+
+every 20 ticks do
+  if ($phase = 0) then
+    if (every ped has = 0 item:*) and (one pedc has = 0 item:*) and (some chestin slot 0 has > 0 item:*) then
+      input 1 item:* from chestin slot 0
+      output 1 item:* to empty slots in pedc
+      forget
+      if one pedc has = 1 item:* then
+        set $phase = 1
+      end
+    end
+  else if ($phase = 1) then
+    input item:* from chestin slots 1-26
+    output 1 retain 1 item:* to each ped
+    forget
+    if every chestin slots 1-26 has = 0 item:* then
+      set $phase = 2
+    end
+  else if ($phase = 3) then
+    input 1 item:* from pedc
+    output 1 item:* to chestout
+    forget
+    if every pedc has = 0 item:* then
+      set $phase = 0
+    end
+  end
+end

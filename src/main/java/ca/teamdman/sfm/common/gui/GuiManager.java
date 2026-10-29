@@ -19,18 +19,57 @@ import ca.teamdman.sfm.client.gui.GuiCodeEditor;
 import ca.teamdman.sfm.client.gui.GuiLogs;
 import ca.teamdman.sfm.common.item.ItemDisk;
 import ca.teamdman.sfm.common.net.PacketManagerAction;
-import ca.teamdman.sfm.common.net.PacketSaveProgram;
 import ca.teamdman.sfm.common.net.SFMNetwork;
 import ca.teamdman.sfm.common.tileentity.LogEntry;
 import ca.teamdman.sfm.common.tileentity.LogLevel;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 
-public class GuiManager extends GuiContainer implements net.minecraft.client.gui.GuiYesNoCallback {
+public class GuiManager extends GuiContainer
+    implements net.minecraft.client.gui.GuiYesNoCallback, ca.teamdman.sfm.client.gui.ProgramEditSession.Receiver {
 
     private static final ResourceLocation GUI_TEXTURE = new ResourceLocation(
         "superfactorymanager:textures/gui/manager.png");
 
     private final TileEntityManager manager;
+    private ca.teamdman.sfm.client.gui.ProgramEditSession pasteSession;
+    private String pasteDraft;
+
+    @Override
+    public void receiveProgramEditReply(ca.teamdman.sfm.common.net.PacketProgramEditReply reply) {
+        if (pasteSession == null) return;
+        ca.teamdman.sfm.client.gui.ProgramEditState.Action action = pasteSession.state.action();
+        if (!pasteSession.receive(reply)) return;
+        if (reply.accepted && reply.snapshot != null
+            && action == ca.teamdman.sfm.client.gui.ProgramEditState.Action.OPEN) {
+            try {
+                pasteSession.save(pasteDraft);
+            } catch (IllegalArgumentException e) {
+                pasteSession.state.cancel();
+                showPasteMessage(e.getMessage() + " Draft kept: choose Text to edit or copy it.");
+            }
+        } else {
+            showPasteMessage(
+                reply.accepted ? "Program saved" : reply.message + " Draft kept: choose Text to edit or copy it.");
+            if (reply.accepted) pasteDraft = null;
+        }
+    }
+
+    private void showPasteMessage(String message) {
+        mc.thePlayer.addChatMessage(new ChatComponentText("[SFM] " + message));
+    }
+
+    @Override
+    public void updateScreen() {
+        super.updateScreen();
+        if (pasteSession != null && pasteSession.state.tick()) showPasteMessage(
+            "No save confirmation; the save may have applied. Draft kept: choose Text to edit or copy it.");
+    }
+
+    @Override
+    public void onGuiClosed() {
+        if (pasteSession != null) pasteSession.state.cancel();
+        super.onGuiClosed();
+    }
 
     // Left button stack
     private GuiButton btnPaste;
@@ -107,8 +146,8 @@ public class GuiManager extends GuiContainer implements net.minecraft.client.gui
 
     private void updateButtonStates() {
         boolean hasDisk = manager.getDisk() != null;
-        btnPaste.enabled = hasDisk;
-        btnEdit.enabled = hasDisk;
+        btnPaste.enabled = hasDisk && (pasteSession == null || !pasteSession.state.isPending());
+        btnEdit.enabled = hasDisk && (pasteSession == null || !pasteSession.state.isPending());
         for (Object obj : buttonList)
             if (((GuiButton) obj).id == 11 || ((GuiButton) obj).id == 12) ((GuiButton) obj).enabled = hasDisk;
         btnCopy.enabled = hasDisk;
@@ -135,13 +174,16 @@ public class GuiManager extends GuiContainer implements net.minecraft.client.gui
             // Paste from clipboard
             String clip = getClipboardString();
             if (clip != null && !clip.isEmpty() && manager.getDisk() != null) {
-                manager.saveCodeAndRecompile(clip);
-                SFMNetwork.WRAPPER.sendToServer(
-                    new PacketSaveProgram(manager.xCoord, manager.yCoord, manager.zCoord, clip, manager.isRunning()));
+                pasteDraft = clip;
+                pasteSession = new ca.teamdman.sfm.client.gui.ProgramEditSession(manager, inventorySlots.windowId);
+                pasteSession.open();
             }
         } else if (button.id == 2) {
             // Edit
-            mc.displayGuiScreen(new GuiCodeEditor(manager, this));
+            if (pasteSession != null && pasteSession.state.isPending()) return;
+            String retainedDraft = pasteDraft;
+            pasteDraft = null;
+            mc.displayGuiScreen(new GuiCodeEditor(manager, this, retainedDraft));
         } else if (button.id == 13) {
             SFMNetwork.WRAPPER.sendToServer(
                 new PacketManagerAction(

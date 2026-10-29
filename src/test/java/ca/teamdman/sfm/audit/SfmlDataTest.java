@@ -274,9 +274,14 @@ class SfmlDataTest {
     }
 
     @Test
-    void dynamicRedstoneOutputsAreRejectedInEveryOptionalQuantityPosition() {
-        String[] outputs = { "OUTPUT ($n) REDSTONE LEVEL TO dest", "OUTPUT REDSTONE LEVEL ($n) TO dest",
-            "OUTPUT 4 REDSTONE LEVEL ($n) TO dest", "TO dest OUTPUT 4 REDSTONE LEVEL ($n)" };
+    void dynamicRedstoneOutputsUseTheFirstQuantityAndRejectIgnoredExpressions() {
+        for (String output : new String[] { "OUTPUT ($n) REDSTONE LEVEL TO dest", "OUTPUT REDSTONE LEVEL ($n) TO dest",
+            "TO dest OUTPUT REDSTONE LEVEL ($n)", "TO dest OUTPUT ($n) REDSTONE LEVEL" }) {
+            Program accepted = program("EVERY 20 TICKS DO LET $n = 3 " + output + " END");
+            assertTrue(accepted.hasDataFeatures());
+            program(accepted.toString());
+        }
+        String[] outputs = { "OUTPUT 4 REDSTONE LEVEL ($n) TO dest", "TO dest OUTPUT 4 REDSTONE LEVEL ($n)" };
         for (String output : outputs) {
             ProgramBuildResult result = new ProgramBuilder("EVERY 20 TICKS DO LET $n = 3 " + output + " END").build();
             assertFalse(result.isSuccess(), output);

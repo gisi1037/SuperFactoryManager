@@ -178,10 +178,12 @@ public final class ProgramStateStore implements StateAccess {
     @Override
     public void write(int slot, DataValue value) {
         DataValue previous = values[slot];
-        if (value == null || !schema.getDeclarations()
-            .get(slot)
-            .getType()
-            .equals(value.getType())) {
+        if (value == null || !value.getType()
+            .isPersistable()
+            || !schema.getDeclarations()
+                .get(slot)
+                .getType()
+                .equals(value.getType())) {
             throw invalid("Assignment to STATE $" + display(names.get(slot)) + " has an incompatible type or shape");
         }
         if (previous == value) return;
@@ -276,6 +278,12 @@ public final class ProgramStateStore implements StateAccess {
             }
         }
         return measureDiskSnapshot(snapshot, candidateEnvelopeBytes);
+    }
+
+    /** Cold edit/import validation also covers programs without STATE. */
+    public static void validateCompleteDisk(ItemStack disk) {
+        if (disk == null) throw new IllegalArgumentException("Disk is required");
+        measureDiskSnapshot(disk.getTagCompound(), 0);
     }
 
     private static int measureDiskSnapshot(NBTTagCompound snapshot, int candidateEnvelopeBytes) {

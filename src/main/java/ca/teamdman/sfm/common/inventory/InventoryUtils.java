@@ -30,25 +30,16 @@ public final class InventoryUtils {
 
     private InventoryUtils() {}
 
+    private static final ForgeDirection[] CHEST_DIRECTIONS = { ForgeDirection.WEST, ForgeDirection.EAST,
+        ForgeDirection.NORTH, ForgeDirection.SOUTH };
+
     public static IInventory getInventory(World world, BlockPos pos) {
         if (world == null || pos == null) return null;
         TileEntity te = pos.getTileEntity(world);
         if (te instanceof TileEntityChest) {
-            TileEntityChest chest = (TileEntityChest) te;
-            chest.checkForAdjacentChests();
-            if (chest.adjacentChestXNeg != null) {
-                return new InventoryLargeChest("container.chestDouble", chest.adjacentChestXNeg, chest);
-            }
-            if (chest.adjacentChestXPos != null) {
-                return new InventoryLargeChest("container.chestDouble", chest, chest.adjacentChestXPos);
-            }
-            if (chest.adjacentChestZNeg != null) {
-                return new InventoryLargeChest("container.chestDouble", chest.adjacentChestZNeg, chest);
-            }
-            if (chest.adjacentChestZPos != null) {
-                return new InventoryLargeChest("container.chestDouble", chest, chest.adjacentChestZPos);
-            }
-            return chest;
+            ChestPair pair = resolveChest((TileEntityChest) te);
+            if (pair == null) return null;
+            return pair.second == null ? pair.first : new ResolvedChestInventory(pair.first, pair.second);
         }
         if (te instanceof IInventory) {
             return (IInventory) te;
@@ -65,13 +56,90 @@ public final class InventoryUtils {
     }
 
     public static TileEntityChest getAdjacentChest(TileEntityChest chest) {
-        if (chest == null) return null;
-        chest.checkForAdjacentChests();
-        if (chest.adjacentChestXNeg != null) return chest.adjacentChestXNeg;
-        if (chest.adjacentChestXPos != null) return chest.adjacentChestXPos;
-        if (chest.adjacentChestZNeg != null) return chest.adjacentChestZNeg;
-        if (chest.adjacentChestZPos != null) return chest.adjacentChestZPos;
-        return null;
+        ChestPair pair = resolveChest(chest);
+        if (pair == null || pair.second == null) return null;
+        return pair.first == chest ? pair.second : pair.first;
+    }
+
+    /** Resolve fresh loaded members; vanilla adjacency discovery can load chunks and retain stale partners. */
+    private static ChestPair resolveChest(TileEntityChest chest) {
+        if (chest == null || chest.isInvalid()) return null;
+        World world = chest.getWorldObj();
+        BlockPos pos = new BlockPos(chest.xCoord, chest.yCoord, chest.zCoord);
+        if (!pos.isLoaded(world) || pos.getTileEntity(world) != chest) return null;
+        int type = chest.func_145980_j();
+        TileEntityChest partner = null;
+        ForgeDirection partnerDirection = null;
+        for (ForgeDirection direction : CHEST_DIRECTIONS) {
+            BlockPos neighbor = pos.offset(direction);
+            if (!neighbor.isLoaded(world)) return null;
+            TileEntity adjacent = neighbor.getTileEntity(world);
+            if (!(adjacent instanceof TileEntityChest)) continue;
+            TileEntityChest candidate = (TileEntityChest) adjacent;
+            if (candidate.isInvalid()) return null;
+            if (candidate.func_145980_j() != type) continue;
+            if (partner != null) return null;
+            partner = candidate;
+            partnerDirection = direction;
+        }
+        if (partner == null) return new ChestPair(chest, null);
+        BlockPos partnerPos = pos.offset(partnerDirection);
+        for (ForgeDirection direction : CHEST_DIRECTIONS) {
+            BlockPos neighbor = partnerPos.offset(direction);
+            if (neighbor.equals(pos)) continue;
+            if (!neighbor.isLoaded(world)) return null;
+            TileEntity adjacent = neighbor.getTileEntity(world);
+            if (adjacent instanceof TileEntityChest) {
+                TileEntityChest candidate = (TileEntityChest) adjacent;
+                if (candidate.isInvalid() || candidate.func_145980_j() == type) return null;
+            }
+        }
+        return partnerDirection == ForgeDirection.WEST || partnerDirection == ForgeDirection.NORTH
+            ? new ChestPair(partner, chest)
+            : new ChestPair(chest, partner);
+    }
+
+    /** Compare slots from the loaded chest views returned here without allocating or using reflection. */
+    public static boolean samePhysicalSlot(IInventory first, int firstSlot, IInventory second, int secondSlot) {
+        if (first == null || second == null || firstSlot < 0 || secondSlot < 0) return false;
+        if (first instanceof ResolvedChestInventory) {
+            ResolvedChestInventory chest = (ResolvedChestInventory) first;
+            if (firstSlot >= chest.firstSize) {
+                firstSlot -= chest.firstSize;
+                first = chest.second;
+            } else first = chest.first;
+        }
+        if (second instanceof ResolvedChestInventory) {
+            ResolvedChestInventory chest = (ResolvedChestInventory) second;
+            if (secondSlot >= chest.firstSize) {
+                secondSlot -= chest.firstSize;
+                second = chest.second;
+            } else second = chest.first;
+        }
+        return first == second && firstSlot == secondSlot;
+    }
+
+    private static final class ChestPair {
+
+        final TileEntityChest first, second;
+
+        ChestPair(TileEntityChest first, TileEntityChest second) {
+            this.first = first;
+            this.second = second;
+        }
+    }
+
+    private static final class ResolvedChestInventory extends InventoryLargeChest {
+
+        final IInventory first, second;
+        final int firstSize;
+
+        ResolvedChestInventory(IInventory first, IInventory second) {
+            super("container.chestDouble", first, second);
+            this.first = first;
+            this.second = second;
+            firstSize = first.getSizeInventory();
+        }
     }
 
     public static IFluidHandler getFluidHandler(World world, BlockPos pos) {

@@ -24,6 +24,14 @@ import ca.teamdman.sfm.common.util.BlockPos;
 public class GuiLabelGun extends GuiScreen {
 
     private final EntityPlayer player;
+    private ca.teamdman.sfm.common.net.LabelGunAccess.Token token;
+
+    private ca.teamdman.sfm.common.net.LabelGunAccess.Token token() {
+        if (token == null && player.getHeldItem() == labelGun)
+            token = ca.teamdman.sfm.client.gui.ClientLabelGunSession.current(player);
+        return token;
+    }
+
     private final ItemStack labelGun;
     private final LabelPositionHolder labelHolder;
 
@@ -38,6 +46,7 @@ public class GuiLabelGun extends GuiScreen {
 
     public GuiLabelGun(EntityPlayer player, ItemStack labelGun) {
         this.player = player;
+        token = ca.teamdman.sfm.client.gui.ClientLabelGunSession.current(player);
         this.labelGun = labelGun;
         this.labelHolder = LabelPositionHolder.from(labelGun);
     }
@@ -167,14 +176,12 @@ public class GuiLabelGun extends GuiScreen {
     }
 
     private void onDone() {
+        if (token() == null) return;
         String newLabel = labelField.getText()
             .trim();
         ItemLabelGun.setActiveLabel(labelGun, newLabel);
-        SFMNetwork.WRAPPER.sendToServer(new PacketSetLabel(newLabel));
-        if (player.getHeldItem() != null && player.getHeldItem()
-            .getItem() == labelGun.getItem()) {
-            ItemLabelGun.setActiveLabel(player.getHeldItem(), newLabel);
-        }
+        SFMNetwork.WRAPPER.sendToServer(new PacketSetLabel(newLabel, token()));
+        // Never mirror this edit into a different held stack.
         mc.displayGuiScreen(null);
     }
 
@@ -183,19 +190,22 @@ public class GuiLabelGun extends GuiScreen {
         if (button.id == 0) {
             onDone();
         } else if (button.id == 1) {
+            if (token() == null) return;
             ItemLabelGun.clearAll(labelGun);
             labelHolder.clear();
-            SFMNetwork.WRAPPER.sendToServer(new PacketLabelGunAction(PacketLabelGunAction.ACTION_CLEAR));
+            SFMNetwork.WRAPPER.sendToServer(new PacketLabelGunAction(PacketLabelGunAction.ACTION_CLEAR, token()));
             labelField.setText("");
             rebuildLabelButtons();
         } else if (button.id == 2) {
+            if (token() == null) return;
             ItemLabelGun.prune(labelGun);
             labelHolder.prune();
-            SFMNetwork.WRAPPER.sendToServer(new PacketLabelGunAction(PacketLabelGunAction.ACTION_PRUNE));
+            SFMNetwork.WRAPPER.sendToServer(new PacketLabelGunAction(PacketLabelGunAction.ACTION_PRUNE, token()));
             rebuildLabelButtons();
         } else if (button.id == 3) {
+            if (token() == null) return;
             ItemLabelGun.LabelGunViewMode mode = ItemLabelGun.cycleViewMode(labelGun);
-            SFMNetwork.WRAPPER.sendToServer(new PacketLabelGunAction(PacketLabelGunAction.ACTION_CYCLE_VIEW));
+            SFMNetwork.WRAPPER.sendToServer(new PacketLabelGunAction(PacketLabelGunAction.ACTION_CYCLE_VIEW, token()));
             mc.displayGuiScreen(null);
         } else {
             String chosen = labelBtnMap.get(button);

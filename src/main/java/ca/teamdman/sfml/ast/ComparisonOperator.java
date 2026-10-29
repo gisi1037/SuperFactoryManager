@@ -8,7 +8,8 @@ public enum ComparisonOperator implements ASTNode {
     LESSER,
     EQUALS,
     LESSER_OR_EQUAL,
-    GREATER_OR_EQUAL;
+    GREATER_OR_EQUAL,
+    NOT_EQUALS;
 
     public boolean test(long a, long b) {
         switch (this) {
@@ -18,6 +19,8 @@ public enum ComparisonOperator implements ASTNode {
                 return a < b;
             case EQUALS:
                 return a == b;
+            case NOT_EQUALS:
+                return a != b;
             case LESSER_OR_EQUAL:
                 return a <= b;
             case GREATER_OR_EQUAL:
@@ -35,6 +38,8 @@ public enum ComparisonOperator implements ASTNode {
                 return "<";
             case EQUALS:
                 return "=";
+            case NOT_EQUALS:
+                return "!=";
             case LESSER_OR_EQUAL:
                 return "<=";
             case GREATER_OR_EQUAL:
@@ -55,7 +60,10 @@ public enum ComparisonOperator implements ASTNode {
                 return LESSER;
             case "EQ":
             case "=":
+            case "==":
                 return EQUALS;
+            case "!=":
+                return NOT_EQUALS;
             case "LE":
             case "<=":
                 return LESSER_OR_EQUAL;

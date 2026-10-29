@@ -1,99 +1,100 @@
 package ca.teamdman.sfm.common.net;
 
-import net.minecraft.world.World;
-
-import ca.teamdman.sfm.common.tileentity.TileEntityManager;
-import cpw.mods.fml.common.network.ByteBufUtils;
+import ca.teamdman.sfm.common.program.ProgramEditSnapshot;
+import ca.teamdman.sfm.common.util.ProgramRevision;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import cpw.mods.fml.common.network.simpleimpl.IMessageHandler;
 import cpw.mods.fml.common.network.simpleimpl.MessageContext;
 import io.netty.buffer.ByteBuf;
 
-public class PacketSaveProgram implements IMessage {
+/** Mandatory server-issued edit snapshot; legacy unguarded saves are intentionally rejected. */
+public final class PacketSaveProgram implements IMessage {
 
-    private int x;
-    private int y;
-    private int z;
-    private String code;
-    private boolean running;
-    private byte[] expectedRevision;
+    // SFM + format version; unlike a small version number, cannot alias a valid legacy world x coordinate.
+    static final int VERSION = 0x53464d01;
+    int x, y, z;
+    long requestId;
+    boolean save;
+    ProgramEditSnapshot expected;
+    String code = "";
 
     public PacketSaveProgram() {}
 
-    public PacketSaveProgram(int x, int y, int z, String code, boolean running) {
-        this.x = x;
-        this.y = y;
-        this.z = z;
-        this.code = code != null ? code : "";
-        this.running = running;
-    }
-
-    public static PacketSaveProgram guarded(int x, int y, int z, String code, String original) {
-        PacketSaveProgram packet = new PacketSaveProgram(x, y, z, code, false);
-        packet.expectedRevision = ca.teamdman.sfm.common.util.ProgramRevision.digest(original);
+    public static PacketSaveProgram open(int x, int y, int z, long requestId) {
+        PacketSaveProgram packet = new PacketSaveProgram();
+        packet.x = x;
+        packet.y = y;
+        packet.z = z;
+        packet.requestId = requestId;
         return packet;
     }
 
-    public boolean acceptsSource(String current) {
-        return expectedRevision == null
-            || ca.teamdman.sfm.common.util.ProgramRevision.matches(expectedRevision, current);
+    public static PacketSaveProgram save(int x, int y, int z, long requestId, ProgramEditSnapshot expected,
+        String code) {
+        if (expected == null) throw new IllegalArgumentException("Editor snapshot required");
+        PacketSaveProgram packet = open(x, y, z, requestId);
+        packet.save = true;
+        packet.expected = expected;
+        packet.code = code;
+        return packet;
     }
 
-    @Override
-    public void fromBytes(ByteBuf buf) {
-        x = buf.readInt();
-        y = buf.readInt();
-        z = buf.readInt();
-        running = buf.readBoolean();
-        code = ByteBufUtils.readUTF8String(buf);
-        expectedRevision = null;
-        if (buf.isReadable() && buf.readBoolean()) {
-            expectedRevision = new byte[32];
-            buf.readBytes(expectedRevision);
-        }
+    public boolean acceptsSource(String source) {
+        return expectedDigest != null ? ProgramRevision.matches(expectedDigest, source)
+            : expected != null && expected.source.equals(source);
     }
 
     @Override
     public void toBytes(ByteBuf buf) {
+        buf.writeInt(VERSION);
+        buf.writeBoolean(save);
+        buf.writeLong(requestId);
         buf.writeInt(x);
         buf.writeInt(y);
         buf.writeInt(z);
-        buf.writeBoolean(running);
-        ByteBufUtils.writeUTF8String(buf, code);
-        buf.writeBoolean(expectedRevision != null);
-        if (expectedRevision != null) buf.writeBytes(expectedRevision);
+        if (save) {
+            ProgramEditWire.uuid(buf, expected.sessionId);
+            buf.writeLong(expected.bindingGeneration);
+            ProgramEditWire.uuid(buf, expected.documentId);
+            buf.writeLong(expected.revision);
+            // Bounded source fingerprint supplements the monotonic document revision.
+            buf.writeBytes(ProgramRevision.digest(expected.source));
+            ProgramEditWire.string(buf, code, ProgramEditWire.MAX_SOURCE_BYTES);
+        }
     }
 
-    public static class Handler implements IMessageHandler<PacketSaveProgram, IMessage> {
+    byte[] expectedDigest;
+
+    @Override
+    public void fromBytes(ByteBuf buf) {
+        if (buf.readInt() != VERSION) throw new IllegalArgumentException("Unsupported program edit protocol");
+        save = buf.readBoolean();
+        requestId = buf.readLong();
+        x = buf.readInt();
+        y = buf.readInt();
+        z = buf.readInt();
+        expected = null;
+        expectedDigest = null;
+        if (requestId <= 0) throw new IllegalArgumentException("Invalid program request ID");
+        if (save) {
+            expected = new ProgramEditSnapshot(
+                ProgramEditWire.uuid(buf),
+                buf.readLong(),
+                ProgramEditWire.uuid(buf),
+                buf.readLong(),
+                "");
+            expectedDigest = new byte[32];
+            buf.readBytes(expectedDigest);
+            code = ProgramEditWire.string(buf, ProgramEditWire.MAX_SOURCE_BYTES);
+        }
+        if (buf.isReadable()) throw new IllegalArgumentException("Trailing program edit data");
+    }
+
+    public static final class Handler implements IMessageHandler<PacketSaveProgram, IMessage> {
 
         @Override
-        public IMessage onMessage(PacketSaveProgram message, MessageContext ctx) {
-            World world = ctx.getServerHandler().playerEntity.worldObj;
-            if (world != null) {
-                TileEntityManager manager = ManagerAccess
-                    .get(ctx.getServerHandler().playerEntity, message.x, message.y, message.z);
-                if (manager != null) {
-                    if (message.expectedRevision != null) {
-                        String current = ca.teamdman.sfm.common.item.ItemDisk.getProgramString(manager.getDisk());
-                        if (manager.getDisk() == null || !message.acceptsSource(current)) {
-                            ctx.getServerHandler().playerEntity.addChatMessage(
-                                new net.minecraft.util.ChatComponentText(
-                                    "[SFM] Blueprint not saved: disk source changed. Reopen the editor to load the current program."));
-                            return null;
-                        }
-                        if (message.code.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 32700
-                            || !new ca.teamdman.sfml.program_builder.ProgramBuilder(message.code).build()
-                                .isSuccess()) {
-                            ctx.getServerHandler().playerEntity.addChatMessage(
-                                new net.minecraft.util.ChatComponentText(
-                                    "[SFM] Blueprint not saved: invalid or oversized program."));
-                            return null;
-                        }
-                    } else manager.setRunning(message.running);
-                    manager.saveCodeAndRecompile(message.code);
-                    world.markBlockForUpdate(message.x, message.y, message.z);
-                }
-            }
+        public IMessage onMessage(PacketSaveProgram packet, MessageContext context) {
+            ProgramEditDispatcher.enqueue(context.getServerHandler().playerEntity, packet);
             return null;
         }
     }

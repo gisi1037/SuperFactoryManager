@@ -47,6 +47,10 @@ public final class ProgramStateSchema {
         public Declaration(String name, DataValue defaultValue) {
             if (name == null || !name.matches("[A-Za-z_][A-Za-z0-9_]*") || defaultValue == null)
                 throw new IllegalArgumentException("Invalid STATE declaration");
+            if (!defaultValue.getType()
+                .isPersistable())
+                throw new IllegalArgumentException(
+                    "STATE cannot persist label references or resource selectors, including nested handles");
             this.name = name;
             this.defaultValue = defaultValue;
         }

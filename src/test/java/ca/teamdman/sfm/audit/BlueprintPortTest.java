@@ -254,8 +254,14 @@ class BlueprintPortTest {
     }
 
     @Test
-    void guardedSavesRejectStaleSourceAfterPacketRoundTripAndLegacySavesStillWork() {
-        PacketSaveProgram guarded = PacketSaveProgram.guarded(1, 2, 3, "EVERY 20 TICKS DO END", "old");
+    void editorSavesRequireSnapshotAndRejectTruncatedOrLegacyPackets() {
+        ca.teamdman.sfm.common.program.ProgramEditSnapshot snapshot = new ca.teamdman.sfm.common.program.ProgramEditSnapshot(
+            java.util.UUID.randomUUID(),
+            3,
+            java.util.UUID.randomUUID(),
+            4,
+            "old");
+        PacketSaveProgram guarded = PacketSaveProgram.save(1, 2, 3, 5, snapshot, "EVERY 20 TICKS DO END");
         io.netty.buffer.ByteBuf bytes = Unpooled.buffer();
         try {
             guarded.toBytes(bytes);
@@ -265,14 +271,13 @@ class BlueprintPortTest {
             assertFalse(decoded.acceptsSource("new"));
             assertTrue(ProgramRevision.matches(ProgramRevision.digest("箱😀"), "箱😀"));
             assertFalse(ProgramRevision.matches(new byte[1], "old"));
-            bytes.clear();
-            new PacketSaveProgram(1, 2, 3, "code", true).toBytes(bytes);
-            decoded.fromBytes(bytes);
-            assertTrue(decoded.acceptsSource("any source"));
             bytes.readerIndex(0);
-            bytes.writerIndex(bytes.writerIndex() - 1); // previous-version packet without optional guard
-            decoded.fromBytes(bytes);
-            assertTrue(decoded.acceptsSource("any source"));
+            bytes.writerIndex(bytes.writerIndex() - 1);
+            assertThrows(RuntimeException.class, () -> decoded.fromBytes(bytes));
+            bytes.clear();
+            bytes.writeInt(0); // previous unversioned/unguarded protocol
+            assertThrows(IllegalArgumentException.class, () -> decoded.fromBytes(bytes));
+            assertThrows(IllegalArgumentException.class, () -> PacketSaveProgram.save(1, 2, 3, 6, null, "code"));
         } finally {
             bytes.release();
         }

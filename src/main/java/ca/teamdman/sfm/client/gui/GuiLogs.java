@@ -20,7 +20,26 @@ import ca.teamdman.sfm.common.tileentity.LogEntry;
 import ca.teamdman.sfm.common.tileentity.LogLevel;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 
-public class GuiLogs extends GuiScreen {
+public class GuiLogs extends GuiScreen implements ProgramEditSession.Receiver {
+
+    private ProgramEditSession authority;
+    private boolean authorityRequested;
+    private ca.teamdman.sfm.common.gui.ManagerControlToken token;
+
+    @Override
+    public void receiveProgramEditReply(ca.teamdman.sfm.common.net.PacketProgramEditReply reply) {
+        if (authority != null && authority.receive(reply) && reply.accepted && reply.snapshot != null)
+            token = new ca.teamdman.sfm.common.gui.ManagerControlToken(
+                reply.snapshot.sessionId,
+                reply.snapshot.bindingGeneration,
+                reply.windowId);
+    }
+
+    @Override
+    public void onGuiClosed() {
+        if (authority != null) authority.state.cancel();
+        super.onGuiClosed();
+    }
 
     private final TileEntityManager manager;
     private final GuiScreen parentScreen;
@@ -129,6 +148,12 @@ public class GuiLogs extends GuiScreen {
     @Override
     public void updateScreen() {
         super.updateScreen();
+        if (!authorityRequested) {
+            authorityRequested = true;
+            authority = new ProgramEditSession(manager, mc.thePlayer.openContainer.windowId);
+            authority.open();
+        }
+        authority.state.tick();
         if (++pollTimer % 10 == 0) {
             SFMNetwork.WRAPPER
                 .sendToServer(new PacketManagerRequestLogs(manager.xCoord, manager.yCoord, manager.zCoord));
@@ -226,7 +251,8 @@ public class GuiLogs extends GuiScreen {
             }
         } else if (btn.id == 2) {
             // Clear logs
-            SFMNetwork.WRAPPER.sendToServer(new PacketManagerClearLogs(manager.xCoord, manager.yCoord, manager.zCoord));
+            SFMNetwork.WRAPPER
+                .sendToServer(new PacketManagerClearLogs(manager.xCoord, manager.yCoord, manager.zCoord, token));
             logs.clear();
             scrollOffset = 0;
             scrollColOffset = 0;
@@ -242,7 +268,7 @@ public class GuiLogs extends GuiScreen {
             currentLogLevel = lvl;
             manager.setLogLevel(lvl);
             SFMNetwork.WRAPPER.sendToServer(
-                new PacketManagerSetLogLevel(manager.xCoord, manager.yCoord, manager.zCoord, lvl.name(), false));
+                new PacketManagerSetLogLevel(manager.xCoord, manager.yCoord, manager.zCoord, lvl.name(), false, token));
             updateLevelButtons();
         }
     }

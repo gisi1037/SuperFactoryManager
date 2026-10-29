@@ -8,7 +8,9 @@ import java.util.regex.Pattern;
 
 public class SyntaxSnippet {
 
-    private static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("<([^>]+)>");
+    // A placeholder is a short named token, never an expression or an operator.
+    // In particular, do not consume `<`, `<=` or `<<` through a later `>`.
+    public static final Pattern PLACEHOLDER_PATTERN = Pattern.compile("(?<!<)<[A-Za-z0-9_][A-Za-z0-9_ .:/-]*>");
 
     private final String id;
     private final String title;
@@ -54,6 +56,17 @@ public class SyntaxSnippet {
 
     public List<String> getPlaceholders() {
         return placeholders;
+    }
+
+    /** Includes the end boundary so a placeholder selected by Tab is replaced as one token. */
+    public static int[] placeholderAt(String source, int caret) {
+        if (caret < 0 || caret > source.length()) return null;
+        Matcher matcher = PLACEHOLDER_PATTERN.matcher(source);
+        while (matcher.find()) {
+            if (matcher.start() > caret) return null;
+            if (caret <= matcher.end()) return new int[] { matcher.start(), matcher.end() };
+        }
+        return null;
     }
 
     @Override

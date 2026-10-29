@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.Token;
@@ -82,6 +83,7 @@ public final class SfmlHighlighter {
         lexer.INCLUDE_UNUSED = true;
         lexer.removeErrorListeners();
         List<? extends Token> tokens = lexer.getAllTokens();
+        boolean[] functionNames = findFunctionNames(tokens);
         Style[] colors = new Style[source.length()];
         Arrays.fill(colors, Style.TEXT);
         // ANTLR indexes code points; Java strings and the editor index UTF-16 code units.
@@ -94,7 +96,7 @@ public final class SfmlHighlighter {
         offsets[cp] = source.length();
         for (int i = 0; i < tokens.size(); i++) {
             Token token = tokens.get(i);
-            Style style = classify(tokens, i);
+            Style style = classify(tokens, i, functionNames);
             if (style != Style.TEXT) {
                 Arrays.fill(colors, offsets[token.getStartIndex()], offsets[token.getStopIndex() + 1], style);
             }
@@ -117,10 +119,28 @@ public final class SfmlHighlighter {
         return new Highlighted(lines);
     }
 
-    private static Style classify(List<? extends Token> tokens, int index) {
+    private static Style classify(List<? extends Token> tokens, int index, boolean[] functionNames) {
         int type = tokens.get(index)
             .getType();
+        if (isFunctionType(tokens, index, functionNames)) return Style.KEYWORD;
         if (isIdentifier(type) && isResourcePart(tokens, index)) return Style.RESOURCE;
+        if (isTypedCall(tokens, index)) return Style.ACTION;
+        if (functionNames[index]) return Style.ACTION;
+        if (type == SFMLLexer.RISING || type == SFMLLexer.FALLING)
+            return isNamedRedstoneEdge(tokens, index) ? Style.FLOW : Style.LABEL;
+        if (type == SFMLLexer.FUNCTION || type == SFMLLexer.RETURNS || type == SFMLLexer.RETURN)
+            return isFunctionFlow(tokens, index, functionNames) ? Style.FLOW : Style.LABEL;
+        if (type == SFMLLexer.TRANSFER) return Style.LABEL; // Calls were already classified above.
+        if (type == SFMLLexer.INTO) {
+            int before = previousVisible(tokens, index), after = nextVisible(tokens, index);
+            return before >= 0 && tokens.get(before)
+                .getType() == SFMLLexer.RPAREN
+                && after < tokens.size()
+                && tokens.get(after)
+                    .getType() == SFMLLexer.VARIABLE ? Style.KEYWORD : Style.LABEL;
+        }
+        if (type == SFMLLexer.FOR || type == SFMLLexer.WHILE || type == SFMLLexer.STEP)
+            return isLoopFlow(tokens, index) ? Style.FLOW : Style.LABEL;
         switch (type) {
             case SFMLLexer.VARIABLE:
                 return Style.VARIABLE;
@@ -132,10 +152,12 @@ public final class SfmlHighlighter {
             case SFMLLexer.NUMBER_WITH_G_SUFFIX:
                 return Style.NUMBER;
             case SFMLLexer.IDENTIFIER:
+            case SFMLLexer.PRINT:
                 return Style.LABEL;
             case SFMLLexer.COLON:
             case SFMLLexer.SLASH:
                 return Style.RESOURCE;
+            case SFMLLexer.TRANSFER:
             case SFMLLexer.INPUT:
             case SFMLLexer.OUTPUT:
             case SFMLLexer.FORGET:
@@ -160,6 +182,8 @@ public final class SfmlHighlighter {
             case SFMLLexer.GT_SYMBOL:
             case SFMLLexer.LT_SYMBOL:
             case SFMLLexer.EQ_SYMBOL:
+            case SFMLLexer.EQ_ALIAS:
+            case SFMLLexer.NE_SYMBOL:
             case SFMLLexer.GE_SYMBOL:
             case SFMLLexer.LE_SYMBOL:
             case SFMLLexer.AND:
@@ -168,6 +192,13 @@ public final class SfmlHighlighter {
             case SFMLLexer.HASHTAG:
             case SFMLLexer.PLUS:
             case SFMLLexer.PERCENT:
+            case SFMLLexer.BIT_AND:
+            case SFMLLexer.BIT_OR:
+            case SFMLLexer.BIT_XOR:
+            case SFMLLexer.BIT_NOT:
+            case SFMLLexer.SHIFT_LEFT:
+            case SFMLLexer.SHIFT_RIGHT:
+            case SFMLLexer.SHIFT_UNSIGNED_RIGHT:
             case SFMLLexer.DOT:
             case SFMLLexer.DASH:
                 return Style.OPERATOR;
@@ -177,6 +208,7 @@ public final class SfmlHighlighter {
             case SFMLLexer.ONE:
             case SFMLLexer.LONE:
             case SFMLLexer.FROM:
+            case SFMLLexer.INTO:
             case SFMLLexer.TO:
             case SFMLLexer.WHERE:
             case SFMLLexer.SLOTS:
@@ -223,6 +255,206 @@ public final class SfmlHighlighter {
         }
     }
 
+    private static boolean isTypedCall(List<? extends Token> tokens, int index) {
+        Token token = tokens.get(index);
+        if (token.getChannel() != Token.DEFAULT_CHANNEL) return false;
+        int after = index + 1, before = index - 1;
+        while (after < tokens.size() && tokens.get(after)
+            .getChannel() != Token.DEFAULT_CHANNEL) after++;
+        if (after == tokens.size() || tokens.get(after)
+            .getType() != SFMLLexer.LPAREN) return false;
+        while (before >= 0 && tokens.get(before)
+            .getChannel() != Token.DEFAULT_CHANNEL) before--;
+        int previous = before < 0 ? Token.EOF
+            : tokens.get(before)
+                .getType();
+        String name = token.getText()
+            .toUpperCase(Locale.ROOT);
+        if (name.equals("COUNT") || name.equals("EMPTY")
+            || name.equals("AVAILABLE")
+            || name.equals("CONTENTS")
+            || name.equals("REDSTONE")
+            || name.equals("POWERED")
+            || name.equals("REDSTONEAVAILABLE")
+            || name.equals("SIDE")
+            || name.equals("SLOTS")) return previous == SFMLLexer.DOT;
+        return (name.equals("LABEL") || name.equals("ITEM") || name.equals("ORE") || name.equals("PRINT"))
+            && previous != SFMLLexer.DOT
+            && !isResourcePart(tokens, index);
+    }
+
+    private static boolean isFunctionType(List<? extends Token> tokens, int index, boolean[] functionNames) {
+        String word = tokens.get(index)
+            .getText()
+            .toUpperCase(Locale.ROOT);
+        if (!(word.equals("INTEGER") || word.equals("BOOLEAN")
+            || word.equals("STRING")
+            || word.equals("LABEL_REF")
+            || word.equals("RESOURCE_SELECTOR")
+            || word.equals("ITEM_KEY")
+            || word.equals("ITEM_CONTENTS")
+            || word.equals("ITEM_LOCATIONS"))) return false;
+        for (int i = previousVisible(tokens, index); i >= 0; i = previousVisible(tokens, i)) {
+            int type = tokens.get(i)
+                .getType();
+            if (type == SFMLLexer.FUNCTION) return isFunctionFlow(tokens, i, functionNames);
+            if (type == SFMLLexer.DO || type == SFMLLexer.END
+                || type == SFMLLexer.INPUT
+                || type == SFMLLexer.OUTPUT
+                || type == SFMLLexer.LET
+                || type == SFMLLexer.STATE) return false;
+        }
+        return false;
+    }
+
+    /** Classify each dotted chain once instead of walking it again for every word. */
+    private static boolean[] findFunctionNames(List<? extends Token> tokens) {
+        boolean[] names = new boolean[tokens.size()];
+        for (int first = 0; first < tokens.size(); first++) {
+            if (!isFunctionIdentifier(
+                tokens.get(first)
+                    .getType()))
+                continue;
+            int last = first;
+            for (int dot = nextVisible(tokens, last); dot < tokens.size() && tokens.get(dot)
+                .getType() == SFMLLexer.DOT;) {
+                int word = nextVisible(tokens, dot);
+                if (word >= tokens.size() || !isFunctionIdentifier(
+                    tokens.get(word)
+                        .getType()))
+                    break;
+                last = word;
+                dot = nextVisible(tokens, last);
+            }
+            int before = previousVisible(tokens, first), after = nextVisible(tokens, last);
+            if ((before < 0 || tokens.get(before)
+                .getType() != SFMLLexer.DOT) && after < tokens.size()
+                && tokens.get(after)
+                    .getType() == SFMLLexer.LPAREN) {
+                for (int word = first; word <= last; word++) {
+                    names[word] = isFunctionIdentifier(
+                        tokens.get(word)
+                            .getType());
+                }
+            }
+            first = last;
+        }
+        return names;
+    }
+
+    private static boolean isFunctionIdentifier(int type) {
+        return type == SFMLLexer.IDENTIFIER || type == SFMLLexer.RISING
+            || type == SFMLLexer.FALLING
+            || type == SFMLLexer.TRANSFER
+            || type == SFMLLexer.INTO;
+    }
+
+    private static boolean isNamedRedstoneEdge(List<? extends Token> tokens, int index) {
+        int before = previousVisible(tokens, index), after = nextVisible(tokens, index);
+        if (before < 0 || tokens.get(before)
+            .getType() != SFMLLexer.REDSTONE
+            || after >= tokens.size()
+            || tokens.get(after)
+                .getType() != SFMLLexer.FROM)
+            return false;
+        int every = previousVisible(tokens, before);
+        return every >= 0 && tokens.get(every)
+            .getType() == SFMLLexer.EVERY;
+    }
+
+    private static boolean isFunctionFlow(List<? extends Token> tokens, int index, boolean[] functionNames) {
+        int before = previousVisible(tokens, index), after = nextVisible(tokens, index);
+        int previous = before >= 0 ? tokens.get(before)
+            .getType() : Token.EOF;
+        int next = after < tokens.size() ? tokens.get(after)
+            .getType() : Token.EOF;
+        if (previous == SFMLLexer.DOT || previous == SFMLLexer.FROM
+            || previous == SFMLLexer.TO
+            || previous == SFMLLexer.EACH
+            || previous == SFMLLexer.FORGET
+            || previous == SFMLLexer.COMMA) return false;
+        if (tokens.get(index)
+            .getType() == SFMLLexer.FUNCTION) return after < tokens.size() && functionNames[after];
+        if (tokens.get(index)
+            .getType() == SFMLLexer.RETURNS) return previous == SFMLLexer.RPAREN;
+        return next == SFMLLexer.VARIABLE || next == SFMLLexer.NUMBER
+            || next == SFMLLexer.STRING
+            || next == SFMLLexer.LPAREN
+            || next == SFMLLexer.LBRACKET
+            || next == SFMLLexer.LBRACE
+            || next == SFMLLexer.TRUE
+            || next == SFMLLexer.FALSE
+            || next == SFMLLexer.NOT
+            || next == SFMLLexer.PLUS
+            || next == SFMLLexer.DASH
+            || next == SFMLLexer.BIT_NOT
+            || isIdentifier(next);
+    }
+
+    /** Loop words remain legal legacy labels/resources; color the new header syntax only. */
+    private static boolean isLoopFlow(List<? extends Token> tokens, int index) {
+        int after = nextVisible(tokens, index);
+        int next = after < tokens.size() ? tokens.get(after)
+            .getType() : Token.EOF;
+        int before = previousVisible(tokens, index);
+        int previous = before >= 0 ? tokens.get(before)
+            .getType() : Token.EOF;
+        if (previous == SFMLLexer.DOT) return false;
+        switch (tokens.get(index)
+            .getType()) {
+            case SFMLLexer.FOR:
+                return next == SFMLLexer.VARIABLE;
+            case SFMLLexer.WHILE:
+                if (previous == SFMLLexer.FROM || previous == SFMLLexer.TO
+                    || previous == SFMLLexer.EACH
+                    || previous == SFMLLexer.COMMA
+                    || previous == SFMLLexer.FORGET) return false;
+                return next == SFMLLexer.LPAREN || next == SFMLLexer.TRUE
+                    || next == SFMLLexer.FALSE
+                    || next == SFMLLexer.NOT
+                    || next == SFMLLexer.REDSTONE
+                    || next == SFMLLexer.OVERALL
+                    || next == SFMLLexer.SOME
+                    || next == SFMLLexer.EVERY
+                    || next == SFMLLexer.ONE
+                    || next == SFMLLexer.LONE
+                    || isIdentifier(next);
+            case SFMLLexer.STEP:
+                boolean hasTo = false;
+                for (int i = before; i >= 0; i = previousVisible(tokens, i)) {
+                    int type = tokens.get(i)
+                        .getType();
+                    if (type == SFMLLexer.FOR) return hasTo && nextVisible(tokens, i) < tokens.size()
+                        && tokens.get(nextVisible(tokens, i))
+                            .getType() == SFMLLexer.VARIABLE;
+                    if (type == SFMLLexer.TO) hasTo = true;
+                    if (type == SFMLLexer.DO || type == SFMLLexer.END
+                        || type == SFMLLexer.INPUT
+                        || type == SFMLLexer.OUTPUT
+                        || type == SFMLLexer.FORGET) return false;
+                }
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    private static int nextVisible(List<? extends Token> tokens, int index) {
+        do {
+            index++;
+        } while (index < tokens.size() && tokens.get(index)
+            .getChannel() != Token.DEFAULT_CHANNEL);
+        return index;
+    }
+
+    private static int previousVisible(List<? extends Token> tokens, int index) {
+        do {
+            index--;
+        } while (index >= 0 && tokens.get(index)
+            .getChannel() != Token.DEFAULT_CHANNEL);
+        return index;
+    }
+
     private static boolean isResourcePart(List<? extends Token> tokens, int index) {
         int before = index - 1;
         int after = index + 1;
@@ -244,10 +476,21 @@ public final class SfmlHighlighter {
     // Match the grammar's identifier rule, including words that also have keyword tokens.
     private static boolean isIdentifier(int type) {
         switch (type) {
+            case SFMLLexer.TRANSFER:
+            case SFMLLexer.INTO:
             case SFMLLexer.IDENTIFIER:
             case SFMLLexer.LET:
             case SFMLLexer.SET:
             case SFMLLexer.STATE:
+            case SFMLLexer.PRINT:
+            case SFMLLexer.FUNCTION:
+            case SFMLLexer.RETURNS:
+            case SFMLLexer.RETURN:
+            case SFMLLexer.FOR:
+            case SFMLLexer.WHILE:
+            case SFMLLexer.STEP:
+            case SFMLLexer.RISING:
+            case SFMLLexer.FALLING:
             case SFMLLexer.REDSTONE:
             case SFMLLexer.LEVEL:
             case SFMLLexer.LEVELS:

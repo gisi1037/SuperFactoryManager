@@ -35,10 +35,56 @@ import ca.teamdman.sfml.ast.RedstoneOutputStatement;
 import ca.teamdman.sfml.ast.ResourceLimit;
 import ca.teamdman.sfml.ast.ResourceLimits;
 
-public final class ProgramContext {
+public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
 
     private ca.teamdman.sfml.data.StateAccess stateAccess;
     private ca.teamdman.sfml.data.DataRuntime dataRuntime;
+    private ItemQueryService itemQueries;
+    private RedstoneQueryService redstoneQueries;
+    private ca.teamdman.sfml.data.QueryBudget invocationQueryBudget;
+    private RedstoneTriggerTracker redstoneTracker;
+    private Map<ca.teamdman.sfml.ast.NamedRedstoneTrigger, Boolean> namedRedstoneEdges = Collections.emptyMap();
+    public static final int MAX_NATIVE_REDSTONE_WRITES = 256;
+    private int nativeRedstoneWrites;
+    public static final int MAX_NATIVE_ITEM_ACTIONS = 64;
+    private int nativeItemActions;
+    public static final int MAX_PRINT_LINES = 16;
+    private int printedLines;
+    public static final int MAX_LOOP_INPUT_REGISTRATIONS = 256;
+    private int loopDepth, loopInputRegistrations;
+
+    public boolean isInLoop() {
+        return loopDepth > 0;
+    }
+
+    public void enterLoop() {
+        if (loopDepth >= 16) throw new IllegalArgumentException("Loop nesting exceeds 16");
+        loopDepth++;
+    }
+
+    public void exitLoop() {
+        loopDepth--;
+    }
+
+    public boolean hasDebugOutputEnabled() {
+        return manager != null && manager.hasDebugOutputEnabled();
+    }
+
+    public DebugConsole getDebugConsole() {
+        if (manager == null) throw new IllegalStateException("Debug output requires a manager");
+        return manager.getDebugConsole();
+    }
+
+    /** Reserve before evaluating PRINT arguments, across every due trigger in this invocation. */
+    public boolean tryBeginPrint() {
+        if (!hasDebugOutputEnabled()) return false;
+        if (printedLines >= MAX_PRINT_LINES) {
+            getDebugConsole().recordDroppedLine();
+            return false;
+        }
+        printedLines++;
+        return true;
+    }
 
     public void setStateAccess(ca.teamdman.sfml.data.StateAccess stateAccess) {
         this.stateAccess = stateAccess;
@@ -46,6 +92,23 @@ public final class ProgramContext {
 
     public ca.teamdman.sfml.data.StateAccess getStateAccess() {
         return stateAccess;
+    }
+
+    private ca.teamdman.sfml.ast.Program globalProgram;
+    private ca.teamdman.sfml.data.ProgramGlobals programGlobals;
+
+    public ca.teamdman.sfml.data.ProgramGlobals getProgramGlobals(ca.teamdman.sfml.ast.Program program) {
+        if (manager != null) programGlobals = manager.getProgramGlobals(program);
+        else if (globalProgram != program || programGlobals == null)
+            programGlobals = new ca.teamdman.sfml.data.ProgramGlobals(program.getGlobalDeclarations());
+        globalProgram = program;
+        return programGlobals;
+    }
+
+    public void setProgramGlobals(ca.teamdman.sfml.ast.Program program, ca.teamdman.sfml.data.ProgramGlobals values) {
+        if (manager != null) manager.setProgramGlobals(program, values);
+        globalProgram = program;
+        programGlobals = values;
     }
 
     public ca.teamdman.sfml.data.DataRuntime getDataRuntime() {
@@ -56,7 +119,107 @@ public final class ProgramContext {
     public void beginDataInvocation(int localCount, boolean needsState) {
         if (needsState && stateAccess == null)
             throw new IllegalStateException("Persistent STATE requires an active disk state store");
-        dataRuntime = new ca.teamdman.sfml.data.DataRuntime(stateAccess, localCount);
+        dataRuntime = new ca.teamdman.sfml.data.DataRuntime(stateAccess, localCount, this, getInvocationQueryBudget());
+        dataRuntime.setGlobals(programGlobals);
+        printedLines = 0;
+        nativeItemActions = 0;
+        loopDepth = loopInputRegistrations = 0;
+    }
+
+    public ca.teamdman.sfml.data.QueryBudget getInvocationQueryBudget() {
+        if (invocationQueryBudget == null) invocationQueryBudget = new ca.teamdman.sfml.data.QueryBudget();
+        return invocationQueryBudget;
+    }
+
+    /** Injection also lets headless fixtures retain one manager's history across contexts. */
+    public void setRedstoneTracker(RedstoneTriggerTracker tracker) {
+        redstoneTracker = tracker;
+    }
+
+    public void prepareNamedRedstoneTriggers(List<ca.teamdman.sfml.ast.NamedRedstoneTrigger> triggers) {
+        if (redstoneTracker == null)
+            redstoneTracker = manager == null ? new RedstoneTriggerTracker() : manager.getRedstoneTriggerTracker();
+        namedRedstoneEdges = redstoneTracker.capture(this, triggers, getInvocationQueryBudget());
+    }
+
+    public boolean hasNamedRedstoneEdge(ca.teamdman.sfml.ast.NamedRedstoneTrigger trigger) {
+        return Boolean.TRUE.equals(namedRedstoneEdges.get(trigger));
+    }
+
+    private ItemQueryService itemQueries() {
+        if (itemQueries == null) itemQueries = new ItemQueryService(this);
+        return itemQueries;
+    }
+
+    private RedstoneQueryService redstoneQueries() {
+        if (redstoneQueries == null) redstoneQueries = new RedstoneQueryService(this);
+        return redstoneQueries;
+    }
+
+    @Override
+    public long redstone(ca.teamdman.sfml.data.LabelReference source, ca.teamdman.sfml.data.QueryBudget budget) {
+        return redstoneQueries().redstone(source, budget);
+    }
+
+    @Override
+    public boolean powered(ca.teamdman.sfml.data.LabelReference source, ca.teamdman.sfml.data.QueryBudget budget) {
+        return redstoneQueries().powered(source, budget);
+    }
+
+    @Override
+    public boolean redstoneAvailable(ca.teamdman.sfml.data.LabelReference source,
+        ca.teamdman.sfml.data.QueryBudget budget) {
+        return redstoneQueries().available(source, budget);
+    }
+
+    @Override
+    public long count(ca.teamdman.sfml.data.LabelReference source, ca.teamdman.sfml.data.ResourceSelector selector,
+        ca.teamdman.sfml.data.QueryBudget budget) {
+        return itemQueries().count(source, selector, budget);
+    }
+
+    @Override
+    public boolean empty(ca.teamdman.sfml.data.LabelReference source, ca.teamdman.sfml.data.ResourceSelector selector,
+        ca.teamdman.sfml.data.QueryBudget budget) {
+        return itemQueries().empty(source, selector, budget);
+    }
+
+    @Override
+    public boolean available(ca.teamdman.sfml.data.LabelReference source,
+        ca.teamdman.sfml.data.ResourceSelector selector, ca.teamdman.sfml.data.QueryBudget budget) {
+        return itemQueries().available(source, selector, budget);
+    }
+
+    @Override
+    public ca.teamdman.sfml.data.ItemContents contents(ca.teamdman.sfml.data.LabelReference source,
+        ca.teamdman.sfml.data.ResourceSelector selector, ca.teamdman.sfml.data.QueryBudget budget) {
+        return itemQueries().contents(source, selector, budget);
+    }
+
+    public ca.teamdman.sfml.data.ItemTransferResult transferItems(ca.teamdman.sfml.data.LabelReference source,
+        ca.teamdman.sfml.data.LabelReference destination, ca.teamdman.sfml.data.DataValue itemOrSelector, long amount) {
+        ItemTransferService.validateArguments(source, destination, itemOrSelector, amount);
+        if (amount != 0) beginNativeItemAction();
+        return new ItemTransferService(this).transfer(source, destination, itemOrSelector, amount);
+    }
+
+    public ca.teamdman.sfml.data.ItemTransferResult transferItems(ca.teamdman.sfml.data.LabelReference source,
+        ca.teamdman.sfml.data.LabelReference destination, ca.teamdman.sfml.data.DataValue itemOrSelector) {
+        ItemTransferService.validateArguments(source, destination, itemOrSelector, 0);
+        // Automatic amounts can mutate: reserve authority/action credit before observing providers.
+        beginNativeItemAction();
+        return new ItemTransferService(this).transfer(source, destination, itemOrSelector);
+    }
+
+    private void beginNativeItemAction() {
+        if (manager == null || manager.getDisk() == null
+            || !(manager.getDisk()
+                .getItem() instanceof ca.teamdman.sfm.common.item.ItemDisk))
+            throw new IllegalStateException("Native item transfers require an active recovery disk");
+        if (manager.hasPendingRecovery()) throw new IllegalStateException("Item transfer paused: pending recovery");
+        if (nativeItemActions >= MAX_NATIVE_ITEM_ACTIONS)
+            throw new IllegalArgumentException("Native item transfer action limit exceeded");
+        nativeItemActions++;
     }
 
     private final World world;
@@ -185,8 +348,18 @@ public final class ProgramContext {
     }
 
     public void addInputStatement(InputStatement stmt) {
+        if (isInLoop()) {
+            // Count executions, not active registrations: FORGET must not mint a new allowance.
+            if (loopInputRegistrations >= MAX_LOOP_INPUT_REGISTRATIONS)
+                throw new IllegalArgumentException("Loop input registration budget exhausted (256)");
+            loopInputRegistrations++;
+        }
         stmt = stmt.resolve(this);
         inputs.add(stmt);
+        forgetInputCache(stmt);
+    }
+
+    private void forgetInputCache(InputStatement stmt) {
         inputCache.remove(stmt);
         inputPositions.remove(stmt);
         fluidInputQuotas.remove(stmt);
@@ -208,6 +381,7 @@ public final class ProgramContext {
             if (!found) continue;
             if (keep.isEmpty()) {
                 inputs.remove(i);
+                forgetInputCache(old);
                 continue;
             }
             ca.teamdman.sfml.ast.LabelAccess access = new ca.teamdman.sfml.ast.LabelAccess(
@@ -233,6 +407,7 @@ public final class ProgramContext {
             if (fluidInputQuotas.containsKey(old)) fluidInputQuotas.put(replacement, fluidInputQuotas.get(old));
             if (fluidReservations.containsKey(old)) fluidReservations.put(replacement, fluidReservations.get(old));
             if (reservedFluids.containsKey(old)) reservedFluids.put(replacement, reservedFluids.get(old));
+            forgetInputCache(old);
         }
     }
 
@@ -246,31 +421,43 @@ public final class ProgramContext {
     }
 
     public void executeRedstoneOutput(RedstoneOutputStatement stmt) {
-        List<BlockPos> outPositions = stmt.getLabelAccess()
-            .getPositions(getLabelPositionHolder());
+        // Evaluate once before selection, round-robin advancement, or any world mutation.
+        int strength = stmt.evaluateLevel(this);
         List<ForgeDirection> outSides = stmt.getLabelAccess()
             .getSides()
             .resolveDirections();
-
-        int strength = stmt.getLevel();
+        if (outSides.isEmpty() || outSides.contains(null) || outSides.contains(ForgeDirection.UNKNOWN))
+            throw new IllegalArgumentException("Redstone OUTPUT requires absolute physical sides");
+        if (world == null || network == null) return;
+        if (world.isRemote || net.minecraft.server.MinecraftServer.getServer() != null
+            && !ca.teamdman.sfm.common.net.ServerUiTasks.isServerThread())
+            throw new IllegalArgumentException("Redstone OUTPUT requires server-thread execution");
+        List<BlockPos> outPositions = stmt.getLabelAccess()
+            .getPositions(getLabelPositionHolder());
         boolean anyEmitted = false;
-
-        if (Compat.isSFMLoaded()) {
-            for (BlockPos outPos : outPositions) {
-                if (!network.isConnected(outPos)) {
-                    if (isLogging(LogLevel.TRACE))
-                        log(LogLevel.TRACE, "Block not connected to cable network: " + outPos);
-                    continue;
+        for (BlockPos outPos : outPositions) {
+            if (!outPos.isLoaded(world) || !network.isConnected(outPos)) {
+                if (isLogging(LogLevel.TRACE)) log(LogLevel.TRACE, "Block not connected to cable network: " + outPos);
+                continue;
+            }
+            TileEntity tile = outPos.getTileEntity(world);
+            boolean changed = false;
+            if (tile instanceof ca.teamdman.sfm.common.tileentity.TileEntityRedstonePort) {
+                if (!tile.isInvalid()) {
+                    // Count attempts, including unchanged levels, across every due trigger and loop.
+                    if (nativeRedstoneWrites >= MAX_NATIVE_REDSTONE_WRITES)
+                        throw new IllegalArgumentException("Native redstone OUTPUT write budget exhausted (256)");
+                    nativeRedstoneWrites++;
+                    changed = ((ca.teamdman.sfm.common.tileentity.TileEntityRedstonePort) tile)
+                        .setOutput(outSides, strength);
                 }
-                if (SteveFMCompat.isEmitter(world, outPos)) {
-                    boolean success = SteveFMCompat.setRedstoneOutput(world, outPos, outSides, strength, true);
-                    if (success) {
-                        anyEmitted = true;
-                        if (isLogging(LogLevel.INFO)) log(
-                            LogLevel.INFO,
-                            String.format("Set redstone emitter at %s to strength %d", outPos, strength));
-                    }
-                }
+            } else if (Compat.isSFMLoaded() && SteveFMCompat.isEmitter(world, outPos)) {
+                changed = SteveFMCompat.setRedstoneOutput(world, outPos, outSides, strength, true);
+            }
+            if (changed) {
+                anyEmitted = true;
+                if (isLogging(LogLevel.INFO))
+                    log(LogLevel.INFO, String.format("Set redstone port at %s to strength %d", outPos, strength));
             }
         }
 
@@ -531,7 +718,7 @@ public final class ProgramContext {
                 current = inSlot.inv.getStackInSlot(inSlot.slot);
                 if (current == null || !InventoryUtils.areItemStacksEqual(current, inSlot.stack)) break;
                 // Do not count a no-op transfer as satisfying an OUTPUT quota.
-                if (inSlot.inv == outSlot.inv && inSlot.slot == outSlot.slot) continue;
+                if (InventoryUtils.samePhysicalSlot(inSlot.inv, inSlot.slot, outSlot.inv, outSlot.slot)) continue;
                 if (inSlot.pos.equals(outSlot.pos) && inSlot.slot == outSlot.slot) continue;
                 TransferQuota target = quota(outputQuotas, outputStmt.isEach() ? outSlot.pos : null, outLimit);
                 long available = Math.min(current.stackSize - inSlot.retained, inSlot.quota.remaining(key, false));
@@ -541,32 +728,9 @@ public final class ProgramContext {
                 if (amount <= 0) continue;
                 ItemStack probe = current.copy();
                 probe.stackSize = amount;
-                int accepted = InventoryUtils
-                    .insertItem(outSlot.inv, outSlot.slot, outSlot.side, probe, true, outSlot.emptySlotsOnly);
-                if (accepted <= 0) continue;
-                ItemStack extracted;
-                try {
-                    extracted = InventoryUtils.extractItem(inSlot.inv, inSlot.slot, inSlot.side, accepted, false);
-                } catch (RuntimeException e) {
-                    // Extraction/markDirty can throw after changing the source: ownership is unknown.
-                    probe.stackSize = accepted;
-                    preserveItem(inSlot, outSlot, probe, true, "extraction");
-                    throw e;
-                }
-                if (extracted == null) break;
-                int inserted;
-                try {
-                    inserted = InventoryUtils
-                        .insertItem(outSlot.inv, outSlot.slot, outSlot.side, extracted, false, outSlot.emptySlotsOnly);
-                } catch (RuntimeException e) {
-                    preserveItem(inSlot, outSlot, extracted, true, "destination insertion");
-                    throw e;
-                }
-                if (inserted < extracted.stackSize) {
-                    ItemStack remainder = extracted.copy();
-                    remainder.stackSize -= inserted;
-                    restoreItem(inSlot, outSlot, remainder);
-                }
+                int inserted = moveItemPair(inSlot, outSlot, probe, null);
+                if (inserted == -2) continue;
+                if (inserted < 0) break;
                 inSlot.quota.moved(key, inserted, false);
                 target.moved(key, inserted, true);
                 if (isLogging(LogLevel.INFO))
@@ -585,7 +749,132 @@ public final class ProgramContext {
             .computeIfAbsent(limit, TransferQuota::new);
     }
 
-    private void restoreItem(InputSlot source, OutputSlot target, ItemStack remainder) {
+    /** Shared pair sequencing/recovery; null guard retains the legacy InventoryUtils path. */
+    int moveItemPair(ItemMoveEndpoint source, ItemMoveEndpoint target, ItemStack probe, ItemMoveGuard guard) {
+        int accepted = guard == null
+            ? InventoryUtils.insertItem(target.inv, target.slot, target.side, probe, true, target.emptySlotsOnly)
+            : guard.simulate(probe);
+        if (accepted <= 0 || guard != null && !guard.beforeExtract(probe, accepted)) return -2;
+        ItemStack extracted;
+        try {
+            extracted = guard == null
+                ? InventoryUtils.extractItem(source.inv, source.slot, source.side, accepted, false)
+                : guard.extract(accepted);
+        } catch (RuntimeException failure) {
+            if (guard == null || guard.extractionAttempted()) {
+                probe.stackSize = guard == null ? accepted : guard.attemptedAmount();
+                preserveItem(source, target, probe, true, "extraction");
+            }
+            throw failure;
+        }
+        if (extracted == null) {
+            if (guard != null && guard.extractionAttempted()) {
+                probe.stackSize = guard.attemptedAmount();
+                preserveItem(source, target, probe, true, "empty extraction result");
+                throw new IllegalStateException("Item transfer paused: empty extraction result preserved for review");
+            }
+            return -1;
+        }
+        if (guard != null) {
+            try {
+                if (extracted.stackSize <= 0 || extracted.stackSize > guard.attemptedAmount()
+                    || !guard.acceptExtracted(extracted))
+                    throw new IllegalStateException(
+                        "Item transfer returned an unexpected extracted identity or amount");
+            } catch (RuntimeException failure) {
+                // The returned payload may contain oversized/corrupt NBT or may have changed during
+                // validation. Preserve the bounded pre-extraction evidence for manual review only.
+                probe.stackSize = guard.attemptedAmount();
+                preserveItem(source, target, probe, true, "unvalidated extraction result");
+                throw failure;
+            }
+        }
+        int inserted;
+        try {
+            inserted = guard == null
+                ? InventoryUtils
+                    .insertItem(target.inv, target.slot, target.side, extracted, false, target.emptySlotsOnly)
+                : guard.insert(extracted);
+        } catch (RuntimeException failure) {
+            preserveItem(source, target, extracted, true, "destination insertion");
+            throw failure;
+        }
+        if (inserted < extracted.stackSize) {
+            ItemStack remainder = extracted.copy();
+            remainder.stackSize -= inserted;
+            try {
+                // This work was reserved before extraction. Recovery has no new query-budget gate.
+                if (guard == null) restoreItem(source, target, remainder);
+                else {
+                    boolean restored;
+                    try {
+                        restored = guard.restore(remainder);
+                    } catch (RuntimeException failure) {
+                        if (manager == null || !manager.hasPendingRecovery())
+                            preserveItem(source, target, remainder, true, "source rollback");
+                        throw failure;
+                    }
+                    if (!restored) {
+                        preserveItem(source, target, remainder, false, "source unavailable for rollback");
+                        throw new IllegalStateException("Item transfer paused: remainder preserved on disk");
+                    }
+                }
+            } catch (RuntimeException failure) {
+                if (guard != null) throw new ItemMoveFailure(inserted, failure);
+                throw failure;
+            }
+        }
+        return inserted;
+    }
+
+    public static class ItemMoveEndpoint {
+
+        public final net.minecraft.inventory.IInventory inv;
+        public final BlockPos pos;
+        public final int slot;
+        public final ForgeDirection side;
+        public final boolean emptySlotsOnly;
+
+        ItemMoveEndpoint(net.minecraft.inventory.IInventory inv, BlockPos pos, int slot, ForgeDirection side,
+            boolean emptySlotsOnly) {
+            this.inv = inv;
+            this.pos = pos;
+            this.slot = slot;
+            this.side = side;
+            this.emptySlotsOnly = emptySlotsOnly;
+        }
+    }
+
+    interface ItemMoveGuard {
+
+        int simulate(ItemStack probe);
+
+        boolean beforeExtract(ItemStack probe, int accepted);
+
+        ItemStack extract(int amount);
+
+        boolean extractionAttempted();
+
+        int attemptedAmount();
+
+        boolean acceptExtracted(ItemStack extracted);
+
+        int insert(ItemStack extracted);
+
+        boolean restore(ItemStack remainder);
+    }
+
+    static final class ItemMoveFailure extends RuntimeException {
+
+        final int moved;
+
+        ItemMoveFailure(int moved, RuntimeException cause) {
+            super(cause.getMessage(), cause);
+            this.moved = moved;
+        }
+    }
+
+    private void restoreItem(ItemMoveEndpoint source, ItemMoveEndpoint target, ItemStack remainder) {
         try {
             ItemStack current = source.inv.getStackInSlot(source.slot);
             if (current == null) source.inv.setInventorySlotContents(source.slot, remainder.copy());
@@ -607,7 +896,8 @@ public final class ProgramContext {
         }
     }
 
-    private void preserveItem(InputSlot source, OutputSlot target, ItemStack stack, boolean uncertain, String stage) {
+    private void preserveItem(ItemMoveEndpoint source, ItemMoveEndpoint target, ItemStack stack, boolean uncertain,
+        String stage) {
         if (manager == null) throw new IllegalStateException("Item recovery requires a manager");
         NBTTagCompound record = manager.preserveItem(stack, source.pos, source.slot, source.side, uncertain, stage);
         ItemRecovery.setTarget(record, target.pos, target.slot, target.side, world.provider.dimensionId);
@@ -683,26 +973,65 @@ public final class ProgramContext {
                             if (requested <= 0) break;
                             FluidStack candidate = available.copy();
                             candidate.amount = requested;
-                            int accepted = Math.max(0, Math.min(requested, dest.fill(destSide, candidate, false)));
+                            int accepted = Math
+                                .max(0, Math.min(requested, dest.fill(destSide, candidate.copy(), false)));
                             if (accepted == 0) continue;
                             candidate.amount = accepted;
                             // Fluid-specific drain prevents extracting a different fluid after callbacks.
-                            FluidStack extracted = source.drain(side, candidate, true);
+                            FluidStack extracted;
+                            try {
+                                extracted = source.drain(side, candidate.copy(), true);
+                            } catch (RuntimeException error) {
+                                preserveFluid(sourcePos, side, destPos, destSide, candidate, true, "extraction");
+                                throw error;
+                            }
                             if (extracted == null || extracted.amount <= 0) continue;
-                            int inserted = extracted.isFluidEqual(candidate)
-                                ? Math.max(0, Math.min(extracted.amount, dest.fill(destSide, extracted.copy(), true)))
-                                : 0;
+                            int inserted;
+                            try {
+                                inserted = extracted.isFluidEqual(candidate)
+                                    ? Math
+                                        .max(0, Math.min(extracted.amount, dest.fill(destSide, extracted.copy(), true)))
+                                    : 0;
+                            } catch (RuntimeException error) {
+                                preserveFluid(
+                                    sourcePos,
+                                    side,
+                                    destPos,
+                                    destSide,
+                                    extracted,
+                                    true,
+                                    "destination insertion");
+                                throw error;
+                            }
                             int leftover = extracted.amount - inserted;
                             if (leftover > 0) {
                                 FluidStack remainder = extracted.copy();
                                 remainder.amount = leftover;
-                                int returned = Math
-                                    .max(0, Math.min(leftover, source.fill(side, remainder.copy(), true)));
+                                int returned;
+                                try {
+                                    returned = Math
+                                        .max(0, Math.min(leftover, source.fill(side, remainder.copy(), true)));
+                                } catch (RuntimeException error) {
+                                    preserveFluid(
+                                        sourcePos,
+                                        side,
+                                        destPos,
+                                        destSide,
+                                        remainder,
+                                        true,
+                                        "source rollback");
+                                    throw error;
+                                }
                                 remainder.amount -= returned;
                                 if (remainder.amount > 0) {
-                                    if (manager == null)
-                                        throw new IllegalStateException("Fluid rollback requires a manager");
-                                    manager.preserveFluid(remainder, sourcePos, side);
+                                    preserveFluid(
+                                        sourcePos,
+                                        side,
+                                        destPos,
+                                        destSide,
+                                        remainder,
+                                        false,
+                                        "rollback conflict");
                                     throw new IllegalStateException(
                                         "Fluid transfer paused: remainder preserved on disk");
                                 }
@@ -719,6 +1048,18 @@ public final class ProgramContext {
         }
     }
 
+    private void preserveFluid(BlockPos source, ForgeDirection sourceSide, BlockPos target, ForgeDirection targetSide,
+        FluidStack fluid, boolean uncertain, String stage) {
+        if (manager == null) throw new IllegalStateException("Fluid recovery requires a manager");
+        NBTTagCompound record = manager.preserveFluid(fluid, source, sourceSide, uncertain, stage);
+        record.setInteger("targetX", target.x);
+        record.setInteger("targetY", target.y);
+        record.setInteger("targetZ", target.z);
+        record.setInteger("targetSide", targetSide.ordinal());
+        record.setInteger("targetDimension", world.provider.dimensionId);
+        manager.markDirty();
+    }
+
     private final Map<InputStatement, Map<Object, Map<ResourceLimit, TransferQuota>>> fluidReservations = new IdentityHashMap<>();
     private final Map<InputStatement, Map<BlockPos, Map<Object, Long>>> reservedFluids = new IdentityHashMap<>();
 
@@ -733,13 +1074,9 @@ public final class ProgramContext {
                 limit).reserve(key, amount));
     }
 
-    public static class InputSlot {
+    public static class InputSlot extends ItemMoveEndpoint {
 
         public final String label;
-        public final BlockPos pos;
-        public final ForgeDirection side;
-        public final int slot;
-        public final IInventory inv;
         public final ResourceLimit limit;
         public final ItemStack stack;
         private TransferQuota quota;
@@ -747,11 +1084,8 @@ public final class ProgramContext {
 
         public InputSlot(String label, BlockPos pos, ForgeDirection side, int slot, IInventory inv, ResourceLimit limit,
             ItemStack stack) {
+            super(inv, pos, slot, side, false);
             this.label = label;
-            this.pos = pos;
-            this.side = side;
-            this.slot = slot;
-            this.inv = inv;
             this.limit = limit;
             this.stack = stack.copy();
         }
@@ -762,25 +1096,16 @@ public final class ProgramContext {
         }
     }
 
-    public static class OutputSlot {
+    public static class OutputSlot extends ItemMoveEndpoint {
 
         public final String label;
-        public final BlockPos pos;
-        public final ForgeDirection side;
-        public final int slot;
-        public final IInventory inv;
         public final ResourceLimits limits;
-        public final boolean emptySlotsOnly;
 
         public OutputSlot(String label, BlockPos pos, ForgeDirection side, int slot, IInventory inv,
             ResourceLimits limits, boolean emptySlotsOnly) {
+            super(inv, pos, slot, side, emptySlotsOnly);
             this.label = label;
-            this.pos = pos;
-            this.side = side;
-            this.slot = slot;
-            this.inv = inv;
             this.limits = limits;
-            this.emptySlotsOnly = emptySlotsOnly;
         }
 
         @Override

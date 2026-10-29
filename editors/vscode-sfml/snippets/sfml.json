@@ -1,0 +1,177 @@
+{
+  "Program name": {
+    "prefix": "name",
+    "body": "name \"${1:Program name}\"$0",
+    "description": "Optional program header; place before declarations."
+  },
+  "Timer trigger": {
+    "prefix": "every",
+    "body": ["every ${1:20} ticks do", "  $0", "end"],
+    "description": "Run on the manager's running-tick timer."
+  },
+  "Global timer trigger": {
+    "prefix": "everyglobal",
+    "body": ["every ${1:20} global plus ${2:0} ticks do", "  $0", "end"],
+    "description": "Run against world time with a phase offset."
+  },
+  "Manager redstone pulse": {
+    "prefix": "pulse",
+    "body": ["every redstone pulse do", "  $0", "end"],
+    "description": "React to a redstone pulse at the manager."
+  },
+  "Named redstone trigger": {
+    "prefix": "redstonetrigger",
+    "body": ["every redstone ${1|rising,falling,pulse|} from ${2:signal} do", "  $0", "end"],
+    "description": "React to a labelled redstone port."
+  },
+  "Redstone output": {
+    "prefix": "redstoneout",
+    "body": "output ${1:15} redstone level to ${2:signal}$0",
+    "description": "Write a level to labelled redstone output ports."
+  },
+  "Local declaration": {
+    "prefix": "let",
+    "body": "let \\$${1:value} = ${2:0}$0",
+    "description": "Declare a local in a trigger, branch, loop or function block."
+  },
+  "Program-wide RAM declaration": {
+    "prefix": "globallet",
+    "body": "let \\$${1:runs} = ${2:0}$0",
+    "description": "Place before functions/triggers; this shared binding lives in RAM."
+  },
+  "Persistent state declaration": {
+    "prefix": "state",
+    "body": "state \\$${1:phase} = ${2:0}$0",
+    "description": "Place before functions/triggers; persistent data travels with the disk."
+  },
+  "Direct assignment": {
+    "prefix": "assign",
+    "body": "\\$${1:value} = ${2:0}$0",
+    "description": "Update an existing variable, field or array element."
+  },
+  "Conditional": {
+    "prefix": "if",
+    "body": ["if (${1:true}) then", "  $0", "end"],
+    "description": "Branch on a typed boolean expression."
+  },
+  "Conditional with else": {
+    "prefix": "ifelse",
+    "body": ["if (${1:true}) then", "  ${2:-- true branch}", "else", "  $0", "end"],
+    "description": "Choose between two blocks."
+  },
+  "Counted loop": {
+    "prefix": "for",
+    "body": ["for \\$${1:i} = ${2:0} to ${3:3} step ${4:1} do", "  $0", "end"],
+    "description": "Iterate an inclusive integer range under runtime work limits."
+  },
+  "Array or snapshot loop": {
+    "prefix": "forin",
+    "body": ["for \\$${1:entry} in \\$${2:values} do", "  $0", "end"],
+    "description": "Iterate an array or captured contents/location sequence."
+  },
+  "While loop": {
+    "prefix": "while",
+    "body": ["while (${1:false}) do", "  $0", "end"],
+    "description": "Repeat while a condition holds, subject to shared work limits."
+  },
+  "Typed player function": {
+    "prefix": "function",
+    "body": ["function ${1:next}(\\$${2:value}: integer) returns integer do", "  return \\$${2:value} + ${3:1}", "end", "$0"],
+    "description": "Place before triggers; player functions compute values and cannot perform effects."
+  },
+  "Function return": {
+    "prefix": "return",
+    "body": "return ${1:0}$0",
+    "description": "Return a value of the function's declared type."
+  },
+  "Debug print": {
+    "prefix": "print",
+    "body": "print(${1:\"message\"})$0",
+    "description": "Print values from a trigger to the manager's debug output."
+  },
+  "Label handle": {
+    "prefix": "label",
+    "body": "label(\"${1:source}\")$0",
+    "description": "Construct a typed handle from an exact disk-label literal."
+  },
+  "Item selector": {
+    "prefix": "item",
+    "body": "item(\"${1:minecraft:iron_ingot}\")$0",
+    "description": "Select every metadata/NBT variant of an item ID."
+  },
+  "OreDictionary selector": {
+    "prefix": "ore",
+    "body": "ore(\"${1:ingotIron}\")$0",
+    "description": "Select an exact case-sensitive OreDictionary name."
+  },
+  "Captured item contents": {
+    "prefix": "contents",
+    "body": "\\$${1:source}.contents(${2:})$0",
+    "description": "Capture exact item groups; optionally supply an item/ore selector."
+  },
+  "Visible item count": {
+    "prefix": "count",
+    "body": "\\$${1:source}.count(item(\"${2:minecraft:iron_ingot}\"))$0",
+    "description": "Count matching visible items; incomplete access faults."
+  },
+  "Empty inventory query": {
+    "prefix": "empty",
+    "body": "\\$${1:source}.empty(${2:})$0",
+    "description": "Check for no visible matching items; missing/incomplete access returns false."
+  },
+  "Inventory availability query": {
+    "prefix": "available",
+    "body": "\\$${1:source}.available(${2:})$0",
+    "description": "Check supported loaded access, not stock or insertion capacity."
+  },
+  "Transfer all visible items": {
+    "prefix": "transfer2",
+    "body": "transfer(\\$${1:source}, \\$${2:destination})$0",
+    "description": "Transfer with automatic amount; optionally append into $result."
+  },
+  "Transfer matching items": {
+    "prefix": "transfer3",
+    "body": "transfer(\\$${1:source}, \\$${2:destination}, ${3:item(\"minecraft:iron_ingot\")})$0",
+    "description": "Transfer selected items with automatic amount; optionally append into $result."
+  },
+  "Transfer with aggregate cap": {
+    "prefix": "transfer4",
+    "body": "transfer(\\$${1:source}, \\$${2:destination}, ${3:item(\"minecraft:iron_ingot\")}, ${4:16})$0",
+    "description": "Transfer up to a nonnegative aggregate amount; optionally append into $result."
+  },
+  "Capture transfer result": {
+    "prefix": "into",
+    "body": "into \\$${1:result}$0",
+    "description": "Append to any transfer form to declare requested/moved/remaining/status result fields."
+  },
+  "One item per pedestal": {
+    "prefix": "pedestals",
+    "body": ["input item:* from ${1:chestin} slots ${2:1}-${3:26}", "output 1 retain 1 item:* to each ${4:ped}", "forget", "$0"],
+    "description": "Legacy IO: supply at most one item to each labelled pedestal, retaining a stock cap of one."
+  },
+  "Typed side restriction": {
+    "prefix": "side",
+    "body": ".side(\"${1|up,down,north,south,west,east|}\")$0",
+    "description": "Append to a label handle; select an absolute block face."
+  },
+  "Typed slot restriction": {
+    "prefix": "slots",
+    "body": ".slots(${1:0}, ${2:8})$0",
+    "description": "Append to a label handle; select an inclusive slot range."
+  },
+  "String literal": {
+    "prefix": "string",
+    "body": "\"${1:text}\"$0",
+    "description": "Insert a quoted string value."
+  },
+  "Fixed array": {
+    "prefix": "array",
+    "body": "[${1:1}, ${2:2}, ${3:3}]$0",
+    "description": "Insert a fixed array of values with matching types."
+  },
+  "Struct literal": {
+    "prefix": "struct",
+    "body": "{${1:count}: ${2:0}, ${3:ready}: ${4:false}}$0",
+    "description": "Insert a fixed record with case-sensitive field names."
+  }
+}

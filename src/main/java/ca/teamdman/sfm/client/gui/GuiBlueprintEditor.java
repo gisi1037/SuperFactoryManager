@@ -28,20 +28,19 @@ import ca.teamdman.sfm.client.blueprint.BlueprintGraph.Pin;
 import ca.teamdman.sfm.client.blueprint.BlueprintGraph.Type;
 import ca.teamdman.sfm.client.gui.syntax.SfmlHighlighter;
 import ca.teamdman.sfm.client.gui.syntax.SfmlSyntaxRenderer;
-import ca.teamdman.sfm.common.item.ItemDisk;
-import ca.teamdman.sfm.common.net.PacketSaveProgram;
-import ca.teamdman.sfm.common.net.SFMNetwork;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 
 /**
  * Client-only canvas. Compilation and layout encoding happen on edits/save, never while drawing or ticking a manager.
  */
-public final class GuiBlueprintEditor extends GuiScreen {
+public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSession.Receiver {
 
     private static final int NODE_W = 144;
     private final TileEntityManager manager;
     private final GuiScreen parent;
-    private final String original;
+    private String original = "";
+    private final ProgramEditSession editSession;
+    private boolean openRequested;
     private final Deque<BlueprintGraph> undo = new ArrayDeque<>();
     private BlueprintGraph graph;
     private UUID selected, wireFrom;
@@ -52,8 +51,6 @@ public final class GuiBlueprintEditor extends GuiScreen {
     private String preview = "";
     private String[] previewLines = new String[0];
     private SfmlHighlighter.Highlighted highlighted = SfmlHighlighter.highlight("");
-    private String pendingSave;
-    private int saveTicks;
     private boolean valid, showPreview, dirty, editingName, dragging, dragCheckpoint, panning;
     private double panX = 24, panY = 16, zoom = 1;
     private int lastX, lastY, previewOffset;
@@ -62,7 +59,27 @@ public final class GuiBlueprintEditor extends GuiScreen {
     public GuiBlueprintEditor(TileEntityManager manager, GuiScreen parent) {
         this.manager = manager;
         this.parent = parent;
-        original = ItemDisk.getProgramString(manager.getDisk());
+        editSession = new ProgramEditSession(
+            manager,
+            net.minecraft.client.Minecraft.getMinecraft().thePlayer.openContainer.windowId);
+        status = "Loading program from server";
+    }
+
+    @Override
+    public void receiveProgramEditReply(ca.teamdman.sfm.common.net.PacketProgramEditReply reply) {
+        ProgramEditState.Action action = editSession.state.action();
+        if (!editSession.receive(reply)) return;
+        if (!reply.accepted || reply.snapshot == null) {
+            status = reply.message;
+            updateButtons();
+            return;
+        }
+        if (action == ProgramEditState.Action.SAVE) {
+            dirty = false;
+            mc.displayGuiScreen(parent);
+            return;
+        }
+        original = reply.snapshot.getSource();
         try {
             BlueprintDocument document = BlueprintDocument.open(original);
             graph = document.graph;
@@ -77,6 +94,8 @@ public final class GuiBlueprintEditor extends GuiScreen {
             highlighted = SfmlHighlighter.highlight(preview);
             showPreview = true;
         }
+        fit();
+        updateButtons();
     }
 
     @Override
@@ -118,10 +137,10 @@ public final class GuiBlueprintEditor extends GuiScreen {
     }
 
     private void updateButtons() {
-        boolean editable = graph != null && pendingSave == null;
+        boolean editable = graph != null && editSession.state.isEditable();
         for (Object obj : buttonList) {
             GuiButton button = (GuiButton) obj;
-            if (pendingSave != null) {
+            if (editSession.state.isPending()) {
                 button.enabled = false;
                 continue;
             }
@@ -171,22 +190,14 @@ public final class GuiBlueprintEditor extends GuiScreen {
     @Override
     protected void actionPerformed(GuiButton button) {
         if (!button.enabled) return;
+        if (!editSession.state.isEditable() && button.id != 1) return;
         try {
             if (pendingField() && button.id != 1 && button.id != 2 && button.id != 5) applyField();
             switch (button.id) {
                 case 0:
                     applyField();
                     if (!valid) return;
-                    if (!ItemDisk.getProgramString(manager.getDisk())
-                        .equals(original)) {
-                        status = "Disk changed while editing. Copy your draft, then reopen the editor.";
-                        return;
-                    }
-                    pendingSave = BlueprintDocument.save(graph);
-                    saveTicks = 0;
-                    SFMNetwork.WRAPPER.sendToServer(
-                        PacketSaveProgram
-                            .guarded(manager.xCoord, manager.yCoord, manager.zCoord, pendingSave, original));
+                    editSession.save(BlueprintDocument.save(graph));
                     status = "Saving - waiting for the server";
                     updateButtons();
                     break;
@@ -263,7 +274,7 @@ public final class GuiBlueprintEditor extends GuiScreen {
                     }
             }
         } catch (IllegalArgumentException e) {
-            pendingSave = null;
+            editSession.state.cancel();
             status = e.getMessage();
             updateButtons();
         }
@@ -277,7 +288,7 @@ public final class GuiBlueprintEditor extends GuiScreen {
     }
 
     private void applyField() {
-        if (graph == null || pendingSave != null) return;
+        if (graph == null || editSession.state.isPending()) return;
         String value = field.getText()
             .trim();
         Node node = graph.node(selected);
@@ -308,16 +319,13 @@ public final class GuiBlueprintEditor extends GuiScreen {
     @Override
     public void updateScreen() {
         field.updateCursorCounter();
-        if (pendingSave != null) {
-            if (pendingSave.equals(ItemDisk.getProgramString(manager.getDisk()))) {
-                pendingSave = null;
-                dirty = false;
-                mc.displayGuiScreen(parent);
-            } else if (++saveTicks > 200) {
-                pendingSave = null;
-                status = "No save confirmation. Draft kept; check chat and disk before retrying.";
-                updateButtons();
-            }
+        if (!openRequested) {
+            openRequested = true;
+            editSession.open();
+        }
+        if (editSession.state.tick()) {
+            status = "No server confirmation. Draft kept; reopen if the program changed.";
+            updateButtons();
         }
     }
 
@@ -328,12 +336,13 @@ public final class GuiBlueprintEditor extends GuiScreen {
 
     @Override
     public void onGuiClosed() {
+        editSession.state.cancel();
         Keyboard.enableRepeatEvents(false);
     }
 
     @Override
     protected void keyTyped(char character, int key) {
-        if (pendingSave != null) return;
+        if (!editSession.state.isEditable()) return;
         if (key == Keyboard.KEY_ESCAPE) {
             field.setFocused(false);
             if (wireFrom != null) {
@@ -383,7 +392,7 @@ public final class GuiBlueprintEditor extends GuiScreen {
     @Override
     protected void mouseClicked(int x, int y, int button) {
         super.mouseClicked(x, y, button);
-        if (pendingSave != null) return;
+        if (!editSession.state.isEditable()) return;
         field.mouseClicked(x, y, button);
         if (graph == null || showPreview || y < 50 || y >= bottom() || x < 6 || x >= width - 6) return;
         if (pendingField()) {
@@ -445,7 +454,7 @@ public final class GuiBlueprintEditor extends GuiScreen {
 
     @Override
     protected void mouseClickMove(int x, int y, int button, long elapsed) {
-        if (pendingSave != null) return;
+        if (!editSession.state.isEditable()) return;
         if (dragging && graph != null && selected != null) {
             Node node = graph.node(selected);
             if (!dragCheckpoint && (x != lastX || y != lastY)) {

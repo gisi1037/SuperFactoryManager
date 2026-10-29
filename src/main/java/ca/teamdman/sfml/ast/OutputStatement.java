@@ -39,6 +39,7 @@ public final class OutputStatement implements Statement {
             }
         }
         sb.append("TO ");
+        if (emptySlotsOnly) sb.append("EMPTY SLOTS IN ");
         if (each) {
             sb.append("EACH ");
         }

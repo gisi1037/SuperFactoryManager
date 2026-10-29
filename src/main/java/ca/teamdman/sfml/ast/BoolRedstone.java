@@ -38,7 +38,7 @@ public final class BoolRedstone implements BoolExpr {
 
     @Override
     public String toString() {
-        return "REDSTONE " + comparison
+        return "REDSTONE " + comparison.getSymbol()
             + " "
             + (dynamicTarget == null ? Integer.toString(targetValue) : dynamicTarget.toString());
     }

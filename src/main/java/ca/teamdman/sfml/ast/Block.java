@@ -19,7 +19,10 @@ public final class Block implements ASTNode {
     }
 
     public void tick(ProgramContext context) {
+        ca.teamdman.sfml.data.DataRuntime loopRuntime = context.isInLoop() ? context.getDataRuntime() : null;
         for (Statement stmt : statements) {
+            // Bound repeated legacy statements too, without imposing new work cutoffs outside loops.
+            if (loopRuntime != null) loopRuntime.work(1);
             stmt.tick(context);
         }
     }

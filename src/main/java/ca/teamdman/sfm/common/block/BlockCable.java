@@ -23,13 +23,13 @@ public class BlockCable extends Block {
 
     @Override
     public void onBlockAdded(net.minecraft.world.World world, int x, int y, int z) {
-        ca.teamdman.sfm.common.network.CableNetwork.invalidate(world);
+        ca.teamdman.sfm.common.network.CableNetwork.invalidate(world, x, y, z);
         super.onBlockAdded(world, x, y, z);
     }
 
     @Override
     public void breakBlock(net.minecraft.world.World world, int x, int y, int z, Block block, int meta) {
-        ca.teamdman.sfm.common.network.CableNetwork.invalidate(world);
+        ca.teamdman.sfm.common.network.CableNetwork.invalidate(world, x, y, z);
         super.breakBlock(world, x, y, z, block, meta);
     }
 
@@ -37,6 +37,8 @@ public class BlockCable extends Block {
         int targetX = x + side.offsetX;
         int targetY = y + side.offsetY;
         int targetZ = z + side.offsetZ;
+        if (world == null || world instanceof net.minecraft.world.World
+            && !((net.minecraft.world.World) world).blockExists(targetX, targetY, targetZ)) return false;
         Block neighbor = world.getBlock(targetX, targetY, targetZ);
         if (neighbor instanceof BlockCable || neighbor instanceof BlockManager) {
             return true;

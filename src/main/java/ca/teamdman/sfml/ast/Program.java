@@ -14,6 +14,9 @@ public final class Program implements Statement {
     private final String name;
     private final List<Trigger> triggers;
     private final Set<String> referencedLabels;
+    private final List<ca.teamdman.sfml.data.CompiledFunction> functions;
+    private final List<NamedRedstoneTrigger> namedRedstoneTriggers;
+    private final List<ca.teamdman.sfml.data.GlobalDeclaration> globals;
 
     public Program(String name, List<Trigger> triggers, Set<String> referencedLabels) {
         this(name, triggers, referencedLabels, ca.teamdman.sfml.data.ProgramStateSchema.EMPTY, false, 0);
@@ -21,12 +24,46 @@ public final class Program implements Statement {
 
     public Program(String name, List<Trigger> triggers, Set<String> referencedLabels,
         ca.teamdman.sfml.data.ProgramStateSchema stateSchema, boolean dataFeatures, int localCount) {
+        this(name, triggers, referencedLabels, stateSchema, dataFeatures, localCount, Collections.emptyList());
+    }
+
+    public Program(String name, List<Trigger> triggers, Set<String> referencedLabels,
+        ca.teamdman.sfml.data.ProgramStateSchema stateSchema, boolean dataFeatures, int localCount,
+        List<ca.teamdman.sfml.data.CompiledFunction> functions) {
+        this(
+            name,
+            triggers,
+            referencedLabels,
+            stateSchema,
+            dataFeatures,
+            localCount,
+            functions,
+            Collections.emptyList());
+    }
+
+    public Program(String name, List<Trigger> triggers, Set<String> referencedLabels,
+        ca.teamdman.sfml.data.ProgramStateSchema stateSchema, boolean dataFeatures, int localCount,
+        List<ca.teamdman.sfml.data.CompiledFunction> functions, List<ca.teamdman.sfml.data.GlobalDeclaration> globals) {
+        this.globals = Collections.unmodifiableList(new java.util.ArrayList<>(globals));
+        this.functions = Collections.unmodifiableList(new java.util.ArrayList<>(functions));
         this.stateSchema = stateSchema;
         this.dataFeatures = dataFeatures;
         this.localCount = localCount;
         this.name = name != null ? name : "";
         this.triggers = triggers != null ? triggers : Collections.emptyList();
+        List<NamedRedstoneTrigger> nativeTriggers = new java.util.ArrayList<>();
+        for (Trigger trigger : this.triggers)
+            if (trigger instanceof NamedRedstoneTrigger) nativeTriggers.add((NamedRedstoneTrigger) trigger);
+        namedRedstoneTriggers = Collections.unmodifiableList(nativeTriggers);
         this.referencedLabels = referencedLabels != null ? referencedLabels : Collections.emptySet();
+    }
+
+    public List<ca.teamdman.sfml.data.CompiledFunction> getFunctions() {
+        return functions;
+    }
+
+    public List<ca.teamdman.sfml.data.GlobalDeclaration> getGlobalDeclarations() {
+        return globals;
     }
 
     public ca.teamdman.sfml.data.ProgramStateSchema getStateSchema() {
@@ -52,6 +89,27 @@ public final class Program implements Statement {
     @Override
     public void tick(ProgramContext context) {
         boolean dataStarted = false;
+        if (!globals.isEmpty()) {
+            ca.teamdman.sfml.data.ProgramGlobals current = context.getProgramGlobals(this);
+            if (!current.isInitialized()) {
+                context.beginDataInvocation(localCount, stateSchema.size() > 0);
+                ca.teamdman.sfml.data.ProgramGlobals candidate = new ca.teamdman.sfml.data.ProgramGlobals(globals);
+                context.getDataRuntime()
+                    .setGlobals(candidate);
+                try {
+                    for (ca.teamdman.sfml.data.GlobalDeclaration declaration : globals)
+                        declaration.initialize(context.getDataRuntime());
+                    candidate.finishInitialization();
+                    context.setProgramGlobals(this, candidate);
+                } catch (RuntimeException failure) {
+                    context.getDataRuntime()
+                        .setGlobals(current);
+                    throw failure;
+                }
+                dataStarted = true;
+            }
+        }
+        if (!namedRedstoneTriggers.isEmpty()) context.prepareNamedRedstoneTriggers(namedRedstoneTriggers);
         for (Trigger trigger : triggers) {
             if (!trigger.shouldRun(context)) continue;
             if (dataFeatures) {
@@ -120,6 +178,10 @@ public final class Program implements Statement {
                 .append(declaration.getDefaultValue())
                 .append("\n");
         }
+        for (ca.teamdman.sfml.data.GlobalDeclaration declaration : globals) sb.append(declaration)
+            .append("\n");
+        for (ca.teamdman.sfml.data.CompiledFunction function : functions) sb.append(function)
+            .append("\n");
         for (Trigger trigger : triggers) {
             sb.append(trigger)
                 .append("\n");

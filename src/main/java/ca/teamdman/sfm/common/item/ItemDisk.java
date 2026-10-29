@@ -36,8 +36,10 @@ public class ItemDisk extends Item {
         if (!stack.hasTagCompound()) {
             stack.setTagCompound(new NBTTagCompound());
         }
+        String source = program != null ? program : "";
+        if (!getProgramString(stack).equals(source)) ca.teamdman.sfm.common.program.ProgramDocument.advance(stack);
         stack.getTagCompound()
-            .setString(NBT_PROGRAM, program != null ? program : "");
+            .setString(NBT_PROGRAM, source);
     }
 
     @Override

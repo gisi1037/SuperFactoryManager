@@ -51,49 +51,25 @@ public final class ResourceLimit implements ASTNode {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        if (limit.getQuantity()
-            .isDynamic()
-            || limit.getRetention()
-                .isDynamic()) {
-            // Keep both retention extremes and EACH, without leaking internal wildcard patterns.
-            sb.append(limit.getQuantity())
-                .append(" RETAIN ")
-                .append(limit.getRetention())
-                .append(" ");
-            for (int i = 0; i < resourceIds.getIdentifiers()
-                .size(); i++) {
-                if (i > 0) sb.append(" OR ");
-                ResourceIdentifier id = resourceIds.getIdentifiers()
-                    .get(i);
-                if (id == ResourceIdentifier.MATCH_ALL) sb.append("*");
-                else sb.append('"')
-                    .append(
-                        id.toString()
-                            .replace("\"", "\\\""))
-                    .append('"');
-            }
-            if (with.getTagMatcher() != null) {
-                sb.append(with.isNegated() ? " WITHOUT TAG " : " WITH TAG ");
-                sb.append(
-                    with.getTagMatcher()
-                        .getPatternString());
-            }
-            return sb.toString();
-        }
-        if (limit != null && limit.getQuantity()
-            .getAmount() != Long.MAX_VALUE) {
+        // Retention precedes selectors. Keep zero/MAX and EACH explicit for both IO defaults.
+        sb.append(limit.getQuantity())
+            .append(" RETAIN ")
+            .append(limit.getRetention())
+            .append(" ");
+        if (resourceIds.getIdentifiers()
+            .isEmpty()) sb.append(ResourceIdentifier.MATCH_ALL);
+        for (int i = 0; i < resourceIds.getIdentifiers()
+            .size(); i++) {
+            if (i > 0) sb.append(" OR ");
             sb.append(
-                limit.getQuantity()
-                    .getAmount())
-                .append(" ");
+                resourceIds.getIdentifiers()
+                    .get(i));
         }
-        sb.append(resourceIds);
-        if (limit != null && limit.getRetention()
-            .getAmount() > 0) {
-            sb.append(" RETAIN ")
-                .append(
-                    limit.getRetention()
-                        .getAmount());
+        if (with.getTagMatcher() != null) {
+            sb.append(with.isNegated() ? " WITHOUT TAG " : " WITH TAG ");
+            sb.append(
+                with.getTagMatcher()
+                    .getPatternString());
         }
         return sb.toString();
     }

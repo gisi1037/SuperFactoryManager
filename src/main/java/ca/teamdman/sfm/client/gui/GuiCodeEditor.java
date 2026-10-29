@@ -23,15 +23,12 @@ import ca.teamdman.sfm.client.gui.syntax.SfmlSyntaxRenderer;
 import ca.teamdman.sfm.client.gui.syntax.SnippetCategory;
 import ca.teamdman.sfm.client.gui.syntax.SyntaxRegistry;
 import ca.teamdman.sfm.client.gui.syntax.SyntaxSnippet;
-import ca.teamdman.sfm.common.item.ItemDisk;
 import ca.teamdman.sfm.common.label.LabelPositionHolder;
-import ca.teamdman.sfm.common.net.PacketSaveProgram;
-import ca.teamdman.sfm.common.net.SFMNetwork;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 import ca.teamdman.sfml.program_builder.ProgramBuildResult;
 import ca.teamdman.sfml.program_builder.ProgramBuilder;
 
-public class GuiCodeEditor extends GuiScreen {
+public class GuiCodeEditor extends GuiScreen implements ProgramEditSession.Receiver {
 
     private final TileEntityManager manager;
     private final GuiScreen parentScreen;
@@ -120,20 +117,62 @@ public class GuiCodeEditor extends GuiScreen {
     private GuiButton btnSuggest;
 
     public GuiCodeEditor(TileEntityManager manager, GuiScreen parentScreen) {
+        this(manager, parentScreen, null);
+    }
+
+    /** An imported draft is displayed only after OPEN supplies an authoritative save token. */
+    public GuiCodeEditor(TileEntityManager manager, GuiScreen parentScreen, String initialDraft) {
+        this.initialDraft = initialDraft;
         this.manager = manager;
         this.parentScreen = parentScreen;
 
-        // Load code from disk
-        if (manager.getDisk() != null) {
-            String code = ca.teamdman.sfm.client.blueprint.BlueprintDocument
-                .withoutMetadata(ItemDisk.getProgramString(manager.getDisk()));
-            if (!code.isEmpty()) {
-                lines.addAll(Arrays.asList(code.split("\n", -1)));
-            }
+        editSession = new ProgramEditSession(
+            manager,
+            net.minecraft.client.Minecraft.getMinecraft().thePlayer.openContainer.windowId);
+        lines.add("");
+        syntaxStatus = "Loading program from server";
+    }
+
+    private final ProgramEditSession editSession;
+    private final String initialDraft;
+    private boolean openRequested, closeAfterSave, saveUnconfirmed;
+
+    @Override
+    public void receiveProgramEditReply(ca.teamdman.sfm.common.net.PacketProgramEditReply reply) {
+        ProgramEditState.Action action = editSession.state.action();
+        if (!editSession.receive(reply)) return;
+        if (action == ProgramEditState.Action.SAVE) saveUnconfirmed = false;
+        if (!reply.accepted || reply.snapshot == null) {
+            syntaxStatus = reply.message;
+            return;
         }
-        if (lines.isEmpty()) {
-            lines.add("");
+        if (action == ProgramEditState.Action.OPEN) {
+            lines.clear();
+            lines.addAll(
+                Arrays.asList(
+                    (initialDraft != null ? initialDraft
+                        : ca.teamdman.sfm.client.blueprint.BlueprintDocument
+                            .withoutMetadata(reply.snapshot.getSource())).split("\n", -1)));
+            rebuildVisualRows();
+            validateSyntax();
+        } else {
+            syntaxStatus = "Saved";
+            if (closeAfterSave) mc.displayGuiScreen(parentScreen);
         }
+    }
+
+    @Override
+    public void updateScreen() {
+        if (!openRequested) {
+            openRequested = true;
+            editSession.open();
+        }
+        if (editSession.state.tick()) syntaxStatus = editSession.state.action() == ProgramEditState.Action.SAVE
+            ? "No server confirmation; the save may have applied. Copy your draft before leaving."
+            : "Program could not be loaded. Reopen to retry; an imported draft can still be copied.";
+        if (btnSave != null) btnSave.enabled = editSession.state.isEditable();
+        if (btnCancel != null) btnCancel.enabled = !editSession.state.isPending()
+            || editSession.state.action() != ProgramEditState.Action.SAVE;
     }
 
     private boolean isVScrollNeeded() {
@@ -323,11 +362,13 @@ public class GuiCodeEditor extends GuiScreen {
         buttonList.add(btnSuggest);
 
         updateLayout();
-        validateSyntax();
+        if (editSession.state.snapshot() != null) validateSyntax();
+        btnSave.enabled = editSession.state.isEditable();
     }
 
     @Override
     public void onGuiClosed() {
+        editSession.state.cancel();
         Keyboard.enableRepeatEvents(false);
     }
 
@@ -360,21 +401,42 @@ public class GuiCodeEditor extends GuiScreen {
     }
 
     private void saveAndClose() {
-        String code = String.join("\n", lines);
-        SFMNetwork.WRAPPER.sendToServer(
-            new PacketSaveProgram(manager.xCoord, manager.yCoord, manager.zCoord, code, manager.isRunning()));
-        manager.saveCodeAndRecompile(code);
+        requestSave(true);
+    }
+
+    private void requestSave(boolean close) {
+        if (!editSession.state.isEditable()) return;
+        closeAfterSave = close;
+        try {
+            editSession.save(String.join("\n", lines));
+            saveUnconfirmed = true;
+            syntaxStatus = "Saving - waiting for the server";
+        } catch (IllegalArgumentException e) {
+            editSession.state.cancel();
+            syntaxStatus = e.getMessage();
+        }
+    }
+
+    private void leaveEditor() {
+        if (saveUnconfirmed) mc.thePlayer.addChatMessage(
+            new net.minecraft.util.ChatComponentText(
+                "[SFM] Save confirmation timed out; the server may have saved the program. Check the disk before retrying."));
         mc.displayGuiScreen(parentScreen);
     }
 
     @Override
     protected void actionPerformed(GuiButton btn) {
+        if (btn.id == 1 && editSession.state.isPending() && editSession.state.action() == ProgramEditState.Action.SAVE)
+            return;
+        boolean canCopy = btn.id == 4 && (editSession.state.snapshot() != null || initialDraft != null);
+        if (btn.id != 1 && !canCopy && !editSession.state.isEditable()) return;
         if (btn.id == 0) {
             saveAndClose();
         } else if (btn.id == 1) {
-            mc.displayGuiScreen(parentScreen);
+            leaveEditor();
         } else if (btn.id == 4) {
-            setClipboardString(String.join("\n", lines));
+            setClipboardString(
+                editSession.state.snapshot() == null && initialDraft != null ? initialDraft : String.join("\n", lines));
             syntaxStatus = EnumChatFormatting.YELLOW + "Copied code to clipboard!";
         } else if (btn.id == 5) {
             // Toggle word wrap
@@ -742,6 +804,10 @@ public class GuiCodeEditor extends GuiScreen {
 
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int mouseButton) {
+        if (!editSession.state.isEditable()) {
+            super.mouseClicked(mouseX, mouseY, mouseButton);
+            return;
+        }
         if (popup.isVisible()) {
             if (popup.contains(mouseX, mouseY)) {
                 SyntaxSnippet snippet = popup.mouseClicked(mouseX, mouseY, mouseButton);
@@ -872,6 +938,7 @@ public class GuiCodeEditor extends GuiScreen {
 
     @Override
     protected void mouseClickMove(int mouseX, int mouseY, int clickedMouseButton, long timeSinceLastClick) {
+        if (!editSession.state.isEditable()) return;
         super.mouseClickMove(mouseX, mouseY, clickedMouseButton, timeSinceLastClick);
 
         if (resizingCorner != CORNER_NONE) {
@@ -966,6 +1033,10 @@ public class GuiCodeEditor extends GuiScreen {
 
     @Override
     protected void keyTyped(char typedChar, int keyCode) {
+        if (!editSession.state.isEditable()) {
+            if (keyCode == Keyboard.KEY_ESCAPE && !editSession.state.isPending()) leaveEditor();
+            return;
+        }
         if (popup.isVisible()) {
             SyntaxSnippet snippet = popup.handleKeyInput(typedChar, keyCode);
             if (snippet != null) {
@@ -984,7 +1055,7 @@ public class GuiCodeEditor extends GuiScreen {
         }
 
         if (keyCode == Keyboard.KEY_ESCAPE) {
-            mc.displayGuiScreen(parentScreen);
+            leaveEditor();
             return;
         }
 
@@ -1002,11 +1073,7 @@ public class GuiCodeEditor extends GuiScreen {
 
         // Ctrl + S: Quick Save
         if (isCtrlKeyDown() && keyCode == Keyboard.KEY_S) {
-            String code = String.join("\n", lines);
-            SFMNetwork.WRAPPER.sendToServer(
-                new PacketSaveProgram(manager.xCoord, manager.yCoord, manager.zCoord, code, manager.isRunning()));
-            manager.saveCodeAndRecompile(code);
-            validateSyntax();
+            requestSave(false);
             return;
         }
 

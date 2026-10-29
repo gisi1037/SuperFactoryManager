@@ -5,6 +5,8 @@
  */
 package ca.teamdman.sfm.client.blueprint;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -22,6 +24,10 @@ import ca.teamdman.sfm.client.blueprint.BlueprintGraph.Pin;
 import ca.teamdman.sfm.client.blueprint.BlueprintGraph.Type;
 import ca.teamdman.sfml.program_builder.ProgramBuildResult;
 import ca.teamdman.sfml.program_builder.ProgramBuilder;
+import ca.teamdman.sfml.program_builder.VisualCapabilityAnalyzer;
+import ca.teamdman.sfml.program_builder.VisualCapabilityReport;
+import ca.teamdman.sfml.program_builder.VisualCapabilityReport.Blocker;
+import ca.teamdman.sfml.program_builder.VisualCapabilityReport.Kind;
 
 /** Retro's trigger/branch/continuation emitter, adapted to this port's grammar and Java 8. */
 public final class BlueprintCompiler {
@@ -29,6 +35,10 @@ public final class BlueprintCompiler {
     private BlueprintCompiler() {}
 
     public static String generate(BlueprintGraph graph) {
+        return generate(graph, true);
+    }
+
+    private static String generate(BlueprintGraph graph, boolean validate) {
         StringBuilder text = new StringBuilder();
         if (!graph.comments()
             .isEmpty())
@@ -36,44 +46,45 @@ public final class BlueprintCompiler {
                 .append('\n');
         if (!graph.nameClause()
             .isEmpty()) {
-            SFMLParser.ProgramContext name = parse(graph.nameClause());
-            if (name.name() == null || !name.trigger()
-                .isEmpty()) throw new IllegalArgumentException("Use NAME \"Program name\"");
+            SFMLParser.ProgramContext name = validate ? parse(graph.nameClause()) : null;
+            if (validate && (name.name() == null || !name.trigger()
+                .isEmpty())) throw new IllegalArgumentException("Use NAME \"Program name\"");
             text.append(graph.nameClause())
                 .append('\n');
         }
         Set<UUID> visited = new HashSet<>();
         for (Node trigger : graph.triggers()) {
-            validateClause(trigger.type, trigger.clause());
+            if (validate) validateClause(trigger.type, trigger.clause());
             visited.add(trigger.id);
             text.append(trigger.clause())
                 .append(" DO\n");
-            emit(graph, graph.next(trigger.id, Pin.NEXT), 1, visited, text);
+            emit(graph, graph.next(trigger.id, Pin.NEXT), 1, visited, text, validate);
             text.append("END\n");
         }
         if (visited.size() != graph.nodes()
             .size()) throw new IllegalArgumentException("Connect every node to a trigger before saving");
         String code = text.toString()
             .trim();
-        if (!code.isEmpty()) parse(code);
+        if (validate && !code.isEmpty()) parse(code);
         return code;
     }
 
-    private static void emit(BlueprintGraph graph, Node node, int depth, Set<UUID> visited, StringBuilder text) {
+    private static void emit(BlueprintGraph graph, Node node, int depth, Set<UUID> visited, StringBuilder text,
+        boolean validate) {
         if (depth > BlueprintGraph.MAX_DEPTH) throw new IllegalArgumentException("Blueprint nesting exceeds 32");
         while (node != null) {
             if (!visited.add(node.id)) throw new IllegalArgumentException("Repeated node in control flow");
-            validateClause(node.type, node.clause());
+            if (validate) validateClause(node.type, node.clause());
             indent(text, depth);
             if (node.type == Type.IF) {
                 text.append("IF ")
                     .append(node.clause())
                     .append(" THEN\n");
-                emit(graph, graph.next(node.id, Pin.TRUE), depth + 1, visited, text);
+                emit(graph, graph.next(node.id, Pin.TRUE), depth + 1, visited, text, validate);
                 if (node.hasElse || graph.next(node.id, Pin.FALSE) != null) {
                     indent(text, depth);
                     text.append("ELSE\n");
-                    emit(graph, graph.next(node.id, Pin.FALSE), depth + 1, visited, text);
+                    emit(graph, graph.next(node.id, Pin.FALSE), depth + 1, visited, text, validate);
                 }
                 indent(text, depth);
                 text.append("END\n");
@@ -124,16 +135,104 @@ public final class BlueprintCompiler {
     }
 
     public static BlueprintGraph importText(String code) {
+        ImportResult result = inspectText(code);
+        if (!result.report.isAvailable()) throw new ImportException(result.report);
+        return result.graph;
+    }
+
+    /** One guarded compile of a draft; a failed inspection never exposes a partial graph. */
+    public static ImportResult inspectText(String source) {
+        String code = source == null ? "" : source;
+        if (code.length() <= 32767 && code.trim()
+            .isEmpty())
+            return new ImportResult(new BlueprintGraph(), new VisualCapabilityReport(Collections.emptyList()));
+        ProgramBuildResult built = new ProgramBuilder(code).buildWithSyntax();
+        VisualCapabilityReport report = VisualCapabilityAnalyzer.analyze(built);
+        if (!built.isSuccess()) return new ImportResult(null, report);
+        SFMLParser.ProgramContext tree = built.getSyntax();
+        List<Blocker> limits = new ArrayList<>(report.getBlockers());
+        inspectLimits(tree, built.getTokens(), 0, new int[] { 0 }, limits);
+        if (!limits.isEmpty()) return new ImportResult(null, new VisualCapabilityReport(limits));
+        try {
+            BlueprintGraph graph = importParsed(code, tree, built.getTokens());
+            return new ImportResult(graph, report);
+        } catch (IllegalArgumentException e) {
+            return new ImportResult(
+                null,
+                new VisualCapabilityReport(
+                    Collections
+                        .singletonList(VisualCapabilityAnalyzer.at(Kind.SOURCE_FIDELITY, e.getMessage(), tree))));
+        }
+    }
+
+    public static final class ImportResult {
+
+        public final BlueprintGraph graph;
+        public final VisualCapabilityReport report;
+
+        private ImportResult(BlueprintGraph graph, VisualCapabilityReport report) {
+            this.graph = graph;
+            this.report = report;
+        }
+    }
+
+    public static final class ImportException extends IllegalArgumentException {
+
+        private final VisualCapabilityReport report;
+
+        private ImportException(VisualCapabilityReport report) {
+            super(report.getMessage());
+            this.report = report;
+        }
+
+        public VisualCapabilityReport getReport() {
+            return report;
+        }
+    }
+
+    private static void inspectLimits(org.antlr.v4.runtime.tree.ParseTree tree, CommonTokenStream tokens, int depth,
+        int[] nodes, List<Blocker> blockers) {
+        ParserRuleContext clause = null;
+        if (tree instanceof SFMLParser.NameContext) clause = (ParserRuleContext) tree;
+        if (tree instanceof SFMLParser.TriggerContext || tree instanceof SFMLParser.StatementContext) {
+            ParserRuleContext context = (ParserRuleContext) tree;
+            if (++nodes[0] == BlueprintGraph.MAX_NODES + 1)
+                blockers.add(VisualCapabilityAnalyzer.at(Kind.GRAPH_LIMIT, "Blueprint exceeds 256 nodes", context));
+            if (tree instanceof SFMLParser.StatementContext) {
+                SFMLParser.IfStatementContext branch = ((SFMLParser.StatementContext) tree).ifStatement();
+                clause = branch == null ? context : branch.boolexpr(0);
+            } else {
+                SFMLParser.TriggerContext trigger = (SFMLParser.TriggerContext) tree;
+                int end = trigger instanceof SFMLParser.TimerTriggerContext
+                    ? ((SFMLParser.TimerTriggerContext) trigger).DO()
+                        .getSymbol()
+                        .getTokenIndex()
+                    : trigger instanceof SFMLParser.NamedRedstoneTriggerContext
+                        ? ((SFMLParser.NamedRedstoneTriggerContext) trigger).DO()
+                            .getSymbol()
+                            .getTokenIndex()
+                        : ((SFMLParser.PulseTriggerContext) trigger).DO()
+                            .getSymbol()
+                            .getTokenIndex();
+                if (fragment(
+                    tokens,
+                    context.getStart()
+                        .getTokenIndex(),
+                    end - 1).length() > BlueprintGraph.MAX_CLAUSE)
+                    blockers.add(
+                        VisualCapabilityAnalyzer.at(Kind.GRAPH_LIMIT, "Node clause exceeds 4096 characters", context));
+            }
+        }
+        if (clause != null && fragment(tokens, clause).length() > BlueprintGraph.MAX_CLAUSE)
+            blockers.add(VisualCapabilityAnalyzer.at(Kind.GRAPH_LIMIT, "Node clause exceeds 4096 characters", clause));
+        if (tree instanceof SFMLParser.IfStatementContext && depth == BlueprintGraph.MAX_DEPTH) blockers.add(
+            VisualCapabilityAnalyzer.at(Kind.GRAPH_LIMIT, "Blueprint nesting exceeds 32", (ParserRuleContext) tree));
+        if (tree instanceof SFMLParser.BlockContext) depth++;
+        for (int i = 0; i < tree.getChildCount(); i++) inspectLimits(tree.getChild(i), tokens, depth, nodes, blockers);
+    }
+
+    private static BlueprintGraph importParsed(String code, SFMLParser.ProgramContext tree, CommonTokenStream tokens) {
         BlueprintGraph graph = new BlueprintGraph();
-        if (code.trim()
-            .isEmpty()) return graph;
-        SFMLParser.ProgramContext tree = parse(code);
-        if (new ProgramBuilder(code).build()
-            .getProgram()
-            .hasDataFeatures())
-            throw new IllegalArgumentException(
-                "Data statements and expressions currently use the text editor; the program is kept intact");
-        CommonTokenStream tokens = tokens(code);
         if (tree.name() != null) graph.setNameClause(fragment(tokens, tree.name()));
         StringBuilder comments = new StringBuilder();
         for (Token token : tokens.getTokens())
@@ -168,7 +267,7 @@ public final class BlueprintCompiler {
         }
         layout(graph);
         // Compare grammar tokens, not AST.toString(): it can omit modifiers and reorder clauses.
-        if (!sameTokens(code, generate(graph)))
+        if (!sameTokens(code, generate(graph, false)))
             throw new IllegalArgumentException("This text cannot be imported losslessly yet; use the text editor");
         return graph;
     }
@@ -251,11 +350,11 @@ public final class BlueprintCompiler {
     }
 
     private static SFMLParser.ProgramContext parse(String code) {
-        ProgramBuildResult result = new ProgramBuilder(code).build();
+        ProgramBuildResult result = new ProgramBuilder(code).buildWithSyntax();
         if (!result.isSuccess()) throw new IllegalArgumentException(result.getErrorMessage());
-        SFMLParser parser = new SFMLParser(tokens(code));
-        parser.removeErrorListeners();
-        return parser.program();
+        VisualCapabilityReport report = VisualCapabilityAnalyzer.analyze(result);
+        if (!report.isAvailable()) throw new ImportException(report);
+        return result.getSyntax();
     }
 
     static CommonTokenStream tokens(String code) {

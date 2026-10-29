@@ -6,7 +6,15 @@ package ca.teamdman.langs;
     public boolean INCLUDE_UNUSED = false; // we want syntax highlighting to not break on unexpected tokens
 }
 
-program : name? stateDeclaration* trigger* EOF;
+program : name? (stateDeclaration | dataDeclaration)* functionDefinition* trigger* EOF;
+
+functionDefinition : FUNCTION functionName LPAREN (functionParameter (COMMA functionParameter)*)? RPAREN RETURNS dataType DO block END;
+functionName : dataName (DOT dataName)*;
+functionParameter : VARIABLE COLON dataType;
+dataType : (dataName | LBRACE (typeField (COMMA typeField)*)? RBRACE) (LBRACKET NUMBER RBRACKET)*;
+typeField : dataName COLON dataType;
+functionCall : functionName LPAREN (dataExpression (COMMA dataExpression)*)? RPAREN;
+returnStatement : RETURN dataExpression;
 
 name: NAME string ;
 
@@ -16,6 +24,7 @@ name: NAME string ;
 
 trigger : EVERY interval DO block END           #TimerTrigger
         | EVERY REDSTONE PULSE DO block END     #PulseTrigger
+        | EVERY REDSTONE (PULSE | RISING | FALLING) FROM labelAccess DO block END #NamedRedstoneTrigger
         ;
 
 interval: NUMBER? GLOBAL? (PLUS NUMBER)? (TICKS | TICK | SECONDS | SECOND)      # IntervalSpace
@@ -28,10 +37,15 @@ interval: NUMBER? GLOBAL? (PLUS NUMBER)? (TICKS | TICK | SECONDS | SECOND)      
 block           : statement* ;
 statement       : dataDeclaration
                 | dataAssignment
+                | printStatement
+                | transferStatement
+                | returnStatement
                 | inputStatement
                 | redstoneOutputStatement
                 | outputStatement
                 | ifStatement
+                | forStatement
+                | whileStatement
                 | forgetStatement
                 ;
 
@@ -113,6 +127,9 @@ range           : number (DASH number)? ;
 
 
 ifStatement     : IF boolexpr THEN block (ELSE IF boolexpr THEN block)* (ELSE block)? END;
+forStatement    : FOR VARIABLE EQ_SYMBOL dataExpression TO dataExpression (STEP dataExpression)? DO block END #CountedFor
+                | FOR VARIABLE IN dataExpression DO block END #ArrayFor;
+whileStatement  : WHILE boolexpr DO block END;
 boolexpr        : TRUE                              #BooleanTrue
                 | FALSE                             #BooleanFalse
                 | LPAREN boolexpr RPAREN            #BooleanParen
@@ -125,6 +142,8 @@ boolexpr        : TRUE                              #BooleanTrue
                 ;
 
 comparisonOp    : GT
+                | NE_SYMBOL
+                | EQ_ALIAS
                 | LT
                 | EQ
                 | LE
@@ -159,34 +178,45 @@ label           : (identifier)  #RawLabel
 
 emptyslots      : EMPTY (SLOTS | SLOT) IN ;
 
-identifier : (IDENTIFIER | LET | SET | STATE | REDSTONE | LEVEL | LEVELS | GLOBAL | SECOND | SECONDS | TOP | BOTTOM | LEFT | RIGHT | FRONT | BACK) ;
+identifier : (IDENTIFIER | TRANSFER | INTO | LET | SET | STATE | PRINT | FUNCTION | RETURNS | RETURN | FOR | WHILE | STEP | RISING | FALLING | REDSTONE | LEVEL | LEVELS | GLOBAL | SECOND | SECONDS | TOP | BOTTOM | LEFT | RIGHT | FRONT | BACK) ;
 
 // Typed data expressions. Multiplication retains the legacy wildcard token.
 stateDeclaration : STATE VARIABLE EQ_SYMBOL dataExpression;
 dataDeclaration : LET VARIABLE EQ_SYMBOL dataExpression;
-dataAssignment : SET dataTarget EQ_SYMBOL dataExpression;
+dataAssignment : SET? dataTarget EQ_SYMBOL dataExpression;
+printStatement : PRINT LPAREN dataExpression (COMMA dataExpression)* RPAREN;
+// Actions are statements: no transfer can hide inside a predicate or ordinary function call.
+transferStatement : TRANSFER LPAREN dataExpression COMMA dataExpression
+                    (COMMA dataExpression (COMMA dataExpression)?)? RPAREN (INTO VARIABLE)?;
 dataTarget : VARIABLE (DOT dataName | LBRACKET dataExpression RBRACKET)*;
 dataExpression : dataOr;
 dataOr : dataAnd (OR dataAnd)*;
 dataAnd : dataNot (AND dataNot)*;
 dataNot : NOT dataNot | dataComparison;
-dataComparison : dataAdd (comparisonOp dataAdd)?;
+dataComparison : dataBitOr (comparisonOp dataBitOr)?;
+// Bitwise precedence mirrors numeric masks: arithmetic, shifts, &, ^, |, comparisons.
+dataBitOr : dataBitXor (BIT_OR dataBitXor)*;
+dataBitXor : dataBitAnd (BIT_XOR dataBitAnd)*;
+dataBitAnd : dataShift (BIT_AND dataShift)*;
+dataShift : dataAdd ((SHIFT_LEFT | SHIFT_RIGHT | SHIFT_UNSIGNED_RIGHT) dataAdd)*;
 dataAdd : dataMultiply ((PLUS | DASH) dataMultiply)*;
 dataMultiply : dataSign ((multiplyOperator | SLASH | PERCENT) dataSign)*;
 multiplyOperator : {_input.LT(1).getText().equals("*")}? IDENTIFIER;
-dataSign : (PLUS | DASH) dataSign | dataPostfix;
-dataPostfix : dataPrimary (DOT dataName | LBRACKET dataExpression RBRACKET)*;
+dataSign : (PLUS | DASH | BIT_NOT) dataSign | dataPostfix;
+dataPostfix : dataPrimary (DOT dataName (LPAREN (dataExpression (COMMA dataExpression)*)? RPAREN)?
+                         | LBRACKET dataExpression RBRACKET)*;
 dataPrimary : NUMBER | STRING | VARIABLE | TRUE | FALSE | LPAREN dataExpression RPAREN
+            | functionCall
             | LBRACKET (dataExpression (COMMA dataExpression)* COMMA?)? RBRACKET
             | LBRACE (dataField (COMMA dataField)* COMMA?)? RBRACE;
 dataField : dataName COLON dataExpression;
 // All legacy keyword spellings are legal fixed field names.
-dataName : IDENTIFIER | LET | SET | STATE | IF | THEN | ELSE | HAS | OVERALL | SOME | ONE | LONE
+dataName : IDENTIFIER | TRANSFER | INTO | LET | SET | STATE | PRINT | FUNCTION | RETURNS | RETURN | IF | THEN | ELSE | HAS | OVERALL | SOME | ONE | LONE
          | TRUE | FALSE | NOT | AND | OR | GT | LT | EQ | LE | GE | FROM | TO | INPUT | OUTPUT
          | WHERE | SLOTS | SLOT | RETAIN | EACH | EXCEPT | FORGET | EMPTY | IN | WITHOUT | WITH
          | TAG | ROUND | ROBIN | BY | LABEL | BLOCK | TOP | BOTTOM | NORTH | EAST | SOUTH | WEST
          | SIDE | LEFT | RIGHT | FRONT | BACK | NULL | TICKS | TICK | SECONDS | SECOND | GLOBAL
-         | REDSTONE | LEVEL | LEVELS | PULSE | DO | END | NAME | EVERY | PLUS;
+         | REDSTONE | LEVEL | LEVELS | PULSE | DO | END | NAME | EVERY | PLUS | FOR | WHILE | STEP | RISING | FALLING;
 
 // GENERAL
 string: STRING ;
@@ -199,9 +229,20 @@ number: NUMBER ;
 //
 
 // DATA STATEMENTS
+TRANSFER : T R A N S F E R;
+INTO : I N T O;
+FUNCTION : F U N C T I O N;
+RETURNS : R E T U R N S;
+RETURN : R E T U R N;
 LET : L E T;
 SET : S E T;
 STATE : S T A T E;
+RISING : R I S I N G;
+FALLING : F A L L I N G;
+PRINT : P R I N T;
+FOR : F O R;
+WHILE : W H I L E;
+STEP : S T E P;
 VARIABLE : '$' [a-zA-Z_] [a-zA-Z0-9_]*;
 LBRACKET : '[';
 RBRACKET : ']';
@@ -209,6 +250,13 @@ LBRACE : '{';
 RBRACE : '}';
 DOT : '.';
 PERCENT : '%';
+BIT_AND : '&';
+BIT_OR : '|';
+BIT_XOR : '^';
+BIT_NOT : '~';
+SHIFT_LEFT : '<<';
+SHIFT_RIGHT : '>>';
+SHIFT_UNSIGNED_RIGHT : '>>>';
 // IF STATEMENT
 IF      : I F ;
 THEN    : T H E N ;
@@ -223,9 +271,9 @@ LONE    : L O N E ;
 // BOOLEAN LOGIC
 TRUE    : T R U E ;
 FALSE   : F A L S E ;
-NOT     : N O T ;
-AND     : A N D ;
-OR      : O R ;
+NOT     : N O T | '!' ;
+AND     : A N D | '&&' ;
+OR      : O R | '||' ;
 
 // QUANTITY LOGIC
 GT        : G T ;
@@ -234,6 +282,8 @@ LT        : L T ;
 LT_SYMBOL : '<' ;
 EQ        : E Q ;
 EQ_SYMBOL : '=' ;
+EQ_ALIAS : '==' ;
+NE_SYMBOL : '!=' ;
 LE        : L E ;
 LE_SYMBOL : '<=' ;
 GE        : G E ;

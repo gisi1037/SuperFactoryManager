@@ -20,5 +20,23 @@ public final class SFMNetwork {
             .registerMessage(PacketManagerRequestLogs.Handler.class, PacketManagerRequestLogs.class, id++, Side.SERVER);
         WRAPPER.registerMessage(PacketManagerLogs.Handler.class, PacketManagerLogs.class, id++, Side.CLIENT);
         WRAPPER.registerMessage(PacketManagerAction.Handler.class, PacketManagerAction.class, id++, Side.SERVER);
+        WRAPPER.registerMessage(PacketProgramEditReply.Handler.class, PacketProgramEditReply.class, id++, Side.CLIENT);
+        WRAPPER.registerMessage(
+            PacketDebugTerminalRequest.Handler.class,
+            PacketDebugTerminalRequest.class,
+            id++,
+            Side.SERVER);
+        WRAPPER
+            .registerMessage(PacketDebugTerminalReply.Handler.class, PacketDebugTerminalReply.class, id++, Side.CLIENT);
+        WRAPPER.registerMessage(PacketStationRequest.Handler.class, PacketStationRequest.class, id++, Side.SERVER);
+        WRAPPER.registerMessage(PacketStationReply.Handler.class, PacketStationReply.class, id++, Side.CLIENT);
+        WRAPPER.registerMessage(PacketLabelGunSession.Handler.class, PacketLabelGunSession.class, id++, Side.CLIENT);
+        WRAPPER.registerMessage(
+            PacketStationDebugRequest.Handler.class,
+            PacketStationDebugRequest.class,
+            id++,
+            Side.SERVER);
+        WRAPPER
+            .registerMessage(PacketStationDebugReply.Handler.class, PacketStationDebugReply.class, id++, Side.CLIENT);
     }
 }
