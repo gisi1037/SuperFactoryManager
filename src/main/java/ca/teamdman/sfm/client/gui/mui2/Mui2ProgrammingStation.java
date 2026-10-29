@@ -48,6 +48,8 @@ import ca.teamdman.sfm.common.net.SFMNetwork;
 import ca.teamdman.sfm.common.program.project.ProjectDraft;
 import ca.teamdman.sfm.common.program.project.ProjectPage;
 import ca.teamdman.sfm.common.program.project.ProjectWorkspace;
+import ca.teamdman.sfm.common.program.project.PublicationPage;
+import ca.teamdman.sfm.common.program.project.PublicationReceipt;
 import ca.teamdman.sfm.common.tileentity.TileEntityProgrammingStation;
 import ca.teamdman.sfm.common.util.BoundedUtf8;
 
@@ -128,8 +130,9 @@ public final class Mui2ProgrammingStation {
     private List<StudioCompletion.Candidate> completions = Collections.emptyList();
     private SfmlCompletionCatalog.Snapshot symbols = SfmlCompletionCatalog.scan("");
     private IPanelHandler nodesPanel, apiPanel, problemsPanel, inspectPanel, fieldsPanel, completionPanel, findPanel;
-    private IPanelHandler catalogPanel, confirmationPanel, snippetsPanel, toolsPanel;
+    private IPanelHandler catalogPanel, confirmationPanel, snippetsPanel, toolsPanel, buildsPanel;
     private ProjectPage catalog = new ProjectPage(Collections.emptyList(), 0, 0);
+    private PublicationPage publications = new PublicationPage(Collections.emptyList(), 0, 0);
     private String status = "New local draft. Name it, then Create to save a project.";
     private boolean cancelled, opened;
     private Runnable protectedAction;
@@ -278,11 +281,15 @@ public final class Mui2ProgrammingStation {
                 .addTooltipLine("Functions, signatures, examples and methods"));
         panel.child(button("Problems", 260, 3, 52, () -> true, this::openProblems).height(17));
         panel.child(
-            button("Terminal", 0, 3, 64, () -> !state.busy(), this::openTerminal).right(8)
-                .height(17)
+            button("Builds", 316, 3, 48, () -> !state.busy(), this::openBuilds).height(17)
                 .setEnabledIf(
                     widget -> panel.getArea()
-                        .w() >= 392));
+                        .w() >= 440));
+        panel.child(
+            button("Terminal", 368, 3, 64, () -> !state.busy(), this::openTerminal).height(17)
+                .setEnabledIf(
+                    widget -> panel.getArea()
+                        .w() >= 440));
         panel.child(
             new TextWidget<>("Name").color(0xffe7e8eb)
                 .pos(8, 26)
@@ -427,6 +434,7 @@ public final class Mui2ProgrammingStation {
         completionPanel = IPanelHandler.simple(panel, (parent, player) -> buildCompletion(), true);
         findPanel = IPanelHandler.simple(panel, (parent, player) -> buildFind(), true);
         toolsPanel = IPanelHandler.simple(panel, (parent, player) -> buildTools(), true);
+        buildsPanel = IPanelHandler.simple(panel, (parent, player) -> buildPublications(), true);
         if (document.graph() != null) {
             UUID recoveredSelection = inspected;
             String recoveredClause = clause;
@@ -473,12 +481,13 @@ public final class Mui2ProgrammingStation {
                 .pos(8, 8)
                 .size(296, 12));
         String[] names = { "New draft", "Copy", "Undo", "Redo", "Indent", "Wrap", "Find / Replace", "Validate saved",
-            "API reference", "Problems", "Terminal" };
+            "API reference", "Problems", "Terminal", "Saved builds" };
         Runnable[] commands = { () -> protect("New draft", this::newDraft), this::copy, () -> undo(false),
             () -> undo(true), () -> { if (codeEditable()) editor.autoIndent(); }, () -> {
                 editor.toggleWrap();
                 savedWrap = editor.wraps();
-            }, this::openFind, this::validate, this::openApi, this::openProblems, this::openTerminal };
+            }, this::openFind, this::validate, this::openApi, this::openProblems, this::openTerminal,
+            this::openBuilds };
         for (int i = 0; i < names.length; i++) {
             Runnable command = commands[i];
             boolean readOnly = i == 1 || i == 9;
@@ -1214,14 +1223,30 @@ public final class Mui2ProgrammingStation {
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.thePlayer == null || mc.thePlayer.openContainer.windowId != windowId) return;
         UUID previous = state.saved == null ? null : state.saved.id;
-        if (!state.receive(reply.requestId, reply.action, reply.accepted, reply.draft, reply.validation)) return;
+        if (!state
+            .receive(reply.requestId, reply.action, reply.accepted, reply.draft, reply.validation, reply.publication))
+            return;
         status = reply.message;
         if (!reply.accepted) {
             retain();
             return;
         }
         if (reply.page != null) catalog = reply.page;
+        if (reply.publications != null && state.saved != null) {
+            // A catalog contains metadata only, and belongs to the current authenticated project.
+            boolean matches = true;
+            for (PublicationReceipt entry : reply.publications.entries)
+                matches &= entry.owner.equals(state.saved.owner) && entry.project.equals(state.saved.id);
+            if (matches) publications = reply.publications;
+        }
+        if (reply.publication != null && state.publication == reply.publication) {
+            status = "Published saved r" + reply.publication.revision
+                + " | "
+                + reply.publication.digest.substring(0, 12)
+                + ". Draft edits cannot change this build.";
+        }
         if (reply.draft != null && !state.ignoredLateLoad) {
+            if (!reply.draft.id.equals(previous)) publications = new PublicationPage(Collections.emptyList(), 0, 0);
             boolean recoveredVisual = reply.action == Action.LOAD && loadingRecovery != null;
             if (reply.action == Action.CREATE || reply.action == Action.SAVE) cache().remove(key(previous));
             if (reply.action == Action.LOAD && loadingRecovery != null) {
@@ -1352,8 +1377,9 @@ public final class Mui2ProgrammingStation {
             }
             SFMNetwork.WRAPPER.sendToServer(request);
             status = action == Action.VALIDATE ? "Validating saved revision r" + state.saved.revision + "..."
-                : action == Action.CREATE || action == Action.SAVE ? "Saving project; waiting for confirmation..."
-                    : "Loading project data...";
+                : action == Action.PUBLISH ? "Publishing saved revision r" + state.saved.revision + "..."
+                    : action == Action.CREATE || action == Action.SAVE ? "Saving project; waiting for confirmation..."
+                        : action == Action.LIST_PUBLICATIONS ? "Loading saved builds..." : "Loading project data...";
         } catch (IllegalArgumentException | IllegalStateException error) {
             status = error.getMessage() + " Draft kept.";
         }
@@ -1361,12 +1387,112 @@ public final class Mui2ProgrammingStation {
 
     private void newDraft() {
         state.newDraft();
+        publications = new PublicationPage(Collections.emptyList(), 0, 0);
         fieldDraft = null;
         document.load(state.source);
         if (graphEditor != null) graphEditor.resetSelection();
         syncEditor();
         if (view != View.CODE) document.openVisual();
         status = "New local draft. Name it, then Create.";
+    }
+
+    private void openBuilds() {
+        if (buildsPanel == null || buildsPanel.isPanelOpen()) return;
+        removeFocus();
+        buildsPanel.deleteCachedPanel();
+        buildsPanel.openPanel();
+        if (state.saved == null) status = "Create and save a project before publishing a build.";
+        else request(Action.LIST_PUBLICATIONS, state.saved.id, 0);
+    }
+
+    private void publish() {
+        if (document.incomplete() || pendingClause() || pendingFields()) {
+            status = "Finish and save the visual draft before publishing a saved revision.";
+            return;
+        }
+        request(Action.PUBLISH, state.saved == null ? null : state.saved.id, 0);
+    }
+
+    private ModularPanel buildPublications() {
+        ModularPanel popup = modal("sfm_station_builds", 312, 228);
+        popup.child(
+            new TextWidget<>("Immutable saved builds").color(0xffefa09a)
+                .pos(8, 7)
+                .size(296, 12));
+        popup.child(
+            button("Publish saved", 8, 24, 112, () -> state.saved != null && !state.awaitingReply(), this::publish)
+                .addTooltipLine("Compiles the exact saved revision, then stores an immutable source bundle."));
+        popup.child(
+            button(
+                "Refresh",
+                124,
+                24,
+                78,
+                () -> state.saved != null && !state.awaitingReply(),
+                () -> request(Action.LIST_PUBLICATIONS, state.saved.id, 0)));
+        for (int i = 0; i < CATALOG_ROWS; i++) {
+            final int row = i;
+            popup.child(button("", 8, 48 + i * 14, 296, () -> true, () -> {
+                PublicationReceipt entry = publishedEntry(row);
+                if (entry == null) return;
+                GuiScreen.setClipboardString(entry.digest);
+                status = "Copied build digest for saved r" + entry.revision + ".";
+            }).height(13)
+                .overlay(IKey.dynamic(() -> {
+                    PublicationReceipt entry = publishedEntry(row);
+                    return entry == null ? ""
+                        : trimFor(
+                            "r" + entry.revision + " | " + entry.name + " | " + entry.digest.substring(0, 10),
+                            280);
+                })
+                    .color(0xffe7e8eb))
+                .addTooltipLine("Click a build to copy its digest. Use Refresh after publishing."));
+        }
+        popup.child(
+            button(
+                "Previous",
+                8,
+                163,
+                64,
+                () -> state.saved != null && !state.awaitingReply() && publications.offset > 0,
+                () -> request(
+                    Action.LIST_PUBLICATIONS,
+                    state.saved.id,
+                    Math.max(0, publications.offset - CATALOG_ROWS))));
+        popup.child(
+            new TextWidget<>(
+                IKey.dynamic(
+                    () -> publications.total == 0 ? "No published builds"
+                        : (publications.offset + 1) + "-"
+                            + Math.min(publications.total, publications.offset + CATALOG_ROWS)
+                            + " / "
+                            + publications.total)).color(0xffe7e8eb)
+                                .pos(76, 167)
+                                .size(148, 12));
+        popup.child(
+            button(
+                "Next",
+                240,
+                163,
+                64,
+                () -> state.saved != null && !state.awaitingReply()
+                    && publications.offset + CATALOG_ROWS < publications.total,
+                () -> request(Action.LIST_PUBLICATIONS, state.saved.id, publications.offset + CATALOG_ROWS)));
+        popup.child(
+            new TextWidget<>(IKey.dynamic(() -> trimFor(status, 296))).color(0xffb0b3bb)
+                .pos(8, 188)
+                .size(296, 12)
+                .addTooltipLine(IKey.dynamic(() -> status)));
+        popup.child(
+            new TextWidget<>("Root source only; disk installation is next.").color(0xffb0b3bb)
+                .pos(8, 207)
+                .size(225, 12));
+        popup.child(button("Done", 242, 203, 62, () -> true, buildsPanel::closePanel).height(17));
+        return popup;
+    }
+
+    private PublicationReceipt publishedEntry(int row) {
+        return row < publications.entries.size() ? publications.entries.get(row) : null;
     }
 
     private void openCatalog() {

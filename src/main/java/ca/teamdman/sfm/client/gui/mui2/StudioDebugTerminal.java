@@ -67,6 +67,15 @@ public final class StudioDebugTerminal {
             public boolean disablePanelsBelow() {
                 return true;
             }
+
+            @Override
+            public boolean onKeyPressed(char character, int key) {
+                if (key == Keyboard.KEY_ESCAPE) {
+                    close.run();
+                    return true;
+                }
+                return super.onKeyPressed(character, key);
+            }
         }.size(312, 228)
             .background(StudioTheme.SHELL)
             .onCloseAction(this::cancel);

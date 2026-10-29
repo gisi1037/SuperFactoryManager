@@ -177,7 +177,8 @@ public final class ManagerMui2Screen extends ModularScreen implements ProgramEdi
             public boolean disablePanelsBelow() {
                 return true;
             }
-        }.size(300, 104);
+        }.size(300, 104)
+            .background(ManagerConsoleTheme.SHELL);
         panel.child(
             new TextWidget<>(resetState ? "Reset persistent variables?" : "Reset disk program and labels?").pos(10, 12)
                 .size(280, 14));
@@ -189,6 +190,8 @@ public final class ManagerMui2Screen extends ModularScreen implements ProgramEdi
         panel.child(
             new ButtonWidget<>().pos(10, 70)
                 .size(134, 20)
+                .background(ManagerConsoleTheme.PRIMARY)
+                .hoverBackground(ManagerConsoleTheme.HOVER)
                 .overlay(IKey.str("Reset"))
                 .onMousePressed(button -> {
                     if (button != 0) return false;
@@ -199,6 +202,8 @@ public final class ManagerMui2Screen extends ModularScreen implements ProgramEdi
         panel.child(
             new ButtonWidget<>().pos(156, 70)
                 .size(134, 20)
+                .background(ManagerConsoleTheme.BUTTON)
+                .hoverBackground(ManagerConsoleTheme.HOVER)
                 .overlay(IKey.str("Cancel"))
                 .onMousePressed(button -> {
                     if (button != 0) return false;

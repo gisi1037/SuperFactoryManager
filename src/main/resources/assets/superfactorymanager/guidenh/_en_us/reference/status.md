@@ -29,7 +29,7 @@ different.
 - Typed inventory selections, visible counts/emptiness/availability and exact
   grouped item snapshots with physical origins.
 - A standalone value-driven item TRANSFER action with confirmed progress results.
-- Private Programming Station drafts with save/reopen and revision validation.
+- Private Programming Station drafts with save/reopen, revision validation and immutable root-source builds.
 
 ## Boundaries to keep in mind
 

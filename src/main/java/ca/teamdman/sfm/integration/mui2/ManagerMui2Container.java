@@ -1,6 +1,7 @@
 package ca.teamdman.sfm.integration.mui2;
 
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.inventory.Slot;
 import net.minecraft.item.ItemStack;
 
 import com.cleanroommc.modularui.screen.ModularContainer;
@@ -37,6 +38,16 @@ public final class ManagerMui2Container extends ModularContainer implements Mana
     public ItemStack slotClick(int slotId, int button, int mode, EntityPlayer player) {
         // Snapshot before MUI2/vanilla makes cursor, swap, drag, drop or quick-move copies.
         manager.flushProgramState();
+        if (mode == 2) {
+            if (button < 0 || button >= 9 || slotId < 0 || slotId >= inventorySlots.size()) return null;
+            Slot target = getSlot(slotId);
+            if (ManagerPlayerSlotSwap.owns(target, player)) {
+                // Vanilla sees ModularSlot's dummy inventory and can redirect the
+                // displaced hotbar stack to an unrelated first-empty player slot.
+                ManagerPlayerSlotSwap.apply(target, findPlayerSlot(player, button), player);
+                return null;
+            }
+        }
         return super.slotClick(slotId, button, mode, player);
     }
 

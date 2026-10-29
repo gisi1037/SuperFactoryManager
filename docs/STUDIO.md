@@ -17,8 +17,27 @@ to include your latest edits. Invalid text can be saved as a draft.
 
 **Copy** copies source without hidden visual-layout metadata. To run it with the
 current disk workflow, paste it into the manager's Text editor and save its disk.
-Project build publication and reference-only execution disks are a later stage;
-Studio does not offer an installation button without that backend.
+Reference-only execution disks are a later stage; Studio does not offer an
+installation button until that runtime workflow is ready.
+
+## Publish a saved build
+
+Open **Builds** (or **Tools → Saved builds** on a compact screen). **Publish saved**
+compiles the exact saved server revision and stores an immutable source bundle.
+Save name and source changes first. Invalid drafts can still be saved, but cannot
+be published. Publishing does not run the program or change any manager.
+
+Use **Refresh** to list published revisions. Clicking a row copies its SHA-256
+digest. Identical source bundles can share storage; each project's publication
+receipt records its owner, project, saved revision and name. Later draft edits
+cannot alter a published bundle. A lost acknowledgement can be reconciled by
+refreshing or retrying publication of that saved revision.
+
+Builds currently contain root SFML source only, with no imported dependencies.
+Storage and compilation run on the bounded project worker. The world's
+`sfm/projects` directory holds drafts/receipts, and `sfm/programs` holds bundles;
+back up both with the world. Atomic file visibility is not a power-loss guarantee.
+Private project access is checked by the server; a digest alone grants no access.
 
 ## Write code
 
@@ -120,3 +139,17 @@ evaluate arbitrary SFML, simulate transfers, or provide breakpoints and stepping
 
 See the [SFML guide](SFML_GUIDE.md) for language behavior and the
 [roadmap](STUDIO_ROADMAP.md) for remaining integration and qualification work.
+
+## Factory Manager inventory
+
+The separate Factory Manager uses an operational dashboard with Overview,
+Program and Network tabs. Its disk slot is manager equipment. Player storage
+appears below, with a fixed hotbar and Main/Left/Right storage views. Compact
+screens show one storage view at a time; wide screens show all sections.
+
+Use **Layout**, or hold Shift, to reveal row/column controls. Select Left or Right
+before resizing that side; slots are borrowed from or returned to Main. **Split**
+and **All** select layout presets, and **Undo** restores a recent layout. These
+controls move slot presentation only; they do not transfer items or create extra
+capacity. Layout preferences are temporary client memory. The live connected
+inventory browser remains planned.

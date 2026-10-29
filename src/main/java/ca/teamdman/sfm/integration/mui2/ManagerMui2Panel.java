@@ -16,7 +16,7 @@ import com.cleanroommc.modularui.value.sync.GenericSyncValue;
 import com.cleanroommc.modularui.value.sync.PanelSyncManager;
 import com.cleanroommc.modularui.value.sync.StringSyncValue;
 import com.cleanroommc.modularui.widgets.ButtonWidget;
-import com.cleanroommc.modularui.widgets.SlotGroupWidget;
+import com.cleanroommc.modularui.widgets.TextWidget;
 import com.cleanroommc.modularui.widgets.slot.ItemSlot;
 
 import ca.teamdman.sfm.Config;
@@ -45,7 +45,8 @@ public final class ManagerMui2Panel {
         Objects.requireNonNull(syncManager, "syncManager");
         syncManager.registerSlotGroup(DISK_SYNC_KEY, 1);
         syncManager.itemSlot(DISK_SYNC_KEY, new ManagerDiskSlot(manager).slotGroup(DISK_SYNC_KEY));
-        SlotGroupWidget inventory = PlayerInventoryWidgets.bind(syncManager, owner);
+        syncManager.bindPlayerInventory(owner);
+        ManagerPlayerInventory inventory = new ManagerPlayerInventory(syncManager, owner.inventory);
 
         BooleanSyncValue hasDisk = new BooleanSyncValue(() -> manager.getDisk() != null);
         BooleanSyncValue running = new BooleanSyncValue(manager::isRunning);
@@ -101,120 +102,160 @@ public final class ManagerMui2Panel {
         BooleanSupplier diskPresent = hasDisk::getBoolValue;
         ManagerTickGraph graph = new ManagerTickGraph(history::getValue, peak::getDoubleValue);
 
-        // MUI2 logical coordinates track GUI scale. The inventory API owns responsive
-        // viewport sizing and scrolling; no raw display pixels or fixed slot count here.
-        ModularPanel panel = ModularPanel.defaultPanel(PANEL_NAME, WIDTH, HEIGHT)
-            .child(
-                IKey.str("Program")
-                    .asWidget()
-                    .pos(8, 8))
-            .child(
-                IKey.str("Manager")
-                    .asWidget()
-                    .pos(144, 8))
-            .child(
-                IKey.dynamic(() -> "State: " + (running.getBoolValue() ? "\u00a7arunning" : "\u00a7cstopped"))
-                    .asWidget()
-                    .pos(144, 26))
-            .child(
-                IKey.dynamic(() -> "Log level: " + logLevel.getStringValue())
-                    .asWidget()
-                    .pos(144, 39)
-                    .scale(0.8f))
-            .child(
-                new ItemSlot().syncHandler(DISK_SYNC_KEY)
-                    .pos(151, 58)
-                    .name("program_disk"))
-            .child(
-                graph.pos(186, 58)
-                    .size(114, 38))
-            .child(
-                IKey.dynamic(graph::readout)
-                    .asWidget()
-                    .pos(144, 102)
-                    .scale(0.85f))
-            .child(
-                IKey.dynamic(() -> abbreviate(status.getStringValue()))
-                    .asWidget()
-                    .pos(144, 115)
-                    .width(160)
-                    .height(10)
-                    .scale(0.8f)
-                    .addTooltipLine(IKey.dynamic(status::getStringValue)))
-            .child(
-                IKey.str("Inventory")
-                    .asWidget()
-                    .pos(144, 127))
-            .child(
-                inventory.left(140)
-                    .bottom(7));
-
+        // The server binds the same canonical slot keys; only client presentation reflows.
+        final int[] page = { 0 };
+        ModularPanel panel = new ModularPanel(PANEL_NAME).widthRel(1f)
+            .heightRel(1f)
+            .pos(0, 0)
+            .background(ManagerConsoleTheme.SHELL)
+            .resizeableOnDrag(false)
+            .excludeAreaInRecipeViewer();
         panel.child(
-            button(manager, syncManager, controlToken, "paste", () -> "Paste from clipboard", diskPresent, 8, 24, 120));
-        panel.child(button(manager, syncManager, controlToken, "text", () -> "Text", diskPresent, 8, 44, 59));
-        panel.child(button(manager, syncManager, controlToken, "visual", () -> "Visual", diskPresent, 69, 44, 59));
+            new TextWidget<>("Factory Manager").color(0xffefa09a)
+                .pos(8, 6)
+                .size(110, 12));
         panel.child(
-            button(
-                manager,
-                syncManager,
-                controlToken,
-                "reset_state",
-                () -> "Reset persistent state",
-                diskPresent,
-                8,
-                64,
-                120));
+            IKey.str(manager.xCoord + " / " + manager.yCoord + " / " + manager.zCoord)
+                .asWidget()
+                .pos(120, 7)
+                .height(10)
+                .scale(.8f));
         panel.child(
-            button(manager, syncManager, controlToken, "example", () -> "View examples", () -> true, 8, 84, 120));
-        panel.child(button(manager, syncManager, controlToken, "copy", () -> "Copy code", diskPresent, 8, 104, 78));
+            IKey.dynamic(
+                () -> recovery.getBoolValue() ? "\u00a7eRecovery blocks activation"
+                    : !hasDisk.getBoolValue() ? "No source disk installed"
+                        : running.getBoolValue() ? "\u00a7aRunning"
+                            : compiled.getBoolValue() ? "Paused" : "Program unavailable")
+                .asWidget()
+                .pos(32, 23)
+                .height(12));
+        panel.child(
+            new ItemSlot().syncHandler(DISK_SYNC_KEY)
+                .pos(8, 21)
+                .name("program_disk")
+                .addTooltipLine("Installed source disk - manager equipment"));
         panel.child(
             button(
                 manager,
                 syncManager,
                 controlToken,
                 "run",
-                () -> running.getBoolValue() ? "Stop" : "Run",
+                () -> running.getBoolValue() ? "Pause" : "Start",
                 () -> hasDisk.getBoolValue() && compiled.getBoolValue() && !recovery.getBoolValue(),
-                88,
-                104,
-                40));
-        panel.child(button(manager, syncManager, controlToken, "logs", () -> "Logs", diskPresent, 8, 124, 59));
-        panel.child(button(manager, syncManager, controlToken, "terminal", () -> "Terminal", () -> true, 69, 124, 59));
+                0,
+                21,
+                56).right(8)
+                    .background(ManagerConsoleTheme.PRIMARY));
+        String[] destinations = { "Overview", "Program", "Network" };
+        for (int i = 0; i < destinations.length; i++) {
+            final int destination = i;
+            panel.child(
+                new ButtonWidget<>().pos(8 + i * 61, 42)
+                    .size(59, 17)
+                    .background(ManagerConsoleTheme.BUTTON)
+                    .hoverBackground(ManagerConsoleTheme.HOVER)
+                    .overlay(
+                        IKey.dynamic(
+                            () -> (page[0] == destination ? "\u00a7f" : "\u00a77") + destinations[destination]))
+                    .onMousePressed(mouse -> {
+                        if (mouse != 0) return false;
+                        page[0] = destination;
+                        return true;
+                    }));
+        }
+        panel.child(button(manager, syncManager, controlToken, "terminal", () -> "Terminal", () -> true, 191, 42, 58));
+        panel.child(button(manager, syncManager, controlToken, "logs", () -> "Logs", diskPresent, 251, 42, 53));
         panel.child(
-            button(
-                manager,
-                syncManager,
-                controlToken,
-                "rebuild",
-                () -> "Rebuild cable network",
-                diskPresent,
-                8,
-                144,
-                120));
+            IKey.dynamic(() -> "Last tick: " + abbreviate(status.getStringValue()))
+                .asWidget()
+                .pos(8, 65)
+                .widthRelOffset(1f, -64)
+                .height(12)
+                .scale(.85f)
+                .addTooltipLine(IKey.dynamic(status::getStringValue))
+                .setEnabledIf(widget -> page[0] == 0));
         panel.child(
-            button(manager, syncManager, controlToken, "config", () -> "View server config", () -> true, 8, 164, 120));
-        if (Config.showDiscordButton) panel
-            .child(button(manager, syncManager, controlToken, "discord", () -> "Discord", () -> true, 8, 184, 120));
-        panel.child(button(manager, syncManager, controlToken, "reset", () -> "Reset", diskPresent, 251, 8, 53));
+            graph.pos(8, 79)
+                .widthRelOffset(.5f, -12)
+                .height(26)
+                .setEnabledIf(widget -> page[0] == 0));
         panel.child(
-            button(
-                manager,
-                syncManager,
-                controlToken,
-                "diagnostics",
-                () -> "!",
-                () -> hasDisk.getBoolValue() && !status.getStringValue()
-                    .isEmpty() && !"Running".equalsIgnoreCase(status.getStringValue()),
-                172,
-                60,
-                12));
+            IKey.dynamic(graph::readout)
+                .asWidget()
+                .leftRelAnchor(.5f, 0)
+                .top(80)
+                .height(12)
+                .scale(.8f)
+                .setEnabledIf(widget -> page[0] == 0));
+        panel.child(
+            IKey.dynamic(() -> "Log level: " + logLevel.getStringValue())
+                .asWidget()
+                .leftRelAnchor(.5f, 0)
+                .top(95)
+                .height(10)
+                .scale(.75f)
+                .setEnabledIf(widget -> page[0] == 0));
+        panel.child(
+            button(manager, syncManager, controlToken, "diagnostics", () -> "Info", diskPresent, 0, 63, 40).right(8)
+                .setEnabledIf(widget -> page[0] == 0));
+        panel.child(
+            IKey.str("Source disk editing; changes apply to this manager.")
+                .asWidget()
+                .pos(8, 63)
+                .height(10)
+                .scale(.75f)
+                .setEnabledIf(widget -> page[0] == 1));
+        String[] programActions = { "text", "visual", "paste", "copy", "example", "reset_state", "reset" };
+        String[] programTitles = { "Edit code", "Visual", "Paste", "Copy code", "Example", "Reset state",
+            "Reset disk" };
+        for (int i = 0; i < programActions.length; i++) {
+            final int action = i;
+            panel.child(
+                button(
+                    manager,
+                    syncManager,
+                    controlToken,
+                    programActions[i],
+                    () -> programTitles[action],
+                    i == 4 ? () -> true : diskPresent,
+                    8 + i % 4 * 75,
+                    75 + i / 4 * 18,
+                    72).setEnabledIf(widget -> page[0] == 1));
+        }
+        panel.child(
+            IKey.str("Live network browser: planned")
+                .asWidget()
+                .pos(8, 64)
+                .height(12)
+                .setEnabledIf(widget -> page[0] == 2));
+        panel.child(
+            IKey.str("Saved labels do not prove loaded inventory access.")
+                .asWidget()
+                .pos(8, 79)
+                .height(10)
+                .scale(.75f)
+                .setEnabledIf(widget -> page[0] == 2));
+        panel.child(
+            button(manager, syncManager, controlToken, "rebuild", () -> "Rebuild network", diskPresent, 8, 96, 104)
+                .setEnabledIf(widget -> page[0] == 2));
+        panel.child(
+            button(manager, syncManager, controlToken, "config", () -> "Server limits", () -> true, 115, 96, 90)
+                .setEnabledIf(widget -> page[0] == 2));
+        if (Config.showDiscordButton) panel.child(
+            button(manager, syncManager, controlToken, "discord", () -> "Discord", () -> true, 208, 96, 70)
+                .setEnabledIf(widget -> page[0] == 2));
+        panel.child(
+            inventory.left(0)
+                .right(0)
+                .top(112)
+                .bottom(4));
         return panel;
     }
 
     private static String abbreviate(String text) {
         String firstLine = text.replace('\n', ' ')
             .replace('\r', ' ');
-        return firstLine.length() <= 32 ? firstLine : firstLine.substring(0, 29) + "...";
+        return firstLine.length() <= 60 ? firstLine : firstLine.substring(0, 57) + "...";
     }
 
     private static ButtonWidget<?> button(TileEntityManager manager, PanelSyncManager sync,
@@ -223,6 +264,8 @@ public final class ManagerMui2Panel {
         BooleanSupplier ready = () -> available.getAsBoolean() && (!requiresToken(page) || token.getValue() != null);
         return new ButtonWidget<>().pos(x, y)
             .size(width, 16)
+            .background(ManagerConsoleTheme.BUTTON)
+            .hoverBackground(ManagerConsoleTheme.HOVER)
             .name("action_" + page)
             .overlay(IKey.dynamic(() -> (ready.getAsBoolean() ? "" : "\u00a78") + title.get()))
             .onMousePressed(mouseButton -> {

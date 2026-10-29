@@ -11,6 +11,8 @@ import ca.teamdman.sfm.common.net.PacketStationReply;
 import ca.teamdman.sfm.common.net.PacketStationRequest.Action;
 import ca.teamdman.sfm.common.program.project.ProjectDraft;
 import ca.teamdman.sfm.common.program.project.ProjectValidation;
+import ca.teamdman.sfm.common.program.project.PublicationReceipt;
+import ca.teamdman.sfm.common.program.project.PublishedProgram;
 
 class ProgrammingStationDraftStateTest {
 
@@ -238,6 +240,111 @@ class ProgrammingStationDraftStateTest {
             state.revisionLine()
                 .contains("edited"));
         assertEquals(0, state.validation.revision, "An edit cannot inherit a new validation revision");
+    }
+
+    @Test
+    void publicationAndHistoryRequireSavedIdentityAndPublishRequiresCleanNameAndSource() {
+        ProgrammingStationDraftState unsaved = new ProgrammingStationDraftState();
+        assertThrows(IllegalStateException.class, () -> unsaved.begin(Action.PUBLISH));
+        assertThrows(IllegalStateException.class, () -> unsaved.begin(Action.LIST_PUBLICATIONS));
+        ProgrammingStationDraftState state = loaded();
+        ProgrammingStationDraftState savedState = state;
+        state.source = "unsaved";
+        assertThrows(IllegalStateException.class, () -> savedState.begin(Action.PUBLISH));
+        long list = state.begin(Action.LIST_PUBLICATIONS);
+        assertTrue(state.receive(list, Action.LIST_PUBLICATIONS, true, null, null));
+        assertEquals("unsaved", state.source, "History can be viewed while retaining unsaved source");
+        state.source = state.saved.source;
+        state.name = "unsaved name";
+        assertThrows(IllegalStateException.class, () -> savedState.begin(Action.PUBLISH));
+    }
+
+    @Test
+    void publicationReceiptMustMatchExactOwnerProjectRevisionAndRequest() {
+        ProgrammingStationDraftState state = loaded();
+        PublicationReceipt correct = receipt(OWNER, PROJECT, 0);
+        long id = state.begin(Action.PUBLISH);
+        assertFalse(state.receive(id + 1, Action.PUBLISH, true, null, null, correct));
+        assertFalse(state.receive(id, Action.VALIDATE, true, null, null, correct));
+        assertNull(state.publication);
+        assertTrue(state.awaitingReply());
+        assertTrue(state.receive(id, Action.PUBLISH, true, null, null, correct));
+        assertSame(correct, state.publication);
+        assertTrue(
+            state.revisionLine()
+                .contains("Published r0"));
+        for (PublicationReceipt wrong : new PublicationReceipt[] { receipt(UUID.randomUUID(), PROJECT, 0),
+            receipt(OWNER, UUID.randomUUID(), 0), receipt(OWNER, PROJECT, 1) }) {
+            ProgrammingStationDraftState fresh = loaded();
+            long request = fresh.begin(Action.PUBLISH);
+            assertTrue(fresh.receive(request, Action.PUBLISH, true, null, null, wrong));
+            assertNull(fresh.publication);
+            assertEquals("original source", fresh.source);
+            assertEquals(0, fresh.saved.revision);
+        }
+        ProgrammingStationDraftState nonPublish = loaded();
+        long validate = nonPublish.begin(Action.VALIDATE);
+        assertTrue(nonPublish.receive(validate, Action.VALIDATE, true, null, null, correct));
+        assertNull(nonPublish.publication);
+    }
+
+    @Test
+    void timedOutPublicationAcceptsExactLateReceiptWithoutReplacingNewerLocalEdits() {
+        ProgrammingStationDraftState state = loaded();
+        ProjectDraft saved = state.saved;
+        long id = state.begin(Action.PUBLISH);
+        timeout(state);
+        assertFalse(state.uncertainWrite, "Publishing never changes the saved draft");
+        assertTrue(state.awaitingReply());
+        state.source = "new local source";
+        state.name = "new local name";
+        PublicationReceipt receipt = receipt(OWNER, PROJECT, 0);
+        assertTrue(state.receive(id, Action.PUBLISH, true, null, null, receipt));
+        assertSame(saved, state.saved);
+        assertSame(receipt, state.publication);
+        assertEquals("new local source", state.source);
+        assertEquals("new local name", state.name);
+        assertTrue(state.dirty());
+        assertFalse(state.receive(id, Action.PUBLISH, true, null, null, receipt));
+    }
+
+    @Test
+    void rejectedPublishKeepsSavedDraftAndPreviousReceiptAndResetClearsPublication() {
+        ProgrammingStationDraftState state = loaded();
+        PublicationReceipt previous = receipt(OWNER, PROJECT, 0);
+        state.publication = previous;
+        ProjectDraft saved = state.saved;
+        long id = state.begin(Action.PUBLISH);
+        assertTrue(state.receive(id, Action.PUBLISH, false, null, null, null));
+        assertSame(saved, state.saved);
+        assertSame(previous, state.publication);
+        assertEquals("original source", state.source);
+        assertEquals("original name", state.name);
+        state.newDraft();
+        assertNull(state.publication);
+    }
+
+    @Test
+    void loadingDifferentProjectClearsPreviousProjectsPublicationReceipt() {
+        ProgrammingStationDraftState state = loaded();
+        state.publication = receipt(OWNER, PROJECT, 0);
+        long id = state.begin(Action.LOAD);
+        ProjectDraft other = new ProjectDraft(UUID.randomUUID(), OWNER, 0, "Other", "other source");
+        assertTrue(state.receive(id, Action.LOAD, true, other, null));
+        assertSame(other, state.saved);
+        assertNull(state.publication, "Published status must belong to the selected project");
+        assertFalse(
+            state.revisionLine()
+                .contains("Published"));
+    }
+
+    private static PublicationReceipt receipt(UUID owner, UUID project, long revision) {
+        return new PublicationReceipt(
+            owner,
+            project,
+            revision,
+            new PublishedProgram("EVERY 20 TICKS DO END").digest(),
+            "original name");
     }
 
     @Test

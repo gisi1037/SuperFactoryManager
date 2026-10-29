@@ -454,6 +454,16 @@ public class TestAutomationController {
                     return "KEY_PRESSED: " + key;
                 }
 
+                case "modernkey":
+                    if (!cpw.mods.fml.common.Loader.isModLoaded("lwjgl3ify"))
+                        return "ERROR: modernkey requires the lwjgl3ify runtime";
+                    return ModernInputFixture.key(arg);
+
+                case "moderntext":
+                    if (!cpw.mods.fml.common.Loader.isModLoaded("lwjgl3ify"))
+                        return "ERROR: moderntext requires the lwjgl3ify runtime";
+                    return ModernInputFixture.text(arg);
+
                 case "chat":
                     if (mc.thePlayer == null) return "ERROR: Player is null";
                     mc.thePlayer.sendChatMessage(arg);
@@ -464,12 +474,23 @@ public class TestAutomationController {
                     String[] xy = arg.split("\\s+");
                     int x = Integer.parseInt(xy[0]), y = Integer.parseInt(xy[1]);
                     int mouse = xy.length > 2 ? Integer.parseInt(xy[2]) : 0;
+                    if (mouse < 0 || mouse > 2) return "ERROR: Click button must be 0..2";
                     com.cleanroommc.modularui.screen.ModularScreen screen = currentMui();
                     if (screen == null) return "ERROR: No active MUI screen";
                     positionMuiMouse(screen, x, y);
-                    mc.currentScreen.drawScreen(x, y, 0);
-                    screen.onMousePressed(mouse);
-                    screen.onMouseRelease(mouse);
+                    drawMuiInputFrame(screen, x, y);
+                    java.lang.reflect.Field buttonState = com.cleanroommc.modularui.screen.viewport.GuiContext.class
+                        .getDeclaredField("mouseButton");
+                    buttonState.setAccessible(true);
+                    int previousButton = buttonState.getInt(screen.getContext());
+                    try {
+                        // Buttons use the argument; ItemSlot forwards the event-state button to vanilla.
+                        buttonState.setInt(screen.getContext(), mouse);
+                        screen.onMousePressed(mouse);
+                        screen.onMouseRelease(mouse);
+                    } finally {
+                        buttonState.setInt(screen.getContext(), previousButton);
+                    }
                     return "CLICKED: " + x + "," + y;
                 }
 
@@ -479,7 +500,7 @@ public class TestAutomationController {
                     String[] xy = arg.split("\\s+");
                     int x = Integer.parseInt(xy[0]), y = Integer.parseInt(xy[1]);
                     positionMuiMouse(screen, x, y);
-                    mc.currentScreen.drawScreen(x, y, 0);
+                    drawMuiInputFrame(screen, x, y);
                     // Forge/NEI foreground hooks normally run after drawScreen. Exercise
                     // that phase explicitly without depending on the host OS pointer.
                     positionMuiMouse(screen, x, y);
@@ -532,15 +553,25 @@ public class TestAutomationController {
                     int dragButton = coordinates.length > 5 ? Integer.parseInt(coordinates[5]) : 0;
                     if (dragButton < 0 || dragButton > 2) return "ERROR: Drag button must be 0..2";
                     positionMuiMouse(screen, x0, y0);
-                    mc.currentScreen.drawScreen(x0, y0, 0);
-                    screen.onMousePressed(dragButton);
-                    for (int i = 1; i <= steps; i++) {
-                        int px = x0 + (x1 - x0) * i / steps, py = y0 + (y1 - y0) * i / steps;
-                        positionMuiMouse(screen, px, py);
-                        mc.currentScreen.drawScreen(px, py, 0);
-                        screen.onMouseDrag(dragButton, 50L * i);
+                    drawMuiInputFrame(screen, x0, y0);
+                    java.lang.reflect.Field buttonState = com.cleanroommc.modularui.screen.viewport.GuiContext.class
+                        .getDeclaredField("mouseButton");
+                    buttonState.setAccessible(true);
+                    int previousButton = buttonState.getInt(screen.getContext());
+                    try {
+                        // ItemSlot's vanilla click, distribution and release read event state as well as arguments.
+                        buttonState.setInt(screen.getContext(), dragButton);
+                        screen.onMousePressed(dragButton);
+                        for (int i = 1; i <= steps; i++) {
+                            int px = x0 + (x1 - x0) * i / steps, py = y0 + (y1 - y0) * i / steps;
+                            positionMuiMouse(screen, px, py);
+                            drawMuiInputFrame(screen, px, py);
+                            screen.onMouseDrag(dragButton, 50L * i);
+                        }
+                        screen.onMouseRelease(dragButton);
+                    } finally {
+                        buttonState.setInt(screen.getContext(), previousButton);
                     }
-                    screen.onMouseRelease(dragButton);
                     return "DRAGGED_MUI: " + x0 + "," + y0 + " -> " + x1 + "," + y1;
                 }
 
@@ -693,6 +724,100 @@ public class TestAutomationController {
             return future.get(5, TimeUnit.SECONDS);
         } catch (Exception e) {
             return "TIMEOUT_OR_ERROR: " + e.getMessage();
+        }
+    }
+
+    /**
+     * Opt-in synthetic SDL dispatch fixture, not OS keyboard/IME qualification. Keep this class behind the runtime
+     * guard:
+     * the lwjgl3ify API dependency alone does not provide its replacement Keyboard or SDL implementation.
+     */
+    private static final class ModernInputFixture {
+
+        private static String key(String argument) throws Exception {
+            if (currentMui() == null) return "ERROR: No active MUI screen";
+            String[] args = argument.trim()
+                .split("\\s+");
+            if (args.length < 1 || args.length > 2 || args[0].isEmpty())
+                return "ERROR: Usage: modernkey <LWJGL key name or code> [tap|press|repeat|release]";
+            int key;
+            try {
+                key = Integer.parseInt(args[0]);
+            } catch (NumberFormatException name) {
+                key = org.lwjgl.input.Keyboard.getKeyIndex(args[0].toUpperCase(java.util.Locale.ROOT));
+            }
+            if (key <= 0 || key >= 256) return "ERROR: Unknown LWJGL key";
+            String action = args.length == 1 ? "tap" : args[1].toLowerCase(java.util.Locale.ROOT);
+            if (!java.util.Arrays.asList("tap", "press", "repeat", "release")
+                .contains(action)) return "ERROR: Expected tap, press, repeat or release";
+            Class<?> codes = Class.forName("org.lwjglx.input.KeyCodes");
+            int sdlKey = (Integer) codes.getMethod("lwjglToSdlKeycode", int.class)
+                .invoke(null, key);
+            int sdlScan = (Integer) codes.getMethod("lwjglToSdlScancode", int.class)
+                .invoke(null, key);
+            if (sdlKey == 0 || sdlScan == 0) return "ERROR: Key has no SDL mapping";
+            Method queue = Class.forName("org.lwjglx.input.Keyboard")
+                .getMethod(
+                    "addSdlKeyEvent",
+                    int.class,
+                    int.class,
+                    me.eigenraven.lwjgl3ify.api.InputEvents.KeyAction.class,
+                    int.class,
+                    int.class,
+                    long.class);
+            long namePointer = (Long) Class.forName("org.lwjgl.sdl.SDLKeyboard")
+                .getMethod("nSDL_GetKeyName", int.class)
+                .invoke(null, sdlKey);
+            me.eigenraven.lwjgl3ify.api.InputEvents.KeyAction eventAction = "release".equals(action)
+                ? me.eigenraven.lwjgl3ify.api.InputEvents.KeyAction.RELEASED
+                : "repeat".equals(action) ? me.eigenraven.lwjgl3ify.api.InputEvents.KeyAction.REPEATED
+                    : me.eigenraven.lwjgl3ify.api.InputEvents.KeyAction.PRESSED;
+            dispatchKey(key, sdlKey, sdlScan, eventAction, namePointer, queue);
+            if ("tap".equals(action)) dispatchKey(
+                key,
+                sdlKey,
+                sdlScan,
+                me.eigenraven.lwjgl3ify.api.InputEvents.KeyAction.RELEASED,
+                namePointer,
+                queue);
+            return "MODERN_KEY_QUEUED: " + key
+                + " "
+                + action
+                + " (synthetic; no held-state or modifier injection; inspect after the next client tick)";
+        }
+
+        private static void dispatchKey(int key, int sdlKey, int sdlScan,
+            me.eigenraven.lwjgl3ify.api.InputEvents.KeyAction action, long namePointer, Method queue) throws Exception {
+            // Match Lwjgl3ifyEventLoop: notify the modern listener, then enqueue the legacy event. Do not directly
+            // invoke a widget callback: Minecraft/Forge/MUI2 must consume the queue on the next input pass.
+            me.eigenraven.lwjgl3ify.api.InputEvents.injectKeyEvent(
+                new me.eigenraven.lwjgl3ify.api.InputEvents.KeyEvent(
+                    key,
+                    key,
+                    sdlKey,
+                    sdlScan,
+                    sdlKey,
+                    action,
+                    (short) 0,
+                    namePointer));
+            queue
+                .invoke(null, sdlKey, sdlScan, action, 0, sdlKey < Character.MAX_VALUE ? sdlKey : 0, System.nanoTime());
+        }
+
+        private static String text(String argument) throws Exception {
+            if (currentMui() == null) return "ERROR: No active MUI screen";
+            com.google.gson.JsonElement parsed = new com.google.gson.JsonParser().parse(argument);
+            if (!parsed.isJsonPrimitive() || !parsed.getAsJsonPrimitive()
+                .isString()) return "ERROR: Usage: moderntext <JSON string>";
+            String text = parsed.getAsString();
+            if (text.length() > 512) return "ERROR: moderntext is limited to 512 UTF-16 characters";
+            Method queue = Class.forName("org.lwjglx.input.Keyboard")
+                .getMethod("addCharEvent", int.class, int.class);
+            me.eigenraven.lwjgl3ify.api.InputEvents
+                .injectTextEvent(new me.eigenraven.lwjgl3ify.api.InputEvents.TextEvent(text));
+            // The real SDL event loop uses String.chars(), so preserve its UTF-16 sequence, including surrogate pairs.
+            for (int i = 0; i < text.length(); i++) queue.invoke(null, 0, (int) text.charAt(i));
+            return "MODERN_TEXT_QUEUED: " + text.length() + " (synthetic; inspect after the next client tick)";
         }
     }
 
@@ -992,6 +1117,13 @@ public class TestAutomationController {
         screen.onFrameUpdate();
     }
 
+    private static void drawMuiInputFrame(ModularScreen screen, int x, int y) {
+        // Forge normally intercepts and replaces the wrapper's vanilla drawScreen.
+        // Use that MUI path so vanilla release/drag sees the transformed hovered slot.
+        com.cleanroommc.modularui.screen.ClientScreenHandler
+            .drawScreen(screen, Minecraft.getMinecraft().currentScreen, x, y, 0);
+    }
+
     private static TextFieldWidget textField() {
         ModularScreen screen = currentMui();
         if (screen != null) for (IWidget widget : widgets(
@@ -1154,9 +1286,12 @@ public class TestAutomationController {
         ModularScreen screen = currentMui();
         if (screen == null) return null;
         for (IWidget widget : widgets(screen.getMainPanel())) {
-            if ("dev.gilbe.dynamicinventory.compat.mui2.InventoryScrollWidget".equals(
+            if (("dev.gilbe.dynamicinventory.compat.mui2.InventoryScrollWidget".equals(
                 widget.getClass()
                     .getName())
+                || "ca.teamdman.sfm.integration.mui2.ManagerPlayerInventory$StorageViewport".equals(
+                    widget.getClass()
+                        .getName()))
                 && widget instanceof com.cleanroommc.modularui.widget.AbstractScrollWidget)
                 return (com.cleanroommc.modularui.widget.AbstractScrollWidget<?, ?>) widget;
         }
@@ -1201,8 +1336,10 @@ public class TestAutomationController {
         boolean markerVisible = false;
         for (IWidget child : widget.getChildren()) {
             if (!(child instanceof com.cleanroommc.modularui.widgets.slot.ItemSlot)) continue;
+            int x = child.getArea().rx - widget.getScrollX();
             int y = child.getArea().ry - scroll.getScroll();
-            if (y + child.getArea().height <= 0 || y >= visible) continue;
+            if (x + child.getArea().width <= 0 || x >= area.width || y + child.getArea().height <= 0 || y >= visible)
+                continue;
             com.cleanroommc.modularui.widgets.slot.ItemSlot item = (com.cleanroommc.modularui.widgets.slot.ItemSlot) child;
             JsonObject slot = new JsonObject();
             slot.addProperty("name", child.getName());
@@ -1295,6 +1432,26 @@ public class TestAutomationController {
         JsonObject state = new JsonObject();
         state.addProperty("name", draft.name);
         state.addProperty("source", draft.source);
+        if (draft.publication != null) {
+            JsonObject publication = new JsonObject();
+            publication.addProperty("revision", draft.publication.revision);
+            publication.addProperty("digest", draft.publication.digest);
+            state.add("publication", publication);
+        }
+        ca.teamdman.sfm.common.program.project.PublicationPage builds = (ca.teamdman.sfm.common.program.project.PublicationPage) field(
+            editor,
+            "publications");
+        JsonArray published = new JsonArray();
+        for (ca.teamdman.sfm.common.program.project.PublicationReceipt entry : builds.entries) {
+            JsonObject build = new JsonObject();
+            build.addProperty("revision", entry.revision);
+            build.addProperty("digest", entry.digest);
+            build.addProperty("name", entry.name);
+            published.add(build);
+        }
+        state.add("publications", published);
+        state.addProperty("publicationTotal", builds.total);
+        state.addProperty("publicationOffset", builds.offset);
         state.addProperty("dirty", draft.dirty());
         ca.teamdman.sfm.client.gui.mui2.SfmlCodeEditorWidget surface = (ca.teamdman.sfm.client.gui.mui2.SfmlCodeEditorWidget) field(
             editor,

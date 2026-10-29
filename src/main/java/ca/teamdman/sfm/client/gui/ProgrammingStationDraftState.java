@@ -7,6 +7,7 @@ import ca.teamdman.sfm.common.net.PacketStationReply;
 import ca.teamdman.sfm.common.net.PacketStationRequest.Action;
 import ca.teamdman.sfm.common.program.project.ProjectDraft;
 import ca.teamdman.sfm.common.program.project.ProjectValidation;
+import ca.teamdman.sfm.common.program.project.PublicationReceipt;
 
 /** Draft identity, dirty guards and late acknowledgments, independent of rendering and networking. */
 public final class ProgrammingStationDraftState {
@@ -16,6 +17,7 @@ public final class ProgrammingStationDraftState {
     public UUID localId = UUID.randomUUID();
     public ProjectDraft saved;
     public ProjectValidation validation;
+    public PublicationReceipt publication;
     public boolean uncertainWrite, ignoredLateLoad;
     private long requestId;
     private Action action;
@@ -68,10 +70,12 @@ public final class ProgrammingStationDraftState {
             throw new IllegalStateException("Keep or save the current source and name before loading another project.");
         if ((next == Action.SAVE || next == Action.CREATE) && uncertainWrite) throw new IllegalStateException(
             "Previous save unconfirmed. Copy this draft and inspect the saved project before writing again.");
-        if ((next == Action.SAVE || next == Action.VALIDATE) && saved == null)
+        if ((next == Action.SAVE || next == Action.VALIDATE
+            || next == Action.PUBLISH
+            || next == Action.LIST_PUBLICATIONS) && saved == null)
             throw new IllegalStateException("Create a project first.");
-        if (next == Action.VALIDATE && dirty())
-            throw new IllegalStateException("Save source and name changes before validating a saved revision.");
+        if ((next == Action.VALIDATE || next == Action.PUBLISH) && dirty()) throw new IllegalStateException(
+            "Save source and name changes before checking or publishing a saved revision.");
         action = next;
         recoveryLoad = recovering;
         sentName = name;
@@ -96,6 +100,11 @@ public final class ProgrammingStationDraftState {
     /** A timeout does not cancel the request. A matching late write ack advances only the saved baseline. */
     public boolean receive(long id, Action receivedAction, boolean accepted, ProjectDraft draft,
         ProjectValidation checked) {
+        return receive(id, receivedAction, accepted, draft, checked, null);
+    }
+
+    public boolean receive(long id, Action receivedAction, boolean accepted, ProjectDraft draft,
+        ProjectValidation checked, PublicationReceipt published) {
         if (!waiting || id != requestId || receivedAction != action) return false;
         waiting = false;
         timedOut = false;
@@ -110,6 +119,7 @@ public final class ProgrammingStationDraftState {
                 ignoredLateLoad = true;
                 return true;
             }
+            if (saved == null || !saved.owner.equals(draft.owner) || !saved.id.equals(draft.id)) publication = null;
             saved = draft;
             validation = null;
             if (!edited && !recoveryLoad) {
@@ -119,6 +129,11 @@ public final class ProgrammingStationDraftState {
         }
         if (checked != null && saved != null && checked.id.equals(saved.id) && checked.revision == saved.revision)
             validation = checked;
+        if (published != null && action == Action.PUBLISH
+            && saved != null
+            && published.project.equals(saved.id)
+            && published.owner.equals(saved.owner)
+            && published.revision == saved.revision) publication = published;
         return true;
     }
 
@@ -143,6 +158,7 @@ public final class ProgrammingStationDraftState {
         saved = null;
         localId = UUID.randomUUID();
         validation = null;
+        publication = null;
         name = "Untitled";
         source = "";
         waiting = timedOut = uncertainWrite = false;
@@ -157,6 +173,7 @@ public final class ProgrammingStationDraftState {
         if (validation != null)
             revision += " | Validated r" + validation.revision + ": " + (validation.valid ? "OK" : "ERROR");
         else revision += " | not validated";
+        if (publication != null) revision += " | Published r" + publication.revision;
         return revision;
     }
 

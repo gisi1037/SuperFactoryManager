@@ -16,6 +16,13 @@ node graphs and **Text** for the complete current language.
 
 ## Text controls
 
+The Factory Manager opens on an operational dashboard. **Program** contains its
+disk editing controls; the separate player inventory below has Main/Left/Right
+views, a fixed hotbar and **Layout** controls. Wide screens show the storage views
+side by side. Use row/column controls to borrow slots from Main or return them;
+**Undo** restores recent layout changes. Layout changes do not move items.
+Inventory is unavailable throughout the separate full-screen Programming Station.
+
 The MUI2 editor provides line numbers, syntax colors, undo/redo, wrapping,
 scrollbars, indentation and categorized snippets. Snippets help with syntax;
 they do not choose your labels or guarantee the machine will accept a resource.

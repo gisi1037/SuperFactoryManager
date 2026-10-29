@@ -25,6 +25,9 @@ import ca.teamdman.sfm.common.net.ServerUiTasks;
 import ca.teamdman.sfm.common.program.project.ProjectDraft;
 import ca.teamdman.sfm.common.program.project.ProjectPage;
 import ca.teamdman.sfm.common.program.project.ProjectValidation;
+import ca.teamdman.sfm.common.program.project.PublicationPage;
+import ca.teamdman.sfm.common.program.project.PublicationReceipt;
+import ca.teamdman.sfm.common.program.project.PublishedProgram;
 import ca.teamdman.sfm.common.program.project.StationProjectService;
 import ca.teamdman.sfm.common.tileentity.TileEntityProgrammingStation;
 import ca.teamdman.sfm.integration.mui2.ProgrammingStationMui2Container;
@@ -179,8 +182,10 @@ class ProgrammingStationTest {
             PacketStationRequest request = request();
             request.action = action;
             request.projectId = UUID.randomUUID();
-            request.name = "Local project";
-            request.source = "invalid draft \ud83d\ude00";
+            boolean publicationAction = action == PacketStationRequest.Action.PUBLISH
+                || action == PacketStationRequest.Action.LIST_PUBLICATIONS;
+            request.name = publicationAction ? "" : "Local project";
+            request.source = publicationAction ? "" : "invalid draft \ud83d\ude00";
             ByteBuf buffer = Unpooled.buffer();
             try {
                 request.toBytes(buffer);
@@ -196,12 +201,22 @@ class ProgrammingStationTest {
                     0);
                 else if (action == PacketStationRequest.Action.VALIDATE)
                     reply.validation = new ProjectValidation(request.projectId, 0, false, "Line 1: invalid draft");
-                else reply.draft = new ProjectDraft(
-                    request.projectId,
-                    UUID.randomUUID(),
-                    0,
-                    request.name,
-                    request.source);
+                else if (action == PacketStationRequest.Action.PUBLISH
+                    || action == PacketStationRequest.Action.LIST_PUBLICATIONS) {
+                        PublicationReceipt receipt = new PublicationReceipt(
+                            UUID.randomUUID(),
+                            request.projectId,
+                            0,
+                            new PublishedProgram("EVERY 20 TICKS DO END").digest(),
+                            "Saved project");
+                        if (action == PacketStationRequest.Action.PUBLISH) reply.publication = receipt;
+                        else reply.publications = new PublicationPage(Arrays.asList(receipt), 1, 0);
+                    } else reply.draft = new ProjectDraft(
+                        request.projectId,
+                        UUID.randomUUID(),
+                        0,
+                        request.name,
+                        request.source);
                 buffer.clear();
                 reply.toBytes(buffer);
                 PacketStationReply decoded = new PacketStationReply();
@@ -212,6 +227,13 @@ class ProgrammingStationTest {
                 if (reply.draft != null) assertEquals(reply.draft.source, decoded.draft.source);
                 if (reply.validation != null) assertFalse(decoded.validation.valid);
                 if (reply.page != null) assertEquals(1, decoded.page.entries.size());
+                if (reply.publication != null) {
+                    assertEquals(reply.publication.owner, decoded.publication.owner);
+                    assertEquals(request.projectId, decoded.publication.project);
+                    assertEquals(0, decoded.publication.revision);
+                    assertEquals(reply.publication.digest, decoded.publication.digest);
+                }
+                if (reply.publications != null) assertEquals(1, decoded.publications.entries.size());
             } finally {
                 buffer.release();
             }

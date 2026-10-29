@@ -3,6 +3,7 @@
 A development fork of Super Factory Manager for Minecraft 1.7.10 and Forge
 10.13.4.1614, targeting GregTech New Horizons. The current integration target is
 GTNH daily-2026-10-27+803. This is an experimental development snapshot.
+Use matching SFM builds on the client and server.
 
 Connect inventories with SFM cables, assign labels with the label gun, and run an
 SFML program from a disk in a manager. Java executes programs on the server.
@@ -16,6 +17,11 @@ SFML program from a disk in a manager. Java executes programs on the server.
 - A full-screen MUI2 Programming Station with syntax highlighting, undo/redo,
   searchable snippets, compiler diagnostics, and named project drafts stored
   separately from block NBT. Player inventory interaction is blocked while editing.
+- Immutable root-source builds published from exact saved project revisions,
+  with owner-scoped receipts and content deduplication. Reference execution disks
+  remain a later integration step.
+- A Factory Manager operational dashboard with canonical split player storage,
+  compact tabs, adjustable side panels, layout undo and a fixed hotbar.
 - An initial visual editor adapted from RetroSFM. Unsupported text is refused
   without changing its source. Native Programming Station integration now includes
   Code/Visual/Split views, a compact inspector, API reference, and an explicitly

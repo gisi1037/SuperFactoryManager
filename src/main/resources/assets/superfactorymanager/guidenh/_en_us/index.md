@@ -58,7 +58,8 @@ switching an advanced program back to nodes.
 Local and persistent variables, strings, fixed arrays/structs, arithmetic,
 bitwise operations, bounded loops, typed player functions, PRINT, item queries,
 grouped contents, value-driven item transfers and Redstone Ports are available.
-The Programming Station currently saves and validates private project drafts.
+The Programming Station saves and validates private drafts and publishes immutable
+root-source builds. The Factory Manager has separate split player-storage views.
 
 Reusable published libraries, reference-only execution disks, effectful player
 actions, recipe-query/NEI APIs and Lua are still planned. The

@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.UUID;
 
 import ca.teamdman.sfm.common.util.BoundedUtf8;
+import ca.teamdman.sfml.program_builder.ProgramBuildResult;
+import ca.teamdman.sfml.program_builder.ProgramBuilder;
 
 /** Worker-only filesystem backend. Paths come exclusively from authenticated UUIDs. */
 final class ProjectRepository {
@@ -128,6 +130,197 @@ final class ProjectRepository {
         return new ProjectPage(page, drafts.size(), start);
     }
 
+    /** Called under the world transaction lock, on the workspace worker only. */
+    PublicationReceipt publish(UUID owner, UUID id, long expectedRevision) throws IOException {
+        if (expectedRevision < 0) throw new IllegalArgumentException("Invalid project revision");
+        ProjectDraft draft = load(owner, id);
+        Path project = ownerDirectory(owner, false).resolve(id.toString());
+        Path publications = childDirectory(project, "publications", false);
+        Path receiptFile = publications == null ? null : publications.resolve(expectedRevision + ".bin");
+        if (receiptFile != null && Files.exists(receiptFile, LinkOption.NOFOLLOW_LINKS)) {
+            PublicationReceipt existing = readReceipt(receiptFile, owner, id, expectedRevision);
+            verifyProgram(existing.digest);
+            if (expectedRevision > draft.revision
+                || expectedRevision == draft.revision && (!existing.name.equals(draft.name)
+                    || !existing.digest.equals(new PublishedProgram(draft.source).digest())))
+                throw malformed();
+            return existing; // Lost ACK can be reconciled even after a newer draft was saved.
+        }
+        if (draft.revision != expectedRevision)
+            throw new Failure(ProjectResult.Status.STALE, "Project changed; reload before publishing");
+        ProgramBuildResult build = new ProgramBuilder(draft.source).build();
+        if (!build.isSuccess())
+            throw new Failure(ProjectResult.Status.INVALID, ProjectWorkspace.diagnostic(build.getErrorMessage()));
+        // The mutable compiled plan is intentionally discarded, never cached or shared.
+        PublishedProgram program = new PublishedProgram(draft.source);
+        PublicationReceipt receipt = new PublicationReceipt(owner, id, expectedRevision, program.digest(), draft.name);
+        if (publications != null
+            && publicationRevisions(publications).size() >= ProjectWorkspace.MAX_PUBLICATIONS_PER_PROJECT)
+            throw new Failure(ProjectResult.Status.LIMIT, "Publication limit reached");
+        Path programs = programDirectory(true);
+        Path bundle = programs.resolve(receipt.digest + ".sfmp");
+        if (Files.exists(bundle, LinkOption.NOFOLLOW_LINKS)) {
+            PublishedProgram existing = verifyProgram(receipt.digest);
+            if (!existing.source.equals(program.source)) throw malformed();
+        } else {
+            checkProgramQuota(programs, program.encode().length);
+            writeImmutable(programs, bundle, program.encode());
+        }
+        // Bundle visibility precedes the receipt. An interrupted publish can leave only an orphan bundle.
+        publications = childDirectory(project, "publications", true);
+        writeImmutable(publications, publications.resolve(expectedRevision + ".bin"), receipt.encode());
+        return receipt;
+    }
+
+    PublicationPage listPublications(UUID owner, UUID id, int offset) throws IOException {
+        if (offset < 0 || offset > ProjectWorkspace.MAX_PUBLICATIONS_PER_PROJECT)
+            throw new IllegalArgumentException("Invalid publication page");
+        load(owner, id); // Existence and ownership are required even for an empty catalog.
+        Path project = ownerDirectory(owner, false).resolve(id.toString());
+        Path directory = childDirectory(project, "publications", false);
+        List<Long> revisions = directory == null ? new ArrayList<>() : publicationRevisions(directory);
+        revisions.sort(Comparator.reverseOrder());
+        int start = Math.min(offset, revisions.size());
+        List<PublicationReceipt> page = new ArrayList<>();
+        for (int i = start; i < revisions.size() && page.size() < ProjectWorkspace.PAGE_SIZE; i++) {
+            long revision = revisions.get(i);
+            page.add(readReceipt(directory.resolve(revision + ".bin"), owner, id, revision));
+        }
+        return new PublicationPage(page, revisions.size(), start);
+    }
+
+    private static PublicationReceipt readReceipt(Path file, UUID owner, UUID id, long revision) throws IOException {
+        PublicationReceipt receipt = PublicationReceipt.decode(readBounded(file, PublicationReceipt.MAX_BYTES));
+        if (!owner.equals(receipt.owner) || !id.equals(receipt.project) || revision != receipt.revision)
+            throw malformed();
+        return receipt;
+    }
+
+    private PublishedProgram verifyProgram(String digest) throws IOException {
+        Path directory = programDirectory(false);
+        if (directory == null) throw malformed();
+        PublishedProgram program = PublishedProgram
+            .decode(readBounded(directory.resolve(digest + ".sfmp"), PublishedProgram.MAX_BYTES));
+        if (!digest.equals(program.digest())) throw malformed();
+        return program;
+    }
+
+    private Path programDirectory(boolean create) throws IOException {
+        requireDirectory(worldDirectory);
+        Path sfm = childDirectory(worldDirectory, "sfm", create);
+        return sfm == null ? null : childDirectory(sfm, "programs", create);
+    }
+
+    private static Path childDirectory(Path parent, String name, boolean create) throws IOException {
+        requireDirectory(parent);
+        Path directory = parent.resolve(name);
+        if (!Files.exists(directory, LinkOption.NOFOLLOW_LINKS)) {
+            if (!create) return null;
+            Files.createDirectory(directory);
+        }
+        requireDirectory(directory);
+        return directory;
+    }
+
+    private static List<Long> publicationRevisions(Path directory) throws IOException {
+        List<Long> revisions = new ArrayList<>();
+        int scanned = 0;
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
+            for (Path file : stream) {
+                if (++scanned > ProjectWorkspace.MAX_PUBLICATIONS_PER_PROJECT)
+                    throw new Failure(ProjectResult.Status.LIMIT, "Publication catalog exceeds its limit");
+                if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) throw malformed();
+                String name = file.getFileName()
+                    .toString();
+                // Interrupted temporary writes consume quota but are never acknowledged as publications.
+                if (isPending(name)) continue;
+                if (!name.endsWith(".bin")) throw malformed();
+                try {
+                    long revision = Long.parseLong(name.substring(0, name.length() - 4));
+                    if (revision < 0 || !name.equals(revision + ".bin")) throw malformed();
+                    revisions.add(revision);
+                } catch (NumberFormatException error) {
+                    throw malformed();
+                }
+            }
+        }
+        // Include orphan temporary entries in capacity checks as well as the finite scan bound.
+        if (scanned >= ProjectWorkspace.MAX_PUBLICATIONS_PER_PROJECT && scanned > revisions.size())
+            throw new Failure(ProjectResult.Status.LIMIT, "Publication catalog exceeds its limit");
+        return revisions;
+    }
+
+    private static boolean isPending(String name) throws IOException {
+        if (!name.startsWith(".pending-")) return false;
+        try {
+            String id = name.substring(9);
+            if (!UUID.fromString(id)
+                .toString()
+                .equals(id)) throw malformed();
+            return true;
+        } catch (IllegalArgumentException error) {
+            throw malformed();
+        }
+    }
+
+    private static void checkProgramQuota(Path directory, int addedBytes) throws IOException {
+        int count = 0;
+        long bytes = addedBytes;
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
+            for (Path file : stream) {
+                if (++count >= ProjectWorkspace.MAX_PROGRAMS_PER_WORLD)
+                    throw new Failure(ProjectResult.Status.LIMIT, "World program limit reached");
+                if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) throw malformed();
+                String name = file.getFileName()
+                    .toString();
+                if (!isPending(name)
+                    && !(name.endsWith(".sfmp") && PublicationIO.isDigest(name.substring(0, name.length() - 5))))
+                    throw malformed();
+                long size = Files.size(file);
+                if (size > ProjectWorkspace.MAX_PROGRAM_BYTES_PER_WORLD - bytes)
+                    throw new Failure(ProjectResult.Status.LIMIT, "World program byte limit reached");
+                bytes += size;
+                if (bytes > ProjectWorkspace.MAX_PROGRAM_BYTES_PER_WORLD)
+                    throw new Failure(ProjectResult.Status.LIMIT, "World program byte limit reached");
+            }
+        }
+        if (bytes > ProjectWorkspace.MAX_PROGRAM_BYTES_PER_WORLD)
+            throw new Failure(ProjectResult.Status.LIMIT, "World program byte limit reached");
+    }
+
+    private static byte[] readBounded(Path file, int maximum) throws IOException {
+        if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS) || Files.size(file) > maximum) throw malformed();
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        byte[] buffer = new byte[Math.min(4096, maximum + 1)];
+        try (java.io.InputStream input = Files.newInputStream(file)) {
+            int read;
+            while ((read = input.read(buffer)) != -1) {
+                if (bytes.size() + read > maximum) throw malformed();
+                bytes.write(buffer, 0, read);
+            }
+        }
+        return bytes.toByteArray();
+    }
+
+    private static void writeImmutable(Path directory, Path target, byte[] bytes) throws IOException {
+        requireDirectory(directory);
+        if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) throw malformed();
+        Path temporary = directory.resolve(".pending-" + UUID.randomUUID());
+        try {
+            try (FileChannel output = FileChannel
+                .open(temporary, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+                ByteBuffer buffer = ByteBuffer.wrap(bytes);
+                while (buffer.hasRemaining()) output.write(buffer);
+                output.force(true);
+            }
+            // Internal writers serialize under the world lock; never replace an existing immutable artifact.
+            if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) throw malformed();
+            Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE);
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
+    }
+
     private Path ownerDirectory(UUID owner, boolean create) throws IOException {
         requireId(owner);
         requireDirectory(worldDirectory);
@@ -174,8 +367,12 @@ final class ProjectRepository {
     }
 
     private static void validate(String name, String source) {
-        BoundedUtf8.encode(name, ProjectWorkspace.MAX_NAME_BYTES);
         BoundedUtf8.encode(source, ProjectWorkspace.MAX_SOURCE_BYTES);
+        validateName(name);
+    }
+
+    static void validateName(String name) {
+        BoundedUtf8.encode(name, ProjectWorkspace.MAX_NAME_BYTES);
         if (name.trim()
             .isEmpty()) throw new IllegalArgumentException("Project name is required");
         for (int i = 0; i < name.length(); i++) {

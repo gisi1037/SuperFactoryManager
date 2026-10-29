@@ -18,13 +18,16 @@ import ca.teamdman.sfml.program_builder.ProgramBuilder;
  * boundary. These provisional caps bound queued work, not a measured storage performance guarantee.
  *
  * File bytes are forced before atomic replacement. Directory entries/world saves are not one power-loss transaction;
- * back up world/sfm/projects alongside the rest of the world. There is no build publication or disk activation here.
+ * back up world/sfm alongside the rest of the world. Publication stores source bundles; disk activation remains
+ * separate.
  */
 public final class ProjectWorkspace implements AutoCloseable {
 
     public static final int MAX_SOURCE_BYTES = 30000, MAX_NAME_BYTES = 96;
     public static final int MAX_PROJECTS_PER_OWNER = 128, PAGE_SIZE = 32, MAX_PENDING = 32;
     public static final int MAX_DIAGNOSTIC_CHARS = 1024;
+    public static final int MAX_PUBLICATIONS_PER_PROJECT = 128, MAX_PROGRAMS_PER_WORLD = 4096;
+    public static final long MAX_PROGRAM_BYTES_PER_WORLD = 64L * 1024 * 1024;
     private final ProjectRepository repository;
     private final ThreadPoolExecutor worker;
     private final ArrayBlockingQueue<Runnable> callbacks = new ArrayBlockingQueue<>(MAX_PENDING);
@@ -62,6 +65,17 @@ public final class ProjectWorkspace implements AutoCloseable {
 
     public boolean list(UUID owner, int offset, Consumer<ProjectResult<ProjectPage>> callback) {
         return submit(() -> repository.list(owner, offset), callback);
+    }
+
+    /** Publish only an exact saved revision. Owner must be the authenticated server player. */
+    public boolean publish(UUID owner, UUID id, long expectedRevision,
+        Consumer<ProjectResult<PublicationReceipt>> callback) {
+        return submit(() -> repository.publish(owner, id, expectedRevision), callback);
+    }
+
+    public boolean listPublications(UUID owner, UUID id, int offset,
+        Consumer<ProjectResult<PublicationPage>> callback) {
+        return submit(() -> repository.listPublications(owner, id, offset), callback);
     }
 
     public boolean validate(UUID owner, UUID id, long expectedRevision,
@@ -143,7 +157,7 @@ public final class ProjectWorkspace implements AutoCloseable {
         worker.shutdownNow();
     }
 
-    private static String diagnostic(String text) {
+    static String diagnostic(String text) {
         if (text == null) return "";
         StringBuilder result = new StringBuilder();
         for (int i = 0; i < text.length() && result.length() < MAX_DIAGNOSTIC_CHARS; i++) {

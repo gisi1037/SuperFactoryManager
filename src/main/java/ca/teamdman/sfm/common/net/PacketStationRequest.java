@@ -15,7 +15,7 @@ import io.netty.buffer.ByteBuf;
 /** Bounded authoring requests; identity always comes from the authenticated connection. */
 public final class PacketStationRequest implements IMessage {
 
-    private static final int VERSION = 0x53545001;
+    private static final int VERSION = 0x53545003;
     public static final int MAX_PACKET_BYTES = 32000;
 
     public enum Action {
@@ -23,7 +23,9 @@ public final class PacketStationRequest implements IMessage {
         CREATE,
         LOAD,
         SAVE,
-        VALIDATE
+        VALIDATE,
+        PUBLISH,
+        LIST_PUBLICATIONS
     }
 
     public int x, y, z, windowId, offset;
@@ -35,12 +37,17 @@ public final class PacketStationRequest implements IMessage {
     public void validate() {
         if (action == null || sessionId == null || requestId <= 0 || windowId <= 0 || windowId > 255)
             throw new IllegalArgumentException("Invalid station session/request");
-        if (expectedRevision < 0 || offset < 0 || offset > ProjectWorkspace.MAX_PROJECTS_PER_OWNER)
+        int pageLimit = action == Action.LIST_PUBLICATIONS ? ProjectWorkspace.MAX_PUBLICATIONS_PER_PROJECT
+            : ProjectWorkspace.MAX_PROJECTS_PER_OWNER;
+        if (expectedRevision < 0 || offset < 0 || offset > pageLimit)
             throw new IllegalArgumentException("Invalid project revision/page");
-        if ((action == Action.LOAD || action == Action.SAVE || action == Action.VALIDATE) && projectId == null)
+        if (action != Action.CREATE && action != Action.LIST && projectId == null)
             throw new IllegalArgumentException("A project is required");
         BoundedUtf8.encode(name, ProjectWorkspace.MAX_NAME_BYTES);
         BoundedUtf8.encode(source, ProjectWorkspace.MAX_SOURCE_BYTES);
+        if ((action == Action.PUBLISH || action == Action.LIST_PUBLICATIONS)
+            && (!name.isEmpty() || !source.isEmpty() || action == Action.PUBLISH && offset != 0))
+            throw new IllegalArgumentException("Publication requests use saved server data only");
     }
 
     @Override

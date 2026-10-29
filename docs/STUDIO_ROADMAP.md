@@ -43,7 +43,23 @@ late save/load acknowledgements, modal input, cross-view undo, resizing, and
 inventory isolation require both regression coverage and in-game checks. An
 implemented control is not by itself a claim that every workflow is qualified.
 
+The current checkpoint passes 1,144 regression tests, with eleven optional skips.
+Scoped daily-803 Java17/LWJGL3 checks with NEI, MUI2 2.3.93 and 72 player-storage
+slots passed 42 in-game assertions covering publication, source/visual ownership,
+terminal focus/status, GUI scales, inventory isolation and slot gestures. Player
+number swaps preserve exact indices even with handler-backed MUI2 slots. Synthetic
+event injection does not qualify OS/IME or hardware-held Shift/resize behavior;
+two-client multiplayer workflows remain open. These checks establish no new
+whole-pack performance budget or speedup.
+
 ## Next integration steps
+
+The Factory Manager now has a separate operational dashboard and canonical split
+player storage views. Studio's Builds view publishes immutable root-source bundles
+from exact saved revisions. Reference disks and runtime activation remain a
+separate next step: define executable/state binding identity, verify owner-scoped
+receipts, and fence asynchronous loads before exposing installation. Mutable
+compiled programs must remain private to each manager.
 
 1. Complete full-pack and multiplayer workflow qualification. Scoped development
    client checks cover safe project switching/recovery, acknowledged saves, graph

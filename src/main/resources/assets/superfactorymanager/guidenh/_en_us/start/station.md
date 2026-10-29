@@ -88,7 +88,7 @@ Inventory slots, hotbar actions and NEI are unavailable throughout Studio.
 Projects belong to your authenticated player UUID. Someone else's station or a
 copied project identifier does not grant access to their source. Saved projects
 live in the world save, separately from the station block. Include the world's
-`sfm/projects` directory in backups.
+`sfm/projects` and `sfm/programs` directories in backups.
 
 Local recovery drafts are temporary client memory. They help after a closed
 screen or failed request during the session; an accepted project save is what
@@ -96,8 +96,14 @@ survives leaving the game.
 
 ## Running the source today
 
-This station version saves and validates drafts. It does **not yet** compile
-projects into execution disks, publish immutable bundles or import libraries.
+**Builds** (under **Tools** on compact screens) publishes immutable root-source
+bundles from an exact saved revision. Save edits first, then choose **Publish saved**.
+Invalid drafts cannot be published. **Refresh** lists saved builds; click a row
+to copy its digest. A later edit does not change a published build, and publishing
+does not change or run any manager. Publication receipts remain private to the
+project owner. A digest alone grants no source access.
+
+This station version does **not yet** install reference disks or import libraries.
 To run a saved draft now, copy its source into a manager's Text editor, save to
 an execution disk, synchronize that disk's labels and enable the manager.
 

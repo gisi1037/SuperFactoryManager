@@ -122,12 +122,29 @@ public final class StationProjectService {
                         finish(player, container, request, reply);
                     });
                     break;
-                default:
+                case PUBLISH:
+                    admitted = store.publish(owner, request.projectId, request.expectedRevision, result -> {
+                        PacketStationReply reply = reply(request, result);
+                        reply.publication = result.value;
+                        finish(player, container, request, reply);
+                    });
+                    break;
+                case LIST_PUBLICATIONS:
+                    admitted = store.listPublications(owner, request.projectId, request.offset, result -> {
+                        PacketStationReply reply = reply(request, result);
+                        reply.publications = result.value;
+                        finish(player, container, request, reply);
+                    });
+                    break;
+                case LIST:
                     admitted = store.list(owner, request.offset, result -> {
                         PacketStationReply reply = reply(request, result);
                         reply.page = result.value;
                         finish(player, container, request, reply);
                     });
+                    break;
+                default:
+                    throw new IllegalArgumentException("Unsupported station operation");
             }
             if (!admitted) finish(
                 player,
