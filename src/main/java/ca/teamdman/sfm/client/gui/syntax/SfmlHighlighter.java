@@ -84,6 +84,7 @@ public final class SfmlHighlighter {
         lexer.removeErrorListeners();
         List<? extends Token> tokens = lexer.getAllTokens();
         boolean[] functionNames = findFunctionNames(tokens);
+        Context context = findContext(tokens, functionNames);
         Style[] colors = new Style[source.length()];
         Arrays.fill(colors, Style.TEXT);
         // ANTLR indexes code points; Java strings and the editor index UTF-16 code units.
@@ -96,7 +97,7 @@ public final class SfmlHighlighter {
         offsets[cp] = source.length();
         for (int i = 0; i < tokens.size(); i++) {
             Token token = tokens.get(i);
-            Style style = classify(tokens, i, functionNames);
+            Style style = classify(tokens, i, functionNames, context);
             if (style != Style.TEXT) {
                 Arrays.fill(colors, offsets[token.getStartIndex()], offsets[token.getStopIndex() + 1], style);
             }
@@ -119,10 +120,10 @@ public final class SfmlHighlighter {
         return new Highlighted(lines);
     }
 
-    private static Style classify(List<? extends Token> tokens, int index, boolean[] functionNames) {
+    private static Style classify(List<? extends Token> tokens, int index, boolean[] functionNames, Context context) {
         int type = tokens.get(index)
             .getType();
-        if (isFunctionType(tokens, index, functionNames)) return Style.KEYWORD;
+        if (isFunctionType(tokens, index, context)) return Style.KEYWORD;
         if (isIdentifier(type) && isResourcePart(tokens, index)) return Style.RESOURCE;
         if (isTypedCall(tokens, index)) return Style.ACTION;
         if (functionNames[index]) return Style.ACTION;
@@ -140,7 +141,7 @@ public final class SfmlHighlighter {
                     .getType() == SFMLLexer.VARIABLE ? Style.KEYWORD : Style.LABEL;
         }
         if (type == SFMLLexer.FOR || type == SFMLLexer.WHILE || type == SFMLLexer.STEP)
-            return isLoopFlow(tokens, index) ? Style.FLOW : Style.LABEL;
+            return isLoopFlow(tokens, index, context) ? Style.FLOW : Style.LABEL;
         switch (type) {
             case SFMLLexer.VARIABLE:
                 return Style.VARIABLE;
@@ -283,7 +284,7 @@ public final class SfmlHighlighter {
             && !isResourcePart(tokens, index);
     }
 
-    private static boolean isFunctionType(List<? extends Token> tokens, int index, boolean[] functionNames) {
+    private static boolean isFunctionType(List<? extends Token> tokens, int index, Context context) {
         String word = tokens.get(index)
             .getText()
             .toUpperCase(Locale.ROOT);
@@ -294,17 +295,49 @@ public final class SfmlHighlighter {
             || word.equals("ITEM_KEY")
             || word.equals("ITEM_CONTENTS")
             || word.equals("ITEM_LOCATIONS"))) return false;
-        for (int i = previousVisible(tokens, index); i >= 0; i = previousVisible(tokens, i)) {
-            int type = tokens.get(i)
-                .getType();
-            if (type == SFMLLexer.FUNCTION) return isFunctionFlow(tokens, i, functionNames);
-            if (type == SFMLLexer.DO || type == SFMLLexer.END
+        return context.functionHeader[index];
+    }
+
+    private static final class Context {
+
+        final boolean[] functionHeader, countedStep;
+
+        Context(int size) {
+            functionHeader = new boolean[size];
+            countedStep = new boolean[size];
+        }
+    }
+
+    /** Keep the old nearest-keyword rules, but visit each token once instead of rescanning every prefix. */
+    private static Context findContext(List<? extends Token> tokens, boolean[] functionNames) {
+        Context result = new Context(tokens.size());
+        boolean function = false, countedFor = false, hasTo = false;
+        for (int i = 0; i < tokens.size(); i++) {
+            result.functionHeader[i] = function;
+            result.countedStep[i] = countedFor && hasTo;
+            Token token = tokens.get(i);
+            if (token.getChannel() != Token.DEFAULT_CHANNEL) continue;
+            int type = token.getType();
+            if (type == SFMLLexer.FUNCTION) function = isFunctionFlow(tokens, i, functionNames);
+            else if (type == SFMLLexer.DO || type == SFMLLexer.END
                 || type == SFMLLexer.INPUT
                 || type == SFMLLexer.OUTPUT
                 || type == SFMLLexer.LET
-                || type == SFMLLexer.STATE) return false;
+                || type == SFMLLexer.STATE) function = false;
+            if (type == SFMLLexer.FOR) {
+                int after = nextVisible(tokens, i);
+                countedFor = after < tokens.size() && tokens.get(after)
+                    .getType() == SFMLLexer.VARIABLE;
+                hasTo = false;
+            } else if (type == SFMLLexer.TO) hasTo = true;
+            else if (type == SFMLLexer.DO || type == SFMLLexer.END
+                || type == SFMLLexer.INPUT
+                || type == SFMLLexer.OUTPUT
+                || type == SFMLLexer.FORGET) {
+                    countedFor = hasTo = false;
+                }
         }
-        return false;
+        return result;
     }
 
     /** Classify each dotted chain once instead of walking it again for every word. */
@@ -392,7 +425,7 @@ public final class SfmlHighlighter {
     }
 
     /** Loop words remain legal legacy labels/resources; color the new header syntax only. */
-    private static boolean isLoopFlow(List<? extends Token> tokens, int index) {
+    private static boolean isLoopFlow(List<? extends Token> tokens, int index, Context context) {
         int after = nextVisible(tokens, index);
         int next = after < tokens.size() ? tokens.get(after)
             .getType() : Token.EOF;
@@ -420,20 +453,7 @@ public final class SfmlHighlighter {
                     || next == SFMLLexer.LONE
                     || isIdentifier(next);
             case SFMLLexer.STEP:
-                boolean hasTo = false;
-                for (int i = before; i >= 0; i = previousVisible(tokens, i)) {
-                    int type = tokens.get(i)
-                        .getType();
-                    if (type == SFMLLexer.FOR) return hasTo && nextVisible(tokens, i) < tokens.size()
-                        && tokens.get(nextVisible(tokens, i))
-                            .getType() == SFMLLexer.VARIABLE;
-                    if (type == SFMLLexer.TO) hasTo = true;
-                    if (type == SFMLLexer.DO || type == SFMLLexer.END
-                        || type == SFMLLexer.INPUT
-                        || type == SFMLLexer.OUTPUT
-                        || type == SFMLLexer.FORGET) return false;
-                }
-                return false;
+                return context.countedStep[index];
             default:
                 return false;
         }
