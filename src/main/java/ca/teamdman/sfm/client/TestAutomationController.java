@@ -824,6 +824,8 @@ public class TestAutomationController {
     private static boolean serverCommand(String command) {
         return java.util.Arrays
             .asList(
+                "referencefixture",
+                "referenceinspect",
                 "blueprintfixture",
                 "redstonehistoryfixture",
                 "fluidtankfixture",
@@ -891,6 +893,9 @@ public class TestAutomationController {
     private String fixtureCommand(String command, String argument, net.minecraft.entity.player.EntityPlayerMP player)
         throws Exception {
         net.minecraft.world.World world = player.worldObj;
+        if ("referencefixture".equals(command))
+            return ReferenceDiskIntegrationFixture.run(player, positions -> claimFixtureBlocks(world, positions));
+        if ("referenceinspect".equals(command)) return ReferenceDiskIntegrationFixture.inspect(player);
         if ("fixtureinventory".equals(command)) {
             Object shape;
             try {

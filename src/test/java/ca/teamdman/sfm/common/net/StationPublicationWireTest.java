@@ -82,10 +82,17 @@ class StationPublicationWireTest {
             int expected = action == PacketStationRequest.Action.LIST ? 1
                 : action == PacketStationRequest.Action.VALIDATE ? 2
                     : action == PacketStationRequest.Action.PUBLISH ? 3
-                        : action == PacketStationRequest.Action.LIST_PUBLICATIONS ? 4 : 0;
+                        : action == PacketStationRequest.Action.LIST_PUBLICATIONS ? 4
+                            : action == PacketStationRequest.Action.WRITE_DISK ? -1 : 0;
             for (int payload = -1; payload < 5; payload++) {
                 PacketStationReply reply = reply(action, true);
                 addPayload(reply, payload);
+                if (action == PacketStationRequest.Action.WRITE_DISK && payload != -1) {
+                    assertThrows(IllegalArgumentException.class, () -> encode(reply));
+                    reply.accepted = false;
+                    assertThrows(IllegalArgumentException.class, () -> encode(reply));
+                    continue;
+                }
                 byte[] encoded = encode(reply);
                 if (payload == expected) assertTrue(decodeReply(encoded).accepted);
                 else assertThrows(IllegalArgumentException.class, () -> decodeReply(encoded));
@@ -225,9 +232,110 @@ class StationPublicationWireTest {
             assertThrows(IllegalArgumentException.class, () -> decodeReply(malformed));
     }
 
+    @Test
+    void writeDiskSelectsExactPublishedRevisionAndStrictDigestWithoutSourceOrAuthority() {
+        PacketStationRequest request = request(PacketStationRequest.Action.WRITE_DISK);
+        request.expectedRevision = 7;
+        PacketStationRequest copy = decodeRequest(encode(request));
+        assertEquals(PacketStationRequest.Action.WRITE_DISK, copy.action);
+        assertEquals(PROJECT, copy.projectId);
+        assertEquals(7, copy.expectedRevision);
+        assertEquals(DIGEST, copy.buildDigest);
+        assertEquals("", copy.source);
+        assertEquals("", copy.name);
+        assertEquals(0, copy.offset);
+        for (String invalid : new String[] { null, "", DIGEST.substring(1), DIGEST + "0", DIGEST.toUpperCase(),
+            "../" + String.join("", Collections.nCopies(61, "a")), String.join("", Collections.nCopies(64, "g")),
+            "\uD800" }) {
+            request.buildDigest = invalid;
+            assertThrows(IllegalArgumentException.class, request::validate);
+        }
+        request.buildDigest = DIGEST;
+        request.source = "unsaved source";
+        assertThrows(IllegalArgumentException.class, request::validate);
+        assertThrows(IllegalArgumentException.class, () -> decodeRequest(encodeUnvalidatedRequest(request)));
+        request.source = "";
+        request.name = "unsaved name";
+        assertThrows(IllegalArgumentException.class, request::validate);
+        assertThrows(IllegalArgumentException.class, () -> decodeRequest(encodeUnvalidatedRequest(request)));
+        request.name = "";
+        request.offset = 1;
+        assertThrows(IllegalArgumentException.class, request::validate);
+        request.offset = 0;
+        request.projectId = null;
+        assertThrows(IllegalArgumentException.class, request::validate);
+        request.projectId = PROJECT;
+        request.expectedRevision = -1;
+        assertThrows(IllegalArgumentException.class, request::validate);
+    }
+
+    @Test
+    void onlyWriteDiskAcceptsBuildDigestAndDecoderRejectsSmuggledDigestOnOtherActions() {
+        for (PacketStationRequest.Action action : PacketStationRequest.Action.values()) {
+            if (action == PacketStationRequest.Action.WRITE_DISK) continue;
+            PacketStationRequest request = request(action);
+            request.buildDigest = DIGEST;
+            assertThrows(IllegalArgumentException.class, request::validate);
+            assertThrows(IllegalArgumentException.class, () -> decodeRequest(encodeUnvalidatedRequest(request)));
+        }
+        PacketStationRequest write = request(PacketStationRequest.Action.WRITE_DISK);
+        write.buildDigest = "";
+        assertThrows(IllegalArgumentException.class, () -> decodeRequest(encodeUnvalidatedRequest(write)));
+    }
+
+    @Test
+    void writeDiskAcknowledgmentHasNoPayloadAndCannotSerializePrivateSource() {
+        for (boolean accepted : new boolean[] { false, true }) {
+            PacketStationReply reply = reply(PacketStationRequest.Action.WRITE_DISK, accepted);
+            reply.message = accepted ? "Held disk written" : "Held disk changed; no disk was written";
+            PacketStationReply decoded = decodeReply(encode(reply));
+            assertEquals(accepted, decoded.accepted);
+            assertEquals(reply.message, decoded.message);
+            assertNull(decoded.draft);
+            assertNull(decoded.page);
+            assertNull(decoded.validation);
+            assertNull(decoded.publication);
+            assertNull(decoded.publications);
+            reply.draft = new ProjectDraft(PROJECT, OWNER, 7, "Private", "private source sentinel");
+            assertThrows(IllegalArgumentException.class, () -> encode(reply));
+        }
+        PacketStationReply source = reply(PacketStationRequest.Action.LOAD, true);
+        source.draft = new ProjectDraft(PROJECT, OWNER, 7, "Private", "private source sentinel");
+        byte[] smuggled = encode(source);
+        smuggled[44] = (byte) PacketStationRequest.Action.WRITE_DISK.ordinal();
+        assertThrows(IllegalArgumentException.class, () -> decodeReply(smuggled));
+    }
+
+    private static byte[] encodeUnvalidatedRequest(PacketStationRequest request) {
+        ByteBuf buffer = Unpooled.buffer();
+        try {
+            buffer.writeInt(0x53545004);
+            buffer.writeInt(request.x);
+            buffer.writeInt(request.y);
+            buffer.writeInt(request.z);
+            buffer.writeInt(request.windowId);
+            ProgramEditWire.uuid(buffer, request.sessionId);
+            buffer.writeLong(request.requestId);
+            buffer.writeByte(request.action.ordinal());
+            buffer.writeBoolean(request.projectId != null);
+            if (request.projectId != null) ProgramEditWire.uuid(buffer, request.projectId);
+            buffer.writeLong(request.expectedRevision);
+            buffer.writeInt(request.offset);
+            ProgramEditWire.string(buffer, request.name, ProjectWorkspace.MAX_NAME_BYTES);
+            ProgramEditWire.string(buffer, request.source, ProjectWorkspace.MAX_SOURCE_BYTES);
+            ProgramEditWire.string(buffer, request.buildDigest, 64);
+            byte[] bytes = new byte[buffer.readableBytes()];
+            buffer.readBytes(bytes);
+            return bytes;
+        } finally {
+            buffer.release();
+        }
+    }
+
     private static PacketStationRequest request(PacketStationRequest.Action action) {
         PacketStationRequest request = new PacketStationRequest();
         request.action = action;
+        request.buildDigest = action == PacketStationRequest.Action.WRITE_DISK ? DIGEST : "";
         request.sessionId = new UUID(5, 6);
         request.projectId = PROJECT;
         request.windowId = 9;

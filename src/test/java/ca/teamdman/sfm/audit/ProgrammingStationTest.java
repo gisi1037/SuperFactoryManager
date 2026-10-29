@@ -118,6 +118,10 @@ class ProgrammingStationTest {
         PacketStationRequest request = request();
         request.sessionId = session;
         assertSame(container, StationProjectService.authorized(player, request));
+        station.invalidate();
+        assertNull(StationProjectService.authorized(player, request));
+        station.validate();
+        assertSame(container, StationProjectService.authorized(player, request));
         player.isDead = true;
         assertNull(StationProjectService.authorized(player, request));
         player.isDead = false;
@@ -183,15 +187,20 @@ class ProgrammingStationTest {
             request.action = action;
             request.projectId = UUID.randomUUID();
             boolean publicationAction = action == PacketStationRequest.Action.PUBLISH
-                || action == PacketStationRequest.Action.LIST_PUBLICATIONS;
+                || action == PacketStationRequest.Action.LIST_PUBLICATIONS
+                || action == PacketStationRequest.Action.WRITE_DISK;
             request.name = publicationAction ? "" : "Local project";
             request.source = publicationAction ? "" : "invalid draft \ud83d\ude00";
+            request.buildDigest = action == PacketStationRequest.Action.WRITE_DISK
+                ? new PublishedProgram("EVERY 20 TICKS DO END").digest()
+                : "";
             ByteBuf buffer = Unpooled.buffer();
             try {
                 request.toBytes(buffer);
                 PacketStationRequest copy = new PacketStationRequest();
                 copy.fromBytes(buffer);
                 assertEquals(request.source, copy.source);
+                assertEquals(request.buildDigest, copy.buildDigest);
                 assertEquals(action, copy.action);
                 assertEquals(request.sessionId, copy.sessionId);
                 PacketStationReply reply = new PacketStationReply(request, true, "Saved");
@@ -211,7 +220,7 @@ class ProgrammingStationTest {
                             "Saved project");
                         if (action == PacketStationRequest.Action.PUBLISH) reply.publication = receipt;
                         else reply.publications = new PublicationPage(Arrays.asList(receipt), 1, 0);
-                    } else reply.draft = new ProjectDraft(
+                    } else if (action != PacketStationRequest.Action.WRITE_DISK) reply.draft = new ProjectDraft(
                         request.projectId,
                         UUID.randomUUID(),
                         0,

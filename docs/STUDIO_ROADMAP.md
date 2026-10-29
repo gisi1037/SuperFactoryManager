@@ -43,7 +43,7 @@ late save/load acknowledgements, modal input, cross-view undo, resizing, and
 inventory isolation require both regression coverage and in-game checks. An
 implemented control is not by itself a claim that every workflow is qualified.
 
-The current checkpoint passes 1,144 regression tests, with eleven optional skips.
+The previous GUI checkpoint passed 1,144 regression tests, with eleven optional skips.
 Scoped daily-803 Java17/LWJGL3 checks with NEI, MUI2 2.3.93 and 72 player-storage
 slots passed 42 in-game assertions covering publication, source/visual ownership,
 terminal focus/status, GUI scales, inventory isolation and slot gestures. Player
@@ -56,10 +56,9 @@ whole-pack performance budget or speedup.
 
 The Factory Manager now has a separate operational dashboard and canonical split
 player storage views. Studio's Builds view publishes immutable root-source bundles
-from exact saved revisions. Reference disks and runtime activation remain a
-separate next step: define executable/state binding identity, verify owner-scoped
-receipts, and fence asynchronous loads before exposing installation. Mutable
-compiled programs must remain private to each manager.
+from exact saved revisions. Reference disks and runtime activation now have a guarded development workflow;
+qualification and cold-start admission remain gates before default enablement.
+Mutable compiled programs remain private to each manager.
 
 1. Complete full-pack and multiplayer workflow qualification. Scoped development
    client checks cover safe project switching/recovery, acknowledged saves, graph
@@ -83,47 +82,64 @@ described as complete. Larger scripts and graphs also need bounded rendering,
 validation work, and responsive input; timing claims require measurements.
 
 
-## Reference-disk foundations
+## Reference disks and operational activity
 
-The reference-disk backend now separates content identity from permission to run
-it. An authenticated owner can issue an opaque, world-local execution grant for
-an exact existing published revision. Its disk reference contains a format
-version, random token and build digest. Project IDs and content hashes alone
-grant no access. Execution/copy permission does not grant project editing or
-source-export permission. Ordinary possession and authorized inventory viewing
-can share the bearer reference; generic block-description packets redact it.
+Exact-build disk writing and cold manager activation are implemented behind an
+opt-in development-client gate. The default UI keeps writing disabled pending
+qualification. The server authenticates the selected immutable publication and
+rechecks the live world/service, station/session/connection and exact fresh held
+medium before one inventory replacement. Candidate document/reference metadata
+is complete and size-validated before publication. Duplicate acknowledgements do
+not write again, and a stale completion cannot clear a newer pending request.
 
-Every cold preparation checks the stored grant and exact compatible bundle and
-compiles a separate mutable program instance on the bounded storage worker. It
-never substitutes the latest project draft. Missing, malformed or unsupported
-data fails closed and is preserved. No preparation cache is used in this slice.
-Grants have finite world quotas and are never automatically evicted. Back up
-`world/sfm` with the rest of the world; an inventory-only copy into another world
-does not bring its execution grant with it. A complete world clone retains it.
+Managers submit cold preparations only from server updates. NBT reads, item
+tooltips and client synchronization never resolve source. Completion checks the
+world, loaded tile, physical disk, reference/document, STATE ownership and request
+generations before publishing its private plan. Pause and recovery decisions win
+over late results. Missing/corrupt builds and busy admission pause visibly, with
+explicit Start retry. Warm updates retain the loaded plan without filesystem I/O.
+Legacy source disks and their unload/global semantics remain supported.
 
-Legacy source disks continue to work. Strict reference/invalid modes prevent
-legacy editors and reset actions from replacing a reference with empty source.
-STATE now binds to the exact disk execution identity; changing a reference or its
-document metadata invalidates that binding while still allowing owned committed
-heap values to flush before schema replacement. Each physical copy has its own
-mutable STATE store.
+Reference metadata and source are redacted from general block packets. Authorized
+physical inventory synchronization carries the actual bearer disk. Runtime
+reference execution suppresses automatic reconstructed-source debug logs and uses
+generic failure messages; intentional PRINT output remains supported. Source-only
+editing/reset controls cannot convert a reference to an embedded-source disk.
+World backups must include projects, bundles and execution grants alongside
+inventories. An inventory-only copy into another world does not carry its grant.
 
-This is a tested backend foundation, not an installable reference-disk workflow.
-Studio does not yet write reference disks, and managers deliberately keep such
-media paused. Next, add the server-validated fresh-medium write transaction and
-queued manager activation with world/tile/disk/document/request generation
-fences. Preserve intervening pause/recovery decisions, keep all warm manager ticks
-free of storage I/O, and qualify stale completions and multiplayer before exposing
-disk writing. Reusable dependency libraries and new editor features follow that
-activation boundary.
+The manager Overview now has a bounded measured update-cost chart and an expanded
+activity view, with runtime states and a scheduler-clock marker. It samples at
+most twenty timings; it does not infer successful transfers or a live instruction
+pointer. Source-authorized opt-in statement tracing remains a separate task.
 
-The foundation checkpoint passes the clean public build, formatting, Checkstyle,
-compiler bridge and GuideNH packaging: 1,189 tests total, 1,177 passed and twelve
-optional skips. The 34 added tests cover grants, storage corruption/ownership,
-strict disk metadata, STATE identity/transport bounds and inert runtime/network
-handling. One new skip is an unavailable Windows symlink fixture. Native runtime
-installation and two-player reference workflows remain unqualified because they
-are not exposed in this slice. No throughput or tick-latency improvement is claimed.
+The combined source checkpoint passes the clean public build, formatting,
+Checkstyle, compiler bridge and GuideNH packaging: 1,229 tests total, 1,217 passed
+and twelve optional skips. Native qualification is recorded separately; these
+regressions alone do not establish two-player behavior or a throughput budget.
+
+Scoped combined-pack checks also passed actual saved-build selection/writing,
+reference installation, running/pausing, warm execution with the bundle absent,
+and a cold missing-bundle failure followed by exact-artifact restoration and UI
+retry. Saved STATE resumed with only the newly due trigger increments. The
+activity dialog fits logical 320x240 and 427x240 screens with split player storage.
+These checks use an isolated daily-803 Java17/LWJGL3 client with MUI2, NEI and
+Dynamic Inventory; they do not qualify simultaneous two-player workflows.
+
+Remaining order:
+
+1. Qualify disk writing, activation, pause/retry, missing/corrupt storage and
+   reloads in the combined pack. Complete real two-client authority and hardware
+   input checks before enabling the reference workflow by default.
+2. Measure and improve cold-start admission for many managers. The shared worker
+   currently admits at most 32 outstanding requests; busy managers require an
+   explicit retry. Fair bounded automatic admission must avoid retry storms and
+   preserve run intent before large-scale reference deployment.
+3. Keep provider/recovery and scaling gates open. No new whole-pack throughput or
+   tick-latency gain is claimed. Reference STATE reset and source-authorized trace
+   mapping remain explicit follow-ups.
+4. Continue reusable dependency libraries, typed visual nodes/pickers, source/node
+   selection, the live network browser and docked diagnostics afterward.
 
 ## Boundaries
 

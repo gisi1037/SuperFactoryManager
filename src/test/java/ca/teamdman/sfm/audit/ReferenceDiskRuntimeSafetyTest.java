@@ -44,7 +44,7 @@ class ReferenceDiskRuntimeSafetyTest {
             assertEquals(original, disk.getTagCompound());
             NBTTagCompound saved = new NBTTagCompound();
             fixture.manager.writeToNBT(saved);
-            assertFalse(saved.getBoolean("isRunning"));
+            assertEquals(fixture.manager.isRunning(), saved.getBoolean("isRunning"));
             TileEntityManager loaded = new TileEntityManager();
             loaded.readFromNBT(saved);
             assertInert(loaded);
@@ -100,6 +100,12 @@ class ReferenceDiskRuntimeSafetyTest {
             client.onDataPacket(null, packet);
             assertEquals(ProgramDiskData.Mode.INVALID, ProgramDiskData.mode(client.getDisk()));
             assertInert(client);
+            client.setInventorySlotContents(0, disk.copy());
+            assertEquals(
+                fixture.manager.isRunning(),
+                client.isRunning(),
+                "Authorized slot synchronization must reveal the server intent retained behind the redacted mirror");
+            assertFalse(client.hasCompiledProgram(), "Inventory metadata alone never grants a client executable");
             NBTTagCompound saved = new NBTTagCompound();
             fixture.manager.writeToNBT(saved);
             assertEquals(
@@ -126,7 +132,6 @@ class ReferenceDiskRuntimeSafetyTest {
         reference(fixture.manager.getDisk(), false);
         assertNull(fixture.manager.getCompiledProgram());
         assertFalse(fixture.manager.hasCompiledProgram());
-        assertFalse(fixture.manager.isRunning());
         fixture.manager.updateEntity();
         fixture.manager.runOnceWithLogLevel(LogLevel.DEBUG);
         assertEquals(tick, fixture.manager.getManagerTick());
@@ -232,7 +237,7 @@ class ReferenceDiskRuntimeSafetyTest {
     private static void assertInert(TileEntityManager manager) {
         assertNull(manager.getCompiledProgram());
         assertFalse(manager.hasCompiledProgram());
-        assertFalse(manager.isRunning());
+        if (ProgramDiskData.mode(manager.getDisk()) == ProgramDiskData.Mode.INVALID) assertFalse(manager.isRunning());
         assertNotNull(manager.getDisk());
         assertNotEquals(ProgramDiskData.Mode.LEGACY, ProgramDiskData.mode(manager.getDisk()));
     }

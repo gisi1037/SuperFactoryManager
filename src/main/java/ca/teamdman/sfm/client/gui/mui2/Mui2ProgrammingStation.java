@@ -56,7 +56,10 @@ import ca.teamdman.sfm.common.util.BoundedUtf8;
 /** Client authoring only. Saving and validation are separate exact-revision server requests. */
 public final class Mui2ProgrammingStation {
 
-    private static final int CATALOG_ROWS = 8, MAX_RECOVERED_DRAFTS = 16;
+    /** Enable only after reference-disk lifecycle verification; server authority remains independent. */
+    public static final boolean REFERENCE_DISKS_ENABLED = Boolean.getBoolean("sfm.testReferenceDisks")
+        && (Boolean.getBoolean("sfm.testHarness") || Boolean.getBoolean("gtnh.testHarness"));
+    private static final int CATALOG_ROWS = 8, BUILD_ROWS = 6, MAX_RECOVERED_DRAFTS = 16;
     // Values contain immutable text/UUIDs only, so they do not retain their weak world keys.
     private static final Map<World, LinkedHashMap<String, Retained>> RECOVERY = new WeakHashMap<>();
     private static boolean savedWrap;
@@ -1210,9 +1213,7 @@ public final class Mui2ProgrammingStation {
             } else if (!state.dirty() && !state.uncertainWrite) openCatalog();
         }
         if (state.tick()) {
-            status = state.action() == Action.CREATE || state.action() == Action.SAVE
-                ? "No confirmation; save may have applied. Draft kept. Copy or close to recover later."
-                : "No server reply. Draft kept; reopen to retry. A late reply is still accepted here.";
+            status = state.timeoutMessage();
             retain();
         }
     }
@@ -1346,6 +1347,8 @@ public final class Mui2ProgrammingStation {
     private void request(Action action, UUID id, int offset) {
         if (cancelled) return;
         try {
+            if (action == Action.WRITE_DISK && !REFERENCE_DISKS_ENABLED)
+                throw new IllegalStateException("Reference disk writing awaits runtime verification.");
             boolean write = action == Action.CREATE || action == Action.SAVE;
             if (write) {
                 BoundedUtf8.encode(state.name, ProjectWorkspace.MAX_NAME_BYTES);
@@ -1362,7 +1365,10 @@ public final class Mui2ProgrammingStation {
             request.action = action;
             request.projectId = id;
             request.offset = offset;
-            request.expectedRevision = state.saved == null ? 0 : state.saved.revision;
+            PublicationReceipt selectedBuild = state.selectedBuild();
+            request.expectedRevision = action == Action.WRITE_DISK && selectedBuild != null ? selectedBuild.revision
+                : state.saved == null ? 0 : state.saved.revision;
+            request.buildDigest = action == Action.WRITE_DISK && selectedBuild != null ? selectedBuild.digest : "";
             request.name = write ? state.name : "";
             request.source = write ? state.source : "";
             recoveryOverCurrent = action == Action.LOAD && loadingRecovery != null
@@ -1378,8 +1384,12 @@ public final class Mui2ProgrammingStation {
             SFMNetwork.WRAPPER.sendToServer(request);
             status = action == Action.VALIDATE ? "Validating saved revision r" + state.saved.revision + "..."
                 : action == Action.PUBLISH ? "Publishing saved revision r" + state.saved.revision + "..."
-                    : action == Action.CREATE || action == Action.SAVE ? "Saving project; waiting for confirmation..."
-                        : action == Action.LIST_PUBLICATIONS ? "Loading saved builds..." : "Loading project data...";
+                    : action == Action.WRITE_DISK
+                        ? "Writing selected build r" + request.expectedRevision + " to the held disk..."
+                        : action == Action.CREATE || action == Action.SAVE
+                            ? "Saving project; waiting for confirmation..."
+                            : action == Action.LIST_PUBLICATIONS ? "Loading saved builds..."
+                                : "Loading project data...";
         } catch (IllegalArgumentException | IllegalStateException error) {
             status = error.getMessage() + " Draft kept.";
         }
@@ -1430,64 +1440,100 @@ public final class Mui2ProgrammingStation {
                 78,
                 () -> state.saved != null && !state.awaitingReply(),
                 () -> request(Action.LIST_PUBLICATIONS, state.saved.id, 0)));
-        for (int i = 0; i < CATALOG_ROWS; i++) {
+        for (int i = 0; i < BUILD_ROWS; i++) {
             final int row = i;
-            popup.child(button("", 8, 48 + i * 14, 296, () -> true, () -> {
-                PublicationReceipt entry = publishedEntry(row);
-                if (entry == null) return;
-                GuiScreen.setClipboardString(entry.digest);
-                status = "Copied build digest for saved r" + entry.revision + ".";
-            }).height(13)
-                .overlay(IKey.dynamic(() -> {
+            popup.child(
+                button("", 8, 48 + i * 14, 296, () -> !state.awaitingReply() && publishedEntry(row) != null, () -> {
                     PublicationReceipt entry = publishedEntry(row);
-                    return entry == null ? ""
-                        : trimFor(
-                            "r" + entry.revision + " | " + entry.name + " | " + entry.digest.substring(0, 10),
-                            280);
-                })
-                    .color(0xffe7e8eb))
-                .addTooltipLine("Click a build to copy its digest. Use Refresh after publishing."));
+                    if (entry == null) return;
+                    state.selectBuild(entry);
+                    status = "Selected immutable build r" + entry.revision
+                        + " | "
+                        + entry.digest.substring(0, 12)
+                        + ".";
+                }).height(13)
+                    .overlay(IKey.dynamic(() -> {
+                        PublicationReceipt entry = publishedEntry(row);
+                        return entry == null ? ""
+                            : trimFor(
+                                (state.isSelectedBuild(entry) ? "> " : "") + "r"
+                                    + entry.revision
+                                    + " | "
+                                    + entry.name
+                                    + " | "
+                                    + entry.digest.substring(0, 10),
+                                280);
+                    })
+                        .color(0xffe7e8eb))
+                    .addTooltipLine("Click to select this exact published revision. Draft changes are separate."));
         }
         popup.child(
             button(
                 "Previous",
                 8,
-                163,
+                136,
                 64,
                 () -> state.saved != null && !state.awaitingReply() && publications.offset > 0,
-                () -> request(
-                    Action.LIST_PUBLICATIONS,
-                    state.saved.id,
-                    Math.max(0, publications.offset - CATALOG_ROWS))));
+                () -> request(Action.LIST_PUBLICATIONS, state.saved.id, Math.max(0, publications.offset - BUILD_ROWS)))
+                    .height(17));
         popup.child(
             new TextWidget<>(
                 IKey.dynamic(
                     () -> publications.total == 0 ? "No published builds"
                         : (publications.offset + 1) + "-"
-                            + Math.min(publications.total, publications.offset + CATALOG_ROWS)
+                            + Math.min(publications.total, publications.offset + BUILD_ROWS)
                             + " / "
                             + publications.total)).color(0xffe7e8eb)
-                                .pos(76, 167)
+                                .pos(76, 140)
                                 .size(148, 12));
         popup.child(
             button(
                 "Next",
                 240,
-                163,
+                136,
                 64,
                 () -> state.saved != null && !state.awaitingReply()
-                    && publications.offset + CATALOG_ROWS < publications.total,
-                () -> request(Action.LIST_PUBLICATIONS, state.saved.id, publications.offset + CATALOG_ROWS)));
+                    && publications.offset + BUILD_ROWS < publications.total,
+                () -> request(Action.LIST_PUBLICATIONS, state.saved.id, publications.offset + BUILD_ROWS)).height(17));
+        popup.child(new TextWidget<>(IKey.dynamic(() -> {
+            PublicationReceipt selected = state.selectedBuild();
+            return selected == null ? "Select a published build."
+                : trimFor("Selected r" + selected.revision + " | " + selected.digest.substring(0, 16), 296);
+        })).color(0xffe7e8eb)
+            .pos(8, 158)
+            .size(296, 12));
+        popup.child(
+            button(
+                "Write held disk",
+                8,
+                176,
+                128,
+                () -> REFERENCE_DISKS_ENABLED && state.saved != null
+                    && state.selectedBuild() != null
+                    && !state.awaitingReply(),
+                () -> request(Action.WRITE_DISK, state.selectedBuild().project, 0)).height(17)
+                    .addTooltipLine(
+                        REFERENCE_DISKS_ENABLED
+                            ? "Hold exactly one fresh program disk before opening the station. Writes the selected immutable build."
+                            : "Reference disk writing awaits runtime verification."));
+        popup.child(button("Copy digest", 140, 176, 96, () -> state.selectedBuild() != null, () -> {
+            PublicationReceipt selected = state.selectedBuild();
+            if (selected == null) return;
+            GuiScreen.setClipboardString(selected.digest);
+            status = "Copied build digest for saved r" + selected.revision + ".";
+        }).height(17));
+        popup.child(button("Done", 242, 176, 62, () -> true, buildsPanel::closePanel).height(17));
         popup.child(
             new TextWidget<>(IKey.dynamic(() -> trimFor(status, 296))).color(0xffb0b3bb)
-                .pos(8, 188)
+                .pos(8, 198)
                 .size(296, 12)
                 .addTooltipLine(IKey.dynamic(() -> status)));
         popup.child(
-            new TextWidget<>("Root source only; disk installation is next.").color(0xffb0b3bb)
-                .pos(8, 207)
-                .size(225, 12));
-        popup.child(button("Done", 242, 203, 62, () -> true, buildsPanel::closePanel).height(17));
+            new TextWidget<>(
+                REFERENCE_DISKS_ENABLED ? "Hold 1 fresh disk before opening the station."
+                    : "Reference disk writing awaits runtime verification.").color(0xffb0b3bb)
+                        .pos(8, 213)
+                        .size(296, 12));
         return popup;
     }
 

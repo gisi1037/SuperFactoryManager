@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 import ca.teamdman.sfm.client.gui.ProgrammingStationDraftState;
+import ca.teamdman.sfm.client.gui.mui2.Mui2ProgrammingStation;
 import ca.teamdman.sfm.common.net.PacketStationReply;
 import ca.teamdman.sfm.common.net.PacketStationRequest.Action;
 import ca.teamdman.sfm.common.program.project.ProjectDraft;
@@ -363,6 +364,115 @@ class ProgrammingStationDraftStateTest {
         assertFalse(ProgrammingStationDraftState.matches(session, 42, 1, 4, 3, reply));
         assertFalse(ProgrammingStationDraftState.matches(session, 42, 1, 2, 4, reply));
         assertFalse(ProgrammingStationDraftState.matches(session, 42, 1, 2, 3, null));
+    }
+
+    @Test
+    void heldDiskWritingRemainsGatedUntilReferenceLifecycleVerification() {
+        assertFalse(Mui2ProgrammingStation.REFERENCE_DISKS_ENABLED);
+    }
+
+    @Test
+    void diskWriteRequiresExplicitCurrentProjectSelectionAndAllowsAnOlderBuildWithDirtyDraft() {
+        ProgrammingStationDraftState unsaved = new ProgrammingStationDraftState();
+        assertThrows(IllegalStateException.class, () -> unsaved.begin(Action.WRITE_DISK));
+        ProgrammingStationDraftState state = loaded();
+        assertThrows(IllegalStateException.class, () -> state.begin(Action.WRITE_DISK));
+        assertThrows(IllegalArgumentException.class, () -> state.selectBuild(receipt(UUID.randomUUID(), PROJECT, 0)));
+        assertThrows(IllegalArgumentException.class, () -> state.selectBuild(receipt(OWNER, UUID.randomUUID(), 0)));
+        long save = state.begin(Action.SAVE);
+        assertTrue(state.receive(save, Action.SAVE, true, draft(7, "new saved source"), null));
+        PublicationReceipt old = receipt(OWNER, PROJECT, 0);
+        state.selectBuild(old);
+        assertSame(old, state.selectedBuild());
+        assertTrue(state.isSelectedBuild(receipt(OWNER, PROJECT, 0)));
+        assertFalse(state.isSelectedBuild(receipt(OWNER, PROJECT, 7)));
+        state.source = "newer local draft";
+        state.name = "newer local name";
+        long write = state.begin(Action.WRITE_DISK);
+        assertEquals(0, state.selectedBuild().revision, "Disk selection is independent of saved r7");
+        assertEquals("newer local draft", state.source);
+        assertThrows(IllegalStateException.class, () -> state.selectBuild(receipt(OWNER, PROJECT, 7)));
+        assertTrue(state.receive(write, Action.WRITE_DISK, true, null, null));
+        assertSame(old, state.selectedBuild());
+        assertEquals(7, state.saved.revision);
+        assertTrue(state.dirty());
+    }
+
+    @Test
+    void diskWriteAcknowledgmentsAndErrorsNeverChangeSourceSavedBaselineValidationOrPublication() {
+        for (boolean accepted : new boolean[] { false, true }) {
+            ProgrammingStationDraftState state = loaded();
+            ProjectDraft baseline = state.saved;
+            PublicationReceipt selected = receipt(OWNER, PROJECT, 0);
+            state.selectBuild(selected);
+            state.publication = selected;
+            state.validation = new ProjectValidation(PROJECT, 0, true, "Valid");
+            ProjectValidation previousValidation = state.validation;
+            long write = state.begin(Action.WRITE_DISK);
+            state.name = "name edited after sending";
+            state.source = "source edited after sending";
+            assertFalse(state.receive(write + 1, Action.WRITE_DISK, accepted, null, null));
+            assertFalse(state.receive(write, Action.SAVE, accepted, null, null));
+            assertTrue(
+                state.receive(
+                    write,
+                    Action.WRITE_DISK,
+                    accepted,
+                    draft(8, "must not install"),
+                    new ProjectValidation(PROJECT, 0, false, "must not replace"),
+                    receipt(OWNER, PROJECT, 8)));
+            assertSame(baseline, state.saved);
+            assertSame(selected, state.selectedBuild());
+            assertSame(selected, state.publication);
+            assertSame(previousValidation, state.validation);
+            assertEquals("name edited after sending", state.name);
+            assertEquals("source edited after sending", state.source);
+            assertFalse(state.uncertainWrite);
+            assertFalse(state.awaitingReply());
+        }
+    }
+
+    @Test
+    void diskWriteTimeoutWarnsToInspectHeldDiskKeepsCorrelationAndNeverRetriesAutomatically() {
+        ProgrammingStationDraftState state = loaded();
+        state.selectBuild(receipt(OWNER, PROJECT, 0));
+        ProjectDraft baseline = state.saved;
+        long write = state.begin(Action.WRITE_DISK);
+        timeout(state);
+        assertTrue(state.awaitingReply());
+        assertFalse(state.busy());
+        assertFalse(state.uncertainWrite, "Disk-write uncertainty does not change project-save uncertainty");
+        assertTrue(
+            state.timeoutMessage()
+                .contains("Check the held disk"));
+        assertTrue(
+            state.timeoutMessage()
+                .contains("do not write another disk"));
+        assertThrows(IllegalStateException.class, () -> state.begin(Action.WRITE_DISK));
+        state.source = "local source after timeout";
+        assertTrue(state.receive(write, Action.WRITE_DISK, true, null, null));
+        assertSame(baseline, state.saved);
+        assertEquals("local source after timeout", state.source);
+        assertFalse(state.receive(write, Action.WRITE_DISK, true, null, null));
+    }
+
+    @Test
+    void buildSelectionSurvivesSameProjectSaveAndClearsOnProjectSwitchOrLocalReset() {
+        ProgrammingStationDraftState state = loaded();
+        PublicationReceipt selected = receipt(OWNER, PROJECT, 0);
+        state.selectBuild(selected);
+        long save = state.begin(Action.SAVE);
+        assertTrue(state.receive(save, Action.SAVE, true, draft(1, "saved edit"), null));
+        assertSame(selected, state.selectedBuild());
+        long load = state.begin(Action.LOAD);
+        ProjectDraft different = new ProjectDraft(UUID.randomUUID(), OWNER, 0, "Different", "source");
+        assertTrue(state.receive(load, Action.LOAD, true, different, null));
+        assertNull(state.selectedBuild());
+        assertThrows(IllegalStateException.class, () -> state.begin(Action.WRITE_DISK));
+        state.selectBuild(receipt(OWNER, different.id, 0));
+        state.newDraft();
+        assertNull(state.selectedBuild());
+        assertNull(state.saved);
     }
 
     private static ProgrammingStationDraftState loaded() {

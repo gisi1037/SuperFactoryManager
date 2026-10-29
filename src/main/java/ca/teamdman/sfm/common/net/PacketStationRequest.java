@@ -15,7 +15,7 @@ import io.netty.buffer.ByteBuf;
 /** Bounded authoring requests; identity always comes from the authenticated connection. */
 public final class PacketStationRequest implements IMessage {
 
-    private static final int VERSION = 0x53545003;
+    private static final int VERSION = 0x53545004;
     public static final int MAX_PACKET_BYTES = 32000;
 
     public enum Action {
@@ -25,14 +25,15 @@ public final class PacketStationRequest implements IMessage {
         SAVE,
         VALIDATE,
         PUBLISH,
-        LIST_PUBLICATIONS
+        LIST_PUBLICATIONS,
+        WRITE_DISK
     }
 
     public int x, y, z, windowId, offset;
     public UUID sessionId, projectId;
     public long requestId, expectedRevision;
     public Action action = Action.LIST;
-    public String name = "", source = "";
+    public String name = "", source = "", buildDigest = "";
 
     public void validate() {
         if (action == null || sessionId == null || requestId <= 0 || windowId <= 0 || windowId > 255)
@@ -45,9 +46,22 @@ public final class PacketStationRequest implements IMessage {
             throw new IllegalArgumentException("A project is required");
         BoundedUtf8.encode(name, ProjectWorkspace.MAX_NAME_BYTES);
         BoundedUtf8.encode(source, ProjectWorkspace.MAX_SOURCE_BYTES);
-        if ((action == Action.PUBLISH || action == Action.LIST_PUBLICATIONS)
-            && (!name.isEmpty() || !source.isEmpty() || action == Action.PUBLISH && offset != 0))
+        BoundedUtf8.encode(buildDigest, 64);
+        if (action == Action.WRITE_DISK ? !isBuildDigest(buildDigest) : !buildDigest.isEmpty())
+            throw new IllegalArgumentException("Invalid selected build digest");
+        if ((action == Action.PUBLISH || action == Action.LIST_PUBLICATIONS || action == Action.WRITE_DISK)
+            && (!name.isEmpty() || !source.isEmpty()
+                || (action == Action.PUBLISH || action == Action.WRITE_DISK) && offset != 0))
             throw new IllegalArgumentException("Publication requests use saved server data only");
+    }
+
+    private static boolean isBuildDigest(String value) {
+        if (value.length() != 64) return false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (!(c >= '0' && c <= '9' || c >= 'a' && c <= 'f')) return false;
+        }
+        return true;
     }
 
     @Override
@@ -67,6 +81,7 @@ public final class PacketStationRequest implements IMessage {
         buffer.writeInt(offset);
         ProgramEditWire.string(buffer, name, ProjectWorkspace.MAX_NAME_BYTES);
         ProgramEditWire.string(buffer, source, ProjectWorkspace.MAX_SOURCE_BYTES);
+        ProgramEditWire.string(buffer, buildDigest, 64);
     }
 
     @Override
@@ -87,6 +102,7 @@ public final class PacketStationRequest implements IMessage {
         offset = buffer.readInt();
         name = ProgramEditWire.string(buffer, ProjectWorkspace.MAX_NAME_BYTES);
         source = ProgramEditWire.string(buffer, ProjectWorkspace.MAX_SOURCE_BYTES);
+        buildDigest = ProgramEditWire.string(buffer, 64);
         if (buffer.isReadable()) throw new IllegalArgumentException("Trailing station request data");
         validate();
     }

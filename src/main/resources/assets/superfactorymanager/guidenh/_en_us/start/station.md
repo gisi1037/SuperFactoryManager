@@ -88,7 +88,7 @@ Inventory slots, hotbar actions and NEI are unavailable throughout Studio.
 Projects belong to your authenticated player UUID. Someone else's station or a
 copied project identifier does not grant access to their source. Saved projects
 live in the world save, separately from the station block. Include the world's
-`sfm/projects` and `sfm/programs` directories in backups.
+`sfm/projects`, `sfm/programs` and `sfm/execution-grants` directories in backups.
 
 Local recovery drafts are temporary client memory. They help after a closed
 screen or failed request during the session; an accepted project save is what
@@ -99,17 +99,26 @@ survives leaving the game.
 **Builds** (under **Tools** on compact screens) publishes immutable root-source
 bundles from an exact saved revision. Save edits first, then choose **Publish saved**.
 Invalid drafts cannot be published. **Refresh** lists saved builds; click a row
-to copy its digest. A later edit does not change a published build, and publishing
+to select it, then use **Copy digest** for its identity. A later edit does not change a published build, and publishing
 does not change or run any manager. Publication receipts remain private to the
 project owner. A digest alone grants no source access.
 
-This station version does **not yet** install reference disks or import libraries.
+Reference disk writing is implemented behind a development qualification gate and
+is **disabled by default**. Reusable library imports are still planned.
 To run a saved draft now, copy its source into a manager's Text editor, save to
 an execution disk, synchronize that disk's labels and enable the manager.
 
-Execution disks still hold their source and persistent STATE. A reference-only
-disk workflow is planned separately; the station does not move an existing
-disk's data into project storage automatically.
+Ordinary execution disks still hold source and persistent STATE. The experimental
+reference workflow writes only a published-build reference to a fresh disk, then
+loads a private program into manager memory on the storage worker. Source stays
+in world storage; STATE remains independent on each physical disk. Pause intent
+survives loading. Failed loads preserve the disk and allow an explicit Start
+retry. The station never silently converts or erases an existing disk.
+
+In the Factory Manager, **Overview → Expand** shows measured update-cost history,
+latest/mean/max/peak and runtime state. The clock marker represents scheduler ticks,
+not individual statements or successful transfers. Detailed execution tracing is
+not sampled yet. See [performance](/reference/performance.md) for measurement limits.
 
 Projects currently allow 30,000 UTF-8 source bytes and 96 name bytes, with up to
 128 projects per owner. Names and non-ASCII characters can use several bytes.

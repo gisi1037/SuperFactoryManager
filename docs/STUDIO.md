@@ -17,8 +17,8 @@ to include your latest edits. Invalid text can be saved as a draft.
 
 **Copy** copies source without hidden visual-layout metadata. To run it with the
 current disk workflow, paste it into the manager's Text editor and save its disk.
-Reference-only execution disks are a later stage; Studio does not offer an
-installation button until that runtime workflow is ready.
+Reference-only execution disks are under qualification and unavailable by default.
+The existing embedded-source disk workflow remains available.
 
 ## Publish a saved build
 
@@ -27,8 +27,8 @@ compiles the exact saved server revision and stores an immutable source bundle.
 Save name and source changes first. Invalid drafts can still be saved, but cannot
 be published. Publishing does not run the program or change any manager.
 
-Use **Refresh** to list published revisions. Clicking a row copies its SHA-256
-digest. Identical source bundles can share storage; each project's publication
+Use **Refresh** to list published revisions. Click a row to select that exact
+build, then use **Copy digest** for its SHA-256 identity. Identical source bundles can share storage; each project's publication
 receipt records its owner, project, saved revision and name. Later draft edits
 cannot alter a published bundle. A lost acknowledgement can be reconciled by
 refreshing or retrying publication of that saved revision.
@@ -36,7 +36,7 @@ refreshing or retrying publication of that saved revision.
 Builds currently contain root SFML source only, with no imported dependencies.
 Storage and compilation run on the bounded project worker. The world's
 `sfm/projects` directory holds drafts/receipts, and `sfm/programs` holds bundles;
-back up both with the world. Atomic file visibility is not a power-loss guarantee.
+back up these and `sfm/execution-grants` with the world. Atomic file visibility is not a power-loss guarantee.
 Private project access is checked by the server; a digest alone grants no access.
 
 ## Write code
@@ -153,3 +153,44 @@ and **All** select layout presets, and **Undo** restores a recent layout. These
 controls move slot presentation only; they do not transfer items or create extra
 capacity. Layout preferences are temporary client memory. The live connected
 inventory browser remains planned.
+
+
+## Performance and execution activity
+
+The Factory Manager's **Overview** shows a cost-history chart and the current
+runtime state. **Expand** opens the activity view with latest update cost, window
+mean/max and recorded peak. Charts use at most twenty chronological update samples
+and scale to the visible window, so bar height is not a percentage of the server's
+tick budget. Updates include idle checks, recovery, compilation and discovery;
+these values do not measure item/fluid throughput.
+
+The scheduler-clock marker advances with the manager's execution clock. It can
+advance when no timed trigger is due or nothing can move. Loading, paused,
+recovery-blocked and unavailable programs have distinct states. This is an
+operational view; statement/branch tracing, node highlighting and breakpoints
+remain planned. No private source or execution-grant token is sent by the chart.
+
+## Reference-disk qualification
+
+The guarded reference workflow is currently enabled only in opted-in development
+test clients. In that workflow, select an immutable build in **Builds**, hold one
+fresh blank SFM disk before opening the station, then use **Write held disk**.
+The disk must have no existing program, labels, STATE, recovery or custom metadata.
+The selected build may be an older published revision; unsaved draft edits are
+not written to it. Changing the medium or station session during the operation
+rejects the write without replacing the held item. After an uncertain reply,
+inspect the disk before retrying; the editor does not automatically write again.
+
+The physical disk stores a reference and independent STATE, while source remains
+in world storage. A manager prepares its own program in memory asynchronously.
+Pause intent survives loading and reloads. Missing or invalid builds keep the disk
+and its saved values intact; **Start** retries a failed preparation. Runtime source
+editing and reset controls do not rewrite an immutable reference. Automatic
+source-bearing debug logs are suppressed for references; deliberate `print()`
+output remains available when capture is enabled.
+
+Normal running ticks do not reread program files. Reload/reactivation validates
+the stored grant and exact bundle again. Reference disks are copyable execution
+capabilities, with independent mutable STATE for each physical copy; they do not
+grant private project editing or source-export access. Real two-player workflows
+and cold-start queue behavior remain qualification gates before general enablement.

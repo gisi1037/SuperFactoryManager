@@ -28,8 +28,14 @@ import ca.teamdman.sfm.common.label.LabelPositionHolder;
 import ca.teamdman.sfm.common.network.CableNetwork;
 import ca.teamdman.sfm.common.program.DebugConsole;
 import ca.teamdman.sfm.common.program.ProgramContext;
+import ca.teamdman.sfm.common.program.ProgramDiskBinding;
 import ca.teamdman.sfm.common.program.ProgramDiskData;
 import ca.teamdman.sfm.common.program.ProgramStateStore;
+import ca.teamdman.sfm.common.program.project.ExecutionReference;
+import ca.teamdman.sfm.common.program.project.PreparedExecution;
+import ca.teamdman.sfm.common.program.project.ProjectResult;
+import ca.teamdman.sfm.common.program.project.ProjectWorkspace;
+import ca.teamdman.sfm.common.program.project.StationProjectService;
 import ca.teamdman.sfm.common.util.BlockPos;
 import ca.teamdman.sfm.compat.Compat;
 import ca.teamdman.sfm.compat.stevefm.SteveFMCompat;
@@ -72,6 +78,14 @@ public class TileEntityManager extends TileEntity implements IInventory {
     public boolean hasDebugOutputEnabled() {
         return debugConsole != null && debugConsole.isEnabled();
     }
+
+    private ProgramDiskBinding referenceBinding;
+    private net.minecraft.world.World referenceWorld;
+    private ProjectWorkspace referenceWorkspace;
+    private ReferenceRequest referenceRequest;
+    private long referenceActivationGeneration;
+    private boolean referenceAttempted;
+    private boolean referenceExecutionScope;
 
     private String lastCodeCompiled = null;
     private String statusMessage = "No Disk";
@@ -132,11 +146,11 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     private void updateServer() {
-        if (blockUnsupportedProgramDisk()) return;
         if (blockItemRecovery() || recoverFluid()) {
             resetRedstoneTriggerTracker();
             return;
         }
+        if (!prepareExecutableDisk(true)) return;
         if (diskStack == null || !(diskStack.getItem() instanceof ItemDisk) || !isRunning) {
             resetRedstoneTriggerTracker();
             lastRedstonePower = worldObj.getBlockPowerInput(xCoord, yCoord, zCoord);
@@ -148,9 +162,11 @@ public class TileEntityManager extends TileEntity implements IInventory {
             }
             return;
         }
-        String code = ItemDisk.getProgramString(diskStack);
-        if (!code.equals(lastCodeCompiled) || programState != null && !programState.isCurrent(diskStack))
-            recompile(code);
+        if (referenceBinding == null) {
+            String code = ItemDisk.getProgramString(diskStack);
+            if (!code.equals(lastCodeCompiled) || programState != null && !programState.isCurrent(diskStack))
+                recompile(code);
+        }
         if (compiledProgram == null) return;
         if (cableNetwork == null) rebuildNetwork();
 
@@ -190,10 +206,10 @@ public class TileEntityManager extends TileEntity implements IInventory {
             return;
         }
 
-        if (blockUnsupportedProgramDisk()) return;
-        String currentCode = ItemDisk.getProgramString(diskStack);
-        if (!currentCode.equals(lastCodeCompiled)) {
-            recompile(currentCode);
+        if (!prepareExecutableDisk(false)) return;
+        if (referenceBinding == null) {
+            String currentCode = ItemDisk.getProgramString(diskStack);
+            if (!currentCode.equals(lastCodeCompiled)) recompile(currentCode);
         }
 
         if (!isRunning || compiledProgram == null) {
@@ -218,8 +234,9 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
         context.setStateAccess(programState);
         long startNs = System.nanoTime();
+        boolean privateProgram = referenceBinding != null;
         try {
-            compiledProgram.tick(context);
+            tickCompiledProgram(context);
 
             if (context.didSomething()) {
                 if (logLevel.includes(LogLevel.TRACE)) {
@@ -236,8 +253,12 @@ public class TileEntityManager extends TileEntity implements IInventory {
             isRunning = false;
             resetRedstoneTriggerTracker();
             markDirty();
-            statusMessage = "Runtime error (paused): " + e.getMessage();
-            log(LogLevel.ERROR, "Runtime exception: " + e.getMessage());
+            statusMessage = privateProgram ? "Published program runtime error; manager paused"
+                : "Runtime error (paused): " + e.getMessage();
+            log(
+                LogLevel.ERROR,
+                privateProgram ? "Published program runtime failed; manager paused"
+                    : "Runtime exception: " + e.getMessage());
         } finally {
             if (programState != null && programState.isDirty()) markDirty();
             ManagerPhaseProfiler.program(startNs);
@@ -419,12 +440,12 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     public void runOnceWithLogLevel(LogLevel level) {
         if (worldObj == null || worldObj.isRemote) return;
-        if (blockUnsupportedProgramDisk()) return;
         if (!isRunning) resetRedstoneTriggerTracker();
         if (blockItemRecovery() || recoverFluid()) {
             resetRedstoneTriggerTracker();
             return;
         }
+        if (!prepareExecutableDisk(false)) return;
         LogLevel prev = this.logLevel;
         this.logLevel = level;
 
@@ -435,9 +456,9 @@ public class TileEntityManager extends TileEntity implements IInventory {
         }
 
         if (diskStack != null && diskStack.getItem() instanceof ItemDisk) {
-            if (blockUnsupportedProgramDisk()) return;
-            if (!ItemDisk.getProgramString(diskStack)
-                .equals(lastCodeCompiled) || programState != null && !programState.isCurrent(diskStack)) {
+            if (!prepareExecutableDisk(false)) return;
+            if (referenceBinding == null && (!ItemDisk.getProgramString(diskStack)
+                .equals(lastCodeCompiled) || programState != null && !programState.isCurrent(diskStack))) {
                 recompile(ItemDisk.getProgramString(diskStack));
             }
 
@@ -464,8 +485,9 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
                 context.setStateAccess(programState);
                 long startNs = System.nanoTime();
+                boolean privateProgram = referenceBinding != null;
                 try {
-                    compiledProgram.tick(context);
+                    tickCompiledProgram(context);
                     long elapsedNs = System.nanoTime() - startNs;
                     double ms = elapsedNs / 1_000_000.0;
                     log(LogLevel.INFO, String.format("Manual run completed in %.2f ms", ms));
@@ -473,8 +495,12 @@ public class TileEntityManager extends TileEntity implements IInventory {
                     isRunning = false;
                     resetRedstoneTriggerTracker();
                     markDirty();
-                    statusMessage = "Runtime error (paused): " + e.getMessage();
-                    log(LogLevel.ERROR, "Manual run failed: " + e.getMessage());
+                    statusMessage = privateProgram ? "Published program runtime error; manager paused"
+                        : "Runtime error (paused): " + e.getMessage();
+                    log(
+                        LogLevel.ERROR,
+                        privateProgram ? "Published program runtime failed; manager paused"
+                            : "Manual run failed: " + e.getMessage());
                 } finally {
                     if (programState != null && programState.isDirty()) markDirty();
                 }
@@ -491,7 +517,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     public void log(LogLevel level, String message) {
-        if (level == null || message == null) return;
+        if (referenceExecutionScope || level == null || message == null) return;
         if (!this.logLevel.includes(level) && level != LogLevel.ERROR && level != LogLevel.WARN) {
             return;
         }
@@ -587,7 +613,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     public LogLevel getLogLevel() {
-        return logLevel;
+        return referenceExecutionScope ? LogLevel.OFF : logLevel;
     }
 
     public void setLogLevel(LogLevel logLevel) {
@@ -608,38 +634,258 @@ public class TileEntityManager extends TileEntity implements IInventory {
         return peakTickTimeMs;
     }
 
-    /**
-     * Reference activation is deliberately unavailable in this stage. This guard performs no storage work, and also
-     * handles foreign in-place media changes before any embedded-source read. Preserve old-schema committed heap
-     * values while the old STATE envelope is still owned; failed publication keeps that store available for recovery.
-     */
-    private boolean blockUnsupportedProgramDisk() {
-        ProgramDiskData.Mode mode = ProgramDiskData.mode(diskStack);
-        if (mode == ProgramDiskData.Mode.LEGACY) return false;
-        String problem = mode == ProgramDiskData.Mode.REFERENCE ? "Published reference is not activated; manager paused"
-            : "Invalid program disk format; manager paused";
+    /** Legacy engine diagnostics reconstruct AST/source. Execution authority does not grant source-read authority. */
+    private void tickCompiledProgram(ProgramContext context) {
+        boolean previous = referenceExecutionScope;
+        referenceExecutionScope = previous || referenceBinding != null;
         try {
-            flushProgramState();
-            programState = null;
-        } catch (IllegalArgumentException | IllegalStateException error) {
-            problem = "Persistent state conflict (paused): " + error.getMessage();
+            compiledProgram.tick(context);
+        } finally {
+            referenceExecutionScope = previous;
         }
-        boolean changed = compiledProgram != null || isRunning || !problem.equals(statusMessage);
+    }
+
+    /** Source-editor/reset APIs never resolve or replace a published executable. */
+    private boolean blockUnsupportedProgramDisk() {
+        if (ProgramDiskData.mode(diskStack) == ProgramDiskData.Mode.LEGACY) return false;
+        prepareExecutableDisk(false);
+        return true;
+    }
+
+    /** Protected gateways keep tests deterministic while production callbacks remain server-drained. */
+    protected ProjectWorkspace executionWorkspace(net.minecraft.world.World expectedWorld) {
+        return StationProjectService.INSTANCE.executionWorkspace(expectedWorld);
+    }
+
+    protected boolean executionWorkspaceCurrent(ProjectWorkspace expected, net.minecraft.world.World expectedWorld) {
+        return !expected.isClosed() && StationProjectService.INSTANCE.isCurrent(expected, expectedWorld);
+    }
+
+    protected boolean prepareReferenceExecution(ProjectWorkspace workspace, ExecutionReference reference,
+        java.util.function.Consumer<ProjectResult<PreparedExecution>> callback) {
+        return workspace.prepareExecution(reference, callback);
+    }
+
+    protected boolean referenceServerThread() {
+        return ca.teamdman.sfm.common.net.ServerUiTasks.isServerThread();
+    }
+
+    private void invalidateReferenceActivation() {
+        referenceActivationGeneration = Math.incrementExact(referenceActivationGeneration);
+        referenceRequest = null;
+        referenceAttempted = false;
+        referenceBinding = null;
+        referenceWorld = null;
+        referenceWorkspace = null;
+    }
+
+    /** Flush the previously accepted schema before discarding its execution binding. */
+    private boolean retireReferencePlan() {
         compiledProgram = null;
         lastCodeCompiled = null;
         clearProgramGlobals();
         resetRedstoneTriggerTracker();
-        isRunning = false;
-        statusMessage = problem;
-        if (changed) {
+        try {
+            flushProgramState();
+            programState = null;
+            return true;
+        } catch (IllegalArgumentException | IllegalStateException error) {
+            isRunning = false;
+            statusMessage = "Persistent state conflict; manager paused";
             markDirty();
-            log(LogLevel.WARN, problem);
+            return false;
         }
-        return true;
+    }
+
+    private void failReference(String message) {
+        referenceRequest = null;
+        referenceWorkspace = null;
+        referenceAttempted = true;
+        boolean retired = retireReferencePlan();
+        isRunning = false;
+        if (retired) statusMessage = message;
+        // Fixed operational reasons are useful to an executor; parser/source details are not part of its grant.
+        log(LogLevel.WARN, retired ? message : "Persistent state conflict; manager paused");
+        markDirty();
+    }
+
+    /** Cold requests are admitted only here, on a server update; warm checks never copy NBT, compile or read files. */
+    private boolean prepareExecutableDisk(boolean allowQueue) {
+        if (referenceBinding != null && referenceWorld == worldObj && referenceBinding.isCurrent(diskStack)) {
+            if (referenceWorkspace != null && !executionWorkspaceCurrent(referenceWorkspace, referenceWorld)) {
+                failReference("Reference storage changed; use Run to retry");
+                return false;
+            }
+            if (compiledProgram != null && (programState == null || programState.isCurrent(diskStack))) return true;
+            if (compiledProgram != null) {
+                if (!retireReferencePlan()) {
+                    referenceAttempted = true;
+                    return false;
+                }
+                referenceAttempted = false;
+            }
+            if (allowQueue && referenceRequest == null && !referenceAttempted) queueReferenceActivation();
+            return false;
+        }
+        ProgramDiskData.Mode mode = ProgramDiskData.mode(diskStack);
+        if (mode == ProgramDiskData.Mode.LEGACY) {
+            if (referenceBinding != null || referenceRequest != null || referenceAttempted) {
+                if (!retireReferencePlan()) return false;
+                invalidateReferenceActivation();
+            }
+            return true;
+        }
+        if (referenceBinding != null || referenceRequest != null) {
+            if (!retireReferencePlan()) {
+                referenceAttempted = true;
+                return false;
+            }
+            invalidateReferenceActivation();
+        }
+        if (mode == ProgramDiskData.Mode.INVALID) {
+            if (!referenceAttempted || compiledProgram != null || isRunning)
+                failReference("Invalid program disk format; manager paused");
+            return false;
+        }
+        if (referenceAttempted) return false;
+        if (!retireReferencePlan()) {
+            referenceAttempted = true;
+            return false;
+        }
+        try {
+            referenceBinding = ProgramDiskBinding.capture(diskStack);
+            referenceWorld = worldObj;
+            statusMessage = "Published reference awaiting activation";
+        } catch (IllegalArgumentException | IllegalStateException error) {
+            failReference("Invalid reference document metadata; manager paused");
+            return false;
+        }
+        if (allowQueue) queueReferenceActivation();
+        return false;
+    }
+
+    private void queueReferenceActivation() {
+        if (!referenceServerThread() || worldObj == null
+            || worldObj.isRemote
+            || isInvalid()
+            || !worldObj.blockExists(xCoord, yCoord, zCoord)
+            || worldObj.getTileEntity(xCoord, yCoord, zCoord) != this) return;
+        if (hasPendingRecovery()) {
+            isRunning = false;
+            statusMessage = "Transfer recovery pending; reference activation paused";
+            return;
+        }
+        referenceAttempted = true;
+        try {
+            ProjectWorkspace workspace = executionWorkspace(worldObj);
+            if (workspace == null || !executionWorkspaceCurrent(workspace, worldObj)) {
+                failReference("Reference storage unavailable; use Run to retry");
+                return;
+            }
+            referenceWorkspace = workspace;
+            ReferenceRequest request = new ReferenceRequest(this, ProgramDiskData.readReference(diskStack));
+            referenceRequest = request;
+            statusMessage = "Loading published program";
+            if (!prepareReferenceExecution(workspace, request.reference, result -> completeReference(request, result)))
+                failReference("Reference storage busy; use Run to retry");
+        } catch (IllegalArgumentException | IllegalStateException error) {
+            failReference("Reference load unavailable; use Run to retry");
+        }
+    }
+
+    private void completeReference(ReferenceRequest request, ProjectResult<PreparedExecution> result) {
+        if (!referenceServerThread() || referenceRequest != request
+            || referenceActivationGeneration != request.activationGeneration) return;
+        referenceRequest = null;
+        if (worldObj != request.world || xCoord != request.x
+            || yCoord != request.y
+            || zCoord != request.z
+            || isInvalid()
+            || diskStack != request.disk
+            || diskGeneration != request.diskGeneration
+            || referenceBinding != request.binding
+            || !request.binding.isCurrent(diskStack)
+            || !request.stateCurrent()
+            || !worldObj.blockExists(xCoord, yCoord, zCoord)
+            || worldObj.getTileEntity(xCoord, yCoord, zCoord) != this
+            || !executionWorkspaceCurrent(request.workspace, request.world)) {
+            failReference("Reference activation became stale; use Run to retry");
+            return;
+        }
+        if (hasPendingRecovery()) {
+            failReference("Transfer recovery pending; use Run after recovery to retry");
+            return;
+        }
+        if (result == null || !result.isSuccess()
+            || result.value == null
+            || result.value.program == null
+            || !request.reference.equals(result.value.reference)) {
+            failReference("Published program unavailable; use Run to retry");
+            return;
+        }
+        try {
+            flushProgramState();
+            Program candidate = result.value.program;
+            ProgramStateStore state = null;
+            if (candidate.getStateSchema()
+                .size() != 0 || diskStack.hasTagCompound()
+                    && diskStack.getTagCompound()
+                        .hasKey(ProgramStateStore.NBT_KEY)) {
+                state = ProgramStateStore.activate(diskStack, candidate.getStateSchema());
+                state.flush();
+            }
+            // No fallible compilation or schema reconciliation after publication. Never restore captured run intent.
+            programState = state;
+            compiledProgram = candidate;
+            lastCodeCompiled = null;
+            clearProgramGlobals();
+            resetRedstoneTriggerTracker();
+            statusMessage = isRunning ? "Running published program" : "Published program ready; paused";
+            markDirty();
+        } catch (IllegalArgumentException | IllegalStateException error) {
+            failReference("Published program STATE could not be activated; manager paused");
+        }
+    }
+
+    private static final class ReferenceRequest {
+
+        final net.minecraft.world.World world;
+        final ItemStack disk;
+        final ProgramDiskBinding binding;
+        final ProjectWorkspace workspace;
+        final ExecutionReference reference;
+        final long diskGeneration, activationGeneration;
+        final int x, y, z;
+        final NBTTagCompound root;
+        final net.minecraft.nbt.NBTBase state, stateRevision;
+
+        ReferenceRequest(TileEntityManager manager, ExecutionReference reference) {
+            world = manager.worldObj;
+            x = manager.xCoord;
+            y = manager.yCoord;
+            z = manager.zCoord;
+            disk = manager.diskStack;
+            binding = manager.referenceBinding;
+            workspace = manager.referenceWorkspace;
+            diskGeneration = manager.diskGeneration;
+            activationGeneration = manager.referenceActivationGeneration;
+            this.reference = reference;
+            root = disk.getTagCompound();
+            state = root == null ? null : root.getTag(ProgramStateStore.NBT_KEY);
+            stateRevision = state instanceof NBTTagCompound ? ((NBTTagCompound) state).getTag("revision") : null;
+        }
+
+        boolean stateCurrent() {
+            if (disk.getTagCompound() != root) return false;
+            net.minecraft.nbt.NBTBase current = root == null ? null : root.getTag(ProgramStateStore.NBT_KEY);
+            return current == state && (!(current instanceof NBTTagCompound)
+                || ((NBTTagCompound) current).getTag("revision") == stateRevision);
+        }
     }
 
     public void recompile(String code) {
         if (blockUnsupportedProgramDisk()) return;
+        invalidateReferenceActivation();
         clearProgramGlobals();
         resetRedstoneTriggerTracker();
         // Preserve the last accepted heap values before replacing/reconciling their schema.
@@ -698,7 +944,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     /** Validate a private candidate before replacing the installed executable document. */
     public String trySaveProgram(String newCode) {
         if (diskStack == null || !(diskStack.getItem() instanceof ItemDisk)) return "No program disk";
-        if (blockUnsupportedProgramDisk()) return statusMessage;
+        if (blockUnsupportedProgramDisk()) return "Reference disks cannot be saved as embedded source";
         try {
             ca.teamdman.sfm.common.program.ProgramDocument.validateSource(newCode);
         } catch (IllegalArgumentException error) {
@@ -770,6 +1016,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     /** Explicitly discard persistent values, preserving program, labels and transfer recovery evidence. */
     public void resetProgramState() {
         if (diskStack == null || blockUnsupportedProgramDisk()) return;
+        invalidateReferenceActivation();
         setRunning(false);
         String source = ItemDisk.getProgramString(diskStack);
         ProgramBuildResult result = new ProgramBuilder(source).build();
@@ -800,6 +1047,10 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     public Program getCompiledProgram() {
+        if (referenceBinding != null) return referenceWorld == worldObj && referenceBinding.isCurrent(diskStack)
+            && (referenceWorkspace == null || executionWorkspaceCurrent(referenceWorkspace, referenceWorld))
+                ? compiledProgram
+                : null;
         return ProgramDiskData.mode(diskStack) == ProgramDiskData.Mode.LEGACY ? compiledProgram : null;
     }
 
@@ -812,11 +1063,28 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     public boolean isRunning() {
-        return isRunning && ProgramDiskData.mode(diskStack) == ProgramDiskData.Mode.LEGACY;
+        return isRunning && ProgramDiskData.mode(diskStack) != ProgramDiskData.Mode.INVALID;
+    }
+
+    public boolean canRequestRun() {
+        return !hasPendingRecovery()
+            && (hasCompiledProgram() || ProgramDiskData.mode(diskStack) == ProgramDiskData.Mode.REFERENCE);
     }
 
     public void setRunning(boolean running) {
-        if (blockUnsupportedProgramDisk()) return;
+        if (ProgramDiskData.mode(diskStack) == ProgramDiskData.Mode.INVALID) {
+            prepareExecutableDisk(false);
+            return;
+        }
+        if (running && ProgramDiskData.mode(diskStack) == ProgramDiskData.Mode.REFERENCE) {
+            prepareExecutableDisk(false);
+            if (hasPendingRecovery()) return;
+            if (referenceRequest == null && compiledProgram == null) {
+                referenceAttempted = false;
+                referenceWorkspace = null;
+                statusMessage = "Published reference retry requested";
+            }
+        }
         if (this.isRunning != running) resetRedstoneTriggerTracker();
         this.isRunning = running;
         markDirty();
@@ -844,10 +1112,39 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     @Override
     public void onChunkUnload() {
+        boolean clearReferencePlan = referenceBinding != null
+            || ProgramDiskData.mode(diskStack) != ProgramDiskData.Mode.LEGACY;
+        try {
+            flushProgramState();
+        } finally {
+            invalidateReferenceActivation();
+            if (clearReferencePlan) {
+                compiledProgram = null;
+                lastCodeCompiled = null;
+            }
+        }
         resetRedstoneTriggerTracker();
         clearProgramGlobals();
         cableNetwork = null;
         super.onChunkUnload();
+    }
+
+    @Override
+    public void invalidate() {
+        boolean clearReferencePlan = referenceBinding != null
+            || ProgramDiskData.mode(diskStack) != ProgramDiskData.Mode.LEGACY;
+        try {
+            flushProgramState();
+        } finally {
+            invalidateReferenceActivation();
+            if (clearReferencePlan) {
+                compiledProgram = null;
+                lastCodeCompiled = null;
+            }
+            clearProgramGlobals();
+            resetRedstoneTriggerTracker();
+            super.invalidate();
+        }
     }
 
     public void rebuildNetwork() {
@@ -864,6 +1161,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     public void reset() {
         if (blockUnsupportedProgramDisk()) return;
+        invalidateReferenceActivation();
         if (diskStack != null) {
             flushProgramState();
             programState = null;
@@ -895,6 +1193,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
         if (slot == 0 && diskStack != null && amount > 0) {
             flushProgramState();
             ItemStack result = diskStack;
+            invalidateReferenceActivation();
             diskGeneration = Math.incrementExact(diskGeneration);
             diskStack = null;
             programState = null;
@@ -919,6 +1218,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
         if (slot == 0) {
             flushProgramState();
             programState = null;
+            invalidateReferenceActivation();
             diskGeneration = Math.incrementExact(diskGeneration);
             diskStack = stack;
             clearProgramGlobals();
@@ -975,7 +1275,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     @Override
     public void writeToNBT(NBTTagCompound tag) {
         flushProgramState();
-        blockUnsupportedProgramDisk();
+        prepareExecutableDisk(false);
         super.writeToNBT(tag);
         tag.setBoolean("isRunning", isRunning);
         tag.setLong("managerTick", managerTick);
@@ -995,6 +1295,10 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     @Override
     public void readFromNBT(NBTTagCompound tag) {
+        // Deserialization replaces the physical disk even when its document/source NBT is identical. Fence existing
+        // editor/control authority independently of the reference loader; client packets retain server-issued tokens.
+        diskGeneration = Math.incrementExact(diskGeneration);
+        invalidateReferenceActivation();
         super.readFromNBT(tag);
         compiledProgram = null;
         clearProgramGlobals();
@@ -1057,6 +1361,10 @@ public class TileEntityManager extends TileEntity implements IInventory {
     @Override
     public void onDataPacket(NetworkManager net, S35PacketUpdateTileEntity pkt) {
         readFromNBT(pkt.func_148857_g());
+        // A redacted block mirror is deliberately INVALID, but its server-authored run intent must survive until
+        // authorized inventory synchronization supplies the physical reference. This never grants a local plan.
+        isRunning = pkt.func_148857_g()
+            .getBoolean("isRunning");
         if (pkt.func_148857_g()
             .hasKey("statusMessage")) {
             statusMessage = pkt.func_148857_g()

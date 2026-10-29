@@ -19,7 +19,7 @@ import io.netty.buffer.ByteBuf;
 /** One correlated result. Catalog/source/validation are separate, bounded payloads. */
 public final class PacketStationReply implements IMessage {
 
-    private static final int VERSION = 0x53545004;
+    private static final int VERSION = 0x53545005;
     public int x, y, z, windowId;
     public UUID sessionId;
     public long requestId;
@@ -54,6 +54,9 @@ public final class PacketStationReply implements IMessage {
 
     @Override
     public void toBytes(ByteBuf buffer) {
+        if (action == PacketStationRequest.Action.WRITE_DISK
+            && (draft != null || page != null || validation != null || publication != null || publications != null))
+            throw new IllegalArgumentException("Disk write replies contain an acknowledgment only");
         buffer.writeInt(VERSION);
         buffer.writeInt(x);
         buffer.writeInt(y);
@@ -189,11 +192,15 @@ public final class PacketStationReply implements IMessage {
             case LIST_PUBLICATIONS:
                 expectedPayload = publications != null;
                 break;
+            case WRITE_DISK:
+                expectedPayload = true;
+                break;
             default:
                 expectedPayload = draft != null;
         }
-        if (buffer.isReadable() || accepted && (payloads != 1 || !expectedPayload) || !accepted && payloads != 0)
-            throw new IllegalArgumentException("Invalid station reply payload");
+        if (buffer.isReadable()
+            || accepted && (payloads != (action == PacketStationRequest.Action.WRITE_DISK ? 0 : 1) || !expectedPayload)
+            || !accepted && payloads != 0) throw new IllegalArgumentException("Invalid station reply payload");
     }
 
     private static void writeReceipt(ByteBuf buffer, PublicationReceipt receipt) {

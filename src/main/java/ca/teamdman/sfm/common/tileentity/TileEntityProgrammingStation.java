@@ -28,6 +28,7 @@ public final class TileEntityProgrammingStation extends TileEntity {
 
     public boolean isUsableBy(EntityPlayer player) {
         return player != null && worldObj != null
+            && !isInvalid()
             && player.worldObj == worldObj
             && worldObj.blockExists(xCoord, yCoord, zCoord)
             && worldObj.getTileEntity(xCoord, yCoord, zCoord) == this

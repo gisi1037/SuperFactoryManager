@@ -18,6 +18,7 @@ public final class ProgrammingStationDraftState {
     public ProjectDraft saved;
     public ProjectValidation validation;
     public PublicationReceipt publication;
+    private PublicationReceipt selectedBuild;
     public boolean uncertainWrite, ignoredLateLoad;
     private long requestId;
     private Action action;
@@ -55,6 +56,35 @@ public final class ProgrammingStationDraftState {
         return action;
     }
 
+    public PublicationReceipt selectedBuild() {
+        return selectedBuild;
+    }
+
+    public void selectBuild(PublicationReceipt receipt) {
+        if (waiting) throw new IllegalStateException("Wait for the current request before selecting another build.");
+        if (receipt == null || saved == null || !receipt.owner.equals(saved.owner) || !receipt.project.equals(saved.id))
+            throw new IllegalArgumentException("Select a published build from the current project.");
+        selectedBuild = receipt;
+    }
+
+    public boolean isSelectedBuild(PublicationReceipt receipt) {
+        return receipt != null && selectedBuild != null
+            && receipt.owner.equals(selectedBuild.owner)
+            && receipt.project.equals(selectedBuild.project)
+            && receipt.revision == selectedBuild.revision
+            && receipt.digest.equals(selectedBuild.digest);
+    }
+
+    /** Timeout never cancels or retries a server write, including writing a held physical disk. */
+    public String timeoutMessage() {
+        if (action == Action.WRITE_DISK)
+            return "No disk-write confirmation. Check the held disk before retrying; do not write another disk. "
+                + "Draft kept; a late reply is still accepted.";
+        return action == Action.CREATE || action == Action.SAVE
+            ? "No confirmation; save may have applied. Draft kept. Copy or close to recover later."
+            : "No server reply. Draft kept; reopen to retry. A late reply is still accepted here.";
+    }
+
     public long begin(Action next) {
         return begin(next, false);
     }
@@ -72,10 +102,13 @@ public final class ProgrammingStationDraftState {
             "Previous save unconfirmed. Copy this draft and inspect the saved project before writing again.");
         if ((next == Action.SAVE || next == Action.VALIDATE
             || next == Action.PUBLISH
-            || next == Action.LIST_PUBLICATIONS) && saved == null)
-            throw new IllegalStateException("Create a project first.");
+            || next == Action.LIST_PUBLICATIONS
+            || next == Action.WRITE_DISK) && saved == null) throw new IllegalStateException("Create a project first.");
         if ((next == Action.VALIDATE || next == Action.PUBLISH) && dirty()) throw new IllegalStateException(
             "Save source and name changes before checking or publishing a saved revision.");
+        if (next == Action.WRITE_DISK && (selectedBuild == null || !selectedBuild.owner.equals(saved.owner)
+            || !selectedBuild.project.equals(saved.id)))
+            throw new IllegalStateException("Select an immutable published build before writing the held disk.");
         action = next;
         recoveryLoad = recovering;
         sentName = name;
@@ -110,7 +143,7 @@ public final class ProgrammingStationDraftState {
         timedOut = false;
         if (action == Action.CREATE || action == Action.SAVE || accepted && action == Action.LOAD)
             uncertainWrite = false;
-        if (!accepted) return true;
+        if (!accepted || action == Action.WRITE_DISK) return true;
         if (draft != null && (action == Action.CREATE || action == Action.SAVE || action == Action.LOAD)) {
             boolean edited = localEditGeneration != sentEditGeneration || editedAtGenerationLimit
                 || !name.equals(sentName)
@@ -119,7 +152,10 @@ public final class ProgrammingStationDraftState {
                 ignoredLateLoad = true;
                 return true;
             }
-            if (saved == null || !saved.owner.equals(draft.owner) || !saved.id.equals(draft.id)) publication = null;
+            if (saved == null || !saved.owner.equals(draft.owner) || !saved.id.equals(draft.id)) {
+                publication = null;
+                selectedBuild = null;
+            }
             saved = draft;
             validation = null;
             if (!edited && !recoveryLoad) {
@@ -159,6 +195,7 @@ public final class ProgrammingStationDraftState {
         localId = UUID.randomUUID();
         validation = null;
         publication = null;
+        selectedBuild = null;
         name = "Untitled";
         source = "";
         waiting = timedOut = uncertainWrite = false;

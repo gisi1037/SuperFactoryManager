@@ -1,17 +1,16 @@
 package ca.teamdman.sfm.integration.mui2;
 
-import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import net.minecraft.entity.player.EntityPlayer;
 
+import com.cleanroommc.modularui.api.IPanelHandler;
 import com.cleanroommc.modularui.api.drawable.IKey;
 import com.cleanroommc.modularui.screen.ModularContainer;
 import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.value.sync.BooleanSyncValue;
-import com.cleanroommc.modularui.value.sync.DoubleSyncValue;
 import com.cleanroommc.modularui.value.sync.GenericSyncValue;
 import com.cleanroommc.modularui.value.sync.PanelSyncManager;
 import com.cleanroommc.modularui.value.sync.StringSyncValue;
@@ -51,32 +50,37 @@ public final class ManagerMui2Panel {
         BooleanSyncValue hasDisk = new BooleanSyncValue(() -> manager.getDisk() != null);
         BooleanSyncValue running = new BooleanSyncValue(manager::isRunning);
         BooleanSyncValue compiled = new BooleanSyncValue(manager::hasCompiledProgram);
+        BooleanSyncValue canRun = new BooleanSyncValue(manager::canRequestRun);
         BooleanSyncValue recovery = new BooleanSyncValue(manager::hasPendingRecovery);
-        StringSyncValue status = new StringSyncValue(() -> Objects.toString(manager.getStatusMessage(), ""));
         StringSyncValue logLevel = new StringSyncValue(
             () -> manager.getLogLevel()
                 .name());
-        DoubleSyncValue peak = new DoubleSyncValue(manager::getPeakTickTimeMs);
-        int historySize = manager.getTickTimes().length;
-        GenericSyncValue<double[], ?> history = GenericSyncValue.builder(double[].class)
-            .getter(manager::getTickTimes)
-            .equals(Arrays::equals)
-            .copy(values -> values.clone())
-            .serializer((buffer, values) -> { for (double value : values) buffer.writeDouble(value); })
-            .deserializer(buffer -> {
-                double[] values = new double[historySize];
-                for (int i = 0; i < values.length; i++) values[i] = buffer.readDouble();
-                return values;
-            })
+        GenericSyncValue<ManagerActivitySample, ?> activity = GenericSyncValue.builder(ManagerActivitySample.class)
+            .getter(
+                () -> new ManagerActivitySample(
+                    manager.getTickTimes(),
+                    manager.getTimedUpdateCount(),
+                    manager.getManagerTick(),
+                    ManagerActivitySample.phase(
+                        manager.getDisk() != null,
+                        manager.isRunning(),
+                        manager.hasCompiledProgram(),
+                        manager.canRequestRun(),
+                        manager.hasPendingRecovery(),
+                        manager.getStatusMessage()),
+                    manager.getPeakTickTimeMs()))
+            .equalsDefault()
+            .copyImmutable()
+            .serializer((buffer, value) -> value.write(buffer))
+            .deserializer(ManagerActivitySample::read)
             .build();
         syncManager.syncValue("has_disk", hasDisk);
         syncManager.syncValue("running", running);
         syncManager.syncValue("compiled", compiled);
+        syncManager.syncValue("can_run", canRun);
         syncManager.syncValue("recovery", recovery);
-        syncManager.syncValue("status", status);
         syncManager.syncValue("log_level", logLevel);
-        syncManager.syncValue("peak", peak);
-        syncManager.syncValue("history", history);
+        syncManager.syncValue("activity", activity);
         ManagerControlToken[] issuedToken = { null };
         GenericSyncValue<ManagerControlToken, ?> controlToken = GenericSyncValue.builder(ManagerControlToken.class)
             .getter(() -> {
@@ -100,7 +104,8 @@ public final class ManagerMui2Panel {
             .build();
         syncManager.syncValue("control_token", controlToken);
         BooleanSupplier diskPresent = hasDisk::getBoolValue;
-        ManagerTickGraph graph = new ManagerTickGraph(history::getValue, peak::getDoubleValue);
+        Supplier<ManagerActivitySample> sampled = () -> activity.getValue() == null ? ManagerActivitySample.EMPTY
+            : activity.getValue();
 
         // The server binds the same canonical slot keys; only client presentation reflows.
         final int[] page = { 0 };
@@ -110,6 +115,45 @@ public final class ManagerMui2Panel {
             .background(ManagerConsoleTheme.SHELL)
             .resizeableOnDrag(false)
             .excludeAreaInRecipeViewer();
+        IPanelHandler[] expanded = { null };
+        expanded[0] = IPanelHandler.simple(panel, (parent, player) -> {
+            ModularPanel detail = new ModularPanel("sfm_manager_activity") {
+
+                @Override
+                public boolean disablePanelsBelow() {
+                    return true;
+                }
+
+                @Override
+                public boolean onKeyPressed(char character, int key) {
+                    if (key == 1) {
+                        closeIfOpen();
+                        return true;
+                    } // Escape closes only this view.
+                    return super.onKeyPressed(character, key);
+                }
+            }.size(304, 220)
+                .background(ManagerConsoleTheme.SHELL);
+            detail.child(
+                new TextWidget<>("Manager activity").pos(8, 6)
+                    .size(210, 12)
+                    .color(0xffefa09a));
+            detail.child(
+                new ManagerActivityView(sampled, true).pos(8, 22)
+                    .size(288, 186));
+            detail.child(
+                new ButtonWidget<>().pos(242, 5)
+                    .size(54, 15)
+                    .background(ManagerConsoleTheme.BUTTON)
+                    .hoverBackground(ManagerConsoleTheme.HOVER)
+                    .overlay(IKey.str("Done"))
+                    .onMousePressed(mouse -> {
+                        if (mouse != 0) return false;
+                        expanded[0].closePanel();
+                        return true;
+                    }));
+            return detail;
+        }, true);
         panel.child(
             new TextWidget<>("Factory Manager").color(0xffefa09a)
                 .pos(8, 6)
@@ -117,23 +161,21 @@ public final class ManagerMui2Panel {
         panel.child(
             IKey.str(manager.xCoord + " / " + manager.yCoord + " / " + manager.zCoord)
                 .asWidget()
+                .color(0xffb7bcc5)
                 .pos(120, 7)
                 .height(10)
                 .scale(.8f));
         panel.child(
-            IKey.dynamic(
-                () -> recovery.getBoolValue() ? "\u00a7eRecovery blocks activation"
-                    : !hasDisk.getBoolValue() ? "No source disk installed"
-                        : running.getBoolValue() ? "\u00a7aRunning"
-                            : compiled.getBoolValue() ? "Paused" : "Program unavailable")
+            IKey.dynamic(() -> sampled.get().phase.label)
                 .asWidget()
+                .color(0xffe7e8eb)
                 .pos(32, 23)
                 .height(12));
         panel.child(
             new ItemSlot().syncHandler(DISK_SYNC_KEY)
                 .pos(8, 21)
                 .name("program_disk")
-                .addTooltipLine("Installed source disk - manager equipment"));
+                .addTooltipLine("Installed program disk - manager equipment"));
         panel.child(
             button(
                 manager,
@@ -141,7 +183,7 @@ public final class ManagerMui2Panel {
                 controlToken,
                 "run",
                 () -> running.getBoolValue() ? "Pause" : "Start",
-                () -> hasDisk.getBoolValue() && compiled.getBoolValue() && !recovery.getBoolValue(),
+                () -> hasDisk.getBoolValue() && canRun.getBoolValue() && !recovery.getBoolValue(),
                 0,
                 21,
                 56).right(8)
@@ -166,41 +208,39 @@ public final class ManagerMui2Panel {
         panel.child(button(manager, syncManager, controlToken, "terminal", () -> "Terminal", () -> true, 191, 42, 58));
         panel.child(button(manager, syncManager, controlToken, "logs", () -> "Logs", diskPresent, 251, 42, 53));
         panel.child(
-            IKey.dynamic(() -> "Last tick: " + abbreviate(status.getStringValue()))
+            IKey.dynamic(
+                () -> sampled.get()
+                    .labels().compactLabel)
                 .asWidget()
+                .color(0xffb7bcc5)
                 .pos(8, 65)
-                .widthRelOffset(1f, -64)
+                .widthRelOffset(1f, -72)
                 .height(12)
-                .scale(.85f)
-                .addTooltipLine(IKey.dynamic(status::getStringValue))
+                .scale(.75f)
+                .addTooltipLine("Full manager update cost; not transfer throughput or individual statement timing.")
                 .setEnabledIf(widget -> page[0] == 0));
         panel.child(
-            graph.pos(8, 79)
-                .widthRelOffset(.5f, -12)
+            new ManagerActivityView(sampled, false).pos(8, 79)
+                .widthRelOffset(1f, -16)
                 .height(26)
                 .setEnabledIf(widget -> page[0] == 0));
         panel.child(
-            IKey.dynamic(graph::readout)
-                .asWidget()
-                .leftRelAnchor(.5f, 0)
-                .top(80)
-                .height(12)
-                .scale(.8f)
-                .setEnabledIf(widget -> page[0] == 0));
-        panel.child(
-            IKey.dynamic(() -> "Log level: " + logLevel.getStringValue())
-                .asWidget()
-                .leftRelAnchor(.5f, 0)
-                .top(95)
-                .height(10)
-                .scale(.75f)
-                .setEnabledIf(widget -> page[0] == 0));
-        panel.child(
-            button(manager, syncManager, controlToken, "diagnostics", () -> "Info", diskPresent, 0, 63, 40).right(8)
+            new ButtonWidget<>().pos(0, 63)
+                .right(8)
+                .size(48, 15)
+                .background(ManagerConsoleTheme.BUTTON)
+                .hoverBackground(ManagerConsoleTheme.HOVER)
+                .overlay(IKey.str("Expand"))
+                .onMousePressed(mouse -> {
+                    if (mouse != 0) return false;
+                    if (syncManager.isClient()) expanded[0].openPanel();
+                    return true;
+                })
                 .setEnabledIf(widget -> page[0] == 0));
         panel.child(
             IKey.str("Source disk editing; changes apply to this manager.")
                 .asWidget()
+                .color(0xffb7bcc5)
                 .pos(8, 63)
                 .height(10)
                 .scale(.75f)
@@ -225,12 +265,14 @@ public final class ManagerMui2Panel {
         panel.child(
             IKey.str("Live network browser: planned")
                 .asWidget()
+                .color(0xffb7bcc5)
                 .pos(8, 64)
                 .height(12)
                 .setEnabledIf(widget -> page[0] == 2));
         panel.child(
             IKey.str("Saved labels do not prove loaded inventory access.")
                 .asWidget()
+                .color(0xffb7bcc5)
                 .pos(8, 79)
                 .height(10)
                 .scale(.75f)

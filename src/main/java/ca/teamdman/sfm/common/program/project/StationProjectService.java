@@ -4,8 +4,10 @@ import java.util.UUID;
 
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.World;
 import net.minecraft.world.WorldServer;
 import net.minecraft.world.storage.SaveHandler;
+import net.minecraftforge.common.DimensionManager;
 import net.minecraftforge.event.world.WorldEvent;
 
 import ca.teamdman.sfm.SuperFactoryManager;
@@ -13,6 +15,7 @@ import ca.teamdman.sfm.common.net.PacketStationReply;
 import ca.teamdman.sfm.common.net.PacketStationRequest;
 import ca.teamdman.sfm.common.net.SFMNetwork;
 import ca.teamdman.sfm.common.net.ServerUiTasks;
+import ca.teamdman.sfm.common.program.HeldDiskWriteTransaction;
 import ca.teamdman.sfm.integration.mui2.ProgrammingStationMui2Container;
 import cpw.mods.fml.common.eventhandler.SubscribeEvent;
 import cpw.mods.fml.common.gameevent.TickEvent;
@@ -48,8 +51,7 @@ public final class StationProjectService {
     }
 
     private ProjectWorkspace workspace() {
-        WorldServer overworld = MinecraftServer.getServer()
-            .worldServerForDimension(0);
+        WorldServer overworld = DimensionManager.getWorld(0);
         if (workspace != null && world != overworld) close();
         if (workspace == null) {
             if (overworld == null || !(overworld.getSaveHandler() instanceof SaveHandler))
@@ -60,6 +62,29 @@ public final class StationProjectService {
                     .toPath());
         }
         return workspace;
+    }
+
+    /** Live identity lookup only; creating the worker does not read files on this server thread. */
+    public ProjectWorkspace executionWorkspace(World expectedWorld) {
+        if (!liveWorld(expectedWorld)) throw new IllegalStateException("World project storage is unavailable");
+        return workspace();
+    }
+
+    /** Completion fence; never recreates a workspace or loads a dimension/chunk. */
+    public boolean isCurrent(ProjectWorkspace expected, World expectedWorld) {
+        return expected != null && expected == workspace
+            && !expected.isClosed()
+            && liveWorld(expectedWorld)
+            && world == DimensionManager.getWorld(0);
+    }
+
+    private static boolean liveWorld(World candidate) {
+        return ServerUiTasks.isServerThread() && MinecraftServer.getServer() != null
+            && candidate instanceof WorldServer
+            && !candidate.isRemote
+            && candidate.provider != null
+            && DimensionManager.getWorld(candidate.provider.dimensionId) == candidate
+            && DimensionManager.getWorld(0) != null;
     }
 
     public static ProgrammingStationMui2Container authorized(EntityPlayerMP player, PacketStationRequest request) {
@@ -91,7 +116,7 @@ public final class StationProjectService {
         container.pendingRequestId = request.requestId;
         try {
             request.validate();
-            ProjectWorkspace store = workspace();
+            ProjectWorkspace store = executionWorkspace(player.worldObj);
             UUID owner = player.getUniqueID();
             boolean admitted;
             switch (request.action) {
@@ -128,6 +153,66 @@ public final class StationProjectService {
                         reply.publication = result.value;
                         finish(player, container, request, reply);
                     });
+                    break;
+                case WRITE_DISK:
+                    HeldDiskWriteTransaction medium = HeldDiskWriteTransaction.capture(player.inventory);
+                    World writeWorld = player.worldObj;
+                    net.minecraft.network.NetHandlerPlayServer connection = player.playerNetServerHandler;
+                    net.minecraft.network.NetworkManager channel = connection.netManager;
+                    String selectedDigest = request.buildDigest;
+                    admitted = store.issueExecutionGrant(
+                        owner,
+                        request.projectId,
+                        request.expectedRevision,
+                        selectedDigest,
+                        result -> {
+                            if (!isCurrent(store, writeWorld) || player.worldObj != writeWorld
+                                || player.playerNetServerHandler != connection
+                                || connection.netManager != channel
+                                || !owner.equals(player.getUniqueID())
+                                || authorized(player, request) != container
+                                || container.pendingRequestId != request.requestId) {
+                                finish(
+                                    player,
+                                    container,
+                                    request,
+                                    new PacketStationReply(
+                                        request,
+                                        false,
+                                        "Station, connection or held-disk session changed; nothing was written"));
+                                return;
+                            }
+                            if (!result.isSuccess()) {
+                                finish(player, container, request, reply(request, result));
+                                return;
+                            }
+                            try {
+                                if (!selectedDigest.equals(result.value.digest))
+                                    throw new IllegalStateException("Published build selection changed");
+                                medium.commit(player.inventory, result.value);
+                            } catch (IllegalArgumentException | IllegalStateException error) {
+                                finish(
+                                    player,
+                                    container,
+                                    request,
+                                    new PacketStationReply(request, false, error.getMessage()));
+                                return;
+                            }
+                            PacketStationReply written = new PacketStationReply(
+                                request,
+                                true,
+                                "Published build written to held disk. Insert it into a Factory Manager.");
+                            // Cache success before inventory synchronization or sending can fail. Replays only repeat
+                            // ACK.
+                            if (!cacheReply(container, request, written)) return;
+                            try {
+                                player.inventoryContainer.detectAndSendChanges();
+                                container.detectAndSendChanges();
+                            } finally {
+                                if (authorized(player, request) == container)
+                                    SFMNetwork.WRAPPER.sendTo(written, player);
+                            }
+                        });
                     break;
                 case LIST_PUBLICATIONS:
                     admitted = store.listPublications(owner, request.projectId, request.offset, result -> {
@@ -168,15 +253,23 @@ public final class StationProjectService {
         PacketStationReply reply = reply(request, result);
         reply.draft = result.value;
         // An admitted save may finish after closure, but it must not rebind a stale block/UI.
-        if (result.isSuccess() && authorized(player, request) == container)
-            container.station.selectProject(result.value.id);
+        if (result.isSuccess() && container.pendingRequestId == request.requestId
+            && authorized(player, request) == container) container.station.selectProject(result.value.id);
         finish(player, container, request, reply);
+    }
+
+    /** A stale completion must never clear a newer operation's pending slot or overwrite its ACK. */
+    static boolean cacheReply(ProgrammingStationMui2Container container, PacketStationRequest request,
+        PacketStationReply reply) {
+        if (container.pendingRequestId != request.requestId) return false;
+        container.pendingRequestId = 0;
+        container.lastReply = reply;
+        return true;
     }
 
     private static void finish(EntityPlayerMP player, ProgrammingStationMui2Container container,
         PacketStationRequest request, PacketStationReply reply) {
-        container.pendingRequestId = 0;
-        container.lastReply = reply;
-        if (authorized(player, request) == container) SFMNetwork.WRAPPER.sendTo(reply, player);
+        if (cacheReply(container, request, reply) && authorized(player, request) == container)
+            SFMNetwork.WRAPPER.sendTo(reply, player);
     }
 }

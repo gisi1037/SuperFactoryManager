@@ -48,10 +48,19 @@ between no tag and an empty compound. There is no player-facing general item-NBT
 inspector or constructor for arbitrary exact ITEM_KEY values yet. A user struct
 with `id` and `amount` fields is data, not a native ItemStack or transfer key.
 
+## Publishing and operational views
+
+The station publishes immutable root-source bundles from exact saved revisions.
+Reference disk writing/activation is implemented behind a development qualification
+gate and disabled by default. Ordinary source disks remain supported. The manager
+Overview/Expand chart shows measured full-update cost and scheduler state without
+exporting private source. Statement tracing, node highlighting and breakpoints
+remain separate work.
+
 ## Planned, not callable today
 
 - Effectful user actions and reusable published libraries.
-- Immutable program publication, bundles and reference-only execution disks.
+- General enablement of reference-only execution disks; the runtime workflow is under qualification.
 - Server recipe candidates/requirements, machine recipe-map resolution and
   optional NEI selection tools. GuideNH displaying a crafting recipe is separate
   from an SFML recipe-query API.

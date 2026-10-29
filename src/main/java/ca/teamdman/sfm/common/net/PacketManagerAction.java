@@ -92,8 +92,7 @@ public class PacketManagerAction implements IMessage {
                     return;
                 if (msg.action == ACTION_RESET) manager.reset();
                 else if (msg.action == ACTION_TOGGLE_RUNNING) {
-                    if (manager.hasCompiledProgram() && !manager.hasPendingRecovery())
-                        manager.setRunning(!manager.isRunning());
+                    if (manager.canRequestRun()) manager.setRunning(!manager.isRunning());
                 } else if (msg.action == ACTION_RESET_STATE) manager.resetProgramState();
                 else if (msg.action == ACTION_REBUILD) manager.rebuildNetwork();
                 player.worldObj.markBlockForUpdate(msg.x, msg.y, msg.z);

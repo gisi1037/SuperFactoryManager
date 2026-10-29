@@ -151,7 +151,7 @@ public class GuiManager extends GuiContainer
         for (Object obj : buttonList)
             if (((GuiButton) obj).id == 11 || ((GuiButton) obj).id == 12) ((GuiButton) obj).enabled = hasDisk;
         btnCopy.enabled = hasDisk;
-        btnRun.enabled = hasDisk && manager.hasCompiledProgram() && !manager.hasPendingRecovery();
+        btnRun.enabled = hasDisk && manager.canRequestRun();
         btnRun.displayString = manager.isRunning() ? "Stop" : "Run";
         btnLogs.enabled = hasDisk;
         btnRebuild.enabled = hasDisk;
