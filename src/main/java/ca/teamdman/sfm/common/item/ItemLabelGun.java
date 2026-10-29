@@ -416,6 +416,15 @@ public class ItemLabelGun extends Item {
     }
 
     @Override
+    public int getMaxItemUseDuration(ItemStack stack) {
+        // Vanilla's C08 handler copies zero-duration held stacks after right-click,
+        // invalidating our exact-stack authority while its editor is opening.
+        // A positive duration preserves the actual stack; we never set itemInUse.
+        // ItemInWorldManager sends its ordinary inventory sync on this path.
+        return 1;
+    }
+
+    @Override
     public ItemStack onItemRightClick(ItemStack stack, World world, EntityPlayer player) {
         if (world.isRemote) {
             SuperFactoryManager.proxy.openLabelGun(player, stack);
