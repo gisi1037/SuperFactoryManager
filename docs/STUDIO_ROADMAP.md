@@ -82,6 +82,49 @@ Each slice needs focused regression tests and an in-game check before being
 described as complete. Larger scripts and graphs also need bounded rendering,
 validation work, and responsive input; timing claims require measurements.
 
+
+## Reference-disk foundations
+
+The reference-disk backend now separates content identity from permission to run
+it. An authenticated owner can issue an opaque, world-local execution grant for
+an exact existing published revision. Its disk reference contains a format
+version, random token and build digest. Project IDs and content hashes alone
+grant no access. Execution/copy permission does not grant project editing or
+source-export permission. Ordinary possession and authorized inventory viewing
+can share the bearer reference; generic block-description packets redact it.
+
+Every cold preparation checks the stored grant and exact compatible bundle and
+compiles a separate mutable program instance on the bounded storage worker. It
+never substitutes the latest project draft. Missing, malformed or unsupported
+data fails closed and is preserved. No preparation cache is used in this slice.
+Grants have finite world quotas and are never automatically evicted. Back up
+`world/sfm` with the rest of the world; an inventory-only copy into another world
+does not bring its execution grant with it. A complete world clone retains it.
+
+Legacy source disks continue to work. Strict reference/invalid modes prevent
+legacy editors and reset actions from replacing a reference with empty source.
+STATE now binds to the exact disk execution identity; changing a reference or its
+document metadata invalidates that binding while still allowing owned committed
+heap values to flush before schema replacement. Each physical copy has its own
+mutable STATE store.
+
+This is a tested backend foundation, not an installable reference-disk workflow.
+Studio does not yet write reference disks, and managers deliberately keep such
+media paused. Next, add the server-validated fresh-medium write transaction and
+queued manager activation with world/tile/disk/document/request generation
+fences. Preserve intervening pause/recovery decisions, keep all warm manager ticks
+free of storage I/O, and qualify stale completions and multiplayer before exposing
+disk writing. Reusable dependency libraries and new editor features follow that
+activation boundary.
+
+The foundation checkpoint passes the clean public build, formatting, Checkstyle,
+compiler bridge and GuideNH packaging: 1,189 tests total, 1,177 passed and twelve
+optional skips. The 34 added tests cover grants, storage corruption/ownership,
+strict disk metadata, STATE identity/transport bounds and inert runtime/network
+handling. One new skip is an unavailable Windows symlink fixture. Native runtime
+installation and two-player reference workflows remain unqualified because they
+are not exposed in this slice. No throughput or tick-latency improvement is claimed.
+
 ## Boundaries
 
 The Programming Station is a full-screen authoring surface. Split player-inventory

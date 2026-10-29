@@ -28,6 +28,7 @@ import ca.teamdman.sfm.common.label.LabelPositionHolder;
 import ca.teamdman.sfm.common.network.CableNetwork;
 import ca.teamdman.sfm.common.program.DebugConsole;
 import ca.teamdman.sfm.common.program.ProgramContext;
+import ca.teamdman.sfm.common.program.ProgramDiskData;
 import ca.teamdman.sfm.common.program.ProgramStateStore;
 import ca.teamdman.sfm.common.util.BlockPos;
 import ca.teamdman.sfm.compat.Compat;
@@ -131,6 +132,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     private void updateServer() {
+        if (blockUnsupportedProgramDisk()) return;
         if (blockItemRecovery() || recoverFluid()) {
             resetRedstoneTriggerTracker();
             return;
@@ -188,6 +190,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
             return;
         }
 
+        if (blockUnsupportedProgramDisk()) return;
         String currentCode = ItemDisk.getProgramString(diskStack);
         if (!currentCode.equals(lastCodeCompiled)) {
             recompile(currentCode);
@@ -416,6 +419,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     public void runOnceWithLogLevel(LogLevel level) {
         if (worldObj == null || worldObj.isRemote) return;
+        if (blockUnsupportedProgramDisk()) return;
         if (!isRunning) resetRedstoneTriggerTracker();
         if (blockItemRecovery() || recoverFluid()) {
             resetRedstoneTriggerTracker();
@@ -431,6 +435,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
         }
 
         if (diskStack != null && diskStack.getItem() instanceof ItemDisk) {
+            if (blockUnsupportedProgramDisk()) return;
             if (!ItemDisk.getProgramString(diskStack)
                 .equals(lastCodeCompiled) || programState != null && !programState.isCurrent(diskStack)) {
                 recompile(ItemDisk.getProgramString(diskStack));
@@ -603,7 +608,38 @@ public class TileEntityManager extends TileEntity implements IInventory {
         return peakTickTimeMs;
     }
 
+    /**
+     * Reference activation is deliberately unavailable in this stage. This guard performs no storage work, and also
+     * handles foreign in-place media changes before any embedded-source read. Preserve old-schema committed heap
+     * values while the old STATE envelope is still owned; failed publication keeps that store available for recovery.
+     */
+    private boolean blockUnsupportedProgramDisk() {
+        ProgramDiskData.Mode mode = ProgramDiskData.mode(diskStack);
+        if (mode == ProgramDiskData.Mode.LEGACY) return false;
+        String problem = mode == ProgramDiskData.Mode.REFERENCE ? "Published reference is not activated; manager paused"
+            : "Invalid program disk format; manager paused";
+        try {
+            flushProgramState();
+            programState = null;
+        } catch (IllegalArgumentException | IllegalStateException error) {
+            problem = "Persistent state conflict (paused): " + error.getMessage();
+        }
+        boolean changed = compiledProgram != null || isRunning || !problem.equals(statusMessage);
+        compiledProgram = null;
+        lastCodeCompiled = null;
+        clearProgramGlobals();
+        resetRedstoneTriggerTracker();
+        isRunning = false;
+        statusMessage = problem;
+        if (changed) {
+            markDirty();
+            log(LogLevel.WARN, problem);
+        }
+        return true;
+    }
+
     public void recompile(String code) {
+        if (blockUnsupportedProgramDisk()) return;
         clearProgramGlobals();
         resetRedstoneTriggerTracker();
         // Preserve the last accepted heap values before replacing/reconciling their schema.
@@ -662,6 +698,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     /** Validate a private candidate before replacing the installed executable document. */
     public String trySaveProgram(String newCode) {
         if (diskStack == null || !(diskStack.getItem() instanceof ItemDisk)) return "No program disk";
+        if (blockUnsupportedProgramDisk()) return statusMessage;
         try {
             ca.teamdman.sfm.common.program.ProgramDocument.validateSource(newCode);
         } catch (IllegalArgumentException error) {
@@ -712,6 +749,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     public void saveCodeAndRecompile(String newCode) {
+        if (blockUnsupportedProgramDisk()) return;
         if (diskStack != null && diskStack.getItem() instanceof ItemDisk) {
             flushProgramState();
             ItemDisk.setProgramString(diskStack, newCode);
@@ -731,7 +769,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     /** Explicitly discard persistent values, preserving program, labels and transfer recovery evidence. */
     public void resetProgramState() {
-        if (diskStack == null) return;
+        if (diskStack == null || blockUnsupportedProgramDisk()) return;
         setRunning(false);
         String source = ItemDisk.getProgramString(diskStack);
         ProgramBuildResult result = new ProgramBuilder(source).build();
@@ -762,11 +800,11 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     public Program getCompiledProgram() {
-        return compiledProgram;
+        return ProgramDiskData.mode(diskStack) == ProgramDiskData.Mode.LEGACY ? compiledProgram : null;
     }
 
     public boolean hasCompiledProgram() {
-        return compiledProgram != null;
+        return getCompiledProgram() != null;
     }
 
     public String getStatusMessage() {
@@ -774,10 +812,11 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     public boolean isRunning() {
-        return isRunning;
+        return isRunning && ProgramDiskData.mode(diskStack) == ProgramDiskData.Mode.LEGACY;
     }
 
     public void setRunning(boolean running) {
+        if (blockUnsupportedProgramDisk()) return;
         if (this.isRunning != running) resetRedstoneTriggerTracker();
         this.isRunning = running;
         markDirty();
@@ -824,6 +863,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     public void reset() {
+        if (blockUnsupportedProgramDisk()) return;
         if (diskStack != null) {
             flushProgramState();
             programState = null;
@@ -884,7 +924,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
             clearProgramGlobals();
             if (diskStack != null && diskStack.getItem() instanceof ItemDisk) {
                 log(LogLevel.INFO, "Disk inserted");
-                recompile(ItemDisk.getProgramString(diskStack));
+                if (!blockUnsupportedProgramDisk()) recompile(ItemDisk.getProgramString(diskStack));
             } else {
                 compiledProgram = null;
                 lastCodeCompiled = null;
@@ -935,6 +975,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     @Override
     public void writeToNBT(NBTTagCompound tag) {
         flushProgramState();
+        blockUnsupportedProgramDisk();
         super.writeToNBT(tag);
         tag.setBoolean("isRunning", isRunning);
         tag.setLong("managerTick", managerTick);
@@ -984,7 +1025,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
         if (tag.hasKey("disk")) {
             diskStack = ItemStack.loadItemStackFromNBT(tag.getCompoundTag("disk"));
             if (diskStack != null && diskStack.getItem() instanceof ItemDisk) {
-                recompile(ItemDisk.getProgramString(diskStack));
+                if (!blockUnsupportedProgramDisk()) recompile(ItemDisk.getProgramString(diskStack));
             }
         } else {
             diskStack = null;
@@ -997,6 +1038,18 @@ public class TileEntityManager extends TileEntity implements IInventory {
     public Packet getDescriptionPacket() {
         NBTTagCompound syncData = new NBTTagCompound();
         writeToNBT(syncData);
+        NBTTagCompound itemData = syncData.getCompoundTag("disk");
+        if (itemData.hasKey("tag", 10) && itemData.getCompoundTag("tag")
+            .hasKey(ProgramDiskData.NBT_REFERENCE)) {
+            // ItemStack.writeToNBT may retain its live tag compound. Redact only a deep snapshot: nearby block
+            // watchers have no physical-inventory authority to receive a reference's bearer grant or source.
+            syncData = (NBTTagCompound) syncData.copy();
+            NBTTagCompound diskData = syncData.getCompoundTag("disk")
+                .getCompoundTag("tag");
+            diskData.setTag(ProgramDiskData.NBT_REFERENCE, new NBTTagCompound());
+            diskData.removeTag(ItemDisk.NBT_PROGRAM);
+            // Keep the marker so a client cannot mistake this source-free mirror for an editable legacy disk.
+        }
         syncData.setString("statusMessage", statusMessage);
         return new S35PacketUpdateTileEntity(xCoord, yCoord, zCoord, 1, syncData);
     }

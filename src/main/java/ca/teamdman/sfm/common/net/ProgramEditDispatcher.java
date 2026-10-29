@@ -81,6 +81,7 @@ public final class ProgramEditDispatcher {
                 accepted = true;
                 message = "Program loaded";
             } else {
+                ca.teamdman.sfm.common.program.ProgramDiskData.requireLegacy(manager.getDisk());
                 String current = ItemDisk.getProgramString(manager.getDisk());
                 byte[] digest = packet.expectedDigest != null ? packet.expectedDigest
                     : ProgramRevision.digest(packet.expected.source);

@@ -13,6 +13,7 @@ public final class ProgramEditService {
         TileEntityManager manager = container.getManager();
         if (manager.getDisk() == null || !(manager.getDisk()
             .getItem() instanceof ItemDisk)) throw new IllegalStateException("Insert a program disk before editing");
+        ProgramDiskData.requireLegacy(manager.getDisk());
         String source = ItemDisk.getProgramString(manager.getDisk());
         // Reject an untransportable legacy/foreign document before claiming OPEN succeeded.
         ProgramDocument.validateSource(source);
@@ -35,6 +36,7 @@ public final class ProgramEditService {
                 || manager.getDiskGeneration() != expected.bindingGeneration
                 || manager.getDisk() == null)
                 return SaveResult.rejected("Disk or editing session changed. Keep your draft and reopen the editor.");
+            ProgramDiskData.requireLegacy(manager.getDisk());
             ProgramDocument document = ProgramDocument.read(manager.getDisk());
             if (document == null || !document.id.equals(expected.documentId)
                 || document.revision != expected.revision

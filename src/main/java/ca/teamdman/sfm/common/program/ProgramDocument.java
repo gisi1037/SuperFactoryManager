@@ -42,6 +42,7 @@ public final class ProgramDocument {
     }
 
     public static ProgramDocument ensure(ItemStack disk) {
+        ProgramDiskData.requireLegacy(disk);
         ProgramDocument present = read(disk);
         if (present != null) return present;
         ProgramDocument created = new ProgramDocument(UUID.randomUUID(), 0);
@@ -53,6 +54,7 @@ public final class ProgramDocument {
     }
 
     public static void advance(ItemStack disk) {
+        ProgramDiskData.requireLegacy(disk);
         ProgramDocument current = read(disk);
         if (current != null) new ProgramDocument(current.id, Math.incrementExact(current.revision)).store(disk);
     }

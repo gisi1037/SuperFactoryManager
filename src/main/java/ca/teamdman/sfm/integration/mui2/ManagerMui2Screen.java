@@ -106,6 +106,12 @@ public final class ManagerMui2Screen extends ModularScreen implements ProgramEdi
                 "Local recovery holds 8 manager drafts. Reopen and save a retained draft before editing another manager.");
             return;
         }
+        if (("text".equals(page) || "visual".equals(page) || "paste".equals(page) || "copy".equals(page))
+            && ca.teamdman.sfm.common.program.ProgramDiskData.mode(manager.getDisk())
+                != ca.teamdman.sfm.common.program.ProgramDiskData.Mode.LEGACY) {
+            message("Published or invalid reference disks cannot be edited or copied as source disks.");
+            return;
+        }
         controlToken = token;
         IPanelHandler handler = pages.get(page);
         if (handler != null) {

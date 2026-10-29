@@ -18,7 +18,6 @@ import net.minecraft.nbt.NBTBase;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 
-import ca.teamdman.sfm.common.item.ItemDisk;
 import ca.teamdman.sfml.data.DataType;
 import ca.teamdman.sfml.data.DataValue;
 import ca.teamdman.sfml.data.ExpressionLimits;
@@ -53,7 +52,7 @@ public final class ProgramStateStore implements StateAccess {
     private final boolean[] dirtySlots;
     private final List<String> names;
     private final List<String> activationWarnings;
-    private final String source;
+    private final ProgramDiskBinding binding;
     private NBTTagCompound observedRoot;
     private NBTBase observedEnvelope;
     private NBTBase observedRevisionTag;
@@ -76,7 +75,7 @@ public final class ProgramStateStore implements StateAccess {
         observedRevisionTag = observedEnvelope instanceof NBTTagCompound
             ? ((NBTTagCompound) observedEnvelope).getTag("revision")
             : null;
-        source = ItemDisk.getProgramString(disk);
+        binding = ProgramDiskBinding.capture(disk);
         Map<String, StoredEntry> old = reset ? Collections.emptyMap() : decode(observedEnvelope);
         revision = reset || observedEnvelope == null ? 0 : ((NBTTagCompound) observedEnvelope).getLong("revision");
         values = new DataValue[schema.size()];
@@ -159,7 +158,7 @@ public final class ProgramStateStore implements StateAccess {
      * revision; vanilla NBT exposes no callback for arbitrary in-place descendant mutations.
      */
     public boolean isCurrent(ItemStack candidate) {
-        return ownsEnvelope(candidate) && source.equals(ItemDisk.getProgramString(disk));
+        return ownsEnvelope(candidate) && binding.isCurrent(candidate);
     }
 
     private boolean ownsEnvelope(ItemStack candidate) {
@@ -221,12 +220,14 @@ public final class ProgramStateStore implements StateAccess {
      * Unchanged stores only compare cached direct disk-tag identities, without serialization or allocations.
      * Metadata APIs must replace a top-level tag when changing descendants; arbitrary foreign in-place
      * descendant edits require that same replacement protocol to trigger transport revalidation.
-     * A source-only edit invalidates execution binding, but still permits preserving the old-schema
+     * A source/reference edit invalidates execution binding, but still permits preserving the old-schema
      * committed values here before a replacement schema is reconciled. Source text is never changed.
      */
     public boolean flush() {
         if (!dirty) {
-            if (!diskMetadataCurrent()) {
+            // Reference/document descendants have their own bounded execution fence. A changed primitive tag
+            // must recheck transport size even when the containing root tag object was retained.
+            if (!diskMetadataCurrent() || !binding.isCurrent(disk)) {
                 // A foreign replacement still needs its own raw transport check before exposure.
                 diskBytes = ownsEnvelope(disk) ? validateDiskSnapshotSize(effectiveEnvelopeBytes())
                     : measureDiskSnapshot(disk.getTagCompound(), 0);

@@ -16,6 +16,7 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -187,6 +188,100 @@ final class ProjectRepository {
             page.add(readReceipt(directory.resolve(revision + ".bin"), owner, id, revision));
         }
         return new PublicationPage(page, revisions.size(), start);
+    }
+
+    /** Issues only from an existing authenticated publication; never publishes or substitutes a draft. */
+    ExecutionReference issueExecutionGrant(UUID owner, UUID id, long revision, String expectedDigest)
+        throws IOException {
+        requireId(owner);
+        requireId(id);
+        if (revision < 0 || !PublicationIO.isDigest(expectedDigest))
+            throw new IllegalArgumentException("Invalid published build selection");
+        Path ownerPath = ownerDirectory(owner, false);
+        if (ownerPath == null) throw missing();
+        Path project = ownerPath.resolve(id.toString());
+        if (!Files.exists(project, LinkOption.NOFOLLOW_LINKS)) throw missing();
+        requireDirectory(project);
+        Path publications = childDirectory(project, "publications", false);
+        if (publications == null) throw missing();
+        Path receiptFile = publications.resolve(revision + ".bin");
+        if (!Files.exists(receiptFile, LinkOption.NOFOLLOW_LINKS)) throw missing();
+        PublicationReceipt receipt = readReceipt(receiptFile, owner, id, revision);
+        if (!expectedDigest.equals(receipt.digest))
+            throw new Failure(ProjectResult.Status.STALE, "Published build does not match the selection");
+        verifyProgram(receipt.digest);
+        Path grants = executionGrantDirectory(true);
+        // All files, including interrupted temporary writes and orphan grants, consume the finite allowance.
+        checkExecutionGrantQuota(grants, ExecutionGrant.MAX_BYTES);
+        for (int attempt = 0; attempt < 8; attempt++) {
+            byte[] random = new byte[32];
+            GrantRandom.INSTANCE.nextBytes(random);
+            StringBuilder token = new StringBuilder(64);
+            for (byte value : random) {
+                token.append(Character.forDigit((value >>> 4) & 15, 16));
+                token.append(Character.forDigit(value & 15, 16));
+            }
+            ExecutionReference reference = new ExecutionReference(token.toString(), receipt.digest);
+            Path target = grants.resolve(reference.token + ".bin");
+            if (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) continue;
+            writeImmutable(grants, target, new ExecutionGrant(reference, owner, id, revision).encode());
+            return reference;
+        }
+        throw new Failure(ProjectResult.Status.IO_ERROR, "Execution grant request failed");
+    }
+
+    /** Every activation rereads and validates its actual grant and exact bundle, then builds a private mutable plan. */
+    PreparedExecution prepareExecution(ExecutionReference reference) throws IOException {
+        if (reference == null) throw new IllegalArgumentException("Execution reference is required");
+        Path grants = executionGrantDirectory(false);
+        if (grants == null) throw missingGrant();
+        Path file = grants.resolve(reference.token + ".bin");
+        if (!Files.exists(file, LinkOption.NOFOLLOW_LINKS)) throw missingGrant();
+        ExecutionGrant grant = ExecutionGrant.decode(readBounded(file, ExecutionGrant.MAX_BYTES));
+        if (!reference.equals(grant.reference)) throw missingGrant();
+        PublishedProgram bundle = verifyProgram(reference.digest);
+        ProgramBuildResult build = new ProgramBuilder(bundle.source).build();
+        if (!build.isSuccess()) throw new Failure(ProjectResult.Status.INVALID, "Published program cannot be compiled");
+        return new PreparedExecution(reference, build.getProgram(), bundle.source);
+    }
+
+    private Path executionGrantDirectory(boolean create) throws IOException {
+        requireDirectory(worldDirectory);
+        Path sfm = childDirectory(worldDirectory, "sfm", create);
+        return sfm == null ? null : childDirectory(sfm, "execution-grants", create);
+    }
+
+    private static void checkExecutionGrantQuota(Path directory, int addedBytes) throws IOException {
+        int count = 0;
+        long bytes = addedBytes;
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
+            for (Path file : stream) {
+                if (++count >= ProjectWorkspace.MAX_EXECUTION_GRANTS_PER_WORLD)
+                    throw new Failure(ProjectResult.Status.LIMIT, "World execution grant limit reached");
+                if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) throw malformed();
+                String name = file.getFileName()
+                    .toString();
+                if (!isPending(name)
+                    && !(name.endsWith(".bin") && PublicationIO.isDigest(name.substring(0, name.length() - 4))))
+                    throw malformed();
+                long size = Files.size(file);
+                if (size > ProjectWorkspace.MAX_EXECUTION_GRANT_BYTES_PER_WORLD - bytes)
+                    throw new Failure(ProjectResult.Status.LIMIT, "World execution grant byte limit reached");
+                bytes += size;
+            }
+        }
+        if (bytes > ProjectWorkspace.MAX_EXECUTION_GRANT_BYTES_PER_WORLD)
+            throw new Failure(ProjectResult.Status.LIMIT, "World execution grant byte limit reached");
+    }
+
+    private static Failure missingGrant() {
+        return new Failure(ProjectResult.Status.NOT_FOUND, "Execution grant not found or access denied");
+    }
+
+    /** Lazy initialization keeps entropy acquisition inside the admitted storage worker operation. */
+    private static final class GrantRandom {
+
+        private static final SecureRandom INSTANCE = new SecureRandom();
     }
 
     private static PublicationReceipt readReceipt(Path file, UUID owner, UUID id, long revision) throws IOException {

@@ -28,6 +28,8 @@ public final class ProjectWorkspace implements AutoCloseable {
     public static final int MAX_DIAGNOSTIC_CHARS = 1024;
     public static final int MAX_PUBLICATIONS_PER_PROJECT = 128, MAX_PROGRAMS_PER_WORLD = 4096;
     public static final long MAX_PROGRAM_BYTES_PER_WORLD = 64L * 1024 * 1024;
+    public static final int MAX_EXECUTION_GRANTS_PER_WORLD = 4096;
+    public static final long MAX_EXECUTION_GRANT_BYTES_PER_WORLD = 2L * 1024 * 1024;
     private final ProjectRepository repository;
     private final ThreadPoolExecutor worker;
     private final ArrayBlockingQueue<Runnable> callbacks = new ArrayBlockingQueue<>(MAX_PENDING);
@@ -76,6 +78,19 @@ public final class ProjectWorkspace implements AutoCloseable {
     public boolean listPublications(UUID owner, UUID id, int offset,
         Consumer<ProjectResult<PublicationPage>> callback) {
         return submit(() -> repository.listPublications(owner, id, offset), callback);
+    }
+
+    /** Owner is the authenticated player. Selection must identify an already published exact build. */
+    public boolean issueExecutionGrant(UUID owner, UUID id, long publishedRevision, String expectedDigest,
+        Consumer<ProjectResult<ExecutionReference>> callback) {
+        return submit(() -> repository.issueExecutionGrant(owner, id, publishedRevision, expectedDigest), callback);
+    }
+
+    /**
+     * Worker-only cold activation; every success owns a freshly compiled Program and performs current storage checks.
+     */
+    public boolean prepareExecution(ExecutionReference reference, Consumer<ProjectResult<PreparedExecution>> callback) {
+        return submit(() -> repository.prepareExecution(reference), callback);
     }
 
     public boolean validate(UUID owner, UUID id, long expectedRevision,

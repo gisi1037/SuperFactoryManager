@@ -170,6 +170,14 @@ public class GuiManager extends GuiContainer
 
     @Override
     protected void actionPerformed(GuiButton button) {
+        if ((button.id == 1 || button.id == 2 || button.id == 5 || button.id == 11)
+            && ca.teamdman.sfm.common.program.ProgramDiskData.mode(manager.getDisk())
+                != ca.teamdman.sfm.common.program.ProgramDiskData.Mode.LEGACY) {
+            if (mc.thePlayer != null) mc.thePlayer.addChatMessage(
+                new ChatComponentText(
+                    "[SFM] Published or invalid reference disks cannot be edited or copied as source disks."));
+            return;
+        }
         if (button.id == 1) {
             // Paste from clipboard
             String clip = getClipboardString();
