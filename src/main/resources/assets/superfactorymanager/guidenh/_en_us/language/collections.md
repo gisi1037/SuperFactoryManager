@@ -5,7 +5,7 @@ navigation:
   position: 60
   keywords: ["sfml", "arrays", "structs", "collections"]
 categories: ["sfm", "language"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 
 # Arrays and structs

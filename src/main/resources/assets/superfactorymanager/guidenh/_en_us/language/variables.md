@@ -5,7 +5,7 @@ navigation:
   position: 70
   keywords: ["sfml", "variables", "state", "let", "set"]
 categories: ["sfm", "language"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 
 # Variables and persistent state
@@ -91,7 +91,7 @@ State identity is its case-sensitive name and complete type/shape.
 | Rename a declaration | Remove the old name and initialize the new one, with a warning. |
 | Change type, array length or struct shape | Reject activation and require an explicit state reset. |
 
-Invalid source or incompatible state is not executed. Preserve a copy of important source before restructuring state. Use the manager's **State** control to reset variables to current defaults. This separate reset keeps source, labels, layout and recovery records, pauses the manager, and leaves it paused. Inspect the result before choosing **Run**. The general **Reset** control clears program/labels and is a different operation.
+Invalid source or incompatible state is not executed. Preserve a copy of important source before restructuring state. Use **Program > Reset state** to reset persistent variables to current defaults. This keeps source, labels and layout, clears program-wide memory and pauses the manager. Inspect the result before choosing **Start**. Recovery-blocked disks reject the reset. **Reset disk** clears program/labels and is a different operation.
 
 ## Size and work limits
 

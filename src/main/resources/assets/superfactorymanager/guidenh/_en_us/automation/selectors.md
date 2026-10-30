@@ -5,7 +5,7 @@ navigation:
   position: 110
   keywords: ["sfm", "item", "fluid", "ore", "selector", "wildcard"]
 categories: ["sfm", "automation"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 # Resource selectors
 

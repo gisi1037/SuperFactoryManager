@@ -5,7 +5,7 @@ navigation:
   position: 100
   keywords: ["sfm", "each", "retain", "quantity", "reserve"]
 categories: ["sfm", "automation"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 # Quantities and retention
 

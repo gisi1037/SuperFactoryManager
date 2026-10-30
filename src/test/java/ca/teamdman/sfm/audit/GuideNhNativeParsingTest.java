@@ -28,7 +28,8 @@ import org.junit.jupiter.api.Test;
 class GuideNhNativeParsingTest {
 
     private static final Path BOOK = Paths.get("src/main/resources/assets/superfactorymanager/guidenh/_en_us");
-    private static final Set<String> TAGS = new HashSet<>(Arrays.asList("GameScene", "Block", "ItemImage"));
+    private static final Set<String> TAGS = new HashSet<>(
+        Arrays.asList("GameScene", "Block", "ItemImage", "BlockImage", "TextAnnotation", "LineAnnotation"));
     private static final Pattern FENCES = Pattern.compile("(?m)^```([^\\n]*)\\n([\\s\\S]*?)^```[ \\t]*$");
 
     @Test
@@ -49,10 +50,11 @@ class GuideNhNativeParsingTest {
                 .sorted()
                 .collect(Collectors.toList());
         }
-        assertEquals(35, pages.size(), "Unexpected guide corpus size");
+        assertEquals(40, pages.size(), "Unexpected guide corpus size");
         int navigationCount = 0;
         int sfmlCount = 0;
         int imageCount = 0;
+        int blockImageCount = 0;
         List<URL> nativeClasspath = new ArrayList<>();
         nativeClasspath.add(
             jar.toUri()
@@ -124,9 +126,34 @@ class GuideNhNativeParsingTest {
                                 "Expected SFM item icon");
                             imageCount++;
                         }
+                        if ("BlockImage".equals(tag)) {
+                            assertTrue(
+                                parser.attribute(element, "id")
+                                    .startsWith("superfactorymanager:"),
+                                "Expected SFM block preview");
+                            blockImageCount++;
+                        }
                     }
-                    if ("start/hardware.md".equals(relative)) {
+                    if ("start/hardware.md".equals(relative) || "start/first-transfer.md".equals(relative)) {
                         assertHardwareScene(parser, elements);
+                        List<Object> labels = new ArrayList<>();
+                        List<Object> arrows = new ArrayList<>();
+                        for (Object element : elements) {
+                            if ("TextAnnotation".equals(parser.name(element))) labels.add(element);
+                            if ("LineAnnotation".equals(parser.name(element))) arrows.add(element);
+                        }
+                        boolean hardware = "start/hardware.md".equals(relative);
+                        assertEquals(hardware ? 3 : 2, labels.size(), "Readable endpoint labels required");
+                        for (Object label : labels) {
+                            assertFalse(
+                                parser.attribute(label, "text")
+                                    .isEmpty());
+                            assertFalse(
+                                parser.attribute(label, "pos")
+                                    .isEmpty());
+                        }
+                        assertEquals(hardware ? 0 : 1, arrows.size(), "Transfer direction arrow required");
+                        if (!hardware) assertEquals("end", parser.attribute(arrows.get(0), "arrow"));
                     } else {
                         for (Object element : elements) {
                             assertNotEquals(
@@ -170,9 +197,10 @@ class GuideNhNativeParsingTest {
                 }
             }
         }
-        assertEquals(35, navigationCount, "Every page must supply navigation");
-        assertEquals(51, sfmlCount, "Every complete program must remain a native sfml Code node");
-        assertEquals(5, imageCount, "Hardware and station item icons must remain native MDX elements");
+        assertEquals(40, navigationCount, "Every page must supply navigation");
+        assertEquals(53, sfmlCount, "Every complete program must remain a native sfml Code node");
+        assertEquals(12, imageCount, "Tutorial and reference item icons must remain native MDX elements");
+        assertEquals(3, blockImageCount, "Home/editor/station block previews must remain native MDX elements");
     }
 
     private static void assertHardwareScene(NativeParser parser, List<Object> elements) throws Exception {

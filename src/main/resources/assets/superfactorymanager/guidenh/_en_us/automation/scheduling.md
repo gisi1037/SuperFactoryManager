@@ -5,7 +5,7 @@ navigation:
   position: 130
   keywords: ["sfm", "every", "timer", "global", "ticks"]
 categories: ["sfm", "automation"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 # Scheduling
 

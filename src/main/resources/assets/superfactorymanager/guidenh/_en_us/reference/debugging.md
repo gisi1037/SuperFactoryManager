@@ -6,7 +6,7 @@ navigation:
   parent: /reference/index.md
   keywords: ["print", "debug", "terminal", "error", "logs", "troubleshooting"]
 categories: ["sfm"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 
 # Debugging and the terminal
@@ -60,6 +60,9 @@ causes the ordinary program fault.
 | `status` | Show manager status, compilation and capture state. |
 | `state` | Show bounded live persistent values. |
 | `state $cycles` | Inspect one persistent variable. |
+| `watch` / `watch $cycles` | Inspect initialized program-wide LET and STATE values, or one exact name. |
+| `profile start 1200` | Start a bounded complete-update timing capture; accepts 1–4,096 updates. |
+| `profile status` / `profile stop` / `profile reset` | Read, stop while retaining, or clear that profiler capture. |
 | `labels` | Show the first 15 saved label names and position-entry counts. |
 | `labels Input Chest` | Inspect the exact case-sensitive saved name, including spaces. |
 | `logs` / `logs 15` | Show the latest 10 logs, or a count from 1 to 15, oldest first. |
@@ -70,8 +73,12 @@ Up/Down recalls up to 32 submitted commands and restores an unfinished command
 when you move past the newest entry. Tab/Shift+Tab completes supported command
 names; completion does not execute the command.
 
-Commands do not evaluate arbitrary SFML, mutate STATE or move items. LET locals
-exist only during trigger execution, so inspect them with PRINT. `labels` lists
+Commands do not evaluate arbitrary SFML, mutate STATE or move items. Trigger and
+function locals exist only during execution, so inspect trigger locals with PRINT.
+Program-wide LET values remain available through Watch after initialization.
+For a reference disk, only its verified source author can inspect variable names
+and values; execution-disk holders can still use profiling and deliberate PRINT
+output. Inspection does not initialize globals or flush STATE. `labels` lists
 saved bindings even if disconnected; it does not scan contents or test network
 connectivity. Truncated output says what was displayed.
 
@@ -83,8 +90,8 @@ can make a later valid token look unexpected.
 
 | Symptom | Check |
 | --- | --- |
-| Top-level LET rejected | Use STATE above triggers for persistence; put LET inside a trigger/function. |
-| Bare `$lock = FALSE` rejected | Assignment requires `SET $lock = FALSE`. |
+| A declaration after a trigger is rejected | Put program-wide LET/STATE before function definitions and triggers; LET inside a body is local. |
+| `$lock = FALSE` reports an unknown variable | Declare it with LET or STATE first; direct assignment and `SET $lock = FALSE` both update existing variables. |
 | IF body rejected | Use `IF (...) THEN`, and close both IF and trigger with END. |
 | Empty test unlocks at the wrong time | `> 0` means stock exists; `= 0` tests zero. |
 | Count says stock exists, transfer moves none | Visibility is not extraction permission or output capacity. |
@@ -94,9 +101,13 @@ can make a later valid token look unexpected.
 
 ## Engine logs
 
-**View logs** exposes engine logs. INFO, DEBUG and TRACE reveal more detail;
+**Logs** opens inside the Manager window, alongside Terminal, Profile and Watch.
+The server recording level is separate from the local severity/search filter.
+Use Wrap, Follow, Live/Frozen, scrolling and Copy to inspect retained output.
+Opening Logs does not enable recording. INFO, DEBUG and TRACE reveal more detail;
 current logging can switch off after a useful execution. `logs` only reads the
-history already captured and does not turn tracing on. Ask a server operator
+history already captured and does not turn tracing on. Automatic source-bearing
+logs are suppressed for reference disks. Ask a server operator
 about recovery or repeated runtime faults rather than deleting disk data.
 
 Next: [performance](performance.md) and [recovery](recovery.md).

@@ -5,7 +5,7 @@ navigation:
   position: 50
   keywords: ["sfm", "transfer", "moved", "remaining", "status"]
 categories: ["sfm", "automation"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 # Value-driven item transfers
 
@@ -79,4 +79,4 @@ This is not an atomic transaction across an entire label group. Accepted pairs u
 
 The provisional limit is 64 potentially mutating transfer actions per manager invocation, shared across loops and all due triggers. Automatic-amount calls consume credit even when their observed stock is zero; explicit four-argument zero requests are exempt. Shared query/expression work can run out sooner, and one external provider callback cannot be interrupted. Nothing is silently truncated to fit a budget.
 
-Use Text: Visual has no equivalent node yet. TRANSFER cannot appear inside a STATE default, predicate, ordinary call argument or current player FUNCTION body. Player functions remain read-only; there is no current ACTION/CALL effect interface or Lua runtime.
+Use Text: Visual has no equivalent node yet. TRANSFER cannot appear inside a STATE default, predicate, ordinary call argument or current player FUNCTION body. Player functions remain read-only; there is no current ACTION/CALL effect interface.

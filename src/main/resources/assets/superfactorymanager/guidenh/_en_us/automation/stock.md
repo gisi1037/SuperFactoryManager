@@ -5,7 +5,7 @@ navigation:
   position: 40
   keywords: ["sfm", "stock", "total", "shortage", "target"]
 categories: ["sfm", "automation"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 # Stock and shortage helpers
 

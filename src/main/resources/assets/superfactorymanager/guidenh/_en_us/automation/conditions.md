@@ -5,7 +5,7 @@ navigation:
   position: 80
   keywords: ["sfm", "if", "has", "condition", "branch"]
 categories: ["sfm", "automation"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 # Conditions and branches
 

@@ -1,11 +1,11 @@
 ---
 navigation:
   title: "Automation"
-  parent: /index.md
-  position: 800
+  parent: /advanced/index.md
+  position: 100
   keywords: ["sfm", "automation", "routing"]
 categories: ["sfm", "automation"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 # Automation
 

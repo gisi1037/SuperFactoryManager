@@ -15,7 +15,7 @@ final class StudioPanelDragWidget extends Widget<StudioPanelDragWidget> implemen
     private int clickX, clickY, startX, startY, requestedX, requestedY;
 
     StudioPanelDragWidget() {
-        addTooltipLine("Drag the title bar to move Settings.");
+        addTooltipLine("Drag the title bar to move this panel.");
     }
 
     @Override

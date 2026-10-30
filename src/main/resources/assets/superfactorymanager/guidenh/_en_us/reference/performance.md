@@ -6,7 +6,7 @@ navigation:
   parent: /reference/index.md
   keywords: ["performance", "budget", "limits", "lag", "scale", "profile"]
 categories: ["sfm"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 
 # Performance and limits
@@ -28,8 +28,8 @@ fast factory: it can repeatedly inspect unchanged containers.
   repeats the scan.
 - STOCK searches captured groups linearly. For a broad ore total, filter one
   `.contents(ORE("name"))` scan and call TOTAL instead of repeated exact lookups.
-- Count visibility and insertion capacity separately. A full output can cause
-  useful-looking source scans without any progress.
+- A visible stock count does not measure insertion capacity. Check actual
+  transfer results: a full output can cause source scans without any progress.
 - Turn PRINT capture and verbose logs off when finished diagnosing.
 - Avoid repeatedly rebuilding a large cable network while other managers are
   running. Network maintenance is work too.
@@ -50,7 +50,10 @@ will fit in a tick or that a third-party callback can be interrupted.
 | Expression work / constructed data cells | 16,384 units each per manager invocation. |
 | Loop steps | 1,024 shared across due triggers/functions in one invocation. |
 | Player function calls / call depth | 256 calls / depth 16 per invocation. |
+| Player definitions / parameters | 128 definitions / 16 parameters per definition. |
+| Active function-local cells | 4,096 shared by active call frames. |
 | Local bindings / collection width | 256 per trigger / 256 entries or fields. |
+| Program-wide LET memory | 256 globals, 4,096 retained cells, 16,384 characters and 256 KiB of opaque handle/key data. |
 | Data/expression nesting | 32. |
 | Persistent declarations / expanded cells | 256 / 4,096 total cells. |
 | One string | 4,096 UTF-16 code units. |
@@ -60,6 +63,8 @@ will fit in a tick or that a third-party callback can be interrupted.
 | One contents snapshot | At most 256 exact groups and 1,024 physical locations. |
 | One exact item's NBT identity | Depth 16, 1,024 tag nodes and 8,192 canonical bytes. |
 | Potentially mutating TRANSFER actions | 64 per invocation, shared by due triggers and loops; automatic amounts count, explicit zero is exempt. |
+| Loop nesting / loop INPUT registrations | Depth 16 / 256 registrations per invocation; FORGET does not renew this allowance. |
+| Native redstone writes | 256 attempts per invocation. |
 | Manager editor source + layout | 30,000 UTF-8 bytes, subject to the disk's remaining space. |
 | Whole execution disk NBT | 30,000 uncompressed bytes shared by source, labels, STATE, layout and recovery. |
 
@@ -76,6 +81,23 @@ is returned as though it represented all stock. Failed data assignments do not
 publish their replacement value. Earlier successful statements and confirmed
 transfers remain completed. If a provider operation is uncertain, the recovery
 path can pause the manager with evidence rather than silently retrying it.
+
+## Manager profiling and activity
+
+**Overview > Expand** shows up to twenty chronological complete-update cost
+samples, latest/mean/max/peak and runtime state. Bars scale to the visible window;
+their height is not a percentage of the server tick budget. The scheduler-clock
+marker can advance without a due trigger or successful transfer. Statement
+tracing, node highlighting and breakpoints are not available yet.
+
+**Profile** records complete server manager updates, including idle checks,
+recovery and discovery. **Record** defaults to 1,200 updates and stops
+automatically. **Stop** preserves the sample; **Reset** clears it. Results include
+count, updates with a due trigger, average, p50/p95/p99 and maximum milliseconds.
+The collector starts off. Terminal commands `profile start 1200`, `profile status`,
+`profile stop` and `profile reset` control the same capture; start accepts
+1–4,096 updates. This does not measure whole-server TPS, per-instruction work,
+background compiler work or manual runs.
 
 ## Operator profiling
 

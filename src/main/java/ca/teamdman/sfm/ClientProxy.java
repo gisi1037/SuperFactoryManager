@@ -43,6 +43,7 @@ public class ClientProxy extends CommonProxy {
     @Override
     public void postInit(FMLPostInitializationEvent event) {
         super.postInit(event);
+        ca.teamdman.sfm.compat.guidenh.GuideNhSfml.register();
         if (ca.teamdman.sfm.compat.Compat.isNEILoaded()) {
             ca.teamdman.sfm.compat.nei.NEICompat.hideItems();
         }

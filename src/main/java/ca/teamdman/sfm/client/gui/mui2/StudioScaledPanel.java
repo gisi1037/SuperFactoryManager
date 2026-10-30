@@ -6,7 +6,6 @@ import net.minecraft.client.gui.ScaledResolution;
 import com.cleanroommc.modularui.api.layout.IViewportStack;
 import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.screen.ModularScreen;
-import com.cleanroommc.modularui.widget.sizer.Unit;
 
 /** One MUI transform handles drawing, clipping and hit testing for the editor and all its modals. */
 public class StudioScaledPanel extends ModularPanel {
@@ -17,8 +16,9 @@ public class StudioScaledPanel extends ModularPanel {
 
     public StudioScaledPanel(String name) {
         super(name);
-        left(() -> (logicalWidth(getScreen()) - getArea().width) / 2.0, Unit.Measure.PIXEL);
-        top(() -> (logicalHeight(getScreen()) - getArea().height) / 2.0, Unit.Measure.PIXEL);
+        // MUI applies anchors to relative units only, after resolving the popup's actual size.
+        leftRelAnchor(() -> logicalWidth(getScreen()) / (2.0 * getScreen().getScreenArea().width), .5f);
+        topRelAnchor(() -> logicalHeight(getScreen()) / (2.0 * getScreen().getScreenArea().height), .5f);
     }
 
     @Override

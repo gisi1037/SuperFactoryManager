@@ -5,7 +5,7 @@ navigation:
   position: 30
   keywords: ["sfml", "bitwise", "flags", "shifts"]
 categories: ["sfm", "language"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 
 # Bitwise operators

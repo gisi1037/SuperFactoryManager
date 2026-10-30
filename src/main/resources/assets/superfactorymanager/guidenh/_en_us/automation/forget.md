@@ -5,7 +5,7 @@ navigation:
   position: 20
   keywords: ["sfm", "forget", "input", "stage", "quota"]
 categories: ["sfm", "automation"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 # FORGET and input stages
 

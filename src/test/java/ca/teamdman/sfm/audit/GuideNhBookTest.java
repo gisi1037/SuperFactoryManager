@@ -97,7 +97,16 @@ class GuideNhBookTest {
                     .startsWith("# "),
                 "H1 title: " + page);
             int fenceCount = 0;
-            for (String line : source.split("\n")) if (line.startsWith("```")) fenceCount++;
+            for (String line : source.split("\n")) {
+                if (!line.startsWith("```")) continue;
+                if (fenceCount % 2 == 0) assertTrue(
+                    line.trim()
+                        .equals("```sfml")
+                        || line.trim()
+                            .equals("```text"),
+                    "Explicit SFML program or text-fragment language required: " + page + ": " + line);
+                fenceCount++;
+            }
             assertEquals(0, fenceCount % 2, "Paired code fences: " + page);
             Matcher parent = PARENT.matcher(frontmatter);
             if (!page.equals(ROOT.resolve("index.md"))) {

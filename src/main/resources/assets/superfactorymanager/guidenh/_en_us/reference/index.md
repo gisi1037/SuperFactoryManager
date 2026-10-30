@@ -1,12 +1,12 @@
 ---
 navigation:
   title: "Reference and troubleshooting"
-  position: 50
+  position: 80
   icon: "superfactorymanager:manager"
-  parent: /index.md
+  parent: /advanced/index.md
   keywords: ["reference", "help", "debug", "functions"]
 categories: ["sfm"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 
 # Reference and troubleshooting

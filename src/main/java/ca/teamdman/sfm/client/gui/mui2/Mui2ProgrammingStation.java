@@ -2085,24 +2085,54 @@ public final class Mui2ProgrammingStation {
                 .color(0xffe7e8eb)
                 .size(284, 12));
         popup.child(
-            new TextWidget<>("Your draft will stay in local recovery.").pos(8, 29)
+            new StudioPanelDragWidget().pos(4, 4)
+                .widthRelOffset(1f, -8)
+                .height(21));
+        popup.child(
+            new TextWidget<>("Keep a local copy or discard this draft.").pos(8, 29)
                 .color(0xffb0b3bb)
                 .size(284, 12));
         popup.child(
             new TextWidget<>(IKey.dynamic(() -> trimFor(protectedLabel, 284))).pos(8, 48)
                 .color(0xffe7e8eb)
                 .size(284, 12));
-        popup.child(button("Keep draft & continue", 8, 88, 176, () -> !state.busy(), () -> {
+        popup.child(button("Keep draft & continue", 8, 70, 176, () -> !state.busy(), () -> continueProtected(true)));
+        popup.child(
+            button(
+                "Discard draft & continue",
+                8,
+                96,
+                176,
+                () -> !state.awaitingReply() && !state.uncertainWrite,
+                () -> continueProtected(false)).background(StudioTheme.PRIMARY)
+                    .addTooltipLine(
+                        "Delete unsaved local changes and their recovery copy. Saved projects and builds remain.")
+                    .addTooltipLine("Pending or unconfirmed server requests must be resolved first."));
+        popup.child(button("Cancel", 192, 96, 100, () -> true, confirmationPanel::closePanel));
+        return popup;
+    }
+
+    private void continueProtected(boolean keep) {
+        if (state.busy() || protectedAction == null) return;
+        if (keep) {
             if (!retain()) return;
             state.afterRetainingDraft();
-            document.load(state.source);
-            graphEditor.resetSelection();
-            syncEditor();
-            confirmationPanel.closePanel();
-            protectedAction.run();
-        }));
-        popup.child(button("Cancel", 192, 88, 100, () -> true, confirmationPanel::closePanel));
-        return popup;
+        } else {
+            if (state.awaitingReply() || state.uncertainWrite) return;
+            String discarded = key(state.saved == null ? null : state.saved.id);
+            state.discardDraft();
+            cache().remove(discarded);
+        }
+        fieldDraft = null;
+        loadingRecovery = null;
+        recoveryOverCurrent = false;
+        document.load(state.source);
+        graphEditor.resetSelection();
+        syncEditor();
+        Runnable action = protectedAction;
+        protectedAction = null;
+        confirmationPanel.closePanel();
+        action.run();
     }
 
     private void snippets() {

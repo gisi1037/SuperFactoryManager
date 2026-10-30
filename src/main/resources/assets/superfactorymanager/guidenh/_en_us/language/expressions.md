@@ -5,7 +5,7 @@ navigation:
   position: 40
   keywords: ["sfml", "expressions", "arithmetic", "boolean", "precedence"]
 categories: ["sfm", "language"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 
 # Expressions

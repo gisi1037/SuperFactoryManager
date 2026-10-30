@@ -5,7 +5,7 @@ navigation:
   position: 30
   keywords: ["sfm", "redstone", "pulse", "rising", "falling", "port", "signal"]
 categories: ["sfm", "automation"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 item_ids: ["superfactorymanager:redstonePort"]
 ---
 # Redstone

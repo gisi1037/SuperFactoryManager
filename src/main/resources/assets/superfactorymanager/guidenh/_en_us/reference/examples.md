@@ -6,7 +6,7 @@ navigation:
   parent: /reference/index.md
   keywords: ["examples", "logistics", "iron", "stock", "program", "copy"]
 categories: ["sfm"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 
 # Complete examples

@@ -5,7 +5,7 @@ navigation:
   position: 50
   keywords: ["sfml", "strings", "text", "escaping"]
 categories: ["sfm", "language"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 
 # Strings
@@ -24,7 +24,7 @@ EVERY 20 TICKS DO
 END
 ```
 
-Use `+` to concatenate two strings and `=` or `EQ` to compare their exact contents. For inequality, write `NOT ($a = $b)`. String ordering, indexing, interpolation and implicit integer-to-string conversion are unsupported. For debugging, pass mixed values as separate `PRINT` arguments instead of concatenating them.
+Use `+` to concatenate two strings and `=`, `==` or `EQ` to compare their exact contents. For inequality, write `$a != $b` or `NOT ($a = $b)`. String ordering, indexing, interpolation and implicit integer-to-string conversion are unsupported. For debugging, pass mixed values as separate `PRINT` arguments instead of concatenating them.
 
 ## Escapes
 

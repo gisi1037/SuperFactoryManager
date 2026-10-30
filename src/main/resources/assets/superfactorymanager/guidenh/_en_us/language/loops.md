@@ -5,7 +5,7 @@ navigation:
   position: 20
   keywords: ["sfml", "loops", "for", "while", "budgets"]
 categories: ["sfm", "language"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 
 # Loops

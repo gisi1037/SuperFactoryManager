@@ -1,11 +1,11 @@
 ---
 navigation:
   title: "Language"
-  parent: /index.md
-  position: 70
+  parent: /advanced/index.md
+  position: 90
   keywords: ["sfml", "language"]
 categories: ["sfm", "language"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 
 # Language
@@ -24,7 +24,7 @@ Read these pages in order, or jump to the feature you need:
 - [Loops](loops.md): counted ranges, array iteration and bounded `WHILE`.
 - [Functions](functions.md): typed player functions and default functions.
 
-The program order is an optional `NAME`, then `STATE` declarations, then function definitions, then triggers. Statements use words such as `DO`, `THEN`, `ELSE` and `END` to delimit blocks. `--` starts a comment. Braces construct struct values; they do not delimit statement blocks.
+The program order is an optional `NAME`, then top-level `STATE` and `LET` declarations, then function definitions, then triggers. Top-level LET keeps shared values in manager memory; STATE persists values on the disk. Statements use words such as `DO`, `THEN`, `ELSE` and `END` to delimit blocks. `--` starts a comment. Braces construct struct values; they do not delimit statement blocks.
 
 ```sfml
 NAME "Calculated batch"

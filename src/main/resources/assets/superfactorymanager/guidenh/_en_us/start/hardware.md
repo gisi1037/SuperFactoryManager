@@ -1,37 +1,35 @@
 ---
 navigation:
-  title: "Hardware and the manager"
+  title: "Build the network"
   position: 100
   icon: "superfactorymanager:manager"
   parent: /start/index.md
   keywords: ["manager", "disk", "cable", "inventory", "hardware"]
 categories: ["sfm"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 item_ids: ["superfactorymanager:disk", "superfactorymanager:cable", "superfactorymanager:fancyCable"]
 ---
 
-# Hardware and the manager
+# Build the network
 
-## What each part does
+Gather **one manager, one blank disk, a Label Gun, two cables and two single
+chests**. NEI shows the recipes installed by your pack.
+
+## What you need
 
 | Part | Purpose |
 | --- | --- |
 | Super Factory Manager | Holds the execution disk, runs SFML and exposes program status. |
-| Program disk | Carries source, saved labels and persistent STATE. |
+| Program disk | Holds the program and its saved labels. |
 | Label Gun | Names positions and copies a label table to or from a manager's disk. |
 | Cable / Fancy Cable | Connects the manager to eligible blocks; both participate in its cable network. |
-| Programming Station | Saves, validates and publishes private project builds. Imprints exact published builds onto fresh held disks; managers load their code from world storage. |
-| Redstone Port | A combined signal detector and emitter with per-face settings. |
 
 <ItemImage id="superfactorymanager:disk" />
 <ItemImage id="superfactorymanager:labelgun" />
 <ItemImage id="superfactorymanager:cable" />
 <ItemImage id="superfactorymanager:fancyCable" />
 
-Use NEI's recipe/usage views for the recipes installed by your pack or server.
-Do not assume another modpack uses the same crafting ingredients.
-
-## A small network
+## Connect the blocks
 
 Place a manager, run cable from it, and connect two chests to the cable. Give each
 chest its own branch so a route never depends on passing through an inventory.
@@ -44,25 +42,20 @@ labels in your world.
   <Block id="minecraft:chest" x="2" y="0" z="0" />
   <Block id="superfactorymanager:cable" x="1" y="0" z="1" />
   <Block id="minecraft:chest" x="1" y="0" z="2" />
+  <TextAnnotation pos="0.5 1.2 0.5" text="Manager" color="#B4D89B" />
+  <TextAnnotation pos="2.5 1.2 0.5" text="Source" color="#66CCFF" />
+  <TextAnnotation pos="1.5 1.2 2.5" text="Destination" color="#FFCC66" />
 </GameScene>
 
-The chest at the end of the short branch can be `source`; the other can be
-`dest`. Each needs a saved label and cable connectivity. A label by itself is
-not a connection. The manager is not a chunk loader.
+**Expected:** both chests touch cable, and that cable reaches the manager.
+The manager does not load distant chunks.
 
-## Manager workflow
+## Insert the disk
 
-Insert a disk, synchronize labels, then choose **Text** or **Visual**. Saving a
-program and enabling its running state are separate steps. Keep a production
-manager paused while changing its routing, then check the first transfer.
+Open the manager and place the blank disk in its disk slot.
+Leave it paused while setting up this first route.
 
-The manager also provides **Terminal**, **View logs**, network rebuilding and
-STATE inspection. Read its status when automation stops. Recovery or invalid
-state can block execution even when the source text compiles.
+**Expected:** the manager shows an installed disk. **Program** contains its
+editing controls. Your normal inventory and hotbar stay below the machine pages.
 
-With Dynamic Inventory installed, the manager uses the actual expanded player
-inventory. Its player-storage area is scrollable and the hotbar remains separate.
-Changing GUI scale changes layout, not the meaning of SFML slot numbers: those
-numbers select the attached container, not your player inventory.
-
-Continue with [your first transfer](first-transfer.md).
+**Next: [name the chests](labels.md).**

@@ -5,20 +5,20 @@ The in-game GuideNH book is maintained in
 See [GuideNH maintenance and installation](GUIDENH_GUIDE.md) for its format,
 validation and content-only updates.
 
-Reviewed on 2026-10-28 for this development fork: Minecraft 1.7.10 / Forge
+Reviewed on 2026-10-30 for this development fork: Minecraft 1.7.10 / Forge
 10.13.4.1614, with GTNH `daily-2026-10-27+803` as the pinned integration target.
 Implemented language behavior and real-pack qualification are separate. This
 guide does not claim complete modern SFM or RetroSFM compatibility.
 
 Java executes SFML on the server. Existing execution disks carry their source;
 the new Programming Station stores editable project drafts separately in the
-world save. Its first slice saves and validates drafts; it does not yet write
-reference disks. The RetroSFM visual editor produces the same SFML and uses the
+world save. It saves drafts, publishes immutable builds and imprints reference
+disks that managers can run. The RetroSFM visual editor produces the same SFML and uses the
 same engine. Locals, disk-persistent STATE, fixed arrays/structs, strings, checked
 arithmetic, queries, bounded loops and typed player functions are implemented in
-this development fork. Scope and remaining editor work are summarized in the
-[native editor roadmap](STUDIO_ROADMAP.md). An already-running older client does not gain new
-features automatically. Lua is not installed.
+this development fork. Scoped GUI checks are documented in
+INTERFACE_QUALIFICATION.md. An already-running older client does not gain new
+features automatically.
 
 ## Contents
 
@@ -230,16 +230,16 @@ at `src/main/resources/META-INF/licenses/RetroSFM-MIT.txt`.
 
 ## Programming Station projects
 
-The **Programming Station** is a separate authoring block. Open it and choose
-**Open projects** to create a named private draft, browse your saved projects,
-edit text, save and validate an exact saved revision. The editor reuses MUI2's
-SFML text surface, highlighting, line numbers, undo/redo, indentation and wrapping.
-It uses the inventory mod's public player-inventory widget in its station shell.
-The first block uses an existing crafting-table texture; dedicated station art
-can follow. A shaped recipe uses iron, redstone, books and a crafting table.
+The **Programming Station** opens full-screen Studio. Use its **Projects** column
+or top selector to browse projects, and **+** or a template to start a private
+draft. Studio has Text/Visual/Split editing, highlighting, line numbers, undo/redo,
+indentation and wrapping. Inventory slots and NEI are unavailable while authoring.
+**Settings** includes the tool mode and independent Studio GUI scale. The block
+has a dark industrial texture with red accents. A shaped recipe uses iron,
+redstone, books and a crafting table. See [Studio](STUDIO.md) for current controls.
 
 **Save** accepts invalid SFML so unfinished work survives closing the game.
-**Validate** checks the saved project revision, never executes it or changes a
+**Check** checks the saved project revision, never executes it or changes a
 manager/disk. Save changed source/name before validating; the result identifies
 the revision checked. A stale edit is rejected rather than overwriting another
 save. Copy and retained local recovery drafts preserve text after a failed or
@@ -1573,9 +1573,8 @@ The aggregate profiler records complete scheduled manager-update work across
 dimensions, including idle paths, in a 600-tick ring. It defaults off, retains
 capture after stop and resets on start. It does not measure the whole server
 tick or all manual/packet operations. Short captures are not full-pack budgets.
-Synthetic characterization and scoped daily-803 measurements do not establish
-whole-pack performance budgets. Measure representative networks before relying
-on a particular manager count or tick-time target.
+See [PACK_BENCHMARKS.md](PACK_BENCHMARKS.md) and
+[DISCOVERY_PERFORMANCE.md](DISCOVERY_PERFORMANCE.md) for measured scope.
 
 ### Recovery is an ownership decision
 
@@ -1646,22 +1645,22 @@ Syntax that compiles is not by itself a qualified pack feature.
 | First RetroSFM visual editor | Candidate port with generation, preview, undo, bounded layout and guarded saves. | Initial development-client edit/save/reopen smoke; not all RetroSFM features. |
 | Item recovery / operator commands | Implemented. | Known/uncertain ownership, partial claims and orderly reload exercised; no player GUI or crash-atomicity guarantee. |
 | Periodic discovery phases | Implemented without altering SFML due times. | Daily-803 comparison evidence; forced invalidations can spike, no full-pack budgets. |
-| Local/persistent variables, strings, fixed arrays/structs, checked arithmetic | Implemented in grammar, typed AST/runtime and bounded disk state store. | Headless coverage; Text only, broader pack qualification remains open. |
+| Local/persistent variables, strings, fixed arrays/structs, checked arithmetic | Implemented in grammar, typed AST/runtime and bounded disk state store. | Headless coverage; Text only, broader pack qualification remains open. See [SFML_DATA_MODEL.md](SFML_DATA_MODEL.md). |
 | Integer bitwise operators and shifts | Implemented for signed 64-bit integers with checked 0–63 shift distances. | Text only; headless coverage, no new full-pack runtime qualification. |
 | Typed item count/empty/availability | LABEL/ITEM/ORE handles, side/slot modifiers and no-argument item predicates; bounded live reads, Text only. | Unit/world fixtures cover the item slice; fluid/proxy adapters and broader pack qualification remain open. |
 | PRINT and manager debug terminal | Opt-in bounded output, capture controls, status/STATE/saved-label/recent-log inspection and panel-local command recall. | Headless command/protocol/runtime coverage; exact client scope recorded separately. |
 | Counted/array FOR and WHILE | Readonly loop locals, array snapshots, shared step/work/registration limits; Text only. | Headless signed-boundary, scope, iteration and item/fluid transfer regressions; no hard tick-time guarantee. |
 | Player-written functions | Explicit typed parameters/RETURN, local pure/query bodies, forward calls and shared invocation bounds; Text only. | No recursion, actions, implicit STATE capture, imports or user extension methods in this slice. |
-| Programming Station | MUI2 private project drafts, external world storage, guarded saves and exact saved-revision validation. | First authoring slice; no published bundles, reference disks or controller activation yet. |
+| Programming Station | Full-screen MUI2 projects, guarded saves/checks, published builds and imprinted reference disks that managers can run. | Root-source builds; reusable published libraries and imports remain planned. |
 | Runtime-adjustable cadence / fullness and acceptance queries | Requested future shared Java API work. | count/empty do not measure capacity or acceptance; no current cadence/fullness API. |
 | Event-driven destination availability | Deferred. | No implementation or measured cache gain. |
-| Lua | Under evaluation. | No selected/installed runtime. |
 | EU / RF and arbitrary energy APIs | Not established by this item/fluid language. | No supported energy-transfer example or adapter claim. |
 | AE2 and other pack-specific systems | No blanket support claim. | Explicit adapter contracts and evidence required. |
 
-See the [native editor roadmap](STUDIO_ROADMAP.md) for the current authoring
-checkpoint and remaining integration work, and the
-[default API catalog](STANDARD_LIBRARY.md) for implemented and planned helpers.
+See [COMPATIBILITY.md](COMPATIBILITY.md) for the executable contract,
+[IMPLEMENTATION_PROGRESS.md](IMPLEMENTATION_PROGRESS.md) for evidence and open
+work, and [SCRIPTING_DIRECTION.md](SCRIPTING_DIRECTION.md) plus
+[DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) for future proposals.
 
 ## Maintaining this guide
 

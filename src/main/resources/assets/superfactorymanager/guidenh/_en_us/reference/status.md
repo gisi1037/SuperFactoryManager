@@ -4,9 +4,9 @@ navigation:
   position: 40
   icon: "superfactorymanager:manager"
   parent: /reference/index.md
-  keywords: ["supported", "planned", "lua", "nei", "recipe", "nbt"]
+  keywords: ["supported", "planned", "sfml", "nei", "recipe", "nbt"]
 categories: ["sfm"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 
 # Feature status
@@ -23,13 +23,16 @@ different.
   edge detection, typed reads and signal output.
 - Text/Visual MUI2 editing, line numbers, highlighting, undo/redo, snippets,
   diagnostics, logs, PRINT and a bounded inspection terminal.
-- LET locals, disk-persistent STATE, strings, fixed arrays/structs, checked
+- LET locals and program-wide memory, disk-persistent STATE, strings, fixed arrays/structs, checked
   integer arithmetic, logical/bitwise expressions and bounded loops.
 - Typed read-only player functions, math/size defaults and stock helpers.
 - Typed inventory selections, visible counts/emptiness/availability and exact
   grouped item snapshots with physical origins.
 - A standalone value-driven item TRANSFER action with confirmed progress results.
-- Private Programming Station drafts with save/reopen, revision validation and immutable root-source builds.
+- Private Programming Station drafts with remembered projects, revision validation,
+  immutable root-source builds and reference-disk imprinting.
+- A normal Manager inventory with inline diagnostics, live variable watches and
+  an opt-in full-update profiler; Studio settings, GUI scale and draft recovery.
 
 ## Boundaries to keep in mind
 
@@ -65,7 +68,6 @@ remain separate work.
 - Rich NBT inspection and more collection/string helpers.
 - A connected-inventory browser and cable-based network label editing.
 - Runtime-adjustable scheduling and event-driven destination availability.
-- Lua or any other additional scripting runtime.
 
 Use [the default API](functions.md) for current callable names. If a proposed
 method is absent there and the compiler rejects it, adding a struct member with

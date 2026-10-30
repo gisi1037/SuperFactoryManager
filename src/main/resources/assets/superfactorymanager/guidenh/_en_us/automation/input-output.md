@@ -5,7 +5,7 @@ navigation:
   position: 120
   keywords: ["sfm", "input", "output", "transfer", "quota"]
 categories: ["sfm", "automation"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 # INPUT and OUTPUT
 

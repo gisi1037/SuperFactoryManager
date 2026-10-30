@@ -20,6 +20,42 @@ class ProgrammingStationDraftStateTest {
     private static final UUID OWNER = new UUID(1, 2), PROJECT = new UUID(3, 4);
 
     @Test
+    void discardingUnsavedEditsClearsOnlyLocalIdentityAndLeavesTheSavedProjectUntouched() {
+        ProgrammingStationDraftState state = loaded();
+        ProjectDraft saved = state.saved;
+        UUID local = state.localId;
+        state.name = "unsaved name";
+        state.source = "unsaved source";
+        state.discardDraft();
+        assertTrue(state.canReplace());
+        assertNull(state.saved);
+        assertEquals("Untitled", state.name);
+        assertEquals("", state.source);
+        assertNotEquals(local, state.localId);
+        assertEquals("original name", saved.name);
+        assertEquals("original source", saved.source);
+        long request = state.begin(Action.LOAD);
+        assertTrue(state.receive(request, Action.LOAD, true, saved, null));
+        assertEquals("original source", state.source);
+    }
+
+    @Test
+    void discardCannotForgetAnInFlightOrUnconfirmedSave() {
+        ProgrammingStationDraftState state = loaded();
+        state.source = "unsaved source";
+        long request = state.begin(Action.SAVE);
+        assertThrows(IllegalStateException.class, state::discardDraft);
+        timeout(state);
+        assertThrows(IllegalStateException.class, state::discardDraft);
+        assertEquals("unsaved source", state.source);
+        assertTrue(state.receive(request, Action.SAVE, false, null, null));
+        state.uncertainWrite = true;
+        assertThrows(IllegalStateException.class, state::discardDraft);
+        state.uncertainWrite = false;
+        assertDoesNotThrow(state::discardDraft);
+    }
+
+    @Test
     void sourceAndNameChangesBothProtectLoadAndNewUntilExplicitlyRetained() {
         ProgrammingStationDraftState state = loaded();
         state.name = "renamed";

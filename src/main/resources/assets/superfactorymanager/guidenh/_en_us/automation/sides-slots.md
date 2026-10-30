@@ -5,7 +5,7 @@ navigation:
   position: 90
   keywords: ["sfm", "side", "slot", "round robin", "label access"]
 categories: ["sfm", "automation"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 # Sides, slots and round robin
 

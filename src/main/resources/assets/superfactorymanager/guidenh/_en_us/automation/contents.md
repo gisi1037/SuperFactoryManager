@@ -5,7 +5,7 @@ navigation:
   position: 60
   keywords: ["sfm", "contents", "item key", "nbt", "locations", "snapshot"]
 categories: ["sfm", "automation"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 # Contents and exact item keys
 

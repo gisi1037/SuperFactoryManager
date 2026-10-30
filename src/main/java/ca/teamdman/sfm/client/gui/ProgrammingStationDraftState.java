@@ -190,6 +190,13 @@ public final class ProgrammingStationDraftState {
         reset();
     }
 
+    /** Discard only the local draft; an unconfirmed server write must be reconciled first. */
+    public void discardDraft() {
+        if (waiting || uncertainWrite)
+            throw new IllegalStateException("Resolve the pending server request before discarding this draft.");
+        reset();
+    }
+
     private void reset() {
         saved = null;
         localId = UUID.randomUUID();

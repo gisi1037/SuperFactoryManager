@@ -1,36 +1,39 @@
 ---
 navigation:
   title: "Your first transfer"
-  position: 90
+  position: 80
   icon: "superfactorymanager:manager"
   parent: /start/index.md
   keywords: ["first", "beginner", "tutorial", "chest", "retain"]
 categories: ["sfm"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 
 # Your first transfer
 
 **Goal:** move one item into an empty destination, then keep that destination
 stocked at one. You need a manager, disk, Label Gun, cable and two single chests.
-See the [hardware layout](hardware.md) if you have not connected them yet.
+First [build the network](hardware.md) and [name the chests](labels.md).
 
-## Assign the labels
+## Prepare the chests
 
-1. Put a small countable stack in the source chest. Leave the other chest empty.
-2. Insert the disk into the manager.
-3. Right-click the Label Gun in air. Create/select the active label `source`.
-4. Right-click the source chest with the gun to add that position.
-5. Select `dest` in the gun and right-click the destination chest.
-6. Right-click the manager with the gun **without sneaking** to copy the gun's
-   label table onto its disk. Read the confirmation in chat.
+Put eight of one item in `source`. Leave `dest` empty.
+The arrow shows the intended transfer; the preview does not move real items.
 
-Gun labels do not update the disk automatically after this copy. The program
-reads the disk's saved table.
+<GameScene width="260" height="150" interactive={true}>
+  <Block id="superfactorymanager:manager" x="0" y="0" z="0" />
+  <Block id="superfactorymanager:cable" x="1" y="0" z="0" />
+  <Block id="minecraft:chest" x="2" y="0" z="0" />
+  <Block id="superfactorymanager:cable" x="1" y="0" z="1" />
+  <Block id="minecraft:chest" x="1" y="0" z="2" />
+  <TextAnnotation pos="2.5 1.2 0.5" text="source: 8" color="#66CCFF" />
+  <TextAnnotation pos="1.5 1.2 2.5" text="dest: empty" color="#FFCC66" />
+  <LineAnnotation from="2.5 1.1 0.5" to="1.5 1.1 2.5" arrow="end" color="#66CCFF" />
+</GameScene>
 
 ## Save the program
 
-Open the manager, choose **Text**, and paste this complete program:
+Open the manager, choose **Program > Edit code**, and paste this complete program:
 
 ```sfml
 NAME "First transfer"
@@ -40,29 +43,23 @@ EVERY 20 TICKS DO
 END
 ```
 
-Choose **Save & Close**, wait for the saved result, and enable the manager if it
-is paused. Once the timer is due, the destination should contain one item and
-the source should contain the remainder. Count both containers.
+Choose **Save & Close**, wait for confirmation, then press **Start** if paused.
+
+**Expected:** after the timer runs, `source` has **7**, and `dest` has **1**.
+Remove the destination item. The next due run replaces it, leaving **6** in source.
 
 ## Understand the result
 
-`INPUT FROM source` registers the source inventory for this trigger. It does not
-extract everything immediately. `OUTPUT ... TO dest` attempts the actual move.
-
-`RETAIN 1` on an output is a stock target. When the destination already has one
-matching item, further timer executions add none. Remove that item and the next
-due execution can replace it. Change the output to `OUTPUT TO dest` if you want
-to move all eligible stock the destination can accept.
+`INPUT` chooses the source. `OUTPUT` attempts the move.
+`RETAIN 1` keeps the destination's total at **one**. If it already has one,
+nothing moves. Change it to `OUTPUT TO dest` to move all
+eligible stock the destination can accept.
 
 `EVERY 20 TICKS` normally runs once per game second. Lag can make a game second
-take longer in real time. Paused managers do not keep advancing their ordinary
-running-tick timer.
+take longer in real time.
 
 ## If nothing moves
 
-Check the manager status and running state; confirm the disk has `source` and
-`dest` in its saved labels; check cable connectivity and loaded chunks. The
-destination may already meet the target. See
-[troubleshooting](/reference/debugging.md) for a longer checklist.
+Follow [Nothing moving?](troubleshooting.md).
 
-Next: [labels](labels.md), then [INPUT and OUTPUT](/automation/input-output.md).
+Next: [choose an editor](editors.md), or try [more routing rules](/automation/index.md).

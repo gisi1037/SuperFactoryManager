@@ -26,7 +26,8 @@ support the same language and retain the full searchable insert/API catalog.
 The full-width Insert bar sits above Projects and the larger Visual/Split/Code
 buttons, which sit directly above the authoring surface. Drag the project-column
 divider or the horizontal dock divider to resize those regions. Studio stays fixed
-in place. The **Settings** dialog can be moved by dragging its title bar.
+in place. Popups open centered on the screen. The **Settings** and unsaved-draft
+dialogs can be moved by dragging their title bars.
 
 Open **Settings > Studio scale** to change the editor's GUI scale with
 **-** and **+**. **Game** restores following Minecraft's GUI scale. The choice is
@@ -139,6 +140,10 @@ Switching away from unsaved work offers **Keep draft & continue**. Returning to
 that project restores its own source, graph and unapplied fields. A rejected or
 uncertain write also keeps the local draft; reconcile the saved revision before
 trying another write.
+
+Choose **Discard draft & continue** to delete the current unsaved changes and
+their local recovery copy. Saved server projects and published builds remain.
+Discard waits until pending or unconfirmed server requests are resolved.
 
 Local recovery is bounded temporary client memory, not a backup. It does not
 survive a client restart or world unload. Save important text drafts explicitly;

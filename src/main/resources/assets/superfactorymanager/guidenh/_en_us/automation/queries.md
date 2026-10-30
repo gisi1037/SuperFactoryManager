@@ -5,7 +5,7 @@ navigation:
   position: 70
   keywords: ["sfm", "label", "item", "ore", "count", "available", "empty"]
 categories: ["sfm", "automation"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 # Typed item queries
 

@@ -6,7 +6,7 @@ navigation:
   parent: /reference/index.md
   keywords: ["api", "builtin", "min", "max", "len", "total", "stock", "shortage"]
 categories: ["sfm"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 
 # Default functions

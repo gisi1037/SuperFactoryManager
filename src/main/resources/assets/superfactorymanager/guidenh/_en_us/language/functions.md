@@ -5,7 +5,7 @@ navigation:
   position: 10
   keywords: ["sfml", "functions", "parameters", "return", "defaults"]
 categories: ["sfm", "language"]
-updated: "2026-10-28"
+updated: "2026-10-30"
 ---
 
 # Functions
@@ -70,7 +70,7 @@ Bodies support local `LET`/`SET`, typed `IF`/`ELSE`, bounded `FOR`/`WHILE` and `
 
 Functions cannot perform `PRINT`, transfers, `INPUT`/`OUTPUT`, `FORGET`, redstone output or other actions. They cannot mutate persistent state or use bare manager `REDSTONE` conditions. Typed observations such as `$port.redstone()`, `$port.powered()` and `$port.redstoneAvailable()` are allowed. Keep effects in the trigger.
 
-Direct and indirect recursion are rejected, even in unreachable branches. Definitions cannot overload a name or use optional/variadic parameters. There are no void procedures, imports, closures or extension methods. Constructor names `LABEL`, `ITEM` and `ORE`, plus boolean operator spellings, are reserved. `RETURN` is valid only inside a function.
+Direct and indirect recursion are rejected, even in unreachable branches. Definitions cannot overload a name or use optional/variadic parameters. There are no void procedures, imports, closures or extension methods. Constructor names `LABEL`, `ITEM` and `ORE`, action name `TRANSFER`, and boolean operator spellings are reserved. `RETURN` is valid only inside a function.
 
 ## Default functions
 
