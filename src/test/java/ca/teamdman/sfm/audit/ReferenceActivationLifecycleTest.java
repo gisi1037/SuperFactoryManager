@@ -75,27 +75,46 @@ class ReferenceActivationLifecycleTest {
     }
 
     @Test
-    void busyAndMissingFailuresLatchUntilAnExplicitRunAndNeverRetryEveryTick() throws Exception {
-        for (boolean busy : new boolean[] { false, true })
-            try (Fixture f = new Fixture(temporary.resolve("fail" + busy))) {
-                f.manager.admitted = !busy;
+    void overflowRetriesArePacedWithoutPausingWhileMissingBuildsStillNeedExplicitRetry() throws Exception {
+        try (Fixture f = new Fixture(temporary.resolve("overflow"))) {
+            f.manager.admitted = false;
+            f.tick();
+            assertTrue(f.manager.isRunning());
+            assertTrue(
+                f.manager.getStatusMessage()
+                    .contains("waiting for capacity"));
+            for (int i = 0; i < 10; i++) {
+                f.world.world.time++;
                 f.tick();
-                if (!busy) f.fail(0, ProjectResult.Status.NOT_FOUND);
-                assertTrue(
-                    logText(f.manager).contains(busy ? "Reference storage busy" : "Published program unavailable"));
-                assertFalse(f.manager.isRunning());
-                assertTrue(f.manager.canRequestRun());
-                for (int i = 0; i < 100; i++) f.tick();
-                assertEquals(1, f.manager.submitted);
-                assertEquals(1, f.manager.lookups);
-                f.manager.admitted = true;
-                f.manager.setRunning(true);
-                f.tick();
-                assertEquals(2, f.manager.submitted);
-                f.complete(busy ? 0 : 1, COUNTER);
-                assertTrue(f.manager.hasCompiledProgram());
-                assertTrue(f.manager.isRunning());
             }
+            assertEquals(1, f.manager.submitted);
+            assertEquals(1, f.manager.lookups);
+            assertEquals("", logText(f.manager));
+            f.manager.setRunning(false);
+            f.manager.admitted = true;
+            f.world.world.time += 40;
+            f.tick();
+            assertEquals(2, f.manager.submitted);
+            f.complete(0, COUNTER);
+            assertTrue(f.manager.hasCompiledProgram());
+            assertFalse(f.manager.isRunning(), "Latest pause intent wins even through overflow");
+        }
+        try (Fixture f = new Fixture(temporary.resolve("missing"))) {
+            f.tick();
+            f.fail(0, ProjectResult.Status.NOT_FOUND);
+            assertFalse(f.manager.isRunning());
+            assertTrue(logText(f.manager).contains("Published program unavailable"));
+            for (int i = 0; i < 100; i++) {
+                f.world.world.time++;
+                f.tick();
+            }
+            assertEquals(1, f.manager.submitted);
+            f.manager.setRunning(true);
+            f.tick();
+            f.complete(1, COUNTER);
+            assertTrue(f.manager.hasCompiledProgram());
+            assertTrue(f.manager.isRunning());
+        }
     }
 
     @Test
@@ -419,6 +438,231 @@ class ReferenceActivationLifecycleTest {
             assertFalse(logText(f.manager).contains("intentional output"));
             assertFalse(logText(f.manager).contains("PRINT("));
         }
+    }
+
+    @Test
+    void loadedReferenceStateResetPublishesDefaultsPausesAndKeepsItsExactPrivatePlanAndDiskMetadata() throws Exception {
+        try (Fixture f = new Fixture(temporary.resolve("resetLoaded"))) {
+            f.tick();
+            f.complete(
+                0,
+                "STATE $count = 7 LET $session = 0 EVERY 1 TICKS DO "
+                    + "SET $count = $count + 1 SET $session = $session + 1 END");
+            f.tick();
+            f.tick();
+            Program plan = f.manager.getCompiledProgram();
+            ProgramStateStore previous = f.manager.getProgramState();
+            assertEquals(
+                9,
+                previous.read(0)
+                    .asLong());
+            assertEquals(
+                2,
+                f.manager.getProgramGlobals(plan)
+                    .read(0)
+                    .asLong());
+            f.manager.getDisk()
+                .getTagCompound()
+                .setString("test:label_history", "preserved");
+            NBTTagCompound metadata = (NBTTagCompound) f.manager.getDisk()
+                .getTagCompound()
+                .copy();
+            metadata.removeTag(ProgramStateStore.NBT_KEY);
+            int submitted = f.manager.submitted;
+            f.manager.resetProgramState();
+            assertFalse(f.manager.isRunning());
+            assertSame(plan, f.manager.getCompiledProgram());
+            assertNotSame(previous, f.manager.getProgramState());
+            assertEquals(
+                7,
+                f.manager.getProgramState()
+                    .read(0)
+                    .asLong());
+            assertFalse(
+                f.manager.getProgramGlobals(plan)
+                    .isInitialized());
+            assertFalse(
+                f.manager.getProgramState()
+                    .isDirty());
+            NBTTagCompound after = (NBTTagCompound) f.manager.getDisk()
+                .getTagCompound()
+                .copy();
+            after.removeTag(ProgramStateStore.NBT_KEY);
+            assertEquals(metadata, after);
+            assertEquals(submitted, f.manager.submitted);
+            assertEquals("Persistent reference variables reset; program paused", f.manager.getStatusMessage());
+            // A duplicated completion from the earlier activation cannot undo reset or pause.
+            f.complete(0, "STATE $count = 999 EVERY 1 TICKS DO END");
+            assertSame(plan, f.manager.getCompiledProgram());
+            assertEquals(
+                7,
+                f.manager.getProgramState()
+                    .read(0)
+                    .asLong());
+            assertFalse(f.manager.isRunning());
+            f.manager.setRunning(true);
+            f.tick();
+            assertEquals(
+                8,
+                f.manager.getProgramState()
+                    .read(0)
+                    .asLong());
+            assertEquals(
+                1,
+                f.manager.getProgramGlobals(plan)
+                    .read(0)
+                    .asLong());
+        }
+    }
+
+    @Test
+    void resetWhileLoadingRejectsTheResetButItsPauseSurvivesCompletion() throws Exception {
+        try (Fixture f = new Fixture(temporary.resolve("resetPending"))) {
+            f.tick();
+            f.manager.resetProgramState();
+            assertFalse(f.manager.isRunning());
+            assertTrue(
+                f.manager.getStatusMessage()
+                    .contains("State not reset"));
+            assertNull(f.manager.getProgramState());
+            f.complete(0, "STATE $count = 7 EVERY 1 TICKS DO SET $count = $count + 1 END");
+            assertFalse(f.manager.isRunning());
+            assertEquals(
+                7,
+                f.manager.getProgramState()
+                    .read(0)
+                    .asLong());
+            assertEquals(1, f.manager.submitted);
+        }
+    }
+
+    @Test
+    void recoveryStaleBindingAndClosedStorageRejectResetWithoutChangingStateOrReference() throws Exception {
+        for (int condition = 0; condition < 3; condition++)
+            try (Fixture f = new Fixture(temporary.resolve("resetRejected" + condition))) {
+                f.tick();
+                f.complete(0, COUNTER);
+                f.tick();
+                ProgramStateStore previous = f.manager.getProgramState();
+                if (condition == 0) f.manager.getDisk()
+                    .getTagCompound()
+                    .setTag("sfm:recovery_item", new NBTTagCompound());
+                if (condition == 1) f.manager.getDisk()
+                    .getTagCompound()
+                    .getCompoundTag(ProgramDiskData.NBT_REFERENCE)
+                    .setString("digest", hex('c'));
+                if (condition == 2) f.manager.workspace.close();
+                NBTTagCompound before = (NBTTagCompound) f.manager.getDisk()
+                    .getTagCompound()
+                    .copy();
+                f.manager.resetProgramState();
+                assertFalse(f.manager.isRunning());
+                assertSame(previous, f.manager.getProgramState());
+                assertEquals(
+                    1,
+                    previous.read(0)
+                        .asLong());
+                assertEquals(
+                    before,
+                    f.manager.getDisk()
+                        .getTagCompound());
+                assertTrue(
+                    f.manager.getStatusMessage()
+                        .contains("State not reset"));
+                assertEquals(1, f.manager.submitted);
+            }
+    }
+
+    @Test
+    void referenceResetValidationFailureRetainsAcceptedHeapAndSavedStateUntilAnExplicitRetry() throws Exception {
+        try (Fixture f = new Fixture(temporary.resolve("resetBound"))) {
+            f.tick();
+            f.complete(0, COUNTER);
+            f.tick();
+            ProgramStateStore previous = f.manager.getProgramState();
+            Program plan = f.manager.getCompiledProgram();
+            NBTBase savedState = f.manager.getDisk()
+                .getTagCompound()
+                .getTag(ProgramStateStore.NBT_KEY);
+            f.manager.getDisk()
+                .getTagCompound()
+                .setString("test:oversized", new String(new char[31000]).replace('\0', 'x'));
+            f.manager.resetProgramState();
+            assertFalse(f.manager.isRunning());
+            assertSame(previous, f.manager.getProgramState());
+            assertSame(plan, f.manager.getCompiledProgram());
+            assertTrue(previous.isDirty());
+            assertEquals(
+                1,
+                previous.read(0)
+                    .asLong());
+            assertSame(
+                savedState,
+                f.manager.getDisk()
+                    .getTagCompound()
+                    .getTag(ProgramStateStore.NBT_KEY));
+            assertEquals(
+                "State not reset: published STATE could not be reset safely; program paused",
+                f.manager.getStatusMessage());
+            f.manager.getDisk()
+                .getTagCompound()
+                .removeTag("test:oversized");
+            f.manager.resetProgramState();
+            assertEquals(
+                0,
+                f.manager.getProgramState()
+                    .read(0)
+                    .asLong());
+            assertFalse(f.manager.isRunning());
+            assertEquals(1, f.manager.submitted);
+        }
+    }
+
+    @Test
+    void explicitlyResettingCorruptReferenceStateUsesTheLoadedSchemaWithoutResolvingSource() throws Exception {
+        try (Fixture f = new Fixture(temporary.resolve("resetCorrupt"))) {
+            f.tick();
+            f.complete(0, COUNTER);
+            Program plan = f.manager.getCompiledProgram();
+            f.manager.getDisk()
+                .getTagCompound()
+                .setString(ProgramStateStore.NBT_KEY, "corrupt saved state");
+            f.manager.resetProgramState();
+            assertFalse(f.manager.isRunning());
+            assertSame(plan, f.manager.getCompiledProgram());
+            assertEquals(
+                0,
+                f.manager.getProgramState()
+                    .read(0)
+                    .asLong());
+            assertTrue(
+                f.manager.getDisk()
+                    .getTagCompound()
+                    .hasKey(ProgramStateStore.NBT_KEY, 10));
+            assertFalse(
+                f.manager.getDisk()
+                    .getTagCompound()
+                    .hasKey(ItemDisk.NBT_PROGRAM));
+            assertEquals(1, f.manager.submitted);
+        }
+    }
+
+    @Test
+    void legacyStateResetStillRecompilesItsEmbeddedSourceAndPauses() throws Exception {
+        AuditRegressionTest.Fixture world = new AuditRegressionTest.Fixture();
+        TileEntityManager manager = RecoveryFixtures.manager(world);
+        manager.saveCodeAndRecompile(COUNTER);
+        manager.updateEntity();
+        Program previous = manager.getCompiledProgram();
+        manager.resetProgramState();
+        assertFalse(manager.isRunning());
+        assertNotSame(previous, manager.getCompiledProgram());
+        assertEquals(
+            0,
+            manager.getProgramState()
+                .read(0)
+                .asLong());
+        assertEquals(COUNTER, ItemDisk.getProgramString(manager.getDisk()));
     }
 
     private static String logText(TileEntityManager manager) {

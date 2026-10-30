@@ -180,7 +180,8 @@ class ProjectWorkspaceTest {
     void outstandingRequestsIncludingCompletedCallbacksHaveOneSharedBound() throws Exception {
         try (ProjectWorkspace workspace = new ProjectWorkspace(world)) {
             AtomicReference<ProjectResult<ProjectPage>> result = new AtomicReference<>();
-            for (int i = 0; i < ProjectWorkspace.MAX_PENDING; i++) assertTrue(workspace.list(owner, 0, result::set));
+            for (int i = 0; i < ProjectWorkspace.MAX_AUTHORING_PENDING; i++)
+                assertTrue(workspace.list(owner, 0, result::set));
             assertFalse(workspace.list(owner, 0, result::set));
             awaitCallbacks(workspace, result);
             assertTrue(

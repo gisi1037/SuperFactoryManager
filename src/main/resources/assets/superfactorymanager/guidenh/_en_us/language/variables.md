@@ -100,3 +100,10 @@ There are at most 256 persistent declarations, 256 local declarations per trigge
 Due triggers share 16,384 expression-work units and 16,384 constructed/copied collection cells per manager invocation. Failed assignments publish no replacement value; earlier completed statements remain completed. These bounds limit work and storage, rather than promising a fixed execution time.
 
 Next: [Arrays and structs](collections.md). Related: [Functions](functions.md) and [Expressions](expressions.md).
+
+
+For a loaded immutable reference disk, **Program > Reset state** in the native
+Factory Manager console resets STATE from the loaded schema and leaves the
+reference/labels unchanged. It pauses execution and clears globals/redstone edge
+history. Pending loading, unavailable bindings and transfer recovery reject reset
+without discarding saved values. Use this only when you intend to lose STATE.

@@ -88,13 +88,20 @@ public class PacketManagerAction implements IMessage {
                 ManagerEditContext context = (ManagerEditContext) player.openContainer;
                 // Validate on dequeue, after any intervening clicks, close/reopen or disk swap.
                 if (!msg.token
-                    .matches(context.getEditSessionId(), manager.getDiskGeneration(), player.openContainer.windowId))
+                    .matches(context.getEditSessionId(), manager.getDiskGeneration(), player.openContainer.windowId)) {
+                    if (msg.action == ACTION_RESET_STATE) player.addChatMessage(
+                        new net.minecraft.util.ChatComponentText(
+                            "[SFM] State not reset: disk or editing session changed. Reopen the manager."));
                     return;
+                }
                 if (msg.action == ACTION_RESET) manager.reset();
                 else if (msg.action == ACTION_TOGGLE_RUNNING) {
                     if (manager.canRequestRun()) manager.setRunning(!manager.isRunning());
-                } else if (msg.action == ACTION_RESET_STATE) manager.resetProgramState();
-                else if (msg.action == ACTION_REBUILD) manager.rebuildNetwork();
+                } else if (msg.action == ACTION_RESET_STATE) {
+                    manager.resetProgramState();
+                    player.addChatMessage(
+                        new net.minecraft.util.ChatComponentText("[SFM] " + manager.getStatusMessage()));
+                } else if (msg.action == ACTION_REBUILD) manager.rebuildNetwork();
                 player.worldObj.markBlockForUpdate(msg.x, msg.y, msg.z);
             });
             return null;

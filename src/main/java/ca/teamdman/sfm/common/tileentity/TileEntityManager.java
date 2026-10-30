@@ -85,6 +85,8 @@ public class TileEntityManager extends TileEntity implements IInventory {
     private ReferenceRequest referenceRequest;
     private long referenceActivationGeneration;
     private boolean referenceAttempted;
+    private boolean referenceAdmissionQueued;
+    private long referenceAdmissionRetryTick;
     private boolean referenceExecutionScope;
 
     private String lastCodeCompiled = null;
@@ -663,14 +665,23 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     protected boolean prepareReferenceExecution(ProjectWorkspace workspace, ExecutionReference reference,
         java.util.function.Consumer<ProjectResult<PreparedExecution>> callback) {
-        return workspace.prepareExecution(reference, callback);
+        ReferenceRequest request = referenceRequest;
+        return workspace.enqueueExecution(request, reference, request.current, callback);
     }
 
     protected boolean referenceServerThread() {
         return ca.teamdman.sfm.common.net.ServerUiTasks.isServerThread();
     }
 
+    private void cancelReferenceRequest() {
+        if (referenceWorkspace != null && referenceRequest != null)
+            referenceWorkspace.cancelExecution(referenceRequest);
+        referenceAdmissionQueued = false;
+        referenceAdmissionRetryTick = 0;
+    }
+
     private void invalidateReferenceActivation() {
+        cancelReferenceRequest();
         referenceActivationGeneration = Math.incrementExact(referenceActivationGeneration);
         referenceRequest = null;
         referenceAttempted = false;
@@ -698,6 +709,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     private void failReference(String message) {
+        cancelReferenceRequest();
         referenceRequest = null;
         referenceWorkspace = null;
         referenceAttempted = true;
@@ -724,7 +736,10 @@ public class TileEntityManager extends TileEntity implements IInventory {
                 }
                 referenceAttempted = false;
             }
-            if (allowQueue && referenceRequest == null && !referenceAttempted) queueReferenceActivation();
+            if (allowQueue && (referenceRequest == null && !referenceAttempted
+                || referenceRequest != null && !referenceAdmissionQueued
+                    && worldObj.getTotalWorldTime() - referenceAdmissionRetryTick >= 0))
+                queueReferenceActivation();
             return false;
         }
         ProgramDiskData.Mode mode = ProgramDiskData.mode(diskStack);
@@ -765,11 +780,9 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     private void queueReferenceActivation() {
-        if (!referenceServerThread() || worldObj == null
-            || worldObj.isRemote
-            || isInvalid()
-            || !worldObj.blockExists(xCoord, yCoord, zCoord)
-            || worldObj.getTileEntity(xCoord, yCoord, zCoord) != this) return;
+        if (!referenceServerThread() || worldObj == null || worldObj.isRemote || isInvalid()) return;
+        if (referenceRequest == null && (!worldObj.blockExists(xCoord, yCoord, zCoord)
+            || worldObj.getTileEntity(xCoord, yCoord, zCoord) != this)) return;
         if (hasPendingRecovery()) {
             isRunning = false;
             statusMessage = "Transfer recovery pending; reference activation paused";
@@ -777,41 +790,61 @@ public class TileEntityManager extends TileEntity implements IInventory {
         }
         referenceAttempted = true;
         try {
-            ProjectWorkspace workspace = executionWorkspace(worldObj);
-            if (workspace == null || !executionWorkspaceCurrent(workspace, worldObj)) {
-                failReference("Reference storage unavailable; use Run to retry");
-                return;
+            if (referenceRequest == null) {
+                ProjectWorkspace workspace = executionWorkspace(worldObj);
+                if (workspace == null || !executionWorkspaceCurrent(workspace, worldObj)) {
+                    failReference("Reference storage unavailable; use Run to retry");
+                    return;
+                }
+                referenceWorkspace = workspace;
+                referenceRequest = new ReferenceRequest(this, ProgramDiskData.readReference(diskStack));
             }
-            referenceWorkspace = workspace;
-            ReferenceRequest request = new ReferenceRequest(this, ProgramDiskData.readReference(diskStack));
-            referenceRequest = request;
-            statusMessage = "Loading published program";
-            if (!prepareReferenceExecution(workspace, request.reference, result -> completeReference(request, result)))
-                failReference("Reference storage busy; use Run to retry");
+            ReferenceRequest request = referenceRequest;
+            // Full live authority fences run at the bounded FIFO head immediately before worker submission,
+            // not for every overflowing tile's retry. Completion rechecks them again before publication.
+            referenceAdmissionQueued = prepareReferenceExecution(
+                referenceWorkspace,
+                request.reference,
+                request.callback);
+            if (referenceAdmissionQueued) statusMessage = "Loading published program (queued)";
+            else {
+                // No worker submission, log spam, disk dirtying or new request/closure allocation on overflow retries.
+                int phase = (int) Math.floorMod(31L * xCoord + 17L * yCoord + zCoord + diskGeneration, 20L);
+                referenceAdmissionRetryTick = worldObj.getTotalWorldTime() + 20 + phase;
+                statusMessage = "Loading published program (waiting for capacity)";
+            }
         } catch (IllegalArgumentException | IllegalStateException error) {
             failReference("Reference load unavailable; use Run to retry");
         }
     }
 
+    /** Pure server-side fence reused immediately before worker admission and before plan publication. */
+    private boolean referenceRequestCurrent(ReferenceRequest request) {
+        return referenceRequest == request && referenceActivationGeneration == request.activationGeneration
+            && worldObj == request.world
+            && xCoord == request.x
+            && yCoord == request.y
+            && zCoord == request.z
+            && !isInvalid()
+            && diskStack == request.disk
+            && diskGeneration == request.diskGeneration
+            && referenceBinding == request.binding
+            && request.binding.isCurrent(diskStack)
+            && request.stateCurrent()
+            && worldObj.blockExists(xCoord, yCoord, zCoord)
+            && worldObj.getTileEntity(xCoord, yCoord, zCoord) == this
+            && executionWorkspaceCurrent(request.workspace, request.world);
+    }
+
     private void completeReference(ReferenceRequest request, ProjectResult<PreparedExecution> result) {
         if (!referenceServerThread() || referenceRequest != request
             || referenceActivationGeneration != request.activationGeneration) return;
-        referenceRequest = null;
-        if (worldObj != request.world || xCoord != request.x
-            || yCoord != request.y
-            || zCoord != request.z
-            || isInvalid()
-            || diskStack != request.disk
-            || diskGeneration != request.diskGeneration
-            || referenceBinding != request.binding
-            || !request.binding.isCurrent(diskStack)
-            || !request.stateCurrent()
-            || !worldObj.blockExists(xCoord, yCoord, zCoord)
-            || worldObj.getTileEntity(xCoord, yCoord, zCoord) != this
-            || !executionWorkspaceCurrent(request.workspace, request.world)) {
+        if (!referenceRequestCurrent(request)) {
             failReference("Reference activation became stale; use Run to retry");
             return;
         }
+        referenceRequest = null;
+        referenceAdmissionQueued = false;
         if (hasPendingRecovery()) {
             failReference("Transfer recovery pending; use Run after recovery to retry");
             return;
@@ -854,6 +887,8 @@ public class TileEntityManager extends TileEntity implements IInventory {
         final ProgramDiskBinding binding;
         final ProjectWorkspace workspace;
         final ExecutionReference reference;
+        final java.util.function.BooleanSupplier current;
+        final java.util.function.Consumer<ProjectResult<PreparedExecution>> callback;
         final long diskGeneration, activationGeneration;
         final int x, y, z;
         final NBTTagCompound root;
@@ -870,6 +905,8 @@ public class TileEntityManager extends TileEntity implements IInventory {
             diskGeneration = manager.diskGeneration;
             activationGeneration = manager.referenceActivationGeneration;
             this.reference = reference;
+            current = () -> manager.referenceRequestCurrent(this);
+            callback = result -> manager.completeReference(this, result);
             root = disk.getTagCompound();
             state = root == null ? null : root.getTag(ProgramStateStore.NBT_KEY);
             stateRevision = state instanceof NBTTagCompound ? ((NBTTagCompound) state).getTag("revision") : null;
@@ -1015,6 +1052,10 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     /** Explicitly discard persistent values, preserving program, labels and transfer recovery evidence. */
     public void resetProgramState() {
+        if (ProgramDiskData.mode(diskStack) == ProgramDiskData.Mode.REFERENCE) {
+            resetReferenceProgramState();
+            return;
+        }
         if (diskStack == null || blockUnsupportedProgramDisk()) return;
         invalidateReferenceActivation();
         setRunning(false);
@@ -1038,6 +1079,52 @@ public class TileEntityManager extends TileEntity implements IInventory {
             markDirty();
         } catch (IllegalArgumentException | IllegalStateException e) {
             statusMessage = "State not reset: " + e.getMessage();
+            log(LogLevel.ERROR, statusMessage);
+        }
+    }
+
+    /** Explicit STATE reset uses only the exact already-loaded private schema; no source/storage resolution. */
+    private void resetReferenceProgramState() {
+        if (!referenceServerThread()) {
+            statusMessage = "State not reset: server operation required";
+            return;
+        }
+        // A rejected request during loading still records the user's pause intent. A later completion cannot resume.
+        setRunning(false);
+        if (hasPendingRecovery()) {
+            statusMessage = "State not reset: resolve transfer recovery first; program paused";
+            return;
+        }
+        if (referenceRequest != null) {
+            statusMessage = "State not reset: wait for published program loading to finish; program paused";
+            return;
+        }
+        if (compiledProgram == null || referenceBinding == null
+            || referenceWorld != worldObj
+            || worldObj == null
+            || worldObj.isRemote
+            || isInvalid()
+            || !referenceBinding.isCurrent(diskStack)
+            || referenceWorkspace == null
+            || !executionWorkspaceCurrent(referenceWorkspace, worldObj)
+            || !worldObj.blockExists(xCoord, yCoord, zCoord)
+            || worldObj.getTileEntity(xCoord, yCoord, zCoord) != this) {
+            statusMessage = "State not reset: published program is unavailable or changed; program paused";
+            return;
+        }
+        try {
+            long nextActivationGeneration = Math.incrementExact(referenceActivationGeneration);
+            ProgramStateStore candidate = ProgramStateStore.reset(diskStack, compiledProgram.getStateSchema());
+            // Reset deliberately discards old STATE only after complete candidate validation and publication.
+            candidate.flush();
+            programState = candidate;
+            referenceActivationGeneration = nextActivationGeneration;
+            clearProgramGlobals();
+            resetRedstoneTriggerTracker();
+            statusMessage = "Persistent reference variables reset; program paused";
+            markDirty();
+        } catch (IllegalArgumentException | IllegalStateException | ArithmeticException error) {
+            statusMessage = "State not reset: published STATE could not be reset safely; program paused";
             log(LogLevel.ERROR, statusMessage);
         }
     }

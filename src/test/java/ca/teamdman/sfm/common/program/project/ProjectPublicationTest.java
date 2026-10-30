@@ -356,7 +356,7 @@ class ProjectPublicationTest {
         ProjectDraft draft = store.create(owner, "Invalid", "EVERY DO");
         AtomicReference<ProjectResult<PublicationReceipt>> result = new AtomicReference<>();
         try (ProjectWorkspace workspace = new ProjectWorkspace(world)) {
-            for (int i = 0; i < ProjectWorkspace.MAX_PENDING; i++)
+            for (int i = 0; i < ProjectWorkspace.MAX_AUTHORING_PENDING; i++)
                 assertTrue(workspace.publish(owner, draft.id, 0, result::set));
             assertFalse(workspace.publish(owner, draft.id, 0, result::set));
             await(workspace, result);

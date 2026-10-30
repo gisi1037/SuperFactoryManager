@@ -92,3 +92,12 @@ actual transferred amounts and workload as well as time when tuning a program.
 
 Next: [contents](/automation/contents.md), [stock helpers](/automation/stock.md),
 and [debugging](debugging.md).
+
+
+Reference programs wait in a bounded loading queue. Temporary worker capacity
+does not turn off requested running state; overflow registration retries are
+staggered. Missing/corrupt publications still pause until repaired and retried.
+Cold loads always validate the actual world grant and exact program bundle.
+The lexer now caches separate strict/editor automata, reducing repeated compiler
+allocation without sharing mutable execution plans. Headless results are not a
+whole-pack throughput guarantee.

@@ -123,6 +123,27 @@ class ManagerControlTokenTest {
         }
     }
 
+    @Test
+    void stateResetFrameKeepsTheSameDiskSessionAndWindowAuthorityChecks() throws Exception {
+        ManagerControlToken issued = new ManagerControlToken(SESSION, 7, 42);
+        ByteBuf frame = Unpooled.buffer();
+        try {
+            new PacketManagerAction(10, 20, 30, PacketManagerAction.ACTION_RESET_STATE, issued).toBytes(frame);
+            PacketManagerAction decoded = new PacketManagerAction();
+            decoded.fromBytes(frame);
+            assertTrue(valid(decoded));
+            java.lang.reflect.Field tokenField = PacketManagerAction.class.getDeclaredField("token");
+            tokenField.setAccessible(true);
+            ManagerControlToken token = (ManagerControlToken) tokenField.get(decoded);
+            assertTrue(token.matches(SESSION, 7, 42));
+            assertFalse(token.matches(SESSION, 8, 42));
+            assertFalse(token.matches(UUID.randomUUID(), 7, 42));
+            assertFalse(token.matches(SESSION, 7, 43));
+        } finally {
+            frame.release();
+        }
+    }
+
     private static boolean valid(PacketManagerAction packet) throws Exception {
         java.lang.reflect.Field field = PacketManagerAction.class.getDeclaredField("valid");
         field.setAccessible(true);

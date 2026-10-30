@@ -186,12 +186,15 @@ public final class ManagerMui2Screen extends ModularScreen implements ProgramEdi
         }.size(300, 104)
             .background(ManagerConsoleTheme.SHELL);
         panel.child(
-            new TextWidget<>(resetState ? "Reset persistent variables?" : "Reset disk program and labels?").pos(10, 12)
+            new TextWidget<>(resetState ? "Reset persistent variables?" : "Reset disk program and labels?")
+                .color(0xffe7e8eb)
+                .pos(10, 12)
                 .size(280, 14));
         panel.child(
             new TextWidget<>(
                 resetState ? "Program, labels and recovery records are kept."
-                    : "This clears the installed program and labels.").pos(10, 32)
+                    : "This clears the installed program and labels.").color(0xffb7bcc5)
+                        .pos(10, 32)
                         .size(280, 24));
         panel.child(
             new ButtonWidget<>().pos(10, 70)

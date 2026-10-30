@@ -200,10 +200,17 @@ public class GuiManager extends GuiContainer
                     manager.zCoord,
                     PacketManagerAction.ACTION_TOGGLE_RUNNING));
         } else if (button.id == 12) {
+            if (ca.teamdman.sfm.common.program.ProgramDiskData.mode(manager.getDisk())
+                == ca.teamdman.sfm.common.program.ProgramDiskData.Mode.REFERENCE) {
+                if (mc.thePlayer != null) mc.thePlayer.addChatMessage(
+                    new ChatComponentText(
+                        "[SFM] Use the native manager console to reset published STATE with authenticated controls."));
+                return;
+            }
             mc.displayGuiScreen(
                 new net.minecraft.client.gui.GuiYesNo(
                     this,
-                    "Reset persistent variables?",
+                    "Reset persistent variables and pause?",
                     "Program, labels and recovery records are kept.",
                     12));
         } else if (button.id == 11) {

@@ -96,8 +96,8 @@ Managers submit cold preparations only from server updates. NBT reads, item
 tooltips and client synchronization never resolve source. Completion checks the
 world, loaded tile, physical disk, reference/document, STATE ownership and request
 generations before publishing its private plan. Pause and recovery decisions win
-over late results. Missing/corrupt builds and busy admission pause visibly, with
-explicit Start retry. Warm updates retain the loaded plan without filesystem I/O.
+over late results. Missing/corrupt builds pause visibly with explicit Start retry; temporary
+capacity waits retain run intent and retry automatically through bounded admission. Warm updates retain the loaded plan without filesystem I/O.
 Legacy source disks and their unload/global semantics remain supported.
 
 Reference metadata and source are redacted from general block packets. Authorized
@@ -131,13 +131,14 @@ Remaining order:
 1. Qualify disk writing, activation, pause/retry, missing/corrupt storage and
    reloads in the combined pack. Complete real two-client authority and hardware
    input checks before enabling the reference workflow by default.
-2. Measure and improve cold-start admission for many managers. The shared worker
-   currently admits at most 32 outstanding requests; busy managers require an
-   explicit retry. Fair bounded automatic admission must avoid retry storms and
-   preserve run intent before large-scale reference deployment.
-3. Keep provider/recovery and scaling gates open. No new whole-pack throughput or
-   tick-latency gain is claimed. Reference STATE reset and source-authorized trace
-   mapping remain explicit follow-ups.
+2. Qualify the implemented bounded FIFO admission under real chunk reload/churn.
+   Eight outstanding cold jobs and 24 authoring jobs reserve progress for both
+   workloads. Waiting capacity is 4,096; overflow retry is paced, and FIFO fairness
+   applies to enrolled requests. See [measurements](REFERENCE_PERFORMANCE.md).
+3. Keep provider/recovery and scaling gates open. Explicit loaded-reference STATE
+   reset is implemented and passed the native single-player workflow; multiplayer checks remain. No new whole-pack
+   throughput or hard tick-latency budget is claimed. Source-authorized statement
+   and graph tracing remains separate work.
 4. Continue reusable dependency libraries, typed visual nodes/pickers, source/node
    selection, the live network browser and docked diagnostics afterward.
 
@@ -150,3 +151,8 @@ operations remain SFM responsibilities.
 
 See the [SFML guide](SFML_GUIDE.md) for executable language behavior. Planned
 features in this roadmap do not introduce accepted syntax or a new interpreter.
+
+
+The admission/reset/lexer source checkpoint passes 1,252 tests total: 1,238 passed
+and 14 optional skips, including two opt-in performance suites. The default UI
+still keeps reference writing disabled while runtime qualification remains open.

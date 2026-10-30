@@ -183,7 +183,8 @@ inspect the disk before retrying; the editor does not automatically write again.
 
 The physical disk stores a reference and independent STATE, while source remains
 in world storage. A manager prepares its own program in memory asynchronously.
-Pause intent survives loading and reloads. Missing or invalid builds keep the disk
+Pause intent survives loading and reloads. Temporary capacity waits retry automatically;
+missing or invalid builds keep the disk
 and its saved values intact; **Start** retries a failed preparation. Runtime source
 editing and reset controls do not rewrite an immutable reference. Automatic
 source-bearing debug logs are suppressed for references; deliberate `print()`
@@ -194,3 +195,15 @@ the stored grant and exact bundle again. Reference disks are copyable execution
 capabilities, with independent mutable STATE for each physical copy; they do not
 grant private project editing or source-export access. Real two-player workflows
 and cold-start queue behavior remain qualification gates before general enablement.
+
+
+Use the native manager console's **Program > Reset state** only to deliberately
+discard persistent values. A loaded reference uses its exact in-memory schema;
+its immutable program reference, labels and other disk metadata stay unchanged.
+Reset pauses the manager and clears global values/redstone edge history. It does
+not recompile or redefine round-robin cursor behavior. Loading, unavailable,
+replaced or recovery-blocked disks reject reset without destroying saved STATE.
+The old legacy screen cannot authorize reference reset; use the native console.
+
+See [reference performance](REFERENCE_PERFORMANCE.md) for loading limits,
+correctness-checked measurements and remaining qualification gates.

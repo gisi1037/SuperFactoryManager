@@ -400,7 +400,7 @@ class ExecutionGrantTest {
         AtomicReference<ProjectResult<PreparedExecution>> result = new AtomicReference<>();
         try (ProjectWorkspace workspace = new ProjectWorkspace(world)) {
             synchronized (store.transactionLock()) {
-                for (int i = 0; i < ProjectWorkspace.MAX_PENDING; i++)
+                for (int i = 0; i < ProjectWorkspace.MAX_EXECUTION_PENDING; i++)
                     assertTrue(workspace.prepareExecution(reference, result::set));
                 assertFalse(workspace.prepareExecution(reference, result::set));
                 workspace.close();

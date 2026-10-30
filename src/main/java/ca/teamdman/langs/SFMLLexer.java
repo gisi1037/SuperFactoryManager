@@ -5,6 +5,7 @@ package ca.teamdman.langs;
 import org.antlr.v4.runtime.*;
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.Lexer;
+import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;
 import org.antlr.v4.runtime.misc.*;
@@ -114,6 +115,48 @@ public class SFMLLexer extends Lexer {
     }
 
     public boolean INCLUDE_UNUSED = false; // we want syntax highlighting to not break on unexpected tokens
+
+    private LexerATNSimulator strictSimulator;
+    private LexerATNSimulator tolerantSimulator;
+
+    // Lazily initialized after the generated _ATN, safely published by class initialization. Never mix policies.
+    private static final class PolicyDfas {
+
+        static final DFA[] STRICT = ca.teamdman.sfml.program_builder.CachedSfmlLexerSimulator.createDecisionDfas(_ATN);
+        static final DFA[] TOLERANT = ca.teamdman.sfml.program_builder.CachedSfmlLexerSimulator
+            .createDecisionDfas(_ATN);
+        static final org.antlr.v4.runtime.atn.PredicateTransition UNUSED_GUARD = ca.teamdman.sfml.program_builder.CachedSfmlLexerSimulator
+            .findUnusedGuard(_ATN, UNUSED);
+    }
+
+    /** Override only for simulator differential tests; original simulators must use independent DFA arrays. */
+    protected LexerATNSimulator createLexerSimulator(boolean includeUnused) {
+        return new ca.teamdman.sfml.program_builder.CachedSfmlLexerSimulator(
+            this,
+            _ATN,
+            includeUnused ? PolicyDfas.TOLERANT : PolicyDfas.STRICT,
+            _sharedContextCache,
+            includeUnused,
+            PolicyDfas.UNUSED_GUARD);
+    }
+
+    @Override
+    public Token nextToken() {
+        // The public flag may change between tokens. Snapshot it for this match and preserve position on swaps.
+        LexerATNSimulator selected;
+        if (INCLUDE_UNUSED) {
+            if (tolerantSimulator == null) tolerantSimulator = createLexerSimulator(true);
+            selected = tolerantSimulator;
+        } else {
+            if (strictSimulator == null) strictSimulator = createLexerSimulator(false);
+            selected = strictSimulator;
+        }
+        if (_interp != selected) {
+            selected.copyState(_interp);
+            _interp = selected;
+        }
+        return super.nextToken();
+    }
 
     public SFMLLexer(CharStream input) {
         super(input);

@@ -2,11 +2,15 @@ package ca.teamdman.sfm.common.program.project;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
 import ca.teamdman.sfml.program_builder.ProgramBuildResult;
@@ -25,6 +29,10 @@ public final class ProjectWorkspace implements AutoCloseable {
 
     public static final int MAX_SOURCE_BYTES = 30000, MAX_NAME_BYTES = 96;
     public static final int MAX_PROJECTS_PER_OWNER = 128, PAGE_SIZE = 32, MAX_PENDING = 32;
+    // Independent outstanding limits reserve progress for authoring AND cold activation. Count until callback drain.
+    public static final int MAX_AUTHORING_PENDING = 24, MAX_EXECUTION_PENDING = 8;
+    public static final int MAX_WAITING_EXECUTIONS = 4096, MAX_EXECUTION_REGISTRATIONS = 64;
+    public static final int MAX_ADMISSION_INSPECTIONS = 8, MAX_EXECUTION_STARTS = 8;
     public static final int MAX_DIAGNOSTIC_CHARS = 1024;
     public static final int MAX_PUBLICATIONS_PER_PROJECT = 128, MAX_PROGRAMS_PER_WORLD = 4096;
     public static final long MAX_PROGRAM_BYTES_PER_WORLD = 64L * 1024 * 1024;
@@ -34,7 +42,11 @@ public final class ProjectWorkspace implements AutoCloseable {
     private final ThreadPoolExecutor worker;
     private final ArrayBlockingQueue<Runnable> callbacks = new ArrayBlockingQueue<>(MAX_PENDING);
     private boolean closed;
-    private int pending;
+    private int pending, authoringPending, executionPending;
+    // Server-owned FIFO. A request key is the manager's exact activation-generation token, never a coordinate.
+    private final LinkedHashMap<Object, ExecutionWaiter> waitingExecutions = new LinkedHashMap<>();
+    private final Map<Object, ExecutionWaiter> activeExecutions = new HashMap<>();
+    private int registrations, lastAdmissionInspections, lastAdmissionSubmissions;
 
     public ProjectWorkspace(Path worldDirectory) {
         repository = new ProjectRepository(Objects.requireNonNull(worldDirectory, "worldDirectory"));
@@ -90,7 +102,121 @@ public final class ProjectWorkspace implements AutoCloseable {
      * Worker-only cold activation; every success owns a freshly compiled Program and performs current storage checks.
      */
     public boolean prepareExecution(ExecutionReference reference, Consumer<ProjectResult<PreparedExecution>> callback) {
-        return submit(() -> repository.prepareExecution(reference), callback);
+        return submit(() -> repository.prepareExecution(reference), callback, true);
+    }
+
+    /**
+     * Register one cold request without submitting storage work. Called on the owning server thread; current is
+     * evaluated only there immediately before admission. False means temporary waiter/registration capacity, not a
+     * broken disk. Continuously valid enrolled requests are FIFO; overflow retries are paced by the manager.
+     */
+    public synchronized boolean enqueueExecution(Object key, ExecutionReference reference, BooleanSupplier current,
+        Consumer<ProjectResult<PreparedExecution>> callback) {
+        Objects.requireNonNull(key, "key");
+        Objects.requireNonNull(reference, "reference");
+        Objects.requireNonNull(current, "current");
+        Objects.requireNonNull(callback, "callback");
+        if (closed || registrations >= MAX_EXECUTION_REGISTRATIONS) return false;
+        registrations++; // Count unsuccessful capacity attempts too, before doing registry/fence work.
+        if (waitingExecutions.size() >= MAX_WAITING_EXECUTIONS) return false;
+        if (waitingExecutions.containsKey(key) || activeExecutions.containsKey(key))
+            throw new IllegalStateException("Execution request is already registered");
+        waitingExecutions.put(key, new ExecutionWaiter(key, reference, current, callback));
+        return true;
+    }
+
+    /** Waiting cancellation is O(1). Submitted work retains its outstanding slot until its real completion drains. */
+    public synchronized void cancelExecution(Object key) {
+        ExecutionWaiter waiter = waitingExecutions.remove(key);
+        if (waiter == null) waiter = activeExecutions.remove(key);
+        if (waiter != null) waiter.release();
+    }
+
+    public synchronized int getWaitingExecutionCount() {
+        return waitingExecutions.size();
+    }
+
+    public synchronized int getPendingExecutionCount() {
+        return executionPending;
+    }
+
+    public synchronized int getPendingAuthoringCount() {
+        return authoringPending;
+    }
+
+    public synchronized int getLastAdmissionInspections() {
+        return lastAdmissionInspections;
+    }
+
+    public synchronized int getLastAdmissionSubmissions() {
+        return lastAdmissionSubmissions;
+    }
+
+    private RuntimeException admitExecutions() {
+        RuntimeException failure = null;
+        lastAdmissionInspections = lastAdmissionSubmissions = 0;
+        while (!closed && !waitingExecutions.isEmpty()
+            && executionPending < MAX_EXECUTION_PENDING
+            && lastAdmissionInspections < MAX_ADMISSION_INSPECTIONS
+            && lastAdmissionSubmissions < MAX_EXECUTION_STARTS) {
+            java.util.Iterator<ExecutionWaiter> iterator = waitingExecutions.values()
+                .iterator();
+            ExecutionWaiter waiter = iterator.next();
+            lastAdmissionInspections++;
+            boolean current;
+            try {
+                current = waiter.current.getAsBoolean();
+            } catch (RuntimeException error) {
+                current = false;
+            }
+            if (!current) {
+                iterator.remove();
+                Consumer<ProjectResult<PreparedExecution>> callback = waiter.callback;
+                waiter.release();
+                try {
+                    callback.accept(ProjectResult.failure(ProjectResult.Status.STALE, "Reference activation changed"));
+                } catch (RuntimeException error) {
+                    if (failure == null) failure = error;
+                }
+                continue;
+            }
+            lastAdmissionSubmissions++;
+            if (!prepareExecution(waiter.reference, result -> finishExecution(waiter, result))) break;
+            iterator.remove();
+            activeExecutions.put(waiter.key, waiter);
+        }
+        return failure;
+    }
+
+    private void finishExecution(ExecutionWaiter waiter, ProjectResult<PreparedExecution> result) {
+        // Already on the server callback drain, after the outstanding worker slot has been retired.
+        if (waiter.key == null) return;
+        activeExecutions.remove(waiter.key);
+        Consumer<ProjectResult<PreparedExecution>> callback = waiter.callback;
+        waiter.release();
+        callback.accept(result);
+    }
+
+    private static final class ExecutionWaiter {
+
+        Object key;
+        final ExecutionReference reference;
+        BooleanSupplier current;
+        Consumer<ProjectResult<PreparedExecution>> callback;
+
+        ExecutionWaiter(Object key, ExecutionReference reference, BooleanSupplier current,
+            Consumer<ProjectResult<PreparedExecution>> callback) {
+            this.key = key;
+            this.reference = reference;
+            this.current = current;
+            this.callback = callback;
+        }
+
+        void release() {
+            key = null;
+            current = null;
+            callback = null;
+        }
     }
 
     public boolean validate(UUID owner, UUID id, long expectedRevision,
@@ -110,10 +236,19 @@ public final class ProjectWorkspace implements AutoCloseable {
      * Return false if the service is closed or all outstanding callback slots are occupied. Rejected submissions have
      * no callback and no side effects; the server can immediately report busy/closed to that request.
      */
-    private synchronized <T> boolean submit(Operation<T> operation, Consumer<ProjectResult<T>> callback) {
+    private <T> boolean submit(Operation<T> operation, Consumer<ProjectResult<T>> callback) {
+        return submit(operation, callback, false);
+    }
+
+    private synchronized <T> boolean submit(Operation<T> operation, Consumer<ProjectResult<T>> callback,
+        boolean execution) {
         Objects.requireNonNull(callback, "callback");
-        if (closed || pending >= MAX_PENDING) return false;
+        if (closed || pending >= MAX_PENDING
+            || (execution ? executionPending >= MAX_EXECUTION_PENDING : authoringPending >= MAX_AUTHORING_PENDING))
+            return false;
         pending++;
+        if (execution) executionPending++;
+        else authoringPending++;
         worker.execute(() -> {
             ProjectResult<T> result;
             try {
@@ -135,7 +270,11 @@ public final class ProjectWorkspace implements AutoCloseable {
             }
             ProjectResult<T> completed = result;
             synchronized (ProjectWorkspace.this) {
-                if (!closed) callbacks.add(() -> callback.accept(completed));
+                if (!closed) callbacks.add(() -> {
+                    if (execution) executionPending--;
+                    else authoringPending--;
+                    callback.accept(completed);
+                });
             }
         });
         return true;
@@ -145,6 +284,7 @@ public final class ProjectWorkspace implements AutoCloseable {
     public int drainCallbacks(int maximum) {
         if (maximum < 0 || maximum > MAX_PENDING) throw new IllegalArgumentException("Invalid completion allowance");
         int drained = 0;
+        RuntimeException failure = null;
         while (drained < maximum) {
             synchronized (this) {
                 if (closed) break;
@@ -152,10 +292,26 @@ public final class ProjectWorkspace implements AutoCloseable {
                 if (callback == null) break;
                 pending--;
                 // close() cannot return while an already-drained callback is about to touch its old world.
-                callback.run();
+                try {
+                    callback.run();
+                } catch (RuntimeException error) {
+                    if (failure == null) failure = error;
+                }
             }
             drained++;
         }
+        synchronized (this) {
+            try {
+                if (!closed && maximum > 0) {
+                    RuntimeException admissionFailure = admitExecutions();
+                    if (failure == null) failure = admissionFailure;
+                }
+            } finally {
+                registrations = 0;
+            }
+        }
+        // Finish bounded drainage/admission first, then report one failure to the owning service's logger.
+        if (failure != null) throw failure;
         return drained;
     }
 
@@ -167,8 +323,12 @@ public final class ProjectWorkspace implements AutoCloseable {
     public synchronized void close() {
         if (closed) return;
         closed = true;
+        for (ExecutionWaiter waiter : waitingExecutions.values()) waiter.release();
+        for (ExecutionWaiter waiter : activeExecutions.values()) waiter.release();
+        waitingExecutions.clear();
+        activeExecutions.clear();
         callbacks.clear();
-        pending = 0;
+        pending = authoringPending = executionPending = 0;
         worker.shutdownNow();
     }
 
