@@ -20,15 +20,15 @@ checks the exact saved server revision, so save first when you want that check
 to include your latest edits. Invalid text can be saved as a draft.
 
 The top bar shows the selected project, draft status, SAFE authoring status,
-Essentials/Advanced tool mode, Save, Check and Imprint disk. Essentials uses typed
+Settings, Save, Check and Imprint disk. Settings includes the tool mode. Essentials uses typed
 node fields; Advanced also exposes a selected node's raw SFML clause. Both modes
 support the same language and retain the full searchable insert/API catalog.
 The full-width Insert bar sits above Projects and the larger Visual/Split/Code
 buttons, which sit directly above the authoring surface. Drag the project-column
-divider or the horizontal dock divider to resize those regions. Studio and its
-dialogs stay fixed in place; their title bars do not move the interface.
+divider or the horizontal dock divider to resize those regions. Studio stays fixed
+in place. The **Settings** dialog can be moved by dragging its title bar.
 
-Open **Essentials/Advanced > Studio scale** to change the editor's GUI scale with
+Open **Settings > Studio scale** to change the editor's GUI scale with
 **-** and **+**. **Game** restores following Minecraft's GUI scale. The choice is
 saved on this client and applies to Studio and its dialogs only; the HUD, Manager
 and other screens keep their game scale. If the window becomes too small, Studio

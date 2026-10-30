@@ -324,13 +324,13 @@ public final class Mui2ProgrammingStation {
                     .color(0xffe7e8eb))
             .addTooltipLine("Current project. Browse and switch in the Projects column.");
         panel.child(projectSelector);
-        toolsButton = button("Tools", 0, 3, 46, () -> true, () -> {
+        toolsButton = button("Settings", 0, 3, 46, () -> true, () -> {
             removeFocus();
             toolsPanel.deleteCachedPanel();
             toolsPanel.openPanel();
         }).height(21)
             .overlay(
-                IKey.dynamic(() -> advancedTools ? "Advanced" : "Essentials")
+                IKey.str("Settings")
                     .scale(.75f))
             .addTooltipLine(
                 "Tool mode and editor actions. Essentials uses typed node fields; Advanced also exposes raw clauses.");
@@ -543,9 +543,13 @@ public final class Mui2ProgrammingStation {
     private ModularPanel buildTools() {
         ModularPanel popup = modal("sfm_studio_tools", 312, 228);
         popup.child(
-            new TextWidget<>("Editor tools").color(0xffefa09a)
+            new TextWidget<>("Editor settings").color(0xffefa09a)
                 .pos(8, 8)
                 .size(296, 12));
+        popup.child(
+            new StudioPanelDragWidget().pos(4, 4)
+                .widthRelOffset(1f, -8)
+                .height(20));
         String[] names = { "New draft", "Copy", "Undo", "Redo", "Indent", "Wrap", "Find / Replace", "Validate saved",
             "API reference", "Problems", "Terminal", "Saved builds" };
         Runnable[] commands = { () -> protect("New draft", this::newDraft), this::copy, () -> undo(false),
