@@ -14,7 +14,9 @@ import com.cleanroommc.modularui.value.sync.BooleanSyncValue;
 import com.cleanroommc.modularui.value.sync.GenericSyncValue;
 import com.cleanroommc.modularui.value.sync.PanelSyncManager;
 import com.cleanroommc.modularui.value.sync.StringSyncValue;
+import com.cleanroommc.modularui.widget.sizer.Unit;
 import com.cleanroommc.modularui.widgets.ButtonWidget;
+import com.cleanroommc.modularui.widgets.SlotGroupWidget;
 import com.cleanroommc.modularui.widgets.TextWidget;
 import com.cleanroommc.modularui.widgets.slot.ItemSlot;
 
@@ -29,8 +31,8 @@ public final class ManagerMui2Panel {
 
     public static final String PANEL_NAME = "sfm_manager";
     public static final String DISK_SYNC_KEY = "sfm_disk";
-    public static final int WIDTH = 312;
-    public static final int HEIGHT = 220;
+    public static final int WIDTH = ManagerMachineLayout.WIDTH;
+    public static final int HEIGHT = ManagerMachineLayout.HEIGHT;
 
     private ManagerMui2Panel() {}
 
@@ -44,8 +46,7 @@ public final class ManagerMui2Panel {
         Objects.requireNonNull(syncManager, "syncManager");
         syncManager.registerSlotGroup(DISK_SYNC_KEY, 1);
         syncManager.itemSlot(DISK_SYNC_KEY, new ManagerDiskSlot(manager).slotGroup(DISK_SYNC_KEY));
-        syncManager.bindPlayerInventory(owner);
-        ManagerPlayerInventory inventory = new ManagerPlayerInventory(syncManager, owner.inventory);
+        SlotGroupWidget inventory = PlayerInventoryWidgets.bind(syncManager, owner);
 
         BooleanSyncValue hasDisk = new BooleanSyncValue(() -> manager.getDisk() != null);
         BooleanSyncValue running = new BooleanSyncValue(manager::isRunning);
@@ -107,14 +108,24 @@ public final class ManagerMui2Panel {
         Supplier<ManagerActivitySample> sampled = () -> activity.getValue() == null ? ManagerActivitySample.EMPTY
             : activity.getValue();
 
-        // The server binds the same canonical slot keys; only client presentation reflows.
-        final int[] page = { 0 };
-        ModularPanel panel = new ModularPanel(PANEL_NAME).widthRel(1f)
-            .heightRel(1f)
-            .pos(0, 0)
+        // A machine window uses stock slots; optional inventory extensions own their presentation.
+        ManagerConsoleBody body = new ManagerConsoleBody();
+        body.control(controlToken::getValue);
+        ModularPanel panel = new ModularPanel(PANEL_NAME).size(WIDTH, HEIGHT)
             .background(ManagerConsoleTheme.SHELL)
             .resizeableOnDrag(false)
             .excludeAreaInRecipeViewer();
+        panel.height(
+            () -> ManagerMachineLayout.height(
+                panel.getScreen()
+                    .getScreenArea().height),
+            Unit.Measure.PIXEL);
+        panel.child(
+            body.name("manager_console_body")
+                .pos(8, ManagerMachineLayout.CONTENT_TOP)
+                .widthRelOffset(1f, -16)
+                .bottom(ManagerMachineLayout.INVENTORY_RESERVE)
+                .setEnabledIf(widget -> body.page() >= 3));
         IPanelHandler[] expanded = { null };
         expanded[0] = IPanelHandler.simple(panel, (parent, player) -> {
             ModularPanel detail = new ModularPanel("sfm_manager_activity") {
@@ -188,25 +199,27 @@ public final class ManagerMui2Panel {
                 21,
                 56).right(8)
                     .background(ManagerConsoleTheme.PRIMARY));
-        String[] destinations = { "Overview", "Program", "Network" };
+        String[] destinations = { "Overview", "Program", "Network", "Terminal", "Logs", "Profile", "Watch" };
+        int[] widths = { 48, 44, 43, 46, 30, 38, 32 };
+        int nextTab = 8;
         for (int i = 0; i < destinations.length; i++) {
             final int destination = i;
             panel.child(
-                new ButtonWidget<>().pos(8 + i * 61, 42)
-                    .size(59, 17)
+                new ButtonWidget<>().pos(nextTab, 42)
+                    .size(widths[i], 17)
                     .background(ManagerConsoleTheme.BUTTON)
                     .hoverBackground(ManagerConsoleTheme.HOVER)
                     .overlay(
                         IKey.dynamic(
-                            () -> (page[0] == destination ? "\u00a7f" : "\u00a77") + destinations[destination]))
+                            () -> (body.page() == destination ? "\u00a7f" : "\u00a77") + destinations[destination])
+                            .scale(.8f))
                     .onMousePressed(mouse -> {
                         if (mouse != 0) return false;
-                        page[0] = destination;
+                        body.select(destination);
                         return true;
                     }));
+            nextTab += widths[i] + 2;
         }
-        panel.child(button(manager, syncManager, controlToken, "terminal", () -> "Terminal", () -> true, 191, 42, 58));
-        panel.child(button(manager, syncManager, controlToken, "logs", () -> "Logs", diskPresent, 251, 42, 53));
         panel.child(
             IKey.dynamic(
                 () -> sampled.get()
@@ -218,12 +231,12 @@ public final class ManagerMui2Panel {
                 .height(12)
                 .scale(.75f)
                 .addTooltipLine("Full manager update cost; not transfer throughput or individual statement timing.")
-                .setEnabledIf(widget -> page[0] == 0));
+                .setEnabledIf(widget -> body.page() == 0));
         panel.child(
             new ManagerActivityView(sampled, false).pos(8, 79)
                 .widthRelOffset(1f, -16)
                 .height(26)
-                .setEnabledIf(widget -> page[0] == 0));
+                .setEnabledIf(widget -> body.page() == 0));
         panel.child(
             new ButtonWidget<>().pos(0, 63)
                 .right(8)
@@ -236,7 +249,7 @@ public final class ManagerMui2Panel {
                     if (syncManager.isClient()) expanded[0].openPanel();
                     return true;
                 })
-                .setEnabledIf(widget -> page[0] == 0));
+                .setEnabledIf(widget -> body.page() == 0));
         panel.child(
             IKey.str("Source disk editing; changes apply to this manager.")
                 .asWidget()
@@ -244,7 +257,7 @@ public final class ManagerMui2Panel {
                 .pos(8, 63)
                 .height(10)
                 .scale(.75f)
-                .setEnabledIf(widget -> page[0] == 1));
+                .setEnabledIf(widget -> body.page() == 1));
         String[] programActions = { "text", "visual", "paste", "copy", "example", "reset_state", "reset" };
         String[] programTitles = { "Edit code", "Visual", "Paste", "Copy code", "Example", "Reset state",
             "Reset disk" };
@@ -260,7 +273,7 @@ public final class ManagerMui2Panel {
                     i == 4 ? () -> true : diskPresent,
                     8 + i % 4 * 75,
                     75 + i / 4 * 18,
-                    72).setEnabledIf(widget -> page[0] == 1));
+                    72).setEnabledIf(widget -> body.page() == 1));
         }
         panel.child(
             IKey.str("Live network browser: planned")
@@ -268,7 +281,7 @@ public final class ManagerMui2Panel {
                 .color(0xffb7bcc5)
                 .pos(8, 64)
                 .height(12)
-                .setEnabledIf(widget -> page[0] == 2));
+                .setEnabledIf(widget -> body.page() == 2));
         panel.child(
             IKey.str("Saved labels do not prove loaded inventory access.")
                 .asWidget()
@@ -276,21 +289,24 @@ public final class ManagerMui2Panel {
                 .pos(8, 79)
                 .height(10)
                 .scale(.75f)
-                .setEnabledIf(widget -> page[0] == 2));
+                .setEnabledIf(widget -> body.page() == 2));
         panel.child(
             button(manager, syncManager, controlToken, "rebuild", () -> "Rebuild network", diskPresent, 8, 96, 104)
-                .setEnabledIf(widget -> page[0] == 2));
+                .setEnabledIf(widget -> body.page() == 2));
         panel.child(
             button(manager, syncManager, controlToken, "config", () -> "Server limits", () -> true, 115, 96, 90)
-                .setEnabledIf(widget -> page[0] == 2));
+                .setEnabledIf(widget -> body.page() == 2));
         if (Config.showDiscordButton) panel.child(
             button(manager, syncManager, controlToken, "discord", () -> "Discord", () -> true, 208, 96, 70)
-                .setEnabledIf(widget -> page[0] == 2));
+                .setEnabledIf(widget -> body.page() == 2));
         panel.child(
-            inventory.left(0)
-                .right(0)
-                .top(112)
-                .bottom(4));
+            new TextWidget<>("Inventory").leftRel(.5f)
+                .bottom(85)
+                .size(168, 10)
+                .color(0xffb7bcc5));
+        panel.child(
+            inventory.leftRel(.5f)
+                .bottom(6));
         return panel;
     }
 

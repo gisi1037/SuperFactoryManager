@@ -21,6 +21,17 @@ class TerminalCommandCompletionTest {
     }
 
     @Test
+    void profileAndWatchVocabularyCompletesWithoutResolvingNamesOrExecutingCommands() {
+        TerminalCommandCompletion completion = new TerminalCommandCompletion();
+        assertEquals("watch", completion.complete("wat", false));
+        assertEquals("profile start", completion.complete("profile st", false));
+        assertEquals("profile stop", completion.complete("profile start", false));
+        assertEquals("profile status", completion.complete("profile stop", false));
+        assertEquals("watch $private", completion.complete("watch $private", false));
+        assertEquals("profile start 1200", completion.complete("profile start 1200", false));
+    }
+
+    @Test
     void argumentsUnknownPrefixesAndOversizedTextAreNeverReplaced() {
         TerminalCommandCompletion completion = new TerminalCommandCompletion();
         for (String text : new String[] { "labels Input Chest", "state $counter", "logs 12", "unknown",

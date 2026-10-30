@@ -11,6 +11,10 @@ public final class GlobalDeclaration {
         this.initializer = initializer;
     }
 
+    public String getName() {
+        return binding.name;
+    }
+
     public DataType getType() {
         return binding.type;
     }

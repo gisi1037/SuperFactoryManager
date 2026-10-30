@@ -242,7 +242,7 @@ final class ProjectRepository {
         PublishedProgram bundle = verifyProgram(reference.digest);
         ProgramBuildResult build = new ProgramBuilder(bundle.source).build();
         if (!build.isSuccess()) throw new Failure(ProjectResult.Status.INVALID, "Published program cannot be compiled");
-        return new PreparedExecution(reference, build.getProgram(), bundle.source);
+        return new PreparedExecution(reference, build.getProgram(), bundle.source, grant.owner);
     }
 
     private Path executionGrantDirectory(boolean create) throws IOException {

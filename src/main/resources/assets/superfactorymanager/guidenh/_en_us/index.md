@@ -59,9 +59,8 @@ Local and persistent variables, strings, fixed arrays/structs, arithmetic,
 bitwise operations, bounded loops, typed player functions, PRINT, item queries,
 grouped contents, value-driven item transfers and Redstone Ports are available.
 The Programming Station saves and validates private drafts and publishes immutable
-root-source builds. The Factory Manager has split player-storage views and measured cost/activity charts.
+root-source builds. The Factory Manager has a normal machine inventory, inline diagnostics, measured cost/activity charts, an opt-in profiler and live variable watches.
 
-Reference-only disks and asynchronous activation are under qualification and
-disabled by default. Reusable published libraries, effectful player actions,
+The station can imprint an exact saved publication onto a fresh execution disk; managers load it into private runtime memory. Reusable published libraries, effectful player actions,
 recipe-query/NEI APIs and Lua are still planned. The
 [feature boundary](/reference/status.md) explains the distinctions.

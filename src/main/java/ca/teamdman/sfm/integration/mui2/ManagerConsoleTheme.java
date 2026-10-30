@@ -20,6 +20,12 @@ final class ManagerConsoleTheme {
             GuiDraw.drawRect(x, y, 1, height, light);
             GuiDraw.drawRect(x, y + height - 1, width, 1, dark);
             GuiDraw.drawRect(x + width - 1, y, 1, height, dark);
+            if (width > 6 && height > 6) {
+                GuiDraw.drawRect(x + 1, y + 1, width - 2, 1, light);
+                GuiDraw.drawRect(x + 1, y + 2, 1, height - 4, light);
+                GuiDraw.drawRect(x + 2, y + height - 2, width - 3, 1, dark);
+                GuiDraw.drawRect(x + width - 2, y + 2, 1, height - 4, dark);
+            }
         };
     }
 }

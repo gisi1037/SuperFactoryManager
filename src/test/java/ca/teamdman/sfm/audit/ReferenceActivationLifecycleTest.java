@@ -710,6 +710,71 @@ class ReferenceActivationLifecycleTest {
             : factory.invoke(null, failure, "PRIVATE_SOURCE_MUST_NOT_ENTER_CLIENT_STATUS"));
     }
 
+    @Test
+    void privateVariableInspectionRequiresVerifiedAuthorAndExactCurrentActivation() throws Exception {
+        java.util.UUID author = java.util.UUID.randomUUID(), bearer = java.util.UUID.randomUUID();
+        try (Fixture f = new Fixture(temporary.resolve("author-watch"))) {
+            f.tick();
+            f.complete(
+                0,
+                "STATE $hiddenCounter = 4 LET $privateSession = 8 EVERY 1 TICKS DO SET $hiddenCounter = $hiddenCounter + 1 END",
+                author);
+            f.tick();
+            assertTrue(f.manager.canInspectVariables(author));
+            assertFalse(f.manager.canInspectVariables(bearer));
+            assertFalse(f.manager.canInspectVariables(null));
+            List<String> own = ca.teamdman.sfm.common.program.DebugTerminalService.execute(f.manager, "watch", author);
+            assertTrue(own.contains("STATE $hiddenCounter = 5"));
+            assertTrue(own.contains("GLOBAL $privateSession = 8"));
+            for (String command : new String[] { "state", "state $hiddenCounter", "watch", "watch $privateSession" }) {
+                List<String> other = ca.teamdman.sfm.common.program.DebugTerminalService
+                    .execute(f.manager, command, bearer);
+                assertEquals(ca.teamdman.sfm.common.program.DebugTerminalService.variableAccessDenied(), other);
+                assertFalse(
+                    String.join("", other)
+                        .contains("hiddenCounter"));
+                assertFalse(
+                    String.join("", other)
+                        .contains("privateSession"));
+            }
+            assertTrue(
+                ca.teamdman.sfm.common.program.DebugTerminalService.execute(f.manager, "profile start 2", bearer)
+                    .get(0)
+                    .contains("Profile ON"),
+                "Aggregate timing needs no source-read authority");
+            NBTTagCompound root = f.manager.getDisk()
+                .getTagCompound();
+            assertFalse(root.hasKey("sourceOwner"), "The verified owner is server memory, never bearer metadata");
+            NBTTagCompound savedState = root.getCompoundTag(ProgramStateStore.NBT_KEY);
+            savedState.setLong("revision", savedState.getLong("revision"));
+            assertFalse(
+                f.manager.canInspectVariables(author),
+                "Replacing a STATE revision tag invalidates its heap binding");
+        }
+    }
+
+    @Test
+    void replacingReferenceDiskOrWorkspaceCannotCarryOldAuthorInspectionAuthority() throws Exception {
+        java.util.UUID author = java.util.UUID.randomUUID(), nextAuthor = java.util.UUID.randomUUID();
+        try (Fixture f = new Fixture(temporary.resolve("author-replacement"))) {
+            f.tick();
+            f.complete(0, COUNTER, author);
+            assertTrue(f.manager.canInspectVariables(author));
+            ItemStack replacement = f.manager.getStackInSlot(0)
+                .copy();
+            f.manager.setInventorySlotContents(0, replacement);
+            assertFalse(f.manager.canInspectVariables(author));
+            f.tick();
+            f.complete(1, COUNTER, nextAuthor);
+            assertFalse(f.manager.canInspectVariables(author));
+            assertTrue(f.manager.canInspectVariables(nextAuthor));
+            f.manager.current = false;
+            assertFalse(
+                f.manager.canInspectVariables(nextAuthor),
+                "Closed/replaced world store revokes the old activation");
+        }
+    }
+
     private static final class ControlledManager extends TileEntityManager {
 
         static {
@@ -782,6 +847,19 @@ class ReferenceActivationLifecycleTest {
                 .getDeclaredConstructor(ExecutionReference.class, Program.class, String.class);
             constructor.setAccessible(true);
             PreparedExecution prepared = constructor.newInstance(manager.references.get(index), program, source);
+            manager.callbacks.get(index)
+                .accept(outcome(prepared, null));
+        }
+
+        void complete(int index, String source, java.util.UUID sourceOwner) throws Exception {
+            Program program = new ProgramBuilder(source).build()
+                .getProgram();
+            assertNotNull(program);
+            Constructor<PreparedExecution> constructor = PreparedExecution.class
+                .getDeclaredConstructor(ExecutionReference.class, Program.class, String.class, java.util.UUID.class);
+            constructor.setAccessible(true);
+            PreparedExecution prepared = constructor
+                .newInstance(manager.references.get(index), program, source, sourceOwner);
             manager.callbacks.get(index)
                 .accept(outcome(prepared, null));
         }

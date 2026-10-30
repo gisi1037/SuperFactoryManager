@@ -12,15 +12,21 @@ final class StudioDividerWidget extends Widget<StudioDividerWidget> implements I
 
     private final BooleanSupplier available;
     private final IntConsumer move;
+    private final boolean horizontal;
     private boolean dragging;
 
     StudioDividerWidget(BooleanSupplier available, IntConsumer move) {
+        this(available, move, false, "Drag to resize Visual and Code. Source and node positions are preserved.");
+    }
+
+    StudioDividerWidget(BooleanSupplier available, IntConsumer move, boolean horizontal, String tooltip) {
         this.available = available;
         this.move = move;
+        this.horizontal = horizontal;
         width(6);
         background(new Rectangle().color(0xff292e35));
         hoverBackground(new Rectangle().color(0xff9d6269));
-        addTooltipLine("Drag to resize Visual and Code. Source and node positions are preserved.");
+        addTooltipLine(tooltip);
     }
 
     @Override
@@ -32,7 +38,8 @@ final class StudioDividerWidget extends Widget<StudioDividerWidget> implements I
 
     @Override
     public void onMouseDrag(int button, long elapsed) {
-        if (dragging && available.getAsBoolean()) move.accept(getContext().getAbsMouseX());
+        if (dragging && available.getAsBoolean())
+            move.accept(horizontal ? getContext().getAbsMouseY() : getContext().getAbsMouseX());
     }
 
     @Override

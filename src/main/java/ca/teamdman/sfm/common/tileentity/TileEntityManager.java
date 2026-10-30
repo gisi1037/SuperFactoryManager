@@ -27,6 +27,8 @@ import ca.teamdman.sfm.common.item.ItemDisk;
 import ca.teamdman.sfm.common.label.LabelPositionHolder;
 import ca.teamdman.sfm.common.network.CableNetwork;
 import ca.teamdman.sfm.common.program.DebugConsole;
+import ca.teamdman.sfm.common.program.DebugTerminalService;
+import ca.teamdman.sfm.common.program.ManagerExecutionProfiler;
 import ca.teamdman.sfm.common.program.ProgramContext;
 import ca.teamdman.sfm.common.program.ProgramDiskBinding;
 import ca.teamdman.sfm.common.program.ProgramDiskData;
@@ -51,6 +53,8 @@ public class TileEntityManager extends TileEntity implements IInventory {
     private Program globalProgram;
     private ca.teamdman.sfml.data.ProgramGlobals programGlobals;
     private DebugConsole debugConsole;
+    private ManagerExecutionProfiler executionProfiler;
+    private boolean profiledDueUpdate;
 
     public ca.teamdman.sfml.data.ProgramGlobals getProgramGlobals(Program program) {
         if (globalProgram != program || programGlobals == null) {
@@ -75,11 +79,64 @@ public class TileEntityManager extends TileEntity implements IInventory {
         return debugConsole;
     }
 
+    /** Diagnostic entry points are used from the existing authenticated server UI queue only. */
+    public boolean isLiveDiagnosticsThread() {
+        return (worldObj == null || !worldObj.isRemote) && !isInvalid()
+            && (net.minecraft.server.MinecraftServer.getServer() == null
+                || ca.teamdman.sfm.common.net.ServerUiTasks.isServerThread());
+    }
+
+    public boolean startExecutionProfile(int updateLimit) {
+        if (!isLiveDiagnosticsThread()) return false;
+        executionProfiler = new ManagerExecutionProfiler(updateLimit);
+        return true;
+    }
+
+    public void stopExecutionProfile() {
+        if (isLiveDiagnosticsThread() && executionProfiler != null) executionProfiler.stop();
+    }
+
+    public void resetExecutionProfile() {
+        if (isLiveDiagnosticsThread()) executionProfiler = null;
+    }
+
+    public ManagerExecutionProfiler.Snapshot getExecutionProfileSnapshot() {
+        return !isLiveDiagnosticsThread() || executionProfiler == null ? ManagerExecutionProfiler.Snapshot.EMPTY
+            : executionProfiler.snapshot();
+    }
+
+    /** A bearer can execute/copy a reference; only its validated source author may inspect private variables. */
+    public boolean canInspectVariables(UUID actor) {
+        if (!isLiveDiagnosticsThread()) return false;
+        ProgramDiskData.Mode mode = ProgramDiskData.mode(diskStack);
+        if (mode == ProgramDiskData.Mode.LEGACY) return referenceBinding == null;
+        return mode == ProgramDiskData.Mode.REFERENCE && actor != null
+            && actor.equals(referenceSourceOwner)
+            && referenceBinding != null
+            && referenceBinding.isCurrent(diskStack)
+            && compiledProgram != null
+            && referenceRequest == null
+            && referenceWorld == worldObj
+            && worldObj != null
+            && referenceWorkspace != null
+            && executionWorkspaceCurrent(referenceWorkspace, worldObj)
+            && (programState == null || programState.isCurrent(diskStack))
+            && worldObj.blockExists(xCoord, yCoord, zCoord)
+            && worldObj.getTileEntity(xCoord, yCoord, zCoord) == this;
+    }
+
+    public List<String> getLiveVariableSnapshot(String requested, UUID actor) {
+        if (!canInspectVariables(actor)) return DebugTerminalService.variableAccessDenied();
+        ca.teamdman.sfml.data.ProgramGlobals values = globalProgram == compiledProgram ? programGlobals : null;
+        return DebugTerminalService.inspectVariables(programState, compiledProgram, values, requested);
+    }
+
     public boolean hasDebugOutputEnabled() {
         return debugConsole != null && debugConsole.isEnabled();
     }
 
     private ProgramDiskBinding referenceBinding;
+    private UUID referenceSourceOwner;
     private net.minecraft.world.World referenceWorld;
     private ProjectWorkspace referenceWorkspace;
     private ReferenceRequest referenceRequest;
@@ -133,6 +190,9 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
         // Include recovery, idle checks, compilation, discovery and compatibility work.
         long startNs = System.nanoTime();
+        ManagerExecutionProfiler profiler = executionProfiler;
+        boolean profiling = profiler != null && profiler.isCollecting();
+        if (profiling) profiledDueUpdate = false;
         try {
             updateServer();
         } finally {
@@ -142,6 +202,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
             tickTimes[tickTimeIndex] = lastTickTimeMs;
             tickTimeIndex = (tickTimeIndex + 1) % tickTimes.length;
             timedUpdateCount++;
+            if (profiling && executionProfiler == profiler) profiler.recordUpdate(elapsedNs, profiledDueUpdate);
             ManagerTickProfiler.INSTANCE.recordUpdate(elapsedNs);
             ManagerPhaseProfiler.update(elapsedNs);
         }
@@ -262,6 +323,8 @@ public class TileEntityManager extends TileEntity implements IInventory {
                 privateProgram ? "Published program runtime failed; manager paused"
                     : "Runtime exception: " + e.getMessage());
         } finally {
+            if (executionProfiler != null && executionProfiler.isCollecting())
+                profiledDueUpdate = context.didSomething();
             if (programState != null && programState.isDirty()) markDirty();
             ManagerPhaseProfiler.program(startNs);
         }
@@ -686,12 +749,14 @@ public class TileEntityManager extends TileEntity implements IInventory {
         referenceRequest = null;
         referenceAttempted = false;
         referenceBinding = null;
+        referenceSourceOwner = null;
         referenceWorld = null;
         referenceWorkspace = null;
     }
 
     /** Flush the previously accepted schema before discarding its execution binding. */
     private boolean retireReferencePlan() {
+        referenceSourceOwner = null;
         compiledProgram = null;
         lastCodeCompiled = null;
         clearProgramGlobals();
@@ -870,6 +935,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
             // No fallible compilation or schema reconciliation after publication. Never restore captured run intent.
             programState = state;
             compiledProgram = candidate;
+            referenceSourceOwner = result.value.sourceOwner;
             lastCodeCompiled = null;
             clearProgramGlobals();
             resetRedstoneTriggerTracker();
@@ -1199,6 +1265,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     @Override
     public void onChunkUnload() {
+        executionProfiler = null;
         boolean clearReferencePlan = referenceBinding != null
             || ProgramDiskData.mode(diskStack) != ProgramDiskData.Mode.LEGACY;
         try {
@@ -1218,6 +1285,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     @Override
     public void invalidate() {
+        executionProfiler = null;
         boolean clearReferencePlan = referenceBinding != null
             || ProgramDiskData.mode(diskStack) != ProgramDiskData.Mode.LEGACY;
         try {
@@ -1280,6 +1348,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
         if (slot == 0 && diskStack != null && amount > 0) {
             flushProgramState();
             ItemStack result = diskStack;
+            executionProfiler = null;
             invalidateReferenceActivation();
             diskGeneration = Math.incrementExact(diskGeneration);
             diskStack = null;
@@ -1303,6 +1372,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     @Override
     public void setInventorySlotContents(int slot, ItemStack stack) {
         if (slot == 0) {
+            executionProfiler = null;
             flushProgramState();
             programState = null;
             invalidateReferenceActivation();
@@ -1382,6 +1452,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     @Override
     public void readFromNBT(NBTTagCompound tag) {
+        executionProfiler = null;
         // Deserialization replaces the physical disk even when its document/source NBT is identical. Fence existing
         // editor/control authority independently of the reference loader; client packets retain server-issued tokens.
         diskGeneration = Math.incrementExact(diskGeneration);

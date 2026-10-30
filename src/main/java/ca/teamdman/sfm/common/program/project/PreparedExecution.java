@@ -11,10 +11,17 @@ public final class PreparedExecution {
     public final ExecutionReference reference;
     public final Program program;
     public final String source;
+    /** Validated grant issuer, retained only in server memory for author-only variable inspection. */
+    public final java.util.UUID sourceOwner;
 
     PreparedExecution(ExecutionReference reference, Program program, String source) {
+        this(reference, program, source, null);
+    }
+
+    PreparedExecution(ExecutionReference reference, Program program, String source, java.util.UUID sourceOwner) {
         this.reference = reference;
         this.program = program;
         this.source = source;
+        this.sourceOwner = sourceOwner;
     }
 }

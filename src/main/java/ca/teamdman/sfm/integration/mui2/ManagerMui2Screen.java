@@ -25,8 +25,6 @@ import ca.teamdman.sfm.client.gui.ProgramEditSession;
 import ca.teamdman.sfm.client.gui.ProgramEditState;
 import ca.teamdman.sfm.client.gui.mui2.Mui2BlueprintEditor;
 import ca.teamdman.sfm.client.gui.mui2.Mui2CodeEditor;
-import ca.teamdman.sfm.client.gui.mui2.Mui2DebugTerminal;
-import ca.teamdman.sfm.client.gui.mui2.Mui2LogsPanel;
 import ca.teamdman.sfm.common.item.ItemDisk;
 import ca.teamdman.sfm.common.net.PacketDebugTerminalReply;
 import ca.teamdman.sfm.common.net.PacketManagerAction;
@@ -55,8 +53,8 @@ public final class ManagerMui2Screen extends ModularScreen implements ProgramEdi
     private final Map<String, IPanelHandler> pages = new LinkedHashMap<>();
     private Mui2CodeEditor text;
     private Mui2BlueprintEditor visual;
-    private Mui2LogsPanel logs;
-    private Mui2DebugTerminal terminal;
+    private final ManagerConsoleBody body;
+    private final ManagerDiagnosticsWidget diagnostics;
     private IPanelHandler active;
     private ProgramEditSession pasteSession;
     private String pasteDraft;
@@ -66,6 +64,15 @@ public final class ManagerMui2Screen extends ModularScreen implements ProgramEdi
     public ManagerMui2Screen(TileEntityManager manager, ModularPanel mainPanel) {
         super(SuperFactoryManager.MODID, mainPanel);
         this.manager = manager;
+        body = (ManagerConsoleBody) mainPanel.getChildren()
+            .stream()
+            .filter(widget -> widget instanceof ManagerConsoleBody)
+            .findFirst()
+            .orElseThrow(() -> new IllegalStateException("Manager console content is missing"));
+        diagnostics = new ManagerDiagnosticsWidget(manager, body, body::token);
+        body.child(
+            diagnostics.widthRel(1f)
+                .heightRel(1f));
         pages.put("text", IPanelHandler.simple(mainPanel, (parent, player) -> {
             String recovered = pasteDraft != null ? pasteDraft : takeDraft();
             pasteDraft = null;
@@ -79,14 +86,6 @@ public final class ManagerMui2Screen extends ModularScreen implements ProgramEdi
                 openPage("text");
             }, takeVisualDraft());
             return visual.build();
-        }, true));
-        pages.put("logs", IPanelHandler.simple(mainPanel, (parent, player) -> {
-            logs = new Mui2LogsPanel(manager, controlToken);
-            return logs.build(this::closePage);
-        }, true));
-        pages.put("terminal", IPanelHandler.simple(mainPanel, (parent, player) -> {
-            terminal = new Mui2DebugTerminal(manager, windowId());
-            return terminal.build(this::closePage);
         }, true));
         pages.put("confirm", IPanelHandler.simple(mainPanel, (parent, player) -> confirmation(), true));
     }
@@ -113,6 +112,10 @@ public final class ManagerMui2Screen extends ModularScreen implements ProgramEdi
             return;
         }
         controlToken = token;
+        if ("terminal".equals(page) || "logs".equals(page) || "profile".equals(page) || "watch".equals(page)) {
+            body.select("terminal".equals(page) ? 3 : "logs".equals(page) ? 4 : "profile".equals(page) ? 5 : 6);
+            return;
+        }
         IPanelHandler handler = pages.get(page);
         if (handler != null) {
             active = handler;
@@ -234,9 +237,6 @@ public final class ManagerMui2Screen extends ModularScreen implements ProgramEdi
         if (visual != null) visual.cancel();
         text = null;
         visual = null;
-        logs = null;
-        if (terminal != null) terminal.cancel();
-        terminal = null;
         if (active != null) {
             active.closePanel();
             active.deleteCachedPanel();
@@ -275,7 +275,7 @@ public final class ManagerMui2Screen extends ModularScreen implements ProgramEdi
         retainDraft();
         if (text != null) text.cancel();
         if (visual != null) visual.cancel();
-        if (terminal != null) terminal.cancel();
+        diagnostics.close();
         if (pasteSession != null) pasteSession.state.cancel();
         super.onClose();
     }
@@ -301,11 +301,11 @@ public final class ManagerMui2Screen extends ModularScreen implements ProgramEdi
     }
 
     public void receiveLogs(PacketManagerLogs reply) {
-        if (logs != null) logs.receive(reply.getX(), reply.getY(), reply.getZ(), reply.getLogLevel(), reply.getLogs());
+        diagnostics.receive(reply);
     }
 
     public void receiveDebugTerminal(PacketDebugTerminalReply reply) {
-        if (terminal != null && active == pages.get("terminal") && active.isPanelOpen()) terminal.receive(reply);
+        diagnostics.receive(reply);
     }
 
     private void retainDraft() {

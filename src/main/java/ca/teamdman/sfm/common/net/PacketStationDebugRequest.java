@@ -132,7 +132,7 @@ public final class PacketStationDebugRequest implements IMessage {
         List<String> result = request.action == Action.CONNECT
             ? Collections
                 .singletonList("Connected. Type help; capture is enabled only by an explicit capture on command.")
-            : DebugTerminalService.execute(target, request.command);
+            : DebugTerminalService.execute(target, request.command, player.getUniqueID());
         DebugConsole console = target.getDebugConsole();
         // Reuse the existing independently bounded diagnostic codec inside the station envelope.
         PacketDebugTerminalReply payload = new PacketDebugTerminalReply(

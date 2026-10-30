@@ -103,12 +103,12 @@ to select it, then use **Copy digest** for its identity. A later edit does not c
 does not change or run any manager. Publication receipts remain private to the
 project owner. A digest alone grants no source access.
 
-Reference disk writing is implemented behind a development qualification gate and
-is **disabled by default**. Reusable library imports are still planned.
-To run a saved draft now, copy its source into a manager's Text editor, save to
-an execution disk, synchronize that disk's labels and enable the manager.
+**Imprint disk** is available normally. Hold one fresh blank disk before opening
+the station. Save and Check, publish the saved revision, select that exact build
+in the bottom Build revisions dock, then Imprint disk. Insert it into a manager
+and set its labels. Reusable library imports are still planned.
 
-Ordinary execution disks still hold source and persistent STATE. The experimental
+Ordinary execution disks still hold source and persistent STATE. The
 reference workflow writes only a published-build reference to a fresh disk, then
 loads a private program into manager memory on the storage worker. Source stays
 in world storage; STATE remains independent on each physical disk. Pause intent
@@ -126,3 +126,19 @@ If the station reports busy or rejects an old revision, wait for the current
 request or reopen the saved project before editing again.
 
 Next: [the SFML language](/language/index.md) and [feature status](/reference/status.md).
+
+
+## Workspace and diagnostics
+
+Projects and templates live in the left column; reopening restores your last
+selected project. Visual/Split/Code are directly above the editor. Drag the
+project divider or bottom dock divider to resize the workspace. The bottom tabs
+contain Problems, Debug terminal, Watch and Build revisions. Inventory slots and
+NEI stay unavailable throughout this full-screen authoring surface.
+
+The Factory Manager uses a normal centered machine GUI with player inventory
+and NEI. Terminal, Logs, Profile and Watch replace its main content directly.
+Logs have search, severity filtering, wrapping and follow/freeze controls.
+Profile records bounded full-update timings; watch reads initialized globals and
+persistent values. Reference variable inspection is restricted to its source
+author. Neither tool evaluates arbitrary expressions or changes variable values.

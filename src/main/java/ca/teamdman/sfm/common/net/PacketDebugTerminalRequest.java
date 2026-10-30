@@ -75,7 +75,8 @@ public final class PacketDebugTerminalRequest implements IMessage {
                 TileEntityManager manager = DebugTerminalService
                     .authorizedManager(player, request.x, request.y, request.z, request.windowId);
                 if (manager == null) return;
-                java.util.List<String> result = DebugTerminalService.execute(manager, request.command);
+                java.util.List<String> result = DebugTerminalService
+                    .execute(manager, request.command, player.getUniqueID());
                 DebugConsole console = manager.getDebugConsole();
                 SFMNetwork.WRAPPER.sendTo(
                     new PacketDebugTerminalReply(

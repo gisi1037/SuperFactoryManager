@@ -51,8 +51,7 @@ with `id` and `amount` fields is data, not a native ItemStack or transfer key.
 ## Publishing and operational views
 
 The station publishes immutable root-source bundles from exact saved revisions.
-Reference disk writing/activation is implemented behind a development qualification
-gate and disabled by default. Ordinary source disks remain supported. The manager
+Imprint disk is available in the normal station UI, with exact-publication and fresh-medium server checks. Ordinary source disks remain supported. The manager
 Overview/Expand chart shows measured full-update cost and scheduler state without
 exporting private source. Statement tracing, node highlighting and breakpoints
 remain separate work.
@@ -60,7 +59,6 @@ remain separate work.
 ## Planned, not callable today
 
 - Effectful user actions and reusable published libraries.
-- General enablement of reference-only execution disks; the runtime workflow is under qualification.
 - Server recipe candidates/requirements, machine recipe-map resolution and
   optional NEI selection tools. GuideNH displaying a crafting recipe is separate
   from an SFML recipe-query API.

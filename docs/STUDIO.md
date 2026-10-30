@@ -7,22 +7,32 @@ hotbar actions and NEI overlays are unavailable while the editor is open.
 
 ## Start a project
 
-Choose **New**, give the draft a name, then use **Create**. **Projects** lists
-your saved projects. **Save** waits for a server acknowledgement and uses the
-revision you loaded; another writer cannot silently overwrite it.
+Use the **Projects** column on the left. Choose **+** for an empty draft or a
+template for a working starting point. Name the project and **Save** to create it.
+Saved projects stay in the column; the top selector provides another route.
+Reopening the station restores your last selected project for this world/server
+and player through an authenticated load. Dirty local recovery still takes priority.
+**Save** waits for a server acknowledgement and uses the revision you loaded;
+another writer cannot silently overwrite it.
 
-The diagnostic below the workspace describes the current draft. **Validate**
+The bottom **Problems** dock describes the current draft. The top **Check** button
 checks the exact saved server revision, so save first when you want that check
 to include your latest edits. Invalid text can be saved as a draft.
 
-**Copy** copies source without hidden visual-layout metadata. To run it with the
-current disk workflow, paste it into the manager's Text editor and save its disk.
-Reference-only execution disks are under qualification and unavailable by default.
-The existing embedded-source disk workflow remains available.
+The top bar shows the selected project, draft status, SAFE authoring status,
+Essentials/Advanced tool mode, Save, Check and Imprint disk. Essentials uses typed
+node fields; Advanced also exposes a selected node's raw SFML clause. Both modes
+support the same language and retain the full searchable insert/API catalog.
+Visual/Split/Code sit directly above the authoring surface. Drag the project-column
+divider or the horizontal dock divider to resize those regions.
+
+**Copy** copies source without hidden visual-layout metadata. The ordinary
+embedded-source manager-disk workflow remains available. To use world-stored
+programs instead, save, publish and imprint a reference disk in the station.
 
 ## Publish a saved build
 
-Open **Builds** (or **Tools → Saved builds** on a compact screen). **Publish saved**
+Open the bottom **Build revisions** dock, or the top **Imprint disk** entry. **Publish saved**
 compiles the exact saved server revision and stores an immutable source bundle.
 Save name and source changes first. Invalid drafts can still be saved, but cannot
 be published. Publishing does not run the program or change any manager.
@@ -124,36 +134,28 @@ storage along with the world.
 
 ## Inspect a running manager
 
-**Terminal** opens a diagnostic console. On compact screens it is also under
-Tools or Problems. Enter a nearby loaded manager's X/Y/Z and choose **Connect**.
-The server checks the station session, distance and exact target for each request.
-Replacing or unloading that manager ends the connection.
+The bottom dock has **Problems**, **Debug terminal**, **Watch** and **Build
+revisions**. Tabs preserve their session and results; resizing the dock changes
+available output space. At the smallest GUI scale, shorter tab names save space.
+The terminal is a bounded diagnostic console, not an arbitrary SFML evaluator.
 
-Use `help`, `status`, `state`, `state $name`, `labels`, or `logs`. **Capture**
-explicitly enables or disables PRINT output. Connecting does not enable capture.
-PRINT and command results have separate views, with paging, horizontal movement
-and Copy. Tab completes console commands; Up/Down recall command history.
+In **Debug terminal**, enter a nearby loaded manager's X/Y/Z and choose **Connect**.
+The server checks the station session, distance and exact target on every request.
+Switch to **Watch** for live read-only program-wide values. Trigger-local variables
+end with their invocation and are not retained for inspection.
 
-The terminal inspects the connected manager. It does not run the open project,
-evaluate arbitrary SFML, simulate transfers, or provide breakpoints and stepping.
+The Factory Manager itself is a centered machine window with the installed disk,
+Start/Pause, Overview/Program/Network and inline Terminal/Logs/Profile/Watch pages.
+The ordinary 9-column player inventory and hotbar stay visible below every page;
+NEI remains available around the machine. SFM uses stock MUI2 inventory binding
+and widgets. Dynamic Inventory owns optional expanded-storage behavior, including
+its three-row scrolling viewport; SFM has no dependency on that mod's API.
 
-See the [SFML guide](SFML_GUIDE.md) for language behavior and the
-[roadmap](STUDIO_ROADMAP.md) for remaining integration and qualification work.
-
-## Factory Manager inventory
-
-The separate Factory Manager uses an operational dashboard with Overview,
-Program and Network tabs. Its disk slot is manager equipment. Player storage
-appears below, with a fixed hotbar and Main/Left/Right storage views. Compact
-screens show one storage view at a time; wide screens show all sections.
-
-Use **Layout**, or hold Shift, to reveal row/column controls. Select Left or Right
-before resizing that side; slots are borrowed from or returned to Main. **Split**
-and **All** select layout presets, and **Undo** restores a recent layout. These
-controls move slot presentation only; they do not transfer items or create extra
-capacity. Layout preferences are temporary client memory. The live connected
-inventory browser remains planned.
-
+**Logs** separates the server recording level from the local severity/search
+filter. Use wheel/scrollbars, Wrap, Follow, Live/Frozen and Copy to inspect bounded
+retained output. Opening Logs does not enable recording. **Terminal** replaces
+the body in the same machine window; it no longer opens a second panel. PRINT
+capture starts off and must be enabled explicitly.
 
 ## Performance and execution activity
 
@@ -170,11 +172,14 @@ recovery-blocked and unavailable programs have distinct states. This is an
 operational view; statement/branch tracing, node highlighting and breakpoints
 remain planned. No private source or execution-grant token is sent by the chart.
 
-## Reference-disk qualification
+## Imprint a program disk
 
-The guarded reference workflow is currently enabled only in opted-in development
-test clients. In that workflow, select an immutable build in **Builds**, hold one
-fresh blank SFM disk before opening the station, then use **Write held disk**.
+Reference-disk imprinting is available in the normal station UI. Hold one fresh
+blank SFM disk before opening the station. Save and Check the project, open
+**Build revisions**, choose **Publish saved**, select the exact immutable build,
+then press the dock's **Imprint disk** button. The station imprints that published
+program's identity onto the held disk; installing it in a manager loads its code
+from world storage into private runtime memory.
 The disk must have no existing program, labels, STATE, recovery or custom metadata.
 The selected build may be an older published revision; unsaved draft edits are
 not written to it. Changing the medium or station session during the operation
@@ -193,8 +198,10 @@ output remains available when capture is enabled.
 Normal running ticks do not reread program files. Reload/reactivation validates
 the stored grant and exact bundle again. Reference disks are copyable execution
 capabilities, with independent mutable STATE for each physical copy; they do not
-grant private project editing or source-export access. Real two-player workflows
-and cold-start queue behavior remain qualification gates before general enablement.
+grant private project editing or source-export access. Cooperative two-player
+handoff, privacy, copied STATE isolation, pause/reset, retry and clean reloads
+passed. Broader adversarial races, hardware input and provider/churn coverage
+remain separate qualification; see [the report](MULTIPLAYER_QUALIFICATION.md).
 
 
 Use the native manager console's **Program > Reset state** only to deliberately
@@ -207,3 +214,33 @@ The old legacy screen cannot authorize reference reset; use the native console.
 
 See [reference performance](REFERENCE_PERFORMANCE.md) for loading limits,
 correctness-checked measurements and remaining qualification gates.
+
+
+## Player profiler and live values
+
+**Profile** records a bounded sample of complete server manager updates, including
+idle checks, recovery and discovery. Record defaults to 1,200 updates and stops
+automatically; Stop preserves the sample and Reset clears it. Results show count,
+updates with a due trigger, average, p50/p95/p99 and maximum milliseconds. This is
+not per-instruction, compiler-worker, manual-run or whole-server TPS profiling.
+The collector is off by default and allocates no samples while off.
+
+The same controls are available through terminal commands:
+
+```text
+profile start 1200
+profile status
+profile stop
+profile reset
+watch
+watch $counter
+state $counter
+```
+
+`profile start` accepts 1–4,096 updates. `watch` shows a bounded list of initialized
+program-wide globals and persistent values; an exact `$name` selects one.
+Inspection never runs expressions, initializes globals or flushes STATE to disk.
+Legacy source disks retain existing access. On a reference disk, only its verified
+source author can inspect variable names/values; other execution-disk holders can
+still use numeric profiling and deliberate PRINT output. Local trigger variables
+are not available after their trigger completes.

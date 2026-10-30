@@ -20,7 +20,7 @@ item_ids: ["superfactorymanager:disk", "superfactorymanager:cable", "superfactor
 | Program disk | Carries source, saved labels and persistent STATE. |
 | Label Gun | Names positions and copies a label table to or from a manager's disk. |
 | Cable / Fancy Cable | Connects the manager to eligible blocks; both participate in its cable network. |
-| Programming Station | Saves, validates and publishes private project builds. Reference disks are under qualification and disabled by default. |
+| Programming Station | Saves, validates and publishes private project builds. Imprints exact published builds onto fresh held disks; managers load their code from world storage. |
 | Redstone Port | A combined signal detector and emitter with per-face settings. |
 
 <ItemImage id="superfactorymanager:disk" />

@@ -8,8 +8,20 @@ import java.util.Locale;
 /** Fixed command vocabulary only: no network/provider lookup or implicit execution. */
 public final class TerminalCommandCompletion {
 
-    private static final List<String> COMMANDS = Arrays
-        .asList("help", "status", "state", "labels", "logs", "clear", "capture on", "capture off");
+    private static final List<String> COMMANDS = Arrays.asList(
+        "help",
+        "status",
+        "state",
+        "labels",
+        "logs",
+        "clear",
+        "capture on",
+        "capture off",
+        "watch",
+        "profile start",
+        "profile stop",
+        "profile reset",
+        "profile status");
     private final List<String> matches = new ArrayList<>();
     private String last;
     private int index;

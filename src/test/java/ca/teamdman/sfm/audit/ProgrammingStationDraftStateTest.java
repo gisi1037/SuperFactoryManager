@@ -367,8 +367,8 @@ class ProgrammingStationDraftStateTest {
     }
 
     @Test
-    void heldDiskWritingRemainsGatedUntilReferenceLifecycleVerification() {
-        assertFalse(Mui2ProgrammingStation.REFERENCE_DISKS_ENABLED);
+    void heldDiskWritingIsDiscoverableWhileServerTransactionsRetainAuthority() {
+        assertTrue(Mui2ProgrammingStation.REFERENCE_DISKS_ENABLED);
     }
 
     @Test

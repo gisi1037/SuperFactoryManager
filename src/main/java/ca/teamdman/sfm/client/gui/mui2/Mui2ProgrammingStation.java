@@ -41,6 +41,7 @@ import ca.teamdman.sfm.client.gui.syntax.SnippetCategory;
 import ca.teamdman.sfm.client.gui.syntax.StudioCompletion;
 import ca.teamdman.sfm.client.gui.syntax.SyntaxRegistry;
 import ca.teamdman.sfm.client.gui.syntax.SyntaxSnippet;
+import ca.teamdman.sfm.common.net.PacketStationDebugReply;
 import ca.teamdman.sfm.common.net.PacketStationReply;
 import ca.teamdman.sfm.common.net.PacketStationRequest;
 import ca.teamdman.sfm.common.net.PacketStationRequest.Action;
@@ -56,14 +57,17 @@ import ca.teamdman.sfm.common.util.BoundedUtf8;
 /** Client authoring only. Saving and validation are separate exact-revision server requests. */
 public final class Mui2ProgrammingStation {
 
-    /** Enable only after reference-disk lifecycle verification; server authority remains independent. */
-    public static final boolean REFERENCE_DISKS_ENABLED = Boolean.getBoolean("sfm.testReferenceDisks")
-        && (Boolean.getBoolean("sfm.testHarness") || Boolean.getBoolean("gtnh.testHarness"));
+    /** Client discovery only. The server independently validates session, ownership, exact build and held disk. */
+    public static final boolean REFERENCE_DISKS_ENABLED = true;
     private static final int CATALOG_ROWS = 8, BUILD_ROWS = 6, MAX_RECOVERED_DRAFTS = 16;
     // Values contain immutable text/UUIDs only, so they do not retain their weak world keys.
     private static final Map<World, LinkedHashMap<String, Retained>> RECOVERY = new WeakHashMap<>();
     private static boolean savedWrap;
+    private static boolean advancedTools;
     private static double savedSplit = .5;
+    private static double savedDock = .28;
+    private static int savedSidebar = 154;
+    private static StudioProjectMemory projectMemory;
     private final TileEntityProgrammingStation station;
     private final UUID sessionId;
     private final int windowId;
@@ -72,9 +76,10 @@ public final class Mui2ProgrammingStation {
     private final StudioDocument document = new StudioDocument();
     private final SfmlCodeEditorWidget editor;
     private final String scope;
+    private final String memoryScope;
+    private final UUID rememberedProject;
     private ModularPanel panel;
-    private final List<ButtonWidget<?>> actions = new ArrayList<>(), categories = new ArrayList<>(),
-        compactActions = new ArrayList<>();
+    private final List<ButtonWidget<?>> categories = new ArrayList<>();
     private int layoutWidth = -1, layoutHeight = -1, diagnosticDelay = -1;
     private String draftDiagnostic = "Draft not checked";
     private String snippetSearch = "";
@@ -122,6 +127,30 @@ public final class Mui2ProgrammingStation {
     private StudioGraphWidget graphEditor;
     private StudioDividerWidget divider;
     private ParentWidget<?> outlinePane, inspectorPane;
+    private ParentWidget<?> dockPane, problemDock, terminalDock, watchDock, buildDock;
+    private StudioReadOnlyPane problemOutput;
+    private StudioDebugTerminal terminal;
+    private StudioDividerWidget dockDivider, sidebarDivider;
+    private StudioLayout.Workspace workspace;
+    private TextFieldWidget nameField;
+    private TextWidget<?> authoringLabel;
+    private ButtonWidget<?> projectSelector, toolsButton, saveButton, checkButton, imprintButton, allInsert, apiInsert;
+    private ButtonWidget<?> publishDockButton, refreshBuildsButton, imprintDockButton;
+    private final List<ButtonWidget<?>> viewButtons = new ArrayList<>(), dockTabs = new ArrayList<>();
+    private String lastProblemDiagnostic, lastProblemStatus;
+    private ProjectDraft lastProblemSaved;
+    private Object lastProblemValidation;
+    private boolean lastProblemDirty;
+    private boolean refreshCatalog;
+
+    private enum Dock {
+        PROBLEMS,
+        TERMINAL,
+        WATCH,
+        BUILDS
+    }
+
+    private Dock dock = Dock.PROBLEMS;
     private ListWidget<IWidget, ?> outlineList;
     private TextFieldWidget clauseField;
     private String clause = "";
@@ -179,7 +208,17 @@ public final class Mui2ProgrammingStation {
         this.closeAction = closeAction;
         scope = Minecraft.getMinecraft().thePlayer
             .getUniqueID() + ":" + station.xCoord + ":" + station.yCoord + ":" + station.zCoord + ":";
-        Retained recovered = latestRecovery();
+        Minecraft mc = Minecraft.getMinecraft();
+        String location = mc.isSingleplayer() && mc.getIntegratedServer() != null ? "world:" + mc.getIntegratedServer()
+            .getFolderName()
+            : mc.func_147104_D() == null ? "world:" + station.getWorldObj()
+                .getWorldInfo()
+                .getWorldName() : "server:" + mc.func_147104_D().serverIP.toLowerCase(Locale.ROOT);
+        memoryScope = StudioProjectMemory.scope(location, mc.thePlayer.getUniqueID());
+        if (projectMemory == null) projectMemory = new StudioProjectMemory(
+            new java.io.File(mc.mcDataDir, "config/sfm-studio-projects.properties").toPath());
+        rememberedProject = projectMemory.selected(memoryScope);
+        Retained recovered = rememberedProject == null ? latestRecovery() : cache().get(key(rememberedProject));
         if (recovered != null) restore(recovered);
         else document.load(state.source);
         editor = new SfmlCodeEditorWidget(
@@ -273,31 +312,49 @@ public final class Mui2ProgrammingStation {
             .resizeableOnDrag(false)
             .onCloseAction(this::cancel);
         panel.child(
-            new TextWidget<>(IKey.str("SFM Studio")).color(0xffefa09a)
-                .pos(8, 7)
-                .size(80, 12));
-        panel.child(viewButton("Visual", 92, 44, View.VISUAL));
-        panel.child(viewButton("Split", 140, 36, View.SPLIT));
-        panel.child(viewButton("Code", 180, 36, View.CODE));
+            new TextWidget<>("SFM Studio").color(0xffefa09a)
+                .pos(8, 8)
+                .size(70, 12));
+        projectSelector = button("", 82, 3, 100, () -> true, this::openCatalog).height(21)
+            .overlay(
+                IKey.dynamic(() -> trimFor(state.name + " v", projectSelector.getArea().width - 10))
+                    .color(0xffe7e8eb))
+            .addTooltipLine("Current project. Browse and switch in the Projects column.");
+        panel.child(projectSelector);
+        toolsButton = button("Tools", 0, 3, 46, () -> true, () -> {
+            removeFocus();
+            toolsPanel.deleteCachedPanel();
+            toolsPanel.openPanel();
+        }).height(21)
+            .overlay(
+                IKey.dynamic(() -> advancedTools ? "Advanced" : "Essentials")
+                    .scale(.75f))
+            .addTooltipLine(
+                "Tool mode and editor actions. Essentials uses typed node fields; Advanced also exposes raw clauses.");
+        saveButton = button("Save", 0, 3, 46, this::editable, this::save).height(21)
+            .background(StudioTheme.PRIMARY)
+            .addTooltipLine("Ctrl+S. Save this draft to your private project.");
+        checkButton = button("Check", 0, 3, 46, () -> !state.busy(), this::validate).height(21)
+            .addTooltipLine("Checks the exact saved server revision. Save edits first.");
+        imprintButton = button("Imprint disk", 0, 3, 80, () -> true, this::openBuilds).height(21)
+            .addTooltipLine("Select an immutable saved build in Build revisions, then imprint the held fresh disk.");
+        panel.child(toolsButton);
+        panel.child(saveButton);
+        panel.child(checkButton);
+        panel.child(imprintButton);
         panel.child(
-            button("API", 220, 3, 36, this::editable, this::openApi).height(17)
-                .addTooltipLine("Functions, signatures, examples and methods"));
-        panel.child(button("Problems", 260, 3, 52, () -> true, this::openProblems).height(17));
+            new TextWidget<>(
+                IKey.dynamic(() -> state.busy() ? "SYNCING" : state.dirty() || visualDraft() ? "DRAFT *" : "SAVED"))
+                    .color(0xffe6b399)
+                    .pos(8, 29)
+                    .size(55, 10));
         panel.child(
-            button("Builds", 316, 3, 48, () -> !state.busy(), this::openBuilds).height(17)
-                .setEnabledIf(
-                    widget -> panel.getArea()
-                        .w() >= 440));
-        panel.child(
-            button("Terminal", 368, 3, 64, () -> !state.busy(), this::openTerminal).height(17)
-                .setEnabledIf(
-                    widget -> panel.getArea()
-                        .w() >= 440));
-        panel.child(
-            new TextWidget<>("Name").color(0xffe7e8eb)
-                .pos(8, 26)
-                .size(32, 12));
-        TextFieldWidget name = new TextFieldWidget() {
+            new TextWidget<>("SAFE").color(0xff9bc0a5)
+                .pos(66, 29)
+                .size(28, 10)
+                .addTooltipLine(
+                    "Authoring mode. This station edits private projects; it does not execute a sandbox or install a running manager."));
+        nameField = new TextFieldWidget() {
 
             @Override
             public Result onKeyPressed(char character, int key) {
@@ -312,63 +369,43 @@ public final class Mui2ProgrammingStation {
                 }
             }));
         panel.child(
-            name.left(43)
+            nameField.left(101)
                 .right(8)
-                .top(23)
-                .height(16));
-        actions.add(button("Projects", 0, 0, 52, () -> !state.busy(), this::openCatalog));
-        actions.add(button("New", 0, 0, 52, () -> !state.busy(), () -> protect("New draft", this::newDraft)));
-        actions.add(button("Copy", 0, 0, 52, () -> true, this::copy));
-        actions.add(button("Undo", 0, 0, 52, this::editable, () -> undo(false)));
-        actions.add(button("Redo", 0, 0, 52, this::editable, () -> undo(true)));
-        actions.add(button("Indent", 0, 0, 52, this::codeEditable, editor::autoIndent));
-        actions.add(button("Find", 0, 0, 52, () -> view != View.VISUAL, this::openFind));
-        actions.add(button("", 0, 0, 52, () -> true, () -> {
-            editor.toggleWrap();
-            savedWrap = editor.wraps();
-        }).overlay(
-            IKey.dynamic(() -> "Wrap: " + (editor.wraps() ? "ON" : "OFF"))
-                .color(0xffe7e8eb)));
-        actions.add(
-            button("", 0, 0, 52, this::editable, this::save).background(StudioTheme.PRIMARY)
-                .overlay(
-                    IKey.dynamic(() -> state.saved == null ? "Create" : "Save")
-                        .color(0xffe7e8eb)));
-        actions.add(
-            button("Validate", 0, 0, 52, () -> !state.busy(), this::validate)
-                .addTooltipLine("Checks the saved server revision; draft errors appear below."));
-        actions.add(button("Close", 0, 0, 52, () -> true, this::close));
-        for (ButtonWidget<?> action : actions) panel.child(action.setEnabledIf(widget -> !compactToolbar()));
-        compactActions.add(button("Projects", 0, 0, 52, () -> !state.busy(), this::openCatalog));
-        compactActions.add(button("Insert", 0, 0, 52, this::editable, () -> {
+                .top(26)
+                .height(16)
+                .addTooltipLine("Project name"));
+        allInsert = button("Insert / all", 0, 0, 65, this::editable, () -> {
             snippetCategory = null;
             snippets();
-        }));
-        compactActions.add(button("Tools", 0, 0, 52, () -> true, () -> {
-            removeFocus();
-            toolsPanel.deleteCachedPanel();
-            toolsPanel.openPanel();
-        }));
-        compactActions.add(
-            button("", 0, 0, 52, this::editable, this::save).background(StudioTheme.PRIMARY)
-                .overlay(
-                    IKey.dynamic(() -> state.saved == null ? "Create" : "Save")
-                        .color(0xffe7e8eb)));
-        compactActions.add(button("Close", 0, 0, 52, () -> true, this::close));
-        for (ButtonWidget<?> action : compactActions) panel.child(action.setEnabledIf(widget -> compactToolbar()));
+        }).height(16)
+            .addTooltipLine("All supported syntax, functions and examples. Search or choose a category.");
+        apiInsert = button("API", 0, 0, 44, this::editable, this::openApi).height(16);
+        panel.child(allInsert);
+        panel.child(apiInsert);
         for (SnippetCategory category : SnippetCategory.values()) {
-            ButtonWidget<?> button = button(category.getDisplayName(), 0, 0, 52, this::editable, () -> {
+            ButtonWidget<?> entry = button(category.getDisplayName(), 0, 0, 52, this::editable, () -> {
                 snippetCategory = category;
                 snippets();
-            }).addTooltipLine(category.getDescription());
-            categories.add(button);
-            panel.child(button.setEnabledIf(widget -> !compactToolbar()));
+            }).height(16)
+                .addTooltipLine(category.getDescription());
+            categories.add(entry);
+            panel.child(entry.setEnabledIf(widget -> workspace != null && !workspace.compact));
         }
+        viewButtons.add(viewButton("Visual", 0, 44, View.VISUAL));
+        viewButtons.add(viewButton("Split", 0, 36, View.SPLIT));
+        viewButtons.add(viewButton("Code", 0, 36, View.CODE));
+        for (ButtonWidget<?> entry : viewButtons) panel.child(entry);
+        authoringLabel = new TextWidget<>("AUTHORING").color(0xff868b96)
+            .right(10)
+            .top(68)
+            .size(62, 10)
+            .setEnabledIf(widget -> workspace != null && panel.getArea().width - workspace.mainLeft >= 260);
+        panel.child(authoringLabel);
         panel.child(
             editor.left(8)
                 .right(8)
-                .top(96)
-                .bottom(47));
+                .top(90)
+                .bottom(140));
         graphEditor = new StudioGraphWidget(
             document,
             this::graphEditable,
@@ -381,50 +418,40 @@ public final class Mui2ProgrammingStation {
         panel.child(
             graphEditor.left(8)
                 .right(8)
-                .top(96)
-                .bottom(47)
+                .top(90)
+                .bottom(140)
                 .setEnabledIf(widget -> view != View.CODE));
         editor.setEnabledIf(widget -> view != View.VISUAL);
         divider = new StudioDividerWidget(() -> authoringOnTop() && view == View.SPLIT, x -> {
-            int width = panel.getArea()
-                .w();
-            boolean tall = panel.getArea()
-                .h() - graphEditor.getArea().ry
-                - 47 >= 150;
-            int left = width >= 800 && tall ? 126 : 8;
-            int right = width >= 700 && tall ? 166 : 8;
-            int middle = StudioLayout
-                .splitMiddle(left, right, width, (double) (x - panel.getArea().x - left) / (width - left - right));
-            savedSplit = (double) (middle - left) / (width - left - right);
-            layoutWorkspace(width, graphEditor.getArea().ry);
+            if (workspace == null) return;
+            int right = workspace.inspector ? 166 : 8;
+            savedSplit = (double) (x - panel.getArea().x - workspace.mainLeft)
+                / Math.max(1, panel.getArea().width - workspace.mainLeft - right);
+            layoutWidth = -1;
             panel.scheduleResize();
         });
-        panel.child(
-            divider.top(96)
-                .bottom(47)
-                .setEnabledIf(widget -> view == View.SPLIT));
+        panel.child(divider.setEnabledIf(widget -> view == View.SPLIT));
         buildWorkspacePanes();
+        buildDock();
+        sidebarDivider = new StudioDividerWidget(this::authoringOnTop, x -> {
+            savedSidebar = x - panel.getArea().x - 4;
+            layoutWidth = -1;
+            panel.scheduleResize();
+        }, false, "Drag to resize Projects. Drafts and graph positions are preserved.");
+        panel.child(sidebarDivider);
+        dockDivider = new StudioDividerWidget(this::authoringOnTop, y -> {
+            savedDock = (double) (panel.getArea().y + panel.getArea().height - 18 - y)
+                / Math.max(1, panel.getArea().height);
+            layoutWidth = -1;
+            panel.scheduleResize();
+        }, true, "Drag to resize the bottom dock. Problems, terminal, watch and build selection are preserved.");
+        panel.child(dockDivider);
         panel.child(
-            new TextWidget<>(IKey.dynamic(() -> trim(state.revisionLine()))).color(0xffb0b3bb)
+            new TextWidget<>(IKey.dynamic(() -> trim(status))).color(0xffa8adb7)
                 .left(8)
                 .right(8)
-                .bottom(33)
-                .height(12)
-                .addTooltipLine(IKey.dynamic(state::revisionLine)));
-        panel.child(
-            new DiagnosticStatusWidget(() -> trim(draftDiagnostic), () -> draftDiagnostic, this::jumpToError)
-                .color(0xffe7e8eb)
-                .left(8)
-                .right(8)
-                .bottom(19)
-                .height(12)
-                .addTooltipLine(IKey.dynamic(() -> status)));
-        panel.child(
-            new TextWidget<>(IKey.dynamic(() -> trim(status))).color(0xffb0b3bb)
-                .left(8)
-                .right(8)
-                .bottom(5)
-                .height(12)
+                .bottom(3)
+                .height(11)
                 .addTooltipLine(IKey.dynamic(() -> status)));
         catalogPanel = IPanelHandler.simple(panel, (parent, player) -> buildCatalog(), true);
         confirmationPanel = IPanelHandler.simple(panel, (parent, player) -> buildConfirmation(), true);
@@ -445,36 +472,60 @@ public final class Mui2ProgrammingStation {
             clause = recoveredClause;
             clauseField.setText(clause);
         }
+        rebuildOutline();
         return panel;
     }
 
     private boolean layoutHeader(int width) {
-        if (width == layoutWidth && panel.getArea()
-            .h() == layoutHeight) return false;
-        if (layoutWidth >= 0) clearAuthorFocus();
+        if (width == layoutWidth && panel.getArea().height == layoutHeight) return false;
         layoutWidth = width;
-        layoutHeight = panel.getArea()
-            .h();
-        StudioLayout layout = StudioLayout.station(width, layoutHeight, actions.size(), categories.size());
-        for (int i = 0; i < actions.size(); i++) actions.get(i)
-            .pos(layout.x(i), layout.actionY(i))
-            .size(layout.buttonWidth, 18);
-        for (int i = 0; i < compactActions.size(); i++) compactActions.get(i)
-            .pos(layout.x(i), layout.actionY(i))
-            .size(layout.buttonWidth, 18);
+        layoutHeight = panel.getArea().height;
+        workspace = StudioLayout.workspace(width, layoutHeight, savedSidebar, savedDock, categories.size() + 1);
+        boolean narrow = width < 540;
+        toolsButton.left(width - (narrow ? 148 : 232));
+        saveButton.left(width - (narrow ? 99 : 183));
+        checkButton.left(width - (narrow ? 50 : 134));
+        imprintButton.left(width - 85)
+            .top(narrow ? 26 : 3)
+            .height(narrow ? 16 : 21);
+        nameField.right(narrow ? 93 : 8);
+        projectSelector.left(82)
+            .width(Math.max(8, width - (narrow ? 234 : 318)));
+        allInsert.pos(workspace.insertX(0), workspace.insertY(0))
+            .width(workspace.insertWidth);
+        apiInsert.pos(workspace.insertX(1), workspace.insertY(1))
+            .width(workspace.insertWidth)
+            .setEnabledIf(widget -> workspace.compact);
         for (int i = 0; i < categories.size(); i++) categories.get(i)
-            .pos(layout.x(i), layout.categoryY(i))
-            .size(layout.buttonWidth, 16);
-        layoutWorkspace(width, layout.editorTop);
+            .pos(workspace.insertX(i + 1), workspace.insertY(i + 1))
+            .width(workspace.insertWidth);
+        for (int i = 0, x = workspace.mainLeft; i < viewButtons.size(); i++) {
+            int w = i == 0 ? 44 : 36;
+            viewButtons.get(i)
+                .pos(x, workspace.viewTop)
+                .size(w, 18);
+            x += w + 3;
+        }
+        authoringLabel.top(workspace.viewTop + 5);
+        layoutWorkspace(width, workspace.editorTop);
+        if (dockPane != null) {
+            int tabWidth = Math.max(1, (width - workspace.mainLeft - 18) / 4);
+            for (int i = 0; i < dockTabs.size(); i++) dockTabs.get(i)
+                .pos(4 + i * tabWidth, 2)
+                .size(tabWidth - 2, 18);
+            int buildWidth = Math.max(1, Math.min(80, (width - workspace.mainLeft - 32) / 3));
+            publishDockButton.left(4)
+                .width(buildWidth);
+            refreshBuildsButton.left(7 + buildWidth)
+                .width(buildWidth);
+            imprintDockButton.left(10 + buildWidth * 2)
+                .width(buildWidth);
+        }
         return true;
     }
 
     private boolean compactToolbar() {
-        return panel != null && StudioLayout.compact(
-            panel.getArea()
-                .w(),
-            panel.getArea()
-                .h());
+        return workspace == null || workspace.compact;
     }
 
     private ModularPanel buildTools() {
@@ -500,6 +551,11 @@ public final class Mui2ProgrammingStation {
             }).height(20));
         }
         popup.child(button("Done", 216, 188, 88, () -> true, toolsPanel::closePanel));
+        popup.child(button("", 8, 188, 202, () -> !state.busy(), () -> {
+            if (!applyClause()) return;
+            removeFocus();
+            advancedTools = !advancedTools;
+        }).overlay(IKey.dynamic(() -> advancedTools ? "Use Essentials tools" : "Use Advanced tools")));
         return popup;
     }
 
@@ -515,9 +571,11 @@ public final class Mui2ProgrammingStation {
     }
 
     private void openTerminal() {
-        clearAuthorFocus();
-        if (panel.isValid() && panel.getScreen() instanceof ca.teamdman.sfm.integration.mui2.ProgrammingStationScreen)
-            ((ca.teamdman.sfm.integration.mui2.ProgrammingStationScreen) panel.getScreen()).openDebugTerminal();
+        selectDock(Dock.TERMINAL);
+    }
+
+    public void openDebugDock() {
+        openTerminal();
     }
 
     private boolean graphEditable() {
@@ -552,9 +610,8 @@ public final class Mui2ProgrammingStation {
             status = "Visual draft kept. Connect its nodes or Undo before Code; Split can preview the last safe source.";
             return;
         }
-        if (next == View.SPLIT && panel.getArea()
-            .w() < 640) {
-            status = "Split needs 640 logical pixels. Use Visual or Code at this GUI scale.";
+        if (next == View.SPLIT && (workspace == null || panel.getArea().width - workspace.mainLeft < 390)) {
+            status = "Split needs more authoring space. Resize Projects or use Visual / Code.";
             return;
         }
         if (next != View.CODE) {
@@ -577,54 +634,65 @@ public final class Mui2ProgrammingStation {
     }
 
     private void layoutWorkspace(int width, int top) {
-        if (view == View.SPLIT && width < 640) {
+        if (workspace == null) return;
+        if (view == View.SPLIT && width - workspace.mainLeft < 390) {
             clearAuthorFocus();
             view = document.incomplete() ? View.VISUAL : View.CODE;
-            status = "Split does not fit this GUI scale. Using " + (view == View.CODE ? "Code" : "Visual") + ".";
+            status = "Split needs more authoring space. Resize Projects or use Visual / Code.";
         }
-        boolean tall = panel.getArea()
-            .h() - top
-            - 47 >= 150;
-        int left = width >= 800 && tall ? 126 : 8;
-        int right = view != View.CODE && width >= 700 && tall ? 166 : 8;
+        int left = workspace.mainLeft, right = view != View.CODE && workspace.inspector ? 166 : 8;
         int middle = StudioLayout.splitMiddle(left, right, width, savedSplit);
+        int bottom = layoutHeight - workspace.dockTop + 5;
         editor.left(view == View.SPLIT ? middle + 4 : left)
             .right(right)
-            .top(top);
+            .top(top)
+            .bottom(bottom);
         graphEditor.left(left)
             .right(view == View.SPLIT ? width - middle + 4 : right)
-            .top(top);
-        if (divider != null) divider.left(middle - 3)
-            .top(top);
-        outlinePane.top(top)
-            .setEnabledIf(
-                widget -> panel.getArea()
-                    .w() >= 800
-                    && panel.getArea()
-                        .h() - editor.getArea().ry
-                        - 47 >= 150);
+            .top(top)
+            .bottom(bottom);
+        divider.left(middle - 3)
+            .top(top)
+            .bottom(bottom);
+        outlinePane.left(4)
+            .top(46)
+            .width(workspace.sidebar)
+            .bottom(18);
         inspectorPane.top(top)
-            .setEnabledIf(
-                widget -> view != View.CODE && panel.getArea()
-                    .w() >= 700
-                    && panel.getArea()
-                        .h() - graphEditor.getArea().ry
-                        - 47 >= 150);
+            .bottom(bottom)
+            .setEnabledIf(widget -> view != View.CODE && workspace.inspector);
+        if (dockPane != null) dockPane.left(left)
+            .right(8)
+            .top(workspace.dockTop)
+            .bottom(18);
+        if (dockDivider != null) dockDivider.left(left)
+            .right(8)
+            .top(workspace.dockTop - 5)
+            .height(5);
+        if (sidebarDivider != null) sidebarDivider.left(workspace.sidebar + 4)
+            .top(46)
+            .bottom(18);
     }
 
     private void buildWorkspacePanes() {
-        outlinePane = new ParentWidget<>().left(8)
-            .width(110)
-            .top(96)
-            .bottom(47)
-            .background(new Rectangle().color(0xff20242a));
+        outlinePane = new ParentWidget<>().left(4)
+            .width(154)
+            .top(46)
+            .bottom(18)
+            .background(StudioTheme.PANEL);
         outlinePane.child(
-            new TextWidget<>("program.sfml").color(0xffe7e8eb)
+            new TextWidget<>(IKey.dynamic(() -> outlinePane.getArea().width < 100 ? "FILES" : "PROJECTS"))
+                .color(0xffd6d9df)
                 .pos(6, 7)
-                .size(98, 12));
+                .size(65, 11));
+        outlinePane.child(
+            listButton("+", 20, () -> !state.busy(), () -> protect("New draft", this::newDraft)).right(4)
+                .top(3)
+                .height(18)
+                .addTooltipLine("New empty private project"));
         outlineList = new ListWidget<>().left(4)
             .right(4)
-            .top(25)
+            .top(27)
             .bottom(4);
         outlinePane.child(outlineList);
         panel.child(outlinePane);
@@ -642,7 +710,7 @@ public final class Mui2ProgrammingStation {
         inspectorPane.child(button("Add node", 6, 24, 72, this::graphEditable, this::openNodes));
         inspectorPane.child(button("Fit", 82, 24, 62, () -> true, graphEditor::fit));
         inspectorPane.child(
-            new TextWidget<>("SFML clause").color(0xffb0b3bb)
+            new TextWidget<>(IKey.dynamic(() -> advancedTools ? "SFML clause" : "Node options")).color(0xffb0b3bb)
                 .pos(6, 51)
                 .size(86, 12));
         inspectorPane.child(
@@ -659,9 +727,18 @@ public final class Mui2ProgrammingStation {
         inspectorPane.child(
             clauseField.pos(6, 66)
                 .size(138, 18)
+                .setEnabledIf(widget -> advancedTools)
                 .addTooltipLine("Edit the selected clause, then Apply. Modifiers remain part of the clause."));
-        inspectorPane.child(button("Apply", 6, 90, 64, this::editable, this::applyClause));
-        inspectorPane.child(button("Reset", 76, 90, 68, this::editable, this::selectionChanged));
+        inspectorPane
+            .child(button("Apply", 6, 90, 64, this::editable, this::applyClause).setEnabledIf(widget -> advancedTools));
+        inspectorPane.child(
+            button("Reset", 76, 90, 68, this::editable, this::selectionChanged).setEnabledIf(widget -> advancedTools));
+        inspectorPane.child(
+            new TextWidget<>("Use Fields to edit this node. Advanced tools also expose its raw SFML clause.").pos(6, 66)
+                .size(138, 42)
+                .scale(.8f)
+                .color(0xffa9b3bd)
+                .setEnabledIf(widget -> !advancedTools));
         inspectorPane.child(button("Delete", 6, 116, 138, this::graphEditable, graphEditor::deleteSelected));
         panel.child(inspectorPane);
     }
@@ -670,17 +747,310 @@ public final class Mui2ProgrammingStation {
         editor.catalog(symbols);
         if (outlineList == null) return;
         outlineList.removeAll();
-        for (SfmlCompletionCatalog.OutlineEntry entry : symbols.outline()) {
-            outlineList.child(listButton("", 102, () -> !document.incomplete(), () -> {
+        if (catalog.entries.isEmpty()) outlineList.child(
+            new TextWidget<>("No saved projects").color(0xff979da7)
+                .height(14)
+                .widthRel(1f));
+        for (ProjectPage.Entry entry : catalog.entries) {
+            outlineList.child(
+                listButton("", 120, () -> !state.busy(), () -> selectProject(entry)).widthRel(1f)
+                    .height(20)
+                    .overlay(
+                        IKey.dynamic(
+                            () -> trimFor(
+                                (state.saved != null && state.saved.id.equals(entry.id) ? "> " : "") + entry.name,
+                                Math.max(20, outlinePane.getArea().width - 20)))
+                            .color(0xffe7e8eb))
+                    .addTooltipLine(entry.name + " | saved r" + entry.revision));
+        }
+        if (catalog.total > CATALOG_ROWS) {
+            ParentWidget<?> paging = new ParentWidget<>().widthRel(1f)
+                .height(20);
+            paging.child(
+                button(
+                    "<",
+                    0,
+                    0,
+                    28,
+                    () -> !state.awaitingReply() && catalog.offset > 0,
+                    () -> request(Action.LIST, null, Math.max(0, catalog.offset - CATALOG_ROWS))).height(18));
+            paging.child(
+                button(
+                    ">",
+                    32,
+                    0,
+                    28,
+                    () -> !state.awaitingReply() && catalog.offset + CATALOG_ROWS < catalog.total,
+                    () -> request(Action.LIST, null, catalog.offset + CATALOG_ROWS)).height(18));
+            outlineList.child(paging);
+        }
+        outlineList.child(
+            listButton(
+                "Refresh projects",
+                120,
+                () -> !state.awaitingReply(),
+                () -> request(Action.LIST, null, catalog.offset)).widthRel(1f)
+                    .height(18));
+        outlineList.child(
+            new TextWidget<>("TEMPLATES").color(0xffc1878e)
+                .height(19)
+                .widthRel(1f));
+        for (StudioTemplates.Template template : StudioTemplates.Template.values()) outlineList.child(
+            listButton(
+                template.title,
+                120,
+                () -> !state.busy(),
+                () -> protect("Use " + template.title, () -> template(template))).widthRel(1f)
+                    .height(20)
+                    .addTooltipLine("Create a local draft. Label names must match your disk labels."));
+        outlineList.child(
+            new TextWidget<>("program.sfml").color(0xff9ca5b0)
+                .height(20)
+                .widthRel(1f));
+        for (SfmlCompletionCatalog.OutlineEntry entry : symbols.outline())
+            outlineList.child(listButton("", 120, () -> !document.incomplete(), () -> {
                 switchView(View.CODE);
                 editor.goTo(entry.getOffset());
-            }).height(18)
+            }).widthRel(1f)
+                .height(18)
                 .overlay(
-                    IKey.str(trimFor(entry.getTitle(), 94))
-                        .color(0xffe7e8eb))
+                    IKey.str(entry.getTitle())
+                        .color(0xffc3c8d0))
                 .addTooltipLine(entry.getTitle() + " | line " + entry.getLine()));
-        }
         if (outlineList.isValid()) outlineList.scheduleResize();
+    }
+
+    private void selectProject(ProjectPage.Entry entry) {
+        protect("Load " + entry.name, () -> {
+            loadingRecovery = cache().get(key(entry.id));
+            request(Action.LOAD, entry.id, 0);
+        });
+    }
+
+    private void template(StudioTemplates.Template template) {
+        newDraft();
+        state.name = template.title;
+        state.source = template.source;
+        state.noteLocalEdit();
+        document.load(template.source);
+        syncEditor();
+        if (view != View.CODE) document.openVisual();
+        status = "Template draft. Set source / destination disk labels, then Save and Check.";
+    }
+
+    private void buildDock() {
+        dockPane = new ParentWidget<>().left(164)
+            .right(8)
+            .top(360)
+            .bottom(18)
+            .background(StudioTheme.PANEL);
+        String[] titles = { "Problems", "Debug terminal", "Watch", "Build revisions" };
+        Dock[] tabs = Dock.values();
+        for (int i = 0; i < tabs.length; i++) {
+            final Dock tab = tabs[i];
+            final String title = titles[i];
+            ButtonWidget<?> button = button("", 4 + i * 100, 2, 98, () -> true, () -> selectDock(tab)).height(18)
+                .background(StudioTheme.TAB)
+                .overlay(IKey.dynamic(() -> {
+                    String label = dockPane.getArea().width < 360 ? tab == Dock.TERMINAL ? "Debug"
+                        : tab == Dock.BUILDS ? "Builds" : tab == Dock.PROBLEMS ? "Issues" : title : title;
+                    return label;
+                })
+                    .color(() -> dock == tab ? 0xffefa09a : 0xffa9aeb7));
+            dockTabs.add(button);
+            dockPane.child(button);
+        }
+        problemDock = new ParentWidget<>().left(4)
+            .right(4)
+            .top(24)
+            .bottom(4)
+            .setEnabledIf(widget -> dock == Dock.PROBLEMS);
+        problemDock.child(button("Go to error", 4, 3, 76, () -> true, this::jumpToError).height(18));
+        problemDock.child(button("Check saved", 83, 3, 78, () -> !state.busy(), this::validate).height(18));
+        problemOutput = new StudioReadOnlyPane(this::authoringOnTop).left(4)
+            .right(4)
+            .top(26)
+            .bottom(4);
+        problemDock.child(problemOutput);
+        dockPane.child(problemDock);
+        terminal = new StudioDebugTerminal(station, sessionId, windowId);
+        terminalDock = terminal
+            .buildDock(
+                panel,
+                () -> authoringOnTop() && (dock == Dock.TERMINAL || dock == Dock.WATCH),
+                () -> dock == Dock.WATCH,
+                this::authoringOnTop)
+            .left(4)
+            .right(4)
+            .top(24)
+            .bottom(4)
+            .setEnabledIf(widget -> dock == Dock.TERMINAL);
+        watchDock = terminal.buildWatch(this::authoringOnTop)
+            .left(4)
+            .right(4)
+            .top(24)
+            .bottom(4)
+            .setEnabledIf(widget -> dock == Dock.WATCH);
+        dockPane.child(terminalDock);
+        dockPane.child(watchDock);
+        buildDock = new ParentWidget<>().left(4)
+            .right(4)
+            .top(24)
+            .bottom(4)
+            .setEnabledIf(widget -> dock == Dock.BUILDS);
+        publishDockButton = button(
+            "",
+            4,
+            3,
+            74,
+            () -> state.saved != null && !state.awaitingReply() && !state.dirty() && !visualDraft(),
+            this::publish).height(18)
+                .overlay(
+                    IKey.dynamic(() -> publishDockButton.getArea().width < 74 ? "Publish" : "Publish saved")
+                        .color(0xffe7e8eb))
+                .addTooltipLine("Compile and publish the exact saved server revision as an immutable build.");
+        refreshBuildsButton = button(
+            "Refresh",
+            81,
+            3,
+            46,
+            () -> state.saved != null && !state.awaitingReply(),
+            () -> request(Action.LIST_PUBLICATIONS, state.saved.id, 0)).height(18);
+        imprintDockButton = button(
+            "",
+            130,
+            3,
+            78,
+            () -> REFERENCE_DISKS_ENABLED && state.saved != null
+                && state.selectedBuild() != null
+                && !state.awaitingReply(),
+            () -> request(Action.WRITE_DISK, state.selectedBuild().project, 0)).height(18)
+                .background(StudioTheme.PRIMARY)
+                .overlay(
+                    IKey.dynamic(() -> imprintDockButton.getArea().width < 74 ? "Imprint" : "Imprint disk")
+                        .color(0xffe7e8eb))
+                .addTooltipLine(IKey.dynamic(this::imprintHelp));
+        buildDock.child(publishDockButton);
+        buildDock.child(refreshBuildsButton);
+        buildDock.child(imprintDockButton);
+        ListWidget<IWidget, ?> revisions = new ListWidget<>().left(4)
+            .right(4)
+            .top(26)
+            .bottom(32);
+        for (int i = 0; i < BUILD_ROWS; i++) {
+            final int row = i;
+            revisions.child(listButton("", 200, () -> !state.awaitingReply() && publishedEntry(row) != null, () -> {
+                PublicationReceipt receipt = publishedEntry(row);
+                if (receipt == null) return;
+                state.selectBuild(receipt);
+                status = "Selected immutable build r" + receipt.revision + ". Imprint disk writes exactly this build.";
+            }).widthRel(1f)
+                .height(18)
+                .overlay(IKey.dynamic(() -> {
+                    PublicationReceipt receipt = publishedEntry(row);
+                    if (receipt == null) return row == 0 ? state.saved == null ? "Save a project to create builds."
+                        : "No builds loaded. Publish saved or Refresh." : "";
+                    return (state.isSelectedBuild(receipt) ? "> " : "  ") + "r"
+                        + receipt.revision
+                        + " / "
+                        + receipt.digest.substring(0, 16);
+                })
+                    .color(0xffdce0e6)));
+        }
+        ParentWidget<?> paging = new ParentWidget<>().widthRel(1f)
+            .height(19);
+        paging.child(
+            button(
+                "Previous",
+                0,
+                0,
+                60,
+                () -> state.saved != null && !state.awaitingReply() && publications.offset > 0,
+                () -> request(Action.LIST_PUBLICATIONS, state.saved.id, Math.max(0, publications.offset - BUILD_ROWS)))
+                    .height(17));
+        paging.child(
+            button(
+                "Next",
+                63,
+                0,
+                48,
+                () -> state.saved != null && !state.awaitingReply()
+                    && publications.offset + BUILD_ROWS < publications.total,
+                () -> request(Action.LIST_PUBLICATIONS, state.saved.id, publications.offset + BUILD_ROWS)).height(17));
+        revisions.child(paging);
+        buildDock.child(revisions);
+        buildDock.child(new TextWidget<>(IKey.dynamic(() -> {
+            PublicationReceipt receipt = state.selectedBuild();
+            return receipt == null ? "Save > Publish saved > select build"
+                : "Selected saved r" + receipt.revision + " / " + receipt.digest.substring(0, 12);
+        })).color(0xffe4b4ae)
+            .left(4)
+            .right(4)
+            .bottom(17)
+            .height(10)
+            .setEnabledIf(widget -> buildDock.getArea().height >= 82));
+        buildDock.child(
+            new TextWidget<>(
+                IKey.dynamic(
+                    () -> REFERENCE_DISKS_ENABLED ? "Hold 1 fresh disk before opening station."
+                        : "Imprint locked: awaiting runtime verification.")).color(0xffa5aab4)
+                            .left(4)
+                            .right(4)
+                            .bottom(4)
+                            .height(10)
+                            .addTooltipLine(IKey.dynamic(this::imprintHelp))
+                            .setEnabledIf(widget -> buildDock.getArea().height >= 82));
+        final int[] lastBuildHeight = { -1 };
+        buildDock.onUpdateListener(widget -> {
+            if (lastBuildHeight[0] != buildDock.getArea().height) {
+                lastBuildHeight[0] = buildDock.getArea().height;
+                revisions.bottom(lastBuildHeight[0] >= 82 ? 32 : 4);
+                buildDock.scheduleResize();
+            }
+        }, true);
+        dockPane.child(buildDock);
+        panel.child(dockPane);
+        updateProblems();
+    }
+
+    private String imprintHelp() {
+        if (!REFERENCE_DISKS_ENABLED)
+            return "Reference disk writing awaits runtime verification. Saved build publishing and selection remain available.";
+        if (state.saved == null) return "Save this project first, then Publish saved and select the exact build.";
+        if (state.selectedBuild() == null)
+            return "Publish the saved revision and select an immutable build before imprinting.";
+        return "Imprints selected saved r" + state.selectedBuild().revision
+            + ". Hold exactly one fresh program disk before opening the station. Server permission and held-medium checks apply.";
+    }
+
+    private void selectDock(Dock next) {
+        clearAuthorFocus();
+        dock = next;
+        if (next == Dock.BUILDS && state.saved != null && !state.awaitingReply())
+            request(Action.LIST_PUBLICATIONS, state.saved.id, publications.offset);
+        if (next == Dock.PROBLEMS) updateProblems();
+    }
+
+    private void updateProblems() {
+        boolean dirty = state.dirty() || visualDraft();
+        if (problemOutput == null || draftDiagnostic.equals(lastProblemDiagnostic) && status.equals(lastProblemStatus)
+            && lastProblemSaved == state.saved
+            && lastProblemValidation == state.validation
+            && dirty == lastProblemDirty) return;
+        lastProblemDiagnostic = draftDiagnostic;
+        lastProblemStatus = status;
+        lastProblemSaved = state.saved;
+        lastProblemValidation = state.validation;
+        lastProblemDirty = dirty;
+        List<String> lines = new ArrayList<>();
+        Collections.addAll(lines, draftDiagnostic.split("\\n"));
+        lines.add(state.revisionLine());
+        Collections.addAll(lines, status.split("\\n"));
+        problemOutput.lines(lines);
+    }
+
+    public void receiveStationDebugReply(PacketStationDebugReply reply) {
+        if (terminal != null) terminal.receive(reply);
     }
 
     private void graphChanged() {
@@ -1169,9 +1539,7 @@ public final class Mui2ProgrammingStation {
 
     private void openProblems() {
         checkDraft();
-        removeFocus();
-        problemsPanel.deleteCachedPanel();
-        problemsPanel.openPanel();
+        selectDock(Dock.PROBLEMS);
     }
 
     private ModularPanel buildProblems() {
@@ -1207,15 +1575,25 @@ public final class Mui2ProgrammingStation {
         if (diagnosticDelay >= 0 && --diagnosticDelay < 0) checkDraft();
         if (!opened) {
             opened = true;
+            refreshCatalog = true;
             if (state.saved != null) {
-                loadingRecovery = latestRecovery();
+                loadingRecovery = cache().get(key(state.saved.id));
                 request(Action.LOAD, state.saved.id, 0);
-            } else if (!state.dirty() && !state.uncertainWrite) openCatalog();
+            } else if (rememberedProject != null && !state.dirty() && !state.uncertainWrite) {
+                loadingRecovery = cache().get(key(rememberedProject));
+                request(Action.LOAD, rememberedProject, 0);
+            }
+        }
+        if (refreshCatalog && !state.awaitingReply()) {
+            refreshCatalog = false;
+            request(Action.LIST, null, 0);
         }
         if (state.tick()) {
             status = state.timeoutMessage();
             retain();
         }
+        if (terminal != null) terminal.tick();
+        updateProblems();
     }
 
     public void receive(PacketStationReply reply) {
@@ -1229,10 +1607,14 @@ public final class Mui2ProgrammingStation {
             return;
         status = reply.message;
         if (!reply.accepted) {
+            if (reply.action == Action.LOAD) loadingRecovery = null;
             retain();
             return;
         }
-        if (reply.page != null) catalog = reply.page;
+        if (reply.page != null) {
+            catalog = reply.page;
+            rebuildOutline();
+        }
         if (reply.publications != null && state.saved != null) {
             // A catalog contains metadata only, and belongs to the current authenticated project.
             boolean matches = true;
@@ -1247,9 +1629,11 @@ public final class Mui2ProgrammingStation {
                 + ". Draft edits cannot change this build.";
         }
         if (reply.draft != null && !state.ignoredLateLoad) {
+            projectMemory.remember(memoryScope, reply.draft.id);
             if (!reply.draft.id.equals(previous)) publications = new PublicationPage(Collections.emptyList(), 0, 0);
             boolean recoveredVisual = reply.action == Action.LOAD && loadingRecovery != null;
             if (reply.action == Action.CREATE || reply.action == Action.SAVE) cache().remove(key(previous));
+            if (reply.action == Action.CREATE || reply.action == Action.SAVE) refreshCatalog = true;
             if (reply.action == Action.LOAD && loadingRecovery != null) {
                 if (!recoveryOverCurrent) {
                     state.name = loadingRecovery.name;
@@ -1282,6 +1666,10 @@ public final class Mui2ProgrammingStation {
         if (state.ignoredLateLoad)
             status = "Load arrived after editing; your draft was kept. Save or retain it before loading again.";
         if (reply.validation != null) status = reply.validation.message;
+        if (reply.action == Action.PUBLISH && state.publication != null && !state.awaitingReply()) {
+            state.selectBuild(state.publication);
+            if (!publications.entries.contains(state.publication)) request(Action.LIST_PUBLICATIONS, state.saved.id, 0);
+        }
         if (!state.dirty() && !state.uncertainWrite && !visualDraft())
             cache().remove(key(state.saved == null ? null : state.saved.id));
     }
@@ -1397,6 +1785,7 @@ public final class Mui2ProgrammingStation {
 
     private void newDraft() {
         state.newDraft();
+        projectMemory.remember(memoryScope, null);
         publications = new PublicationPage(Collections.emptyList(), 0, 0);
         fieldDraft = null;
         document.load(state.source);
@@ -1407,12 +1796,8 @@ public final class Mui2ProgrammingStation {
     }
 
     private void openBuilds() {
-        if (buildsPanel == null || buildsPanel.isPanelOpen()) return;
-        removeFocus();
-        buildsPanel.deleteCachedPanel();
-        buildsPanel.openPanel();
+        selectDock(Dock.BUILDS);
         if (state.saved == null) status = "Create and save a project before publishing a build.";
-        else request(Action.LIST_PUBLICATIONS, state.saved.id, 0);
     }
 
     private void publish() {
@@ -1542,11 +1927,8 @@ public final class Mui2ProgrammingStation {
     }
 
     private void openCatalog() {
-        if (catalogPanel == null || catalogPanel.isPanelOpen()) return;
         removeFocus();
-        catalogPanel.deleteCachedPanel();
-        catalogPanel.openPanel();
-        request(Action.LIST, null, catalog.offset);
+        if (!state.awaitingReply()) request(Action.LIST, null, catalog.offset);
     }
 
     private ModularPanel buildCatalog() {
@@ -1744,9 +2126,15 @@ public final class Mui2ProgrammingStation {
                         .toLowerCase(Locale.ROOT);
                     visible.clear();
                     for (SyntaxSnippet entry : entries) {
-                        if ((entry.getTitle() + " " + entry.getDescription() + " " + entry.getTemplate())
-                            .toLowerCase(Locale.ROOT)
-                            .contains(query)) visible.add(entry);
+                        if ((entry.getCategory()
+                            .getDisplayName() + " "
+                            + entry.getTitle()
+                            + " "
+                            + entry.getDescription()
+                            + " "
+                            + entry.getTemplate()).toLowerCase(Locale.ROOT)
+                                .contains(query))
+                            visible.add(entry);
                     }
                     rebuild.run();
                 }))
@@ -1876,6 +2264,7 @@ public final class Mui2ProgrammingStation {
         if (graphEditor != null) graphEditor.finishInteraction();
         retain();
         cancelled = true;
+        if (terminal != null) terminal.cancel();
         if (editor.isValid() && editor.isFocused()) editor.getContext()
             .removeFocus();
     }

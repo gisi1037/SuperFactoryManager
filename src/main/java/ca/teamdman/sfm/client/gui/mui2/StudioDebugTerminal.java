@@ -14,6 +14,7 @@ import com.cleanroommc.modularui.api.drawable.IKey;
 import com.cleanroommc.modularui.api.widget.IWidget;
 import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.value.StringValue;
+import com.cleanroommc.modularui.widget.ParentWidget;
 import com.cleanroommc.modularui.widgets.ButtonWidget;
 import com.cleanroommc.modularui.widgets.ListWidget;
 import com.cleanroommc.modularui.widgets.TextWidget;
@@ -39,6 +40,10 @@ public final class StudioDebugTerminal {
     private final TerminalCommandHistory commands = new TerminalCommandHistory();
     private final TerminalCommandCompletion completion = new TerminalCommandCompletion();
     private ModularPanel panel;
+    private java.util.function.BooleanSupplier visible = () -> true, watching = () -> false;
+    private StudioReadOnlyPane dockOutput, watchOutput;
+    private List<String> watch = Collections
+        .singletonList("Connect to a nearby manager in Debug terminal. Watch is read-only; no SFML is evaluated.");
     private String inputX, inputY, inputZ, command = "", notice = "Choose a nearby manager, then Connect.";
     private int targetX, targetY, targetZ, ticks, pendingAt, lastPoll, page, column;
     private long dropped;
@@ -58,6 +63,139 @@ public final class StudioDebugTerminal {
         inputX = Integer.toString(station.xCoord);
         inputY = Integer.toString(station.yCoord);
         inputZ = Integer.toString(station.zCoord);
+    }
+
+    /** The IDE owns this terminal for its complete session; switching dock tabs preserves target and output. */
+    public ParentWidget<?> buildDock(ModularPanel owner, java.util.function.BooleanSupplier visible,
+        java.util.function.BooleanSupplier watching, java.util.function.BooleanSupplier input) {
+        panel = owner;
+        this.visible = visible;
+        this.watching = watching;
+        ParentWidget<?> dock = new ParentWidget<>().background(StudioTheme.INSET);
+        dock.child(
+            coordinate("X", 4, () -> inputX, value -> inputX = value).top(4)
+                .size(38, 16));
+        dock.child(
+            coordinate("Y", 45, () -> inputY, value -> inputY = value).top(4)
+                .size(38, 16));
+        dock.child(
+            coordinate("Z", 86, () -> inputZ, value -> inputZ = value).top(4)
+                .size(38, 16));
+        dock.child(button("Connect", 127, 3, 54, this::connect).height(18));
+        dock.child(
+            button("", 185, 3, 78, () -> request("capture " + (capturing ? "off" : "on"))).height(18)
+                .overlay(IKey.dynamic(() -> "Capture " + (capturing ? "ON" : "OFF")))
+                .setEnabledIf(widget -> dock.getArea().width >= 280));
+        dock.child(
+            new TextWidget<>(IKey.dynamic(() -> trim(notice, Math.max(1, dock.getArea().width - 274))))
+                .color(0xffb0b3bb)
+                .left(270)
+                .right(4)
+                .top(7)
+                .height(10)
+                .setEnabledIf(widget -> dock.getArea().width >= 420)
+                .addTooltipLine(IKey.dynamic(() -> notice)));
+        ParentWidget<?> tools = new ParentWidget<>().left(4)
+            .right(4)
+            .top(24)
+            .height(18)
+            .setEnabledIf(widget -> dock.getArea().height >= 90);
+        tools.child(
+            button("PRINT", 0, 0, 44, () -> view(false)).height(17)
+                .addTooltipLine("View bounded PRINT history. Use capture on / capture off to change capture."));
+        tools.child(button("Result", 47, 0, 44, () -> view(true)).height(17));
+        tools.child(
+            button("Profile", 94, 0, 48, () -> request("profile status")).height(17)
+                .addTooltipLine("Full server update timings. Commands: profile start [updates], stop, reset, status."));
+        tools.child(button("Copy", 145, 0, 40, this::copy).height(17));
+        tools.child(
+            button("Start profile", 190, 0, 76, () -> request("profile start")).height(17)
+                .setEnabledIf(widget -> dock.getArea().width >= 410));
+        tools.child(
+            button("Stop", 269, 0, 40, () -> request("profile stop")).height(17)
+                .setEnabledIf(widget -> dock.getArea().width >= 410));
+        tools.child(
+            button("Reset", 312, 0, 42, () -> request("profile reset")).height(17)
+                .setEnabledIf(widget -> dock.getArea().width >= 410));
+        dock.child(tools);
+        dockOutput = new StudioReadOnlyPane(input).left(4)
+            .right(4)
+            .top(24)
+            .bottom(24);
+        dockOutput.lines(result);
+        dock.child(dockOutput);
+        dock.child(
+            commandField().left(4)
+                .right(52)
+                .bottom(4)
+                .height(17)
+                .addTooltipLine("Enter: send command. Tab: completion. Up/Down: history. help lists server commands."));
+        ButtonWidget<?> run = button("Run", 0, 0, 44, () -> request(command));
+        run.flex()
+            .resetPosition();
+        dock.child(
+            run.right(4)
+                .bottom(3)
+                .height(18));
+        final int[] lastHeight = { -1 };
+        dock.onUpdateListener(widget -> {
+            if (lastHeight[0] != dock.getArea().height) {
+                lastHeight[0] = dock.getArea().height;
+                dockOutput.top(lastHeight[0] >= 90 ? 46 : 24);
+                dock.scheduleResize();
+            }
+        });
+        return dock;
+    }
+
+    public ParentWidget<?> buildWatch(java.util.function.BooleanSupplier input) {
+        ParentWidget<?> dock = new ParentWidget<>().background(StudioTheme.INSET);
+        dock.child(button("Refresh", 4, 3, 54, () -> request("watch")).height(18));
+        dock.child(button("Profile", 61, 3, 48, () -> request("profile status")).height(18));
+        dock.child(
+            new TextWidget<>(IKey.dynamic(() -> connected ? "LIVE / read-only / 1s" : "Connect in Debug terminal"))
+                .left(115)
+                .right(4)
+                .top(7)
+                .height(10)
+                .color(0xffb0b3bb)
+                .addTooltipLine(
+                    "Bounded server state snapshot. watch $name selects one value; no arbitrary SFML evaluation."));
+        watchOutput = new StudioReadOnlyPane(input).left(4)
+            .right(4)
+            .top(26)
+            .bottom(4);
+        watchOutput.lines(watch);
+        dock.child(watchOutput);
+        return dock;
+    }
+
+    private TextFieldWidget commandField() {
+        return new TextFieldWidget() {
+
+            @Override
+            public Result onKeyPressed(char character, int key) {
+                if (!isFocused()) return Result.IGNORE;
+                if (key == Keyboard.KEY_TAB) {
+                    command = completion.complete(getText(), GuiScreen.isShiftKeyDown());
+                    setText(command);
+                    return Result.SUCCESS;
+                }
+                if (key == Keyboard.KEY_UP || key == Keyboard.KEY_DOWN) {
+                    completion.reset();
+                    command = key == Keyboard.KEY_UP ? commands.previous(getText()) : commands.next(getText());
+                    setText(command);
+                    return Result.SUCCESS;
+                }
+                if (key == Keyboard.KEY_RETURN || key == Keyboard.KEY_NUMPADENTER) {
+                    request(command);
+                    return Result.SUCCESS;
+                }
+                return super.onKeyPressed(character, key);
+            }
+        }.setMaxLength(128)
+            .autoUpdateOnChange(true)
+            .value(new StringValue.Dynamic(() -> command, value -> command = value));
     }
 
     public ModularPanel build(Runnable close) {
@@ -186,10 +324,15 @@ public final class StudioDebugTerminal {
         }
         connected = false;
         deferred = null;
+        history = Collections.emptyList();
+        result = Collections.singletonList("Connecting to the selected manager...");
+        watch = Collections.singletonList("Awaiting a read-only snapshot from the selected manager.");
+        if (dockOutput != null) dockOutput.lines(result);
+        if (watchOutput != null) watchOutput.lines(watch);
         send(Action.CONNECT, "");
     }
 
-    private void tick() {
+    public void tick() {
         if (cancelled || panel == null || !panel.isOpen()) return;
         ticks++;
         if (pending && ticks - pendingAt >= 60) {
@@ -197,7 +340,8 @@ public final class StudioDebugTerminal {
             deferred = null;
             notice = "No reply. Connect again to retry.";
         }
-        if (connected && !pending && ticks - lastPoll >= 20) send(Action.COMMAND, "");
+        if (connected && !pending && visible.getAsBoolean() && ticks - lastPoll >= 20)
+            send(Action.COMMAND, watching.getAsBoolean() ? "watch" : "");
     }
 
     private void request(String text) {
@@ -278,7 +422,13 @@ public final class StudioDebugTerminal {
             result = data.result;
             showResult = true;
             page = column = 0;
+            if (pendingPacket.command.equals("watch") || pendingPacket.command.startsWith("watch ")
+                || pendingPacket.command.equals("state")) {
+                watch = data.result;
+                if (watchOutput != null) watchOutput.lines(watch);
+            }
         } else if (follow) page = pages() - 1;
+        if (dockOutput != null) dockOutput.lines(lines());
         page = Math.min(page, pages() - 1);
         if (pendingAction == Action.CONNECT) notice = "Connected to " + targetX + ", " + targetY + ", " + targetZ;
         if (deferred != null) {
@@ -300,6 +450,7 @@ public final class StudioDebugTerminal {
         showResult = results;
         column = 0;
         page = results ? 0 : pages() - 1;
+        if (dockOutput != null) dockOutput.lines(lines());
     }
 
     private List<String> lines() {

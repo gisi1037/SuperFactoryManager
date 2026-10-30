@@ -212,9 +212,9 @@ public class TestAutomationController {
                     return terminalState();
                 case "terminalcommandwhilepoll": {
                     ModularScreen screen = currentMui();
-                    if (!(screen instanceof ManagerMui2Screen) || field(screen, "terminal") == null)
+                    if (!(screen instanceof ManagerMui2Screen) || field(screen, "diagnostics") == null)
                         return "ERROR: Open the manager terminal first";
-                    Object terminal = field(screen, "terminal");
+                    Object terminal = field(screen, "diagnostics");
                     Method request = terminal.getClass()
                         .getDeclaredMethod("request", String.class);
                     request.setAccessible(true);
@@ -224,7 +224,7 @@ public class TestAutomationController {
                 }
                 case "terminalcommand": {
                     ModularScreen screen = currentMui();
-                    if (!(screen instanceof ManagerMui2Screen) || field(screen, "terminal") == null)
+                    if (!(screen instanceof ManagerMui2Screen) || field(screen, "diagnostics") == null)
                         return "ERROR: Open the manager terminal first";
                     if (arg.length() > 128) return "ERROR: Terminal command exceeds 128 characters";
                     setMuiText(arg);
@@ -1563,9 +1563,27 @@ public class TestAutomationController {
 
     private static String terminalState() throws Exception {
         ModularScreen screen = currentMui();
-        Object terminal = screen instanceof ManagerMui2Screen
-            || screen instanceof ca.teamdman.sfm.integration.mui2.ProgrammingStationScreen ? field(screen, "terminal")
-                : null;
+        if (screen instanceof ManagerMui2Screen) {
+            Object diagnostics = field(screen, "diagnostics");
+            JsonObject state = new JsonObject();
+            state.addProperty("pending", (Boolean) field(diagnostics, "pending"));
+            state.addProperty("capturing", (Boolean) field(diagnostics, "capture"));
+            state.addProperty("showResult", !(Boolean) field(diagnostics, "printView"));
+            state.addProperty("cancelled", (Boolean) field(diagnostics, "closed"));
+            state.addProperty("dropped", (Long) field(diagnostics, "dropped"));
+            state.addProperty("command", String.valueOf(field(diagnostics, "command")));
+            state.addProperty("notice", String.valueOf(field(diagnostics, "notice")));
+            for (String name : new String[] { "print", "terminalResult", "profile", "watch" }) {
+                JsonArray lines = new JsonArray();
+                for (Object line : (List<?>) field(diagnostics, name))
+                    lines.add(new com.google.gson.JsonPrimitive((String) line));
+                state.add(name.equals("print") ? "history" : name.equals("terminalResult") ? "result" : name, lines);
+            }
+            return state.toString();
+        }
+        Object terminal = screen instanceof ca.teamdman.sfm.integration.mui2.ProgrammingStationScreen
+            ? field(screen, "terminal")
+            : null;
         if (terminal == null) return "NOT_DEBUG_TERMINAL";
         JsonObject state = new JsonObject();
         for (String name : new String[] { "pending", "capturing", "showResult", "cancelled" })

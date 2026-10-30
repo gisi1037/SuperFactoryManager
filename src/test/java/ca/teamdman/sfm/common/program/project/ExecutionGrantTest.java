@@ -172,6 +172,8 @@ class ExecutionGrantTest {
         ExecutionReference reference = issue(store);
         PreparedExecution first = store.prepareExecution(reference);
         PreparedExecution second = store.prepareExecution(new ExecutionReference(reference.token, reference.digest));
+        assertEquals(owner, first.sourceOwner);
+        assertEquals(owner, second.sourceOwner);
         assertEquals(reference, first.reference);
         assertEquals(reference, second.reference);
         assertEquals(SOURCE, first.source);

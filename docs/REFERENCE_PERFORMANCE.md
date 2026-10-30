@@ -100,8 +100,8 @@ Programs or unchecked file contents. Preserve actual grant/bundle verification
 on every cold activation. Cooperative real two-client reference flows and clean
 reloads subsequently passed; see [qualification scope](MULTIPLAYER_QUALIFICATION.md). Adversarial
 request/session races, chunk churn, hardware input and provider/recovery
-qualification remain gates before default
-reference-disk enablement. Statement/graph tracing remains separately planned.
+qualification remain open for full runtime qualification. The subsequent UI
+redesign enables normal Imprint disk with the existing server transaction checks. Statement/graph tracing remains separately planned.
 
 
 For a comparable untouched-original-versus-current score, use the separate
