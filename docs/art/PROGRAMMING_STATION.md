@@ -1,17 +1,18 @@
 # Programming Station placeholder artwork
 
-Four opaque 32x32 PNG block textures provide a dark gunmetal workstation with red
+Four opaque 16x16 PNG block textures provide a dark gunmetal workstation with red
 accents, a recessed code display, disk slot, ventilated casing and maintenance
 plate. The front faces the placing player; existing unrotated stations use the
 south face. This changes appearance only, not project storage or execution.
 
 Source: [generated atlas](programming-station-atlas.png). Generated with the
-built-in image-generation tool. The atlas was split into four faces and sampled
-with nearest-neighbor pixel selection to package it at Minecraft texture size.
+built-in image-generation tool. The atlas was split into four faces and reduced
+with filtered sampling to retain small details at 16x16. The enlarged preview
+uses nearest-neighbor scaling; runtime faces are genuine 16x16 PNGs.
 
 Runtime assets are in
 `src/main/resources/assets/superfactorymanager/textures/blocks/programming_station_*.png`.
 
 ## Generation prompt
 
-Create a production texture atlas for one Minecraft 1.7.10 mod block called the SFM Programming Station. This is actual flat block-face pixel artwork, NOT a rendered cube or concept sheet. Output a square image filled edge to edge by exactly four equally sized square texture tiles in a precise 2 by 2 grid, NO gaps, NO labels, NO margins. Top-left = FRONT: a dark recessed terminal screen in the upper half with a few simple red/pale amber code glyph pixels and a thick gray steel bezel; lower half has a slim red disk imprint slot and a tiny keypad/control strip. Top-right = TOP: charcoal industrial workstation panel, orderly inset plates, a central red SFM-like geometric circuit motif and subtle screws in corners. Bottom-left = SIDE/BACK: matching dark gunmetal casing with a recessed ventilation grille, a slim dark red accent stripe and steel corner brackets. Bottom-right = BOTTOM: matching sealed dark steel maintenance plate with four recessed corner screws. The 4 tiles share the exact same brushed gunmetal gray frame, nearly black recesses, desaturated red accents, a little warm gray edge light. Palette roughly #171a1f #25292f #383e46 #626a73 #8e434b #b35b5f; no blue or neon cyan. Premium polished industrial Minecraft pixel-art aesthetic, crisp big square pixels, carefully designed relief from one-pixel highlights and shadows at upper-left, strongly readable small icons, restrained contrast, no grime overload. Each tile must be drawn on an EXACT 32 by 32 logical pixel grid, enlarged with sharp nearest-neighbor square pixels. Align every logical pixel to that grid. No anti-aliasing, no gradients, no perspective, no photographic materials, no text, no logos, no drop shadows outside each tile. Complete opaque Minecraft block textures. Make the programming screen and disk slot distinguishable at tiny size.
+Use case: precise-object-edit. Edit target: the supplied SFM Programming Station 2x2 block texture atlas. Simplify the SAME four faces into EXACTLY 16 by 16 logical pixels EACH, enlarged as sharp square pixel art. Entire image must be 32 by 32 logical pixels enlarged, split into equal 2x2 tiles edge to edge without gaps, margins, labels or perspective. Top-left FRONT: charcoal steel frame, upper recessed black screen with just a few big red and pale gray code marks, bottom a red disk slot and small controls. Top-right TOP: matching steel panel with a simple red circuit cross in middle. Bottom-left SIDE: gray steel vents, red horizontal stripe below vents. Bottom-right BOTTOM: simple sealed steel plate and four screws. Preserve gunmetal gray/desaturated red palette and industrial inset panel style of input. Eliminate fine details that cannot survive 16x16. Every detail uses full integer pixels on the 16x16 grid; no antialiasing, gradients or noise. No words, logos, transparency, photorealism or rendered cube. Production Minecraft 1.7.10 textures.
