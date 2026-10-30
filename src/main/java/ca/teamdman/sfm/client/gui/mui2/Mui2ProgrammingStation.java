@@ -2107,13 +2107,12 @@ public final class Mui2ProgrammingStation {
                         .background(StudioTheme.BUTTON)
                         .hoverBackground(StudioTheme.HOVER)
                         .overlay(
-                            IKey.dynamic(
-                                () -> trimFor(
-                                    snippet.getCategory()
-                                        .getDisplayName() + " / "
-                                        + snippet.getTitle(),
-                                    280))
+                            IKey.dynamic(() -> trimFor(snippet.getTitle(), 280))
                                 .color(0xffe7e8eb))
+                        .addTooltipLine(
+                            IKey.str(
+                                snippet.getCategory()
+                                    .getDisplayName()))
                         .addTooltipLine(IKey.str(snippet.getDescription()))
                         .addTooltipLine(IKey.str(snippet.getTemplate()))
                         .onMousePressed(mouse -> {
