@@ -15,7 +15,7 @@ import cpw.mods.fml.common.event.FMLServerStartingEvent;
     version = Tags.VERSION,
     name = "Super Factory Manager",
     acceptedMinecraftVersions = "[1.7.10]",
-    dependencies = "required-after:modularui2@[2.3.93,);required-after:gtnhlib@[0.11.54,)")
+    dependencies = "required-after:modularui2@[2.3.92,);required-after:gtnhlib@[0.11.52,)")
 public class SuperFactoryManager {
 
     public static final String MODID = "superfactorymanager";

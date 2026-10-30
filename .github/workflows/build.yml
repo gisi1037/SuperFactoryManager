@@ -10,10 +10,14 @@ on:
 
 jobs:
   build:
-    name: Build & Package Mod
+    name: Build & Package (${{ matrix.target }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [rc2, nightly]
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - name: Checkout repository
@@ -34,25 +38,27 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build with Gradle
-        run: ./gradlew build
+        env:
+          SFM_TARGET: ${{ matrix.target }}
+          SFM_RELEASE_TAG: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+        run: |
+          args=(build "-PsfmTarget=$SFM_TARGET")
+          if [[ -n "$SFM_RELEASE_TAG" ]]; then
+            args+=("-PsfmVersion=${SFM_RELEASE_TAG#v}")
+          fi
+          ./gradlew "${args[@]}"
 
       - name: Upload Mod Jars
         uses: actions/upload-artifact@v4
         with:
-          name: SuperFactoryManager-jars
+          name: SuperFactoryManager-${{ matrix.target }}
           path: |
             build/libs/superfactorymanager-*.jar
             !build/libs/*-dev-preshadow.jar
             !build/libs/*-predowngrade.jar
             !build/libs/*-dirty*.jar
+            !build/libs/*-dev.jar
+            !build/libs/*-sources.jar
 
-      - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            build/libs/superfactorymanager-*.jar
-            !build/libs/*-dev-preshadow.jar
-            !build/libs/*-predowngrade.jar
-            !build/libs/*-dirty*.jar
-          generate_release_notes: true
+      # Publishing is explicit: upload verified target JARs and checksums together.
+      # CI must not overwrite release assets after their checksum manifest is published.

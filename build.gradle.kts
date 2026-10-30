@@ -3,6 +3,16 @@ plugins {
     id("com.gtnewhorizons.gtnhconvention")
 }
 
+// Release assets keep the target visible in their filenames and in Forge's mod version.
+providers.gradleProperty("sfmVersion").orNull?.let { release ->
+    require(release.matches(Regex("[0-9][A-Za-z0-9.+-]*"))) { "Invalid sfmVersion" }
+    val targetVersion = "$release-${extra["sfmTargetSuffix"]}"
+    version = targetVersion
+    tasks.named<com.gtnewhorizons.retrofuturagradle.mcp.InjectTagsTask>("injectTags") {
+        tags.put("VERSION", targetVersion)
+    }
+}
+
 tasks.withType<Checkstyle>().configureEach {
     exclude("ca/teamdman/langs/**")
 }
