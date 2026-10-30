@@ -6,20 +6,22 @@ public final class StudioLayout {
     /** Geometry for the native IDE. Dock and sidebar preferences are clamped at each GUI scale. */
     public static final class Workspace {
 
-        public final int sidebar, mainLeft, insertColumns, insertWidth, viewTop, editorTop, dockTop, dockHeight;
+        public final int sidebar, mainLeft, insertColumns, insertWidth, viewTop, viewHeight, editorTop, dockTop,
+            dockHeight;
         public final boolean compact, inspector;
 
         private Workspace(int width, int height, int preferredSidebar, double dockRatio, int categories) {
             compact = width < 620 || height < 340;
             sidebar = Math.max(76, Math.min(preferredSidebar, Math.max(76, Math.min(260, width / 3))));
             mainLeft = sidebar + 10;
-            int available = Math.max(1, width - mainLeft - 8);
+            int available = Math.max(1, width - 22);
             int count = compact ? 2 : Math.max(1, categories);
             insertColumns = Math.max(1, Math.min(count, (available + 3) / (compact ? 68 : 52)));
             insertWidth = Math.max(1, (available - (insertColumns - 1) * 3) / insertColumns);
             // Recessed rule and breathing room distinguish insertion tools from authoring view tabs.
             viewTop = 46 + (count + insertColumns - 1) / insertColumns * 18 + 6;
-            editorTop = viewTop + 21;
+            viewHeight = compact ? 22 : 25;
+            editorTop = viewTop + viewHeight + 5;
             int room = Math.max(1, height - editorTop - 21);
             int minDock = Math.min(102, Math.max(56, room - 40));
             int maxDock = Math.max(minDock, room - Math.min(90, room / 2));
@@ -30,7 +32,7 @@ public final class StudioLayout {
         }
 
         public int insertX(int index) {
-            return mainLeft + index % insertColumns * (insertWidth + 3);
+            return 14 + index % insertColumns * (insertWidth + 3);
         }
 
         public int insertY(int index) {
@@ -66,6 +68,12 @@ public final class StudioLayout {
 
     public static int inspectorHeight(int screenHeight) {
         return Math.max(1, Math.min(440, screenHeight - 16));
+    }
+
+    /** Keep a useful canvas (or both split panes) when the inspector grows. */
+    public static int inspectorPaneWidth(int screenWidth, int mainLeft, boolean split, int preferred) {
+        int available = screenWidth - mainLeft - 16 - (split ? 400 : 240);
+        return Math.max(150, Math.min(preferred, Math.min(420, available)));
     }
 
     public StudioLayout(int width, int actions, int categories) {

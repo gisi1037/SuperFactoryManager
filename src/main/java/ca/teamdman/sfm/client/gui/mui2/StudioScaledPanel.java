@@ -21,6 +21,11 @@ public class StudioScaledPanel extends ModularPanel {
         top(() -> (logicalHeight(getScreen()) - getArea().height) / 2.0, Unit.Measure.PIXEL);
     }
 
+    @Override
+    public boolean isDraggable() {
+        return false;
+    }
+
     /** Called only on opening, resolution changes or a deliberate preference change, never per draw. */
     public static void updateResolution() {
         Minecraft mc = Minecraft.getMinecraft();

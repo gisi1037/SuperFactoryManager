@@ -23,8 +23,10 @@ The top bar shows the selected project, draft status, SAFE authoring status,
 Essentials/Advanced tool mode, Save, Check and Imprint disk. Essentials uses typed
 node fields; Advanced also exposes a selected node's raw SFML clause. Both modes
 support the same language and retain the full searchable insert/API catalog.
-Visual/Split/Code sit directly above the authoring surface. Drag the project-column
-divider or the horizontal dock divider to resize those regions.
+The full-width Insert bar sits above Projects and the larger Visual/Split/Code
+buttons, which sit directly above the authoring surface. Drag the project-column
+divider or the horizontal dock divider to resize those regions. Studio and its
+dialogs stay fixed in place; their title bars do not move the interface.
 
 Open **Essentials/Advanced > Studio scale** to change the editor's GUI scale with
 **-** and **+**. **Game** restores following Minecraft's GUI scale. The choice is
@@ -108,6 +110,7 @@ refuses before replacing it with a partial graph.
 | --- | --- |
 | Right-click empty canvas | Add a node or inspect the selection |
 | Drag a node header | Move it; one drag is one undo step |
+| Shift-drag a node header | Snap its position to the canvas grid |
 | Click an output pin, then an input pin | Connect execution order |
 | Right-click a pin | Disconnect it |
 | Middle-drag | Pan |
@@ -117,6 +120,9 @@ refuses before replacing it with a partial graph.
 | Esc while connecting | Cancel the pending wire |
 
 Select a node to edit its SFML clause or choose **Fields** for structured settings.
+On larger workspaces, drag the Inspector's left edge to resize it. Node movement
+and pane resizing follow rendered frames; source regeneration waits until the
+node drag ends.
 The dialog resizes with the screen, keeps pending values, and its fields list
 scrolls. It provides supported timer and routing settings while preserving
 unrelated filters and modifiers. Ambiguous clauses keep the full-clause

@@ -67,6 +67,7 @@ public final class Mui2ProgrammingStation {
     private static double savedSplit = .5;
     private static double savedDock = .28;
     private static int savedSidebar = 154;
+    private static int savedInspector = 150;
     private static StudioProjectMemory projectMemory;
     private final TileEntityProgrammingStation station;
     private final UUID sessionId;
@@ -130,7 +131,7 @@ public final class Mui2ProgrammingStation {
     private ParentWidget<?> dockPane, problemDock, terminalDock, watchDock, buildDock;
     private StudioReadOnlyPane problemOutput;
     private StudioDebugTerminal terminal;
-    private StudioDividerWidget dockDivider, sidebarDivider;
+    private StudioDividerWidget dockDivider, sidebarDivider, inspectorDivider;
     private StudioLayout.Workspace workspace;
     private TextFieldWidget nameField;
     private TextWidget<?> authoringLabel;
@@ -401,7 +402,7 @@ public final class Mui2ProgrammingStation {
             .right(10)
             .top(68)
             .size(62, 10)
-            .setEnabledIf(widget -> workspace != null && panel.getArea().width - workspace.mainLeft >= 260);
+            .setEnabledIf(widget -> workspace != null && panel.getArea().width - workspace.mainLeft >= 290);
         panel.child(authoringLabel);
         panel.child(
             editor.left(8)
@@ -426,7 +427,7 @@ public final class Mui2ProgrammingStation {
         editor.setEnabledIf(widget -> view != View.VISUAL);
         divider = new StudioDividerWidget(() -> authoringOnTop() && view == View.SPLIT, x -> {
             if (workspace == null) return;
-            int right = workspace.inspector ? 166 : 8;
+            int right = inspectorReserve();
             savedSplit = (double) (x - panel.getArea().x - workspace.mainLeft)
                 / Math.max(1, panel.getArea().width - workspace.mainLeft - right);
             layoutWidth = -1;
@@ -434,6 +435,13 @@ public final class Mui2ProgrammingStation {
         });
         panel.child(divider.setEnabledIf(widget -> view == View.SPLIT));
         buildWorkspacePanes();
+        inspectorDivider = new StudioDividerWidget(this::authoringOnTop, x -> {
+            savedInspector = panel.getArea().x + panel.getArea().width - x - 12;
+            layoutWidth = -1;
+            panel.scheduleResize();
+        }, false, "Drag to resize Inspector. Node fields and source are preserved.");
+        panel.child(
+            inspectorDivider.setEnabledIf(widget -> view != View.CODE && workspace != null && workspace.inspector));
         buildDock();
         sidebarDivider = new StudioDividerWidget(this::authoringOnTop, x -> {
             savedSidebar = x - panel.getArea().x - 4;
@@ -493,8 +501,8 @@ public final class Mui2ProgrammingStation {
         nameField.right(narrow ? 93 : 8);
         projectSelector.left(82)
             .width(Math.max(8, width - (narrow ? 234 : 318)));
-        insertTray.pos(workspace.mainLeft - 3, 43)
-            .size(Math.max(1, width - workspace.mainLeft - 2), workspace.viewTop - 46);
+        insertTray.pos(8, 43)
+            .size(Math.max(1, width - 13), workspace.viewTop - 46);
         allInsert.pos(workspace.insertX(0), workspace.insertY(0))
             .width(workspace.insertWidth);
         apiInsert.pos(workspace.insertX(1), workspace.insertY(1))
@@ -504,13 +512,13 @@ public final class Mui2ProgrammingStation {
             .pos(workspace.insertX(i + 1), workspace.insertY(i + 1))
             .width(workspace.insertWidth);
         for (int i = 0, x = workspace.mainLeft; i < viewButtons.size(); i++) {
-            int w = i == 0 ? 44 : 36;
+            int w = (i == 0 ? 70 : 62) - (workspace.compact ? 12 : 0);
             viewButtons.get(i)
                 .pos(x, workspace.viewTop)
-                .size(w, 18);
+                .size(w, workspace.viewHeight);
             x += w + 3;
         }
-        authoringLabel.top(workspace.viewTop + 5);
+        authoringLabel.top(workspace.viewTop + (workspace.viewHeight - 10) / 2);
         layoutWorkspace(width, workspace.editorTop);
         if (dockPane != null) {
             int tabWidth = Math.max(1, (width - workspace.mainLeft - 18) / 4);
@@ -647,7 +655,7 @@ public final class Mui2ProgrammingStation {
         panel.scheduleResize();
         status = document.incomplete() ? "Incomplete visual draft kept; connect nodes or Undo before saving."
             : next == View.CODE ? "Code view | Ctrl+Space: insert | F4: first error"
-                : "Visual | Right-click: add | Middle-drag: pan | Wheel: zoom | F: fit";
+                : "Visual | Shift-drag: snap | Right-click: add | Middle-drag: pan | Wheel: zoom | F: fit";
         if (next != View.CODE) graphEditor.fit();
     }
 
@@ -658,7 +666,7 @@ public final class Mui2ProgrammingStation {
             view = document.incomplete() ? View.VISUAL : View.CODE;
             status = "Split needs more authoring space. Resize Projects or use Visual / Code.";
         }
-        int left = workspace.mainLeft, right = view != View.CODE && workspace.inspector ? 166 : 8;
+        int left = workspace.mainLeft, right = inspectorReserve();
         int middle = StudioLayout.splitMiddle(left, right, width, savedSplit);
         int bottom = layoutHeight - workspace.dockTop + 5;
         editor.left(view == View.SPLIT ? middle + 4 : left)
@@ -673,12 +681,16 @@ public final class Mui2ProgrammingStation {
             .top(top)
             .bottom(bottom);
         outlinePane.left(4)
-            .top(46)
+            .top(workspace.viewTop)
             .width(workspace.sidebar)
             .bottom(18);
         inspectorPane.top(top)
+            .width(Math.max(150, right - 16))
             .bottom(bottom)
             .setEnabledIf(widget -> view != View.CODE && workspace.inspector);
+        if (inspectorDivider != null) inspectorDivider.left(width - right + 1)
+            .top(top)
+            .bottom(bottom);
         if (dockPane != null) dockPane.left(left)
             .right(8)
             .top(workspace.dockTop)
@@ -688,7 +700,7 @@ public final class Mui2ProgrammingStation {
             .top(workspace.dockTop - 5)
             .height(5);
         if (sidebarDivider != null) sidebarDivider.left(workspace.sidebar + 4)
-            .top(46)
+            .top(workspace.viewTop)
             .bottom(18);
     }
 
@@ -724,15 +736,17 @@ public final class Mui2ProgrammingStation {
                 IKey.dynamic(() -> graphEditor.selected() == null ? "Inspector" : graphEditor.selected().type.title))
                     .color(0xffe7e8eb)
                     .pos(6, 7)
-                    .size(138, 12));
+                    .widthRelOffset(1f, -12)
+                    .height(12));
         inspectorPane.child(button("Add node", 6, 24, 72, this::graphEditable, this::openNodes));
-        inspectorPane.child(button("Fit", 82, 24, 62, () -> true, graphEditor::fit));
+        inspectorPane.child(button("Fit", 0, 24, 62, () -> true, graphEditor::fit).leftRelOffset(1f, -68));
         inspectorPane.child(
             new TextWidget<>(IKey.dynamic(() -> advancedTools ? "SFML clause" : "Node options")).color(0xffb0b3bb)
                 .pos(6, 51)
                 .size(86, 12));
         inspectorPane.child(
-            button("Fields", 96, 47, 48, () -> graphEditor.selected() != null && !state.busy(), this::openFields)
+            button("Fields", 0, 47, 48, () -> graphEditor.selected() != null && !state.busy(), this::openFields)
+                .leftRelOffset(1f, -54)
                 .height(17));
         clauseField = new TextFieldWidget().setMaxLength(BlueprintGraph.MAX_CLAUSE)
             .autoUpdateOnChange(true)
@@ -744,21 +758,32 @@ public final class Mui2ProgrammingStation {
             }));
         inspectorPane.child(
             clauseField.pos(6, 66)
-                .size(138, 18)
+                .widthRelOffset(1f, -12)
+                .height(18)
                 .setEnabledIf(widget -> advancedTools)
                 .addTooltipLine("Edit the selected clause, then Apply. Modifiers remain part of the clause."));
         inspectorPane
             .child(button("Apply", 6, 90, 64, this::editable, this::applyClause).setEnabledIf(widget -> advancedTools));
         inspectorPane.child(
-            button("Reset", 76, 90, 68, this::editable, this::selectionChanged).setEnabledIf(widget -> advancedTools));
+            button("Reset", 0, 90, 68, this::editable, this::selectionChanged).leftRelOffset(1f, -74)
+                .setEnabledIf(widget -> advancedTools));
         inspectorPane.child(
             new TextWidget<>("Use Fields to edit this node. Advanced tools also expose its raw SFML clause.").pos(6, 66)
-                .size(138, 42)
+                .widthRelOffset(1f, -12)
+                .height(42)
                 .scale(.8f)
                 .color(0xffa9b3bd)
                 .setEnabledIf(widget -> !advancedTools));
-        inspectorPane.child(button("Delete", 6, 116, 138, this::graphEditable, graphEditor::deleteSelected));
+        inspectorPane.child(
+            button("Delete", 6, 116, 138, this::graphEditable, graphEditor::deleteSelected).widthRelOffset(1f, -12));
         panel.child(inspectorPane);
+    }
+
+    private int inspectorReserve() {
+        return view != View.CODE && workspace != null && workspace.inspector
+            ? StudioLayout
+                .inspectorPaneWidth(panel.getArea().width, workspace.mainLeft, view == View.SPLIT, savedInspector) + 16
+            : 8;
     }
 
     private void rebuildOutline() {

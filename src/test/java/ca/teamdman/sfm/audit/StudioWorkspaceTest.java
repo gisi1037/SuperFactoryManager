@@ -66,7 +66,7 @@ class StudioWorkspaceTest {
                         assertTrue(layout.dockHeight >= 28);
                         int count = layout.compact ? 2 : categories;
                         for (int i = 0; i < count; i++) {
-                            assertTrue(layout.insertX(i) >= layout.mainLeft);
+                            assertTrue(layout.insertX(i) >= 14);
                             assertTrue(layout.insertX(i) + layout.insertWidth <= width - 8);
                             assertTrue(layout.insertY(i) + 16 < layout.viewTop);
                         }

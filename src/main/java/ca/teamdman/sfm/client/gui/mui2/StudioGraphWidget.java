@@ -29,12 +29,14 @@ import ca.teamdman.sfm.client.blueprint.BlueprintGraph.Node;
 import ca.teamdman.sfm.client.blueprint.BlueprintGraph.Pin;
 import ca.teamdman.sfm.client.blueprint.BlueprintGraph.Type;
 import ca.teamdman.sfm.client.blueprint.StudioDocument;
+import ca.teamdman.sfm.client.blueprint.StudioNodeDrag;
 
 /** Project-backed graph surface. It never opens a manager session or sends a disk-save packet. */
 public final class StudioGraphWidget extends Widget<StudioGraphWidget> implements Interactable, IFocusedWidget {
 
     private static final int NODE_W = 144;
     private final StudioDocument document;
+    private final StudioNodeDrag nodeDrag;
     private final BooleanSupplier editable;
     private BooleanSupplier inputGate = () -> true;
     private final Runnable changed, selectionChanged, addMenu;
@@ -42,13 +44,14 @@ public final class StudioGraphWidget extends Widget<StudioGraphWidget> implement
     private final Consumer<String> status;
     private UUID selected, wireFrom;
     private Pin wirePin;
-    private boolean dragging, panning, moved;
+    private boolean panning;
     private double panX = 16, panY = 16, zoom = 1;
     private int lastX, lastY;
 
     public StudioGraphWidget(StudioDocument document, BooleanSupplier editable, Runnable changed,
         Runnable selectionChanged, Runnable addMenu, Consumer<String> status) {
         this.document = document;
+        nodeDrag = new StudioNodeDrag(document);
         this.editable = editable;
         this.changed = changed;
         this.selectionChanged = selectionChanged;
@@ -76,11 +79,8 @@ public final class StudioGraphWidget extends Widget<StudioGraphWidget> implement
     }
 
     public void finishInteraction() {
-        if (moved) {
-            document.graphChanged();
-            changed.run();
-        }
-        dragging = panning = moved = false;
+        if (nodeDrag.finish()) changed.run();
+        panning = false;
     }
 
     public Node selected() {
@@ -106,7 +106,7 @@ public final class StudioGraphWidget extends Widget<StudioGraphWidget> implement
 
     public void resetSelection() {
         selected = wireFrom = null;
-        dragging = panning = moved = false;
+        finishInteraction();
         selectionChanged.run();
     }
 
@@ -145,6 +145,7 @@ public final class StudioGraphWidget extends Widget<StudioGraphWidget> implement
 
     public void deleteSelected() {
         if (!editable.getAsBoolean() || selected() == null) return;
+        finishInteraction();
         document.editGraph(graph -> graph.remove(selected));
         resetSelection();
         changed.run();
@@ -152,6 +153,7 @@ public final class StudioGraphWidget extends Widget<StudioGraphWidget> implement
 
     public void undo(boolean redo) {
         if (!editable.getAsBoolean()) return;
+        finishInteraction();
         if (redo ? document.redo() : document.undo()) {
             resetSelection();
             changed.run();
@@ -159,6 +161,7 @@ public final class StudioGraphWidget extends Widget<StudioGraphWidget> implement
     }
 
     public void fit() {
+        finishInteraction();
         BlueprintGraph graph = document.graph();
         if (graph == null || graph.nodes()
             .isEmpty()) {
@@ -182,15 +185,21 @@ public final class StudioGraphWidget extends Widget<StudioGraphWidget> implement
 
     @Override
     public void draw(ModularGuiContext context, WidgetThemeEntry<?> theme) {
+        // MUI receives tick-driven drag events too; render sampling keeps motion at the display frame rate.
+        updatePointer();
         int width = getArea().width, height = getArea().height;
         Gui.drawRect(0, 0, width, height, 0xff12161a);
         Stencil.apply(0, 0, width, height, context);
         try {
-            int step = Math.max(8, (int) (24 * zoom));
-            for (int x = ((int) panX % step + step) % step; x < width; x += step)
-                Gui.drawRect(x, 0, x + 1, height, 0xff22282e);
-            for (int y = ((int) panY % step + step) % step; y < height; y += step)
-                Gui.drawRect(0, y, width, y + 1, 0xff22282e);
+            double step = StudioNodeDrag.GRID * zoom;
+            for (double x = (panX % step + step) % step; x < width; x += step) {
+                int pixel = (int) Math.round(x);
+                Gui.drawRect(pixel, 0, pixel + 1, height, 0xff22282e);
+            }
+            for (double y = (panY % step + step) % step; y < height; y += step) {
+                int pixel = (int) Math.round(y);
+                Gui.drawRect(0, pixel, width, pixel + 1, 0xff22282e);
+            }
             BlueprintGraph graph = document.graph();
             if (graph == null) {
                 Minecraft.getMinecraft().fontRenderer
@@ -305,6 +314,7 @@ public final class StudioGraphWidget extends Widget<StudioGraphWidget> implement
     public Result onMousePressed(int button) {
         if (!inputGate.getAsBoolean()) return Result.IGNORE;
         if (!editable.getAsBoolean() || document.graph() == null) return Result.STOP;
+        finishInteraction();
         getContext().focus(this);
         int x = getContext().getMouseX(), y = getContext().getMouseY();
         lastX = x;
@@ -351,8 +361,7 @@ public final class StudioGraphWidget extends Widget<StudioGraphWidget> implement
                     selected = node.id;
                     selectionChanged.run();
                     if (button == 0 && wy < node.y() + 18) {
-                        dragging = true;
-                        moved = false;
+                        nodeDrag.begin(node.id, x, y, zoom);
                     }
                     return Result.SUCCESS;
                 }
@@ -370,16 +379,18 @@ public final class StudioGraphWidget extends Widget<StudioGraphWidget> implement
 
     @Override
     public void onMouseDrag(int button, long elapsed) {
-        if (!editable.getAsBoolean() || !inputGate.getAsBoolean()) return;
+        updatePointer();
+    }
+
+    private void updatePointer() {
+        if (!nodeDrag.active() && !panning) return;
+        if (!editable.getAsBoolean() || !inputGate.getAsBoolean()) {
+            finishInteraction();
+            return;
+        }
         int x = getContext().getMouseX(), y = getContext().getMouseY();
-        if (dragging && selected() != null) {
-            if (!moved && (x != lastX || y != lastY)) {
-                document.checkpoint();
-                moved = true;
-            }
-            Node node = selected();
-            node.setPosition(clamp(node.x() + (x - lastX) / zoom), clamp(node.y() + (y - lastY) / zoom));
-        } else if (panning) {
+        if (nodeDrag.active()) nodeDrag.update(x, y, Interactable.hasShiftDown());
+        else if (panning) {
             panX += x - lastX;
             panY += y - lastY;
         }
@@ -389,6 +400,7 @@ public final class StudioGraphWidget extends Widget<StudioGraphWidget> implement
 
     @Override
     public boolean onMouseRelease(int button) {
+        updatePointer();
         finishInteraction();
         // MUI2 offers release to the focused widget before clearing its pressed-button state.
         // Let that cleanup continue so a subsequent drag may use a different mouse button.
@@ -398,6 +410,7 @@ public final class StudioGraphWidget extends Widget<StudioGraphWidget> implement
     @Override
     public boolean onMouseScroll(UpOrDown direction, int amount) {
         if (!isHovering() || !editable.getAsBoolean() || !inputGate.getAsBoolean()) return false;
+        finishInteraction();
         int x = getContext().getMouseX(), y = getContext().getMouseY();
         double wx = worldX(x), wy = worldY(y);
         zoom = Math.max(.25, Math.min(2, zoom * (direction.isUp() ? 1.1 : 1 / 1.1)));

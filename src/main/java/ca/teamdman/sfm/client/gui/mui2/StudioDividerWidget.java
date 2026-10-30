@@ -5,6 +5,8 @@ import java.util.function.IntConsumer;
 
 import com.cleanroommc.modularui.api.widget.Interactable;
 import com.cleanroommc.modularui.drawable.Rectangle;
+import com.cleanroommc.modularui.screen.viewport.ModularGuiContext;
+import com.cleanroommc.modularui.theme.WidgetThemeEntry;
 import com.cleanroommc.modularui.widget.Widget;
 
 /** Resizes views only; the source, graph layout and inventory allocation stay unchanged. */
@@ -14,6 +16,7 @@ final class StudioDividerWidget extends Widget<StudioDividerWidget> implements I
     private final IntConsumer move;
     private final boolean horizontal;
     private boolean dragging;
+    private int lastPosition;
 
     StudioDividerWidget(BooleanSupplier available, IntConsumer move) {
         this(available, move, false, "Drag to resize Visual and Code. Source and node positions are preserved.");
@@ -33,18 +36,36 @@ final class StudioDividerWidget extends Widget<StudioDividerWidget> implements I
     public Result onMousePressed(int button) {
         if (button != 0 || !available.getAsBoolean()) return Result.IGNORE;
         dragging = true;
+        lastPosition = position();
         return Result.SUCCESS;
     }
 
     @Override
     public void onMouseDrag(int button, long elapsed) {
-        if (dragging && available.getAsBoolean()) move.accept(
-            StudioScaledPanel
-                .logicalMouse(getPanel(), horizontal ? getContext().getAbsMouseY() : getContext().getAbsMouseX()));
+        updateDrag();
+    }
+
+    @Override
+    public void draw(ModularGuiContext context, WidgetThemeEntry<?> theme) {
+        updateDrag();
+    }
+
+    private int position() {
+        return StudioScaledPanel
+            .logicalMouse(getPanel(), horizontal ? getContext().getAbsMouseY() : getContext().getAbsMouseX());
+    }
+
+    private void updateDrag() {
+        if (!dragging || !available.getAsBoolean()) return;
+        int next = position();
+        if (next == lastPosition) return;
+        lastPosition = next;
+        move.accept(next);
     }
 
     @Override
     public boolean onMouseRelease(int button) {
+        updateDrag();
         boolean wasDragging = dragging;
         dragging = false;
         return wasDragging;
