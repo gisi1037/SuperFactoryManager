@@ -126,7 +126,7 @@ public final class Mui2ProgrammingStation {
 
     private StudioGraphWidget graphEditor;
     private StudioDividerWidget divider;
-    private ParentWidget<?> outlinePane, inspectorPane, insertDivider;
+    private ParentWidget<?> outlinePane, inspectorPane, insertTray;
     private ParentWidget<?> dockPane, problemDock, terminalDock, watchDock, buildDock;
     private StudioReadOnlyPane problemOutput;
     private StudioDebugTerminal terminal;
@@ -315,9 +315,8 @@ public final class Mui2ProgrammingStation {
             new TextWidget<>("SFM Studio").color(0xffefa09a)
                 .pos(8, 8)
                 .size(70, 12));
-        insertDivider = new ParentWidget<>().height(2)
-            .background(StudioTheme.INSET);
-        panel.child(insertDivider);
+        insertTray = new ParentWidget<>().background(StudioTheme.INSET);
+        panel.child(insertTray);
         projectSelector = button("", 82, 3, 100, () -> true, this::openCatalog).height(21)
             .overlay(
                 IKey.dynamic(() -> trimFor(state.name + " v", projectSelector.getArea().width - 10))
@@ -494,8 +493,8 @@ public final class Mui2ProgrammingStation {
         nameField.right(narrow ? 93 : 8);
         projectSelector.left(82)
             .width(Math.max(8, width - (narrow ? 234 : 318)));
-        insertDivider.pos(workspace.mainLeft, workspace.viewTop - 5)
-            .width(Math.max(1, width - workspace.mainLeft - 8));
+        insertTray.pos(workspace.mainLeft - 3, 43)
+            .size(Math.max(1, width - workspace.mainLeft - 2), workspace.viewTop - 46);
         allInsert.pos(workspace.insertX(0), workspace.insertY(0))
             .width(workspace.insertWidth);
         apiInsert.pos(workspace.insertX(1), workspace.insertY(1))

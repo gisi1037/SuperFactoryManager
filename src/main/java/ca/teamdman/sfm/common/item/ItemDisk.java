@@ -49,7 +49,10 @@ public class ItemDisk extends Item {
     @SuppressWarnings("unchecked")
     public void addInformation(ItemStack stack, EntityPlayer player, List list, boolean advanced) {
         ProgramDiskData.Mode mode = ProgramDiskData.mode(stack);
-        if (mode == ProgramDiskData.Mode.REFERENCE) {
+        if (ProgramDiskData.isClientPreview(stack)) {
+            list.add(EnumChatFormatting.AQUA + "Published program reference");
+            list.add(EnumChatFormatting.GRAY + "Private execution details hidden in block preview");
+        } else if (mode == ProgramDiskData.Mode.REFERENCE) {
             list.add(EnumChatFormatting.AQUA + "Published program reference");
             list.add(
                 EnumChatFormatting.GRAY + "Build: " + ProgramDiskData.readReference(stack).digest.substring(0, 12));

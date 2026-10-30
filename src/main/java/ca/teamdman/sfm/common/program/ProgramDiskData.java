@@ -1,16 +1,23 @@
 package ca.teamdman.sfm.common.program;
 
+import java.util.Collections;
+import java.util.Set;
+import java.util.WeakHashMap;
+
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 
 import ca.teamdman.sfm.common.item.ItemDisk;
 import ca.teamdman.sfm.common.program.project.ExecutionReference;
 
-/** Pure NBT classification. Reading a disk never loads files, creates authority or rewrites metadata. */
+/** NBT classification and client presentation provenance. Reading never loads files or creates authority. */
 public final class ProgramDiskData {
 
     public static final String NBT_REFERENCE = "sfm:reference";
     public static final int REFERENCE_FORMAT = 1;
+    /** Presentation provenance only: never serialized, copied or consulted by executable validation. */
+    private static final Set<ItemStack> CLIENT_PREVIEWS = Collections
+        .synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
 
     public enum Mode {
         LEGACY,
@@ -19,6 +26,22 @@ public final class ProgramDiskData {
     }
 
     private ProgramDiskData() {}
+
+    public static void markClientPreview(ItemStack disk) {
+        if (redactedShape(disk)) CLIENT_PREVIEWS.add(disk);
+    }
+
+    private static boolean redactedShape(ItemStack disk) {
+        NBTTagCompound root = disk == null ? null : disk.getTagCompound();
+        return root != null && !root.hasKey(ItemDisk.NBT_PROGRAM)
+            && root.hasKey(NBT_REFERENCE, 10)
+            && root.getCompoundTag(NBT_REFERENCE)
+                .hasNoTags();
+    }
+
+    public static boolean isClientPreview(ItemStack disk) {
+        return CLIENT_PREVIEWS.contains(disk) && redactedShape(disk);
+    }
 
     public static Mode mode(ItemStack disk) {
         NBTTagCompound root = disk == null ? null : disk.getTagCompound();

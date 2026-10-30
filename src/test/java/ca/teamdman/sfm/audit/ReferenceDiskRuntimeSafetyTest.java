@@ -99,6 +99,23 @@ class ReferenceDiskRuntimeSafetyTest {
             TileEntityManager client = new TileEntityManager();
             client.onDataPacket(null, packet);
             assertEquals(ProgramDiskData.Mode.INVALID, ProgramDiskData.mode(client.getDisk()));
+            assertEquals(!invalid, ProgramDiskData.isClientPreview(client.getDisk()));
+            assertFalse(
+                ProgramDiskData.isClientPreview(
+                    client.getDisk()
+                        .copy()),
+                "Preview provenance is never copied to physical media");
+            assertThrows(IllegalStateException.class, () -> ProgramDiskData.readReference(client.getDisk()));
+            java.util.List<String> tooltip = new java.util.ArrayList<>();
+            ((ItemDisk) client.getDisk()
+                .getItem()).addInformation(client.getDisk(), null, tooltip, false);
+            assertEquals(
+                invalid,
+                tooltip.toString()
+                    .contains("Unsupported or invalid program disk"));
+            if (!invalid) assertTrue(
+                tooltip.toString()
+                    .contains("Private execution details hidden"));
             assertInert(client);
             client.setInventorySlotContents(0, disk.copy());
             assertEquals(

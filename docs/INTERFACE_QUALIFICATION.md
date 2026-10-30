@@ -71,3 +71,25 @@ by restoring the selected scale. Studio at 2x with Minecraft at 3x provided a
 game scale. The existing full-pack/hardware qualification limits still apply.
 
 ![Studio at 2x while Minecraft remains at 3x](images/studio-scale-2026-10-30.png)
+
+## Reference preview and Insert tray follow-up
+
+The Insert buttons now sit inside one recessed tray, including wrapped and compact
+layouts. Option rows show their names directly; category context stays in hover help.
+
+Block previews deliberately omit a reference's private execution grant. The disk
+tooltip now recognizes a valid server-authored redacted preview instead of calling
+it an invalid physical disk. This presentation provenance is temporary and is not
+copied or saved. Executable validation still rejects the redacted NBT, and genuinely
+invalid disks retain their error. Regression checks cover those distinctions and
+confirm that source/grants remain absent from block descriptions.
+
+The clean build/compiler bridge/format/Checkstyle passed: 1,257 tests passed and
+15 optional/environment skips. A disposable Java 8/LWJGL2 client with Dynamic
+Inventory published and physically imprinted a counter program, inserted the disk
+into a Manager through inventory clicks, loaded the reference and started it.
+Its persistent counter advanced from 4 to 18 while the disk contained no embedded
+source. Wide/compact toolbar and option-name rendering were inspected in the same
+client. Full-pack Java 17/hardware qualification remains separate.
+
+![Recessed Insert tray](images/studio-insert-tray-2026-10-30.png)

@@ -1500,6 +1500,8 @@ public class TileEntityManager extends TileEntity implements IInventory {
     public Packet getDescriptionPacket() {
         NBTTagCompound syncData = new NBTTagCompound();
         writeToNBT(syncData);
+        // Public presentation hint is separate from disk NBT and never makes a redacted disk executable.
+        syncData.setBoolean("sfm:reference_preview", ProgramDiskData.mode(diskStack) == ProgramDiskData.Mode.REFERENCE);
         NBTTagCompound itemData = syncData.getCompoundTag("disk");
         if (itemData.hasKey("tag", 10) && itemData.getCompoundTag("tag")
             .hasKey(ProgramDiskData.NBT_REFERENCE)) {
@@ -1519,6 +1521,8 @@ public class TileEntityManager extends TileEntity implements IInventory {
     @Override
     public void onDataPacket(NetworkManager net, S35PacketUpdateTileEntity pkt) {
         readFromNBT(pkt.func_148857_g());
+        if (pkt.func_148857_g()
+            .getBoolean("sfm:reference_preview")) ProgramDiskData.markClientPreview(diskStack);
         // A redacted block mirror is deliberately INVALID, but its server-authored run intent must survive until
         // authorized inventory synchronization supplies the physical reference. This never grants a local plan.
         isRunning = pkt.func_148857_g()

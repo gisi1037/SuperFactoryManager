@@ -23,7 +23,7 @@ services, without a browser runtime or simulated sandbox.
   text surfaces. No accessible player inventory, hotbar or NEI in Studio.
 - Remembered Studio-only GUI scale in Tools, with a Game reset and temporary
   fitting for smaller windows. Editor/dialog transforms keep pointer targeting
-  together; a recessed rule separates Insert tools from Visual/Split/Code tabs.
+  together; a recessed tray groups Insert tools above Visual/Split/Code tabs.
 - Normal Imprint disk workflow: exact saved revision -> immutable publication ->
   selected build -> one fresh held disk. Server ownership/session/revision/medium
   checks and replay-safe acknowledgement behavior remain enforced. The former
