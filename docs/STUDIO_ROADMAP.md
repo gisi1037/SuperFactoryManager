@@ -49,7 +49,8 @@ slots passed 42 in-game assertions covering publication, source/visual ownership
 terminal focus/status, GUI scales, inventory isolation and slot gestures. Player
 number swaps preserve exact indices even with handler-backed MUI2 slots. Synthetic
 event injection does not qualify OS/IME or hardware-held Shift/resize behavior;
-two-client multiplayer workflows remain open. These checks establish no new
+cooperative two-client reference flows are now qualified separately; adversarial
+packet and hardware workflows remain open. These checks establish no new
 whole-pack performance budget or speedup.
 
 ## Next integration steps
@@ -128,15 +129,17 @@ Dynamic Inventory; they do not qualify simultaneous two-player workflows.
 
 Remaining order:
 
-1. Qualify disk writing, activation, pause/retry, missing/corrupt storage and
-   reloads in the combined pack. Complete real two-client authority and hardware
-   input checks before enabling the reference workflow by default.
+1. Cooperative two-client disk handoff, source privacy, independent copied
+   STATE, pause/reset, disconnect, exact missing-bundle retry and reloads passed.
+   Finish adversarial stale-request/session races, corrupt-storage cases and
+   hardware input before enabling reference writing by default.
 2. Qualify the implemented bounded FIFO admission under real chunk reload/churn.
    Eight outstanding cold jobs and 24 authoring jobs reserve progress for both
    workloads. Waiting capacity is 4,096; overflow retry is paced, and FIFO fairness
    applies to enrolled requests. See [measurements](REFERENCE_PERFORMANCE.md).
 3. Keep provider/recovery and scaling gates open. Explicit loaded-reference STATE
-   reset is implemented and passed the native single-player workflow; multiplayer checks remain. No new whole-pack
+   reset passed native single-player and cooperative two-player workflows;
+   adversarial multiplayer checks remain. No new whole-pack
    throughput or hard tick-latency budget is claimed. Source-authorized statement
    and graph tracing remains separate work.
 4. Continue reusable dependency libraries, typed visual nodes/pickers, source/node
@@ -164,9 +167,28 @@ compilation and full warm manager updates separately. Two-run allocation evidenc
 supports lazy transfer collections and immutable identifier Pattern reuse; see
 [program measurements](PROGRAM_PERFORMANCE.md). Native exact-reference STATE0,
 pause and scheduler clock survived cold reload despite a newer published revision.
-The dark reset confirmation is readable. Two-client qualification remains open.
+The dark reset confirmation is readable. Cooperative two-client qualification
+subsequently passed; the remaining scope is documented below.
 
 The next performance priority is the measured large blocked source/destination
 pair search, followed by a qualified opt-in event-assisted availability experiment.
 Keep ordinary due-trigger semantics, provider isolation and recovery intact;
 unqualified handlers retain polling. No event-driven behavior is implemented here.
+
+
+## Latest qualification and comparable benchmark
+
+The [cooperative two-player report](MULTIPLAYER_QUALIFICATION.md) records native
+daily-803 workflows and their limits. Both controllers retained independent
+STATE and clocks through missing-bundle and ordinary reloads. This closes that
+cooperative workflow slice, not every multiplayer or provider/recovery gate.
+The default reference-writing UI remains disabled.
+
+Next performance work starts with the [overall benchmark](OVERALL_BENCHMARK.md)
+and its 20-case manifest: untouched original `9037f2d` versus current `8337f09`, identical
+legacy programs and checked work, fresh paired JVMs, and one fixed-playlist time
+ratio with domain breakdowns. Implement the portable adapter and correctness
+preflight, freeze inputs/counts, then measure. No cumulative original-relative
+speedup has been established. New-language features keep a separate current-only
+track. Optimization experiments must preserve actual due ticks, transfer order,
+item/NBT identity, side/slot rules, EACH/retention and recovery.

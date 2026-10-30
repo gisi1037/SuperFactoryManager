@@ -106,3 +106,8 @@ are `SFM_PROGRAM_BENCHMARK_COMPILE_SAMPLES` (8-128; default 24) and
 separate from timing comparisons. Existing transfer/full-manager workloads are
 `PerformanceCharacterizationTest.transferWork` and `.completeManagerWork` under
 the same opt-in property; they emit raw samples and checked useful-work counts.
+
+
+The separate [overall benchmark design](OVERALL_BENCHMARK.md) defines a common-
+feature original-port comparison. These newer-feature measurements stay in their
+own track and do not establish a cumulative speedup from the original port.

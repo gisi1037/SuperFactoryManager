@@ -1,0 +1,296 @@
+{
+  "format": 1,
+  "profile": "sfm-common-factory-trace-v1",
+  "status": "draft_pending_legacy_preflight_not_yet_scored",
+  "originalCommit": "9037f2d10f214794be0abba8056631be346f5216",
+  "comparisonCommit": "8337f090e837bf3fddd7bcbac519d143268ae76b",
+  "primaryScore": "median of independent paired originalTotalTimedEngineNs/currentTotalTimedEngineNs",
+  "timedEngineTotal": "sum of complete timed API batches across every scored case; no synthetic weights or post-hoc exclusions",
+  "runSeeds": [
+    1037,
+    1038,
+    1039,
+    1040,
+    1041
+  ],
+  "analysisBootstrapSeed": 70109,
+  "runtimeDefaults": {
+    "managers": 16,
+    "warmupFrames": 16,
+    "measuredFrames": 128,
+    "initialStacks": {
+      "item": "sfm_bench:keep",
+      "stackSize": 64,
+      "metadata": 0,
+      "nbt": "fixed identical nested marker tag"
+    },
+    "refill": "Restore fixed stocks and empty eligible destinations outside timing after each verified frame"
+  },
+  "compileDefaults": {
+    "warmupBuildsPerSource": 20,
+    "setupExcluded": true,
+    "freshProgramPerBuild": true,
+    "forceColdDfaBetweenBuilds": false
+  },
+  "environment": {
+    "compileToolchain": "JDK25 pinned distribution/build",
+    "workerJava": "Azul Zulu17.0.21+9",
+    "workerHeapMiB": 512,
+    "gc": "same pinned G1 settings",
+    "optionalMods": "identical, with legacy SFM compatibility disabled in both synthetic arms",
+    "logging": "OFF",
+    "jfrInScoredRuns": false
+  },
+  "sources": {
+    "transfer": {
+      "text": "NAME \"common_transfer\"\nEVERY 1 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\n",
+      "sha256Utf8": "184ec4ca408b83a22ce539da7dd7da203cd33f61abf3e2c97d05e3f73e02f763"
+    },
+    "witness": {
+      "text": "NAME \"common_witness\"\nEVERY 1 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\n  FORGET\n  INPUT FROM witness\n  OUTPUT TO witness_out\nEND\n",
+      "sha256Utf8": "f9471b63de2e4bd2b0e33989f95d97dafda4d3a1a1c8c961f0536368d2f9a203"
+    },
+    "condition": {
+      "text": "NAME \"common_condition\"\nEVERY 1 TICKS DO\n  IF OVERALL source HAS > 1000 sfm_bench:keep THEN\n    INPUT FROM witness\n    OUTPUT TO true_out\n  ELSE\n    INPUT FROM witness\n    OUTPUT TO false_out\n  END\nEND\n",
+      "sha256Utf8": "7dd2db5af6baa526226009d006ebf865107d6057832733e141c3a47a0bf36699"
+    },
+    "flat_32": {
+      "text": "NAME \"common_flat_32\"\nEVERY 1 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 2 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 3 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 4 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 5 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 6 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 7 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 8 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 9 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 10 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 11 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 12 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 13 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 14 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 15 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 16 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 17 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 18 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 19 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 20 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 21 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 22 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 23 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 24 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 25 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 26 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 27 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 28 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 29 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 30 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 31 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\nEVERY 32 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\n",
+      "sha256Utf8": "f54fd0080ad561ac9f85530731d078fbe58c4e1725c76938f888e3e6aa819682"
+    },
+    "sparse_due": {
+      "text": "NAME \"common_sparse_due\"\nEVERY 1200 TICKS DO\n  INPUT FROM source\n  OUTPUT TO dest\nEND\n",
+      "sha256Utf8": "32d5255018acd356cbaa3ac791d539b270ebb53e327daa958f3fd1100daf9d68"
+    },
+    "pulse": {
+      "text": "NAME \"common_pulse\"\nEVERY REDSTONE PULSE DO\n  INPUT FROM witness\n  OUTPUT TO witness_out\nEND\n",
+      "sha256Utf8": "b596a1c6ad6ebc8002a943836a592be93ad0fc491ea60814bea4ec9b901e61e8"
+    }
+  },
+  "cases": [
+    {
+      "id": "C1",
+      "domain": "compilation",
+      "source": "transfer",
+      "freshBuilds": 100,
+      "oracle": "Successful independent Programs; one trigger; exact name and labels"
+    },
+    {
+      "id": "C2",
+      "domain": "compilation",
+      "source": "condition",
+      "freshBuilds": 100,
+      "oracle": "Successful independent Programs; one conditional trigger; exact expected label set"
+    },
+    {
+      "id": "C3",
+      "domain": "compilation",
+      "source": "flat_32",
+      "freshBuilds": 50,
+      "oracle": "Successful independent Programs; exactly32 timer triggers with intervals1..32 and expected labels"
+    },
+    {
+      "id": "R1",
+      "domain": "runtime",
+      "source": "transfer",
+      "mode": "active",
+      "sourceSlots": 54,
+      "destinationSlots": 54,
+      "expectedPrimaryItemsPerDueCycle": 3456
+    },
+    {
+      "id": "R2",
+      "domain": "runtime",
+      "source": "witness",
+      "mode": "blocked",
+      "sourceSlots": 54,
+      "destinationSlots": 27,
+      "expectedPrimaryItemsPerDueCycle": 0,
+      "expectedWitnessItemsPerDueCycle": 64
+    },
+    {
+      "id": "R3",
+      "domain": "runtime",
+      "source": "witness",
+      "mode": "empty_source",
+      "sourceSlots": 54,
+      "destinationSlots": 27,
+      "expectedPrimaryItemsPerDueCycle": 0,
+      "expectedWitnessItemsPerDueCycle": 64
+    },
+    {
+      "id": "R4",
+      "domain": "runtime",
+      "source": "transfer",
+      "mode": "sparse_source",
+      "sourceSlots": 1000,
+      "destinationSlots": 27,
+      "stockedSourceSlot": 999,
+      "expectedPrimaryItemsPerDueCycle": 64
+    },
+    {
+      "id": "R5",
+      "domain": "runtime",
+      "source": "condition",
+      "mode": "condition_true",
+      "matchingSourceItems": 3456,
+      "expectedTrueItemsPerDueCycle": 64,
+      "expectedFalseItemsPerDueCycle": 0
+    },
+    {
+      "id": "R6",
+      "domain": "runtime",
+      "source": "condition",
+      "mode": "condition_false",
+      "matchingSourceItems": 512,
+      "expectedTrueItemsPerDueCycle": 0,
+      "expectedFalseItemsPerDueCycle": 64
+    },
+    {
+      "id": "R7",
+      "domain": "runtime",
+      "source": "transfer",
+      "mode": "unused_labels",
+      "sourceSlots": 54,
+      "destinationSlots": 54,
+      "extraUnusedLabels": 256,
+      "expectedPrimaryItemsPerDueCycle": 3456
+    },
+    {
+      "id": "R8",
+      "domain": "runtime",
+      "source": "sparse_due",
+      "mode": "not_due",
+      "sourceSlots": 54,
+      "destinationSlots": 54,
+      "expectedDueCycles": 0,
+      "expectedPrimaryItems": 0
+    },
+    {
+      "id": "R9",
+      "domain": "runtime",
+      "source": "transfer",
+      "mode": "paused_loaded_program",
+      "expectedDueCycles": 0,
+      "expectedPrimaryItems": 0,
+      "expectedClockAdvance": 0
+    },
+    {
+      "id": "R10",
+      "domain": "runtime",
+      "mode": "no_disk",
+      "expectedPrograms": 0,
+      "expectedPrimaryItems": 0,
+      "clockComparison": "diagnostic only; no script executes"
+    },
+    {
+      "id": "R11",
+      "domain": "runtime",
+      "source": "pulse",
+      "mode": "manager_redstone_pulse",
+      "powerCycle": [
+        0,
+        15,
+        15,
+        0,
+        15,
+        0,
+        0,
+        15
+      ],
+      "expectedWitnessItemsPerRisingEdge": 64
+    },
+    {
+      "id": "N1",
+      "domain": "topology",
+      "mode": "cold_network",
+      "cables": 32,
+      "constructions": 64,
+      "oracle": "Exact expected cable/peripheral coordinate sets; no forced loading"
+    },
+    {
+      "id": "N2",
+      "domain": "topology",
+      "mode": "cold_network",
+      "cables": 512,
+      "constructions": 64,
+      "oracle": "Exact expected cable/peripheral coordinate sets; no forced loading"
+    },
+    {
+      "id": "N3",
+      "domain": "topology",
+      "mode": "separate_periodic",
+      "views": 16,
+      "cablesPerComponent": 32,
+      "warmupLogicalTicks": 42,
+      "measuredLogicalTicks": 420,
+      "oracle": "Exact membership on every requested lookup; clock advances one tick per frame"
+    },
+    {
+      "id": "N4",
+      "domain": "topology",
+      "mode": "shared_periodic",
+      "views": 16,
+      "cablesPerComponent": 512,
+      "warmupLogicalTicks": 42,
+      "measuredLogicalTicks": 420,
+      "oracle": "All16 views observe same exact component; same lookup trace and world ticks"
+    },
+    {
+      "id": "L1",
+      "domain": "lifecycle",
+      "mode": "fresh_diskless_manager_first_update",
+      "cables": 32,
+      "warmupFreshManagers": 16,
+      "measuredFreshManagers": 64,
+      "timing": "One complete first updateEntity call per fresh manager; manager construction and world setup excluded",
+      "oracle": "Exactly64 completed first updates; no program, inventory changes or clock advance. Network may remain absent. Verify exact membership only if created; never force discovery for an assertion.",
+      "originalWorkPreserved": "Initial manager rebuild includes the original constructor scan and explicit scan; do not inject a prebuilt network"
+    },
+    {
+      "id": "L2",
+      "domain": "lifecycle",
+      "mode": "fresh_diskless_manager_first_update",
+      "cables": 512,
+      "warmupFreshManagers": 16,
+      "measuredFreshManagers": 64,
+      "timing": "One complete first updateEntity call per fresh manager; manager construction and world setup excluded",
+      "oracle": "Exactly64 completed first updates; no program, inventory changes or clock advance. Network may remain absent. Verify exact membership only if created; never force discovery for an assertion.",
+      "originalWorkPreserved": "Initial manager rebuild includes the original constructor scan and explicit scan; do not inject a prebuilt network"
+    }
+  ],
+  "qualificationPolicy": {
+    "everyScoredCaseMustPassBothRevisions": true,
+    "originalProductionPatchesAllowed": false,
+    "testOnlyAdaptersAllowed": true,
+    "knownDefectsAreUnscoredVisibleDiagnostics": true,
+    "failuresOrTimeouts": "No qualified overall score; preserve failure and completed work; never omit or renormalize cases"
+  },
+  "excludedCurrentFeatures": [
+    "STATE and program globals",
+    "player functions and loops",
+    "native query methods and native redstone ports",
+    "reference disks and publication",
+    "GUI authoring"
+  ],
+  "unscoredCompatibilityDiagnostics": [
+    "OUTPUT quantity limits",
+    "multiple OUTPUTs reusing INPUT",
+    "EACH/RETAIN quotas",
+    "partial FORGET",
+    "cross-trigger input leakage",
+    "refused or changing provider callbacks",
+    "rollback/recovery",
+    "unloaded/disconnected targets",
+    "duplicate sided slots and chest aliases",
+    "selector escaping edge cases"
+  ],
+  "freezeRequirements": [
+    "Audit shared fixture semantics and source against both revisions",
+    "Preflight correctness before timing",
+    "Pin final source/geometry/harness/dependency/JVM hashes",
+    "Lock all counts and seeds before scored runs",
+    "Changing the playlist or counts creates a new profile version"
+  ],
+  "coldDefinition": "Fresh manager/network/program objects; JVM/JIT and filesystem caches may already be warm; no OS cold-cache claim"
+}

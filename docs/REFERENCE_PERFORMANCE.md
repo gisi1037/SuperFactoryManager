@@ -97,6 +97,13 @@ allocation by materializing transfer collections only when used, and separately
 reuses identifier regex patterns during compilation. It does not pool contexts. Expensive STATE activation and many distinct
 large programs need dedicated profiles. Cache only lexer automata, never mutable
 Programs or unchecked file contents. Preserve actual grant/bundle verification
-on every cold activation. Real two-client authority, combined-pack reload/churn,
-hardware input and provider/recovery qualification remain gates before default
+on every cold activation. Cooperative real two-client reference flows and clean
+reloads subsequently passed; see [qualification scope](MULTIPLAYER_QUALIFICATION.md). Adversarial
+request/session races, chunk churn, hardware input and provider/recovery
+qualification remain gates before default
 reference-disk enablement. Statement/graph tracing remains separately planned.
+
+
+For a comparable untouched-original-versus-current score, use the separate
+[overall benchmark design](OVERALL_BENCHMARK.md). Do not combine the intermediate
+percentages in this report into a cumulative speedup.
