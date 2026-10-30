@@ -229,10 +229,12 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
     private final Set<String> referencedLabels;
     private final long managerTick;
     private final boolean redstonePulse;
-    private final List<InputStatement> inputs = new ArrayList<>();
-    private final Map<InputStatement, List<InputSlot>> inputCache = new IdentityHashMap<>();
-    private final Map<InputStatement, List<BlockPos>> inputPositions = new IdentityHashMap<>();
-    private final Map<InputStatement, Map<Object, Map<ResourceLimit, TransferQuota>>> fluidInputQuotas = new IdentityHashMap<>();
+    // Data/redstone-only invocations need no transfer storage; materialize private collections only on use.
+    private List<InputStatement> inputs = Collections.emptyList();
+    private Map<InputStatement, List<InputSlot>> inputCache = Collections.emptyMap();
+    private Map<InputStatement, List<BlockPos>> inputPositions = Collections.emptyMap();
+    private Map<InputStatement, Map<Object, Map<ResourceLimit, TransferQuota>>> fluidInputQuotas = Collections
+        .emptyMap();
     private boolean didSomething = false;
 
     public ProgramContext(World world, TileEntityManager manager, CableNetwork network,
@@ -355,8 +357,14 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
             loopInputRegistrations++;
         }
         stmt = stmt.resolve(this);
+        if (inputs == Collections.<InputStatement>emptyList()) inputs = new ArrayList<>();
         inputs.add(stmt);
         forgetInputCache(stmt);
+    }
+
+    private static <K, V> Map<K, V> mutableIdentityMap(Map<K, V> values) {
+        // Keep materialized maps after FORGET empties them, avoiding extra allocation in transfer loops.
+        return values == Collections.<K, V>emptyMap() ? new IdentityHashMap<>() : values;
     }
 
     private void forgetInputCache(InputStatement stmt) {
@@ -475,6 +483,8 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
 
         // --- Items Gathering & Transfer ---
         List<InputSlot> inputSlots = new ArrayList<>();
+        inputCache = mutableIdentityMap(inputCache);
+        inputPositions = mutableIdentityMap(inputPositions);
         Map<InputStatement, List<BlockPos>> inPositionsMap = inputPositions;
         for (InputStatement inputStmt : inputs) {
             if (inputCache.containsKey(inputStmt)) {
@@ -933,6 +943,7 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
             }
         }
         for (InputStatement in : inputs) {
+            fluidInputQuotas = mutableIdentityMap(fluidInputQuotas);
             Map<Object, Map<ResourceLimit, TransferQuota>> sourceQuotas = fluidInputQuotas
                 .computeIfAbsent(in, k -> new HashMap<>());
             List<ForgeDirection> sides = in.getLabelAccess()
@@ -1060,10 +1071,13 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
         manager.markDirty();
     }
 
-    private final Map<InputStatement, Map<Object, Map<ResourceLimit, TransferQuota>>> fluidReservations = new IdentityHashMap<>();
-    private final Map<InputStatement, Map<BlockPos, Map<Object, Long>>> reservedFluids = new IdentityHashMap<>();
+    private Map<InputStatement, Map<Object, Map<ResourceLimit, TransferQuota>>> fluidReservations = Collections
+        .emptyMap();
+    private Map<InputStatement, Map<BlockPos, Map<Object, Long>>> reservedFluids = Collections.emptyMap();
 
     private long fluidRetention(InputStatement statement, BlockPos pos, Object key, int amount, ResourceLimit limit) {
+        reservedFluids = mutableIdentityMap(reservedFluids);
+        fluidReservations = mutableIdentityMap(fluidReservations);
         Map<Object, Long> byResource = reservedFluids.computeIfAbsent(statement, k -> new HashMap<>())
             .computeIfAbsent(pos, k -> new HashMap<>());
         return byResource.computeIfAbsent(

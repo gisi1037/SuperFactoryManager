@@ -12,9 +12,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 /** Compile-only name/type resolution. Execution uses slots and fixed field offsets. */
 public final class DataCompiler {
+
+    // Identifier rules are immutable; each compile uses a private matcher rather than recompiling these regexes.
+    private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+    private static final Pattern FUNCTION_NAME = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*");
 
     private final Set<String> referencedLabels = new HashSet<>();
     private final Set<String> stateBuiltinCalls = new HashSet<>();
@@ -35,9 +40,10 @@ public final class DataCompiler {
         if (stateBuiltinCalls.contains(name))
             throw new IllegalArgumentException("Function conflicts with a built-in used in STATE defaults: " + name);
         if (functions.size() >= 128) throw new IllegalArgumentException("Function definitions exceed 128");
-        if (!name.matches("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*"))
-            throw new IllegalArgumentException("Invalid function name: " + name);
-        String first = name.split("\\.")[0].toUpperCase(Locale.ROOT);
+        if (!FUNCTION_NAME.matcher(name)
+            .matches()) throw new IllegalArgumentException("Invalid function name: " + name);
+        int separator = name.indexOf('.');
+        String first = (separator < 0 ? name : name.substring(0, separator)).toUpperCase(Locale.ROOT);
         if (first.equals("TRUE") || first.equals("FALSE")
             || first.equals("NOT")
             || first.equals("PLUS")
@@ -1198,7 +1204,8 @@ public final class DataCompiler {
                 return collection(type, nodes, offsets);
             }
             String token = take();
-            if (token.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+            if (IDENTIFIER.matcher(token)
+                .matches()) {
                 while (accept(".")) token += "." + take();
             }
             if (accept("(")) {

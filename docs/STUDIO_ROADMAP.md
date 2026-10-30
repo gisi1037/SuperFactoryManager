@@ -156,3 +156,17 @@ features in this roadmap do not introduce accepted syntax or a new interpreter.
 The admission/reset/lexer source checkpoint passes 1,252 tests total: 1,238 passed
 and 14 optional skips, including two opt-in performance suites. The default UI
 still keeps reference writing disabled while runtime qualification remains open.
+
+
+The follow-up performance checkpoint passes 1,255 tests total: 1,240 passed and
+15 optional skips. Eight correctness-checked program fixtures now measure fresh
+compilation and full warm manager updates separately. Two-run allocation evidence
+supports lazy transfer collections and immutable identifier Pattern reuse; see
+[program measurements](PROGRAM_PERFORMANCE.md). Native exact-reference STATE0,
+pause and scheduler clock survived cold reload despite a newer published revision.
+The dark reset confirmation is readable. Two-client qualification remains open.
+
+The next performance priority is the measured large blocked source/destination
+pair search, followed by a qualified opt-in event-assisted availability experiment.
+Keep ordinary due-trigger semantics, provider isolation and recovery intact;
+unqualified handlers retain polling. No event-driven behavior is implemented here.

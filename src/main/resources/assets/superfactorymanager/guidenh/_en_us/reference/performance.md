@@ -101,3 +101,12 @@ Cold loads always validate the actual world grant and exact program bundle.
 The lexer now caches separate strict/editor automata, reducing repeated compiler
 allocation without sharing mutable execution plans. Headless results are not a
 whole-pack throughput guarantee.
+
+
+Data-only and redstone programs allocate transfer bookkeeping only when an item
+or fluid INPUT/OUTPUT actually needs it. This changes memory use, not scheduling,
+variable scope or transfer semantics. Fresh compilation also reuses immutable
+identifier patterns. Diagnostic tests cover counters, branches, loops, arrays,
+functions, item queries and redstone separately; their allocation improvements
+are not a pack-wide TPS guarantee. Large blocked destination searches and event-
+assisted availability remain separate performance work.

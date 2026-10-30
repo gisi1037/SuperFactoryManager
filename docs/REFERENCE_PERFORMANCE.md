@@ -41,10 +41,10 @@ are recorded separately. These are not 20 TPS game or whole-pack throughput resu
 |Initial burst completed without manual Run retries|32/512|512/512|
 |Equal-work completed loads|512|512|
 |Admission offers including test retries|112,656-118,693|960|
-|Equal-work wall time|8.79-9.27s|1.18-1.20s|
-|Worker cumulative allocated bytes|30.53GB|0.608-0.611GB|
-|Recorded GC collection time during cold section|135-136ms|11-12ms|
-|Server cohort-frame p99|0.77-0.92ms|0.51-0.78ms|
+|Equal-work wall time|8.79-9.27 s|1.18-1.20 s|
+|Worker cumulative allocated bytes|30.53 GB|0.608-0.611 GB|
+|Recorded GC collection time during cold section|135-136 ms|11-12 ms|
+|Server cohort-frame p99|0.77-0.92 ms|0.51-0.78 ms|
 
 Every successful load owns a distinct mutable Program; all 512 loads complete in
 both equal-work rows. The baseline's test explicitly presses Run on busy-latched
@@ -92,8 +92,9 @@ diagnostic timings out of ordinary regression assertions.
 
 ## Remaining bottlenecks and gates
 
-Warm-running contexts still allocate; this change optimizes cold loading rather
-than pooling execution contexts. Expensive STATE activation and many distinct
+A subsequent [program performance pass](PROGRAM_PERFORMANCE.md) reduces warm
+allocation by materializing transfer collections only when used, and separately
+reuses identifier regex patterns during compilation. It does not pool contexts. Expensive STATE activation and many distinct
 large programs need dedicated profiles. Cache only lexer automata, never mutable
 Programs or unchecked file contents. Preserve actual grant/bundle verification
 on every cold activation. Real two-client authority, combined-pack reload/churn,
