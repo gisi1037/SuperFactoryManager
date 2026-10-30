@@ -26,6 +26,13 @@ support the same language and retain the full searchable insert/API catalog.
 Visual/Split/Code sit directly above the authoring surface. Drag the project-column
 divider or the horizontal dock divider to resize those regions.
 
+Open **Essentials/Advanced > Studio scale** to change the editor's GUI scale with
+**-** and **+**. **Game** restores following Minecraft's GUI scale. The choice is
+saved on this client and applies to Studio and its dialogs only; the HUD, Manager
+and other screens keep their game scale. If the window becomes too small, Studio
+temporarily fits the chosen scale to its minimum workspace without forgetting it.
+Changing scale keeps the current draft, undo history and pending node fields.
+
 **Copy** copies source without hidden visual-layout metadata. The ordinary
 embedded-source manager-disk workflow remains available. To use world-stored
 programs instead, save, publish and imprint a reference disk in the station.

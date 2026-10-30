@@ -17,7 +17,8 @@ public final class StudioLayout {
             int count = compact ? 2 : Math.max(1, categories);
             insertColumns = Math.max(1, Math.min(count, (available + 3) / (compact ? 68 : 52)));
             insertWidth = Math.max(1, (available - (insertColumns - 1) * 3) / insertColumns);
-            viewTop = 46 + (count + insertColumns - 1) / insertColumns * 18;
+            // Recessed rule and breathing room distinguish insertion tools from authoring view tabs.
+            viewTop = 46 + (count + insertColumns - 1) / insertColumns * 18 + 6;
             editorTop = viewTop + 21;
             int room = Math.max(1, height - editorTop - 21);
             int minDock = Math.min(102, Math.max(56, room - 40));

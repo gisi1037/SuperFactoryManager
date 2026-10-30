@@ -54,3 +54,20 @@ not whole-server TPS, transferred quantities or an original-port speedup.
 The ordinary production JAR excludes performance-fixture classes. Private worlds,
 launch settings, inventories, grants, transcripts and audit ancestry are not
 published. Native images above use purpose-built disposable fixtures.
+
+## Studio scale and toolbar follow-up
+
+The scale/separator follow-up passed a clean build, compiler bridge, formatting
+and Checkstyle: 1,272 tests total, 1,257 passed, 15 optional/environment skips.
+Preference tests cover restart, corrupt/oversized files, resolution clamping and
+retaining the selected scale when a window temporarily becomes smaller.
+
+A disposable Java 8/LWJGL2 client without Dynamic Inventory checked the frozen
+development artifact at Studio scales 1x, 2x, 3x and Follow game. Actual transformed
+pointer clicks and sidebar/dock drags passed, as did a code-caret click, API/Insert
+dialogs, unchanged source, project reopening, and a smaller-window fit followed
+by restoring the selected scale. Studio at 2x with Minecraft at 3x provided a
+960 x 540 logical workspace at 1920 x 1080. The Manager retained its ordinary
+game scale. The existing full-pack/hardware qualification limits still apply.
+
+![Studio at 2x while Minecraft remains at 3x](images/studio-scale-2026-10-30.png)

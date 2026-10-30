@@ -21,6 +21,9 @@ services, without a browser runtime or simulated sandbox.
   are draggable; small GUI scales use a compact arrangement.
 - Raised charcoal industrial panels/buttons with muted red accents and opaque
   text surfaces. No accessible player inventory, hotbar or NEI in Studio.
+- Remembered Studio-only GUI scale in Tools, with a Game reset and temporary
+  fitting for smaller windows. Editor/dialog transforms keep pointer targeting
+  together; a recessed rule separates Insert tools from Visual/Split/Code tabs.
 - Normal Imprint disk workflow: exact saved revision -> immutable publication ->
   selected build -> one fresh held disk. Server ownership/session/revision/medium
   checks and replay-safe acknowledgement behavior remain enforced. The former
@@ -37,7 +40,7 @@ colors, completion, hover help, API and compiler diagnostics remain in place.
 ## Verification and limits
 
 The full build, compiler bridge, GuideNH packaging, formatting and Checkstyle
-pass. Current regression count: 1,269 total, 1,254 passed, 15 optional/environment
+pass. Current regression count: 1,272 total, 1,257 passed, 15 optional/environment
 skips. Focused tests cover profile limits/quantiles/lifecycle, nonmutating watch,
 reference-author isolation, project-memory scoping/restart and layout clamps.
 The [native interface report](INTERFACE_QUALIFICATION.md) covers final frozen

@@ -38,8 +38,9 @@ final class StudioDividerWidget extends Widget<StudioDividerWidget> implements I
 
     @Override
     public void onMouseDrag(int button, long elapsed) {
-        if (dragging && available.getAsBoolean())
-            move.accept(horizontal ? getContext().getAbsMouseY() : getContext().getAbsMouseX());
+        if (dragging && available.getAsBoolean()) move.accept(
+            StudioScaledPanel
+                .logicalMouse(getPanel(), horizontal ? getContext().getAbsMouseY() : getContext().getAbsMouseX()));
     }
 
     @Override

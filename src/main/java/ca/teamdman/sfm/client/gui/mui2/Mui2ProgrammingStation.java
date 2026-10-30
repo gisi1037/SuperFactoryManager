@@ -126,7 +126,7 @@ public final class Mui2ProgrammingStation {
 
     private StudioGraphWidget graphEditor;
     private StudioDividerWidget divider;
-    private ParentWidget<?> outlinePane, inspectorPane;
+    private ParentWidget<?> outlinePane, inspectorPane, insertDivider;
     private ParentWidget<?> dockPane, problemDock, terminalDock, watchDock, buildDock;
     private StudioReadOnlyPane problemOutput;
     private StudioDebugTerminal terminal;
@@ -272,7 +272,7 @@ public final class Mui2ProgrammingStation {
 
     public ModularPanel build() {
         if (panel != null) return panel;
-        panel = new ModularPanel("sfm_station_editor") {
+        panel = new StudioScaledPanel("sfm_station_editor") {
 
             @Override
             public boolean disablePanelsBelow() {
@@ -304,8 +304,8 @@ public final class Mui2ProgrammingStation {
                 }
                 return super.onKeyPressed(character, key);
             }
-        }.widthRel(1f)
-            .heightRel(1f)
+        }.width(() -> StudioScaledPanel.logicalWidth(panel.getScreen()), Unit.Measure.PIXEL)
+            .height(() -> StudioScaledPanel.logicalHeight(panel.getScreen()), Unit.Measure.PIXEL)
             .pos(0, 0)
             .background(StudioTheme.SHELL)
             .excludeAreaInRecipeViewer()
@@ -315,6 +315,9 @@ public final class Mui2ProgrammingStation {
             new TextWidget<>("SFM Studio").color(0xffefa09a)
                 .pos(8, 8)
                 .size(70, 12));
+        insertDivider = new ParentWidget<>().height(2)
+            .background(StudioTheme.INSET);
+        panel.child(insertDivider);
         projectSelector = button("", 82, 3, 100, () -> true, this::openCatalog).height(21)
             .overlay(
                 IKey.dynamic(() -> trimFor(state.name + " v", projectSelector.getArea().width - 10))
@@ -491,6 +494,8 @@ public final class Mui2ProgrammingStation {
         nameField.right(narrow ? 93 : 8);
         projectSelector.left(82)
             .width(Math.max(8, width - (narrow ? 234 : 318)));
+        insertDivider.pos(workspace.mainLeft, workspace.viewTop - 5)
+            .width(Math.max(1, width - workspace.mainLeft - 8));
         allInsert.pos(workspace.insertX(0), workspace.insertY(0))
             .width(workspace.insertWidth);
         apiInsert.pos(workspace.insertX(1), workspace.insertY(1))
@@ -550,12 +555,26 @@ public final class Mui2ProgrammingStation {
                 command.run();
             }).height(20));
         }
-        popup.child(button("Done", 216, 188, 88, () -> true, toolsPanel::closePanel));
-        popup.child(button("", 8, 188, 202, () -> !state.busy(), () -> {
+        popup.child(button("Done", 216, 174, 88, () -> true, toolsPanel::closePanel));
+        popup.child(button("", 8, 174, 202, () -> !state.busy(), () -> {
             if (!applyClause()) return;
             removeFocus();
             advancedTools = !advancedTools;
         }).overlay(IKey.dynamic(() -> advancedTools ? "Use Essentials tools" : "Use Advanced tools")));
+        popup.child(
+            new TextWidget<>("Studio scale").pos(8, 202)
+                .size(92, 12)
+                .color(0xffb0b3bb));
+        popup.child(button("-", 104, 199, 24, () -> true, () -> StudioScaledPanel.changeScale(panel.getScreen(), -1)));
+        popup.child(
+            new TextWidget<>(IKey.dynamic(StudioScaledPanel::scaleLabel)).pos(132, 202)
+                .size(80, 12)
+                .color(0xffe7e8eb)
+                .addTooltipLine("Studio only. Larger values make controls bigger; window size limits the maximum."));
+        popup.child(button("+", 216, 199, 24, () -> true, () -> StudioScaledPanel.changeScale(panel.getScreen(), 1)));
+        popup.child(
+            button("Game", 244, 199, 60, () -> true, () -> StudioScaledPanel.changeScale(panel.getScreen(), 0))
+                .addTooltipLine("Follow Minecraft's GUI scale again. Other screens are never changed."));
         return popup;
     }
 
@@ -1348,16 +1367,8 @@ public final class Mui2ProgrammingStation {
         int contentWidth = width - 28;
         ModularPanel popup = modal("sfm_studio_fields", width, height);
         // Resize the existing controls/draft rather than rebuilding and losing unapplied fields.
-        popup.width(
-            () -> StudioLayout.inspectorWidth(
-                panel.getScreen()
-                    .getScreenArea().width),
-            Unit.Measure.PIXEL)
-            .height(
-                () -> StudioLayout.inspectorHeight(
-                    panel.getScreen()
-                        .getScreenArea().height),
-                Unit.Measure.PIXEL);
+        popup.width(() -> StudioLayout.inspectorWidth(panel.getArea().width), Unit.Measure.PIXEL)
+            .height(() -> StudioLayout.inspectorHeight(panel.getArea().height), Unit.Measure.PIXEL);
         Node node = graphEditor.selected();
         List<StudioNodeProperties.Field> fields = StudioNodeProperties.inspect(node.type, node.clause());
         UUID project = state.saved == null ? state.localId : state.saved.id;
@@ -2151,7 +2162,7 @@ public final class Mui2ProgrammingStation {
     }
 
     private ModularPanel modal(String name, int width, int height, BiPredicate<Character, Integer> keys) {
-        return new ModularPanel(name) {
+        return new StudioScaledPanel(name) {
 
             @Override
             public boolean disablePanelsBelow() {

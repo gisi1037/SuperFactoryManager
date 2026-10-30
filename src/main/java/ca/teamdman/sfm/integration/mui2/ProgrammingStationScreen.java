@@ -8,6 +8,7 @@ import com.cleanroommc.modularui.screen.ModularScreen;
 
 import ca.teamdman.sfm.SuperFactoryManager;
 import ca.teamdman.sfm.client.gui.mui2.Mui2ProgrammingStation;
+import ca.teamdman.sfm.client.gui.mui2.StudioScaledPanel;
 import ca.teamdman.sfm.common.net.PacketStationDebugReply;
 import ca.teamdman.sfm.common.net.PacketStationReply;
 import ca.teamdman.sfm.common.tileentity.TileEntityProgrammingStation;
@@ -32,6 +33,12 @@ public final class ProgrammingStationScreen extends ModularScreen {
 
     public void openDebugTerminal() {
         if (editor != null) editor.openDebugDock();
+    }
+
+    @Override
+    public void onResize(int width, int height) {
+        StudioScaledPanel.updateResolution();
+        super.onResize(width, height);
     }
 
     public void receiveStationDebugReply(PacketStationDebugReply reply) {
