@@ -511,14 +511,14 @@ public final class Mui2ProgrammingStation {
         for (int i = 0; i < categories.size(); i++) categories.get(i)
             .pos(workspace.insertX(i + 1), workspace.insertY(i + 1))
             .width(workspace.insertWidth);
-        for (int i = 0, x = workspace.mainLeft; i < viewButtons.size(); i++) {
+        for (int i = 0, x = workspace.mainLeft + 4; i < viewButtons.size(); i++) {
             int w = (i == 0 ? 70 : 62) - (workspace.compact ? 12 : 0);
             viewButtons.get(i)
-                .pos(x, workspace.viewTop)
+                .pos(x, workspace.viewTop + 2)
                 .size(w, workspace.viewHeight);
             x += w + 3;
         }
-        authoringLabel.top(workspace.viewTop + (workspace.viewHeight - 10) / 2);
+        authoringLabel.top(workspace.viewTop + 2 + (workspace.viewHeight - 10) / 2);
         layoutWorkspace(width, workspace.editorTop);
         if (dockPane != null) {
             int tabWidth = Math.max(1, (width - workspace.mainLeft - 18) / 4);
