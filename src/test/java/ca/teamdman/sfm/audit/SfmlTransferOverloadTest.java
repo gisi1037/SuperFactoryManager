@@ -20,6 +20,7 @@ import net.minecraftforge.common.util.ForgeDirection;
 
 import org.junit.jupiter.api.Test;
 
+import ca.teamdman.sfm.client.blueprint.BlueprintCompiler;
 import ca.teamdman.sfm.common.network.CableNetwork;
 import ca.teamdman.sfm.common.program.ProgramContext;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
@@ -255,13 +256,22 @@ class SfmlTransferOverloadTest {
                 Program program = built.getProgram();
                 assertEquals(program.toString(), program(program.toString()).toString());
                 VisualCapabilityReport report = VisualCapabilityAnalyzer.analyze(built);
-                assertFalse(report.isAvailable());
-                assertTrue(
+                assertEquals(result.isEmpty(), report.isAvailable(), report.getMessage());
+                assertEquals(
+                    !result.isEmpty(),
                     report.getBlockers()
                         .stream()
                         .anyMatch(blocker -> blocker.kind == VisualCapabilityReport.Kind.TRANSFER_STATEMENT));
                 program.tick(context(fixture));
                 assertEquals(arguments.endsWith(", 2") ? 2 : 7, count(fixture.dest), source);
+                if (result.isEmpty()) {
+                    Fixture visual = new Fixture();
+                    visual.source.setInventorySlotContents(0, stack(FIRST, 7, 0, null));
+                    Program roundTrip = program(BlueprintCompiler.generate(BlueprintCompiler.importText(source)));
+                    roundTrip.tick(context(visual));
+                    assertEquals(count(fixture.source), count(visual.source));
+                    assertEquals(count(fixture.dest), count(visual.dest));
+                }
             }
         }
     }

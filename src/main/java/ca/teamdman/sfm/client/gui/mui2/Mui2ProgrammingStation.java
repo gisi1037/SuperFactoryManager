@@ -13,9 +13,11 @@ import java.util.function.BooleanSupplier;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.item.Item;
 import net.minecraft.world.World;
 
 import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
 
 import com.cleanroommc.modularui.api.IPanelHandler;
 import com.cleanroommc.modularui.api.drawable.IKey;
@@ -33,8 +35,23 @@ import com.cleanroommc.modularui.widgets.textfield.TextFieldWidget;
 import ca.teamdman.sfm.client.blueprint.BlueprintCompiler;
 import ca.teamdman.sfm.client.blueprint.BlueprintGraph;
 import ca.teamdman.sfm.client.blueprint.BlueprintGraph.Node;
+import ca.teamdman.sfm.client.blueprint.BlueprintGraph.Type;
 import ca.teamdman.sfm.client.blueprint.StudioDocument;
+import ca.teamdman.sfm.client.blueprint.StudioDraftDiagnostics;
+import ca.teamdman.sfm.client.blueprint.StudioExclusionRows;
+import ca.teamdman.sfm.client.blueprint.StudioFieldDraft;
+import ca.teamdman.sfm.client.blueprint.StudioFieldFeedback;
+import ca.teamdman.sfm.client.blueprint.StudioFieldPicker;
+import ca.teamdman.sfm.client.blueprint.StudioIoAllowances.Part;
+import ca.teamdman.sfm.client.blueprint.StudioLabelRows;
+import ca.teamdman.sfm.client.blueprint.StudioLimitRows;
+import ca.teamdman.sfm.client.blueprint.StudioNamedRedstoneHeader;
 import ca.teamdman.sfm.client.blueprint.StudioNodeProperties;
+import ca.teamdman.sfm.client.blueprint.StudioOreFilter;
+import ca.teamdman.sfm.client.blueprint.StudioPrintArguments;
+import ca.teamdman.sfm.client.blueprint.StudioResourceAlternatives;
+import ca.teamdman.sfm.client.blueprint.StudioSourceMap;
+import ca.teamdman.sfm.client.blueprint.StudioTransferArguments;
 import ca.teamdman.sfm.client.gui.ProgrammingStationDraftState;
 import ca.teamdman.sfm.client.gui.syntax.SfmlCompletionCatalog;
 import ca.teamdman.sfm.client.gui.syntax.SnippetCategory;
@@ -81,7 +98,8 @@ public final class Mui2ProgrammingStation {
     private final UUID rememberedProject;
     private ModularPanel panel;
     private final List<ButtonWidget<?>> categories = new ArrayList<>();
-    private int layoutWidth = -1, layoutHeight = -1, diagnosticDelay = -1;
+    private int layoutWidth = -1, layoutHeight = -1;
+    private final StudioDraftDiagnostics diagnostics = new StudioDraftDiagnostics();
     private String draftDiagnostic = "Draft not checked";
     private String snippetSearch = "";
     private SnippetCategory snippetCategory;
@@ -94,36 +112,28 @@ public final class Mui2ProgrammingStation {
 
     private View view = View.CODE;
     private boolean codeFocused = true;
-    private FieldDraft fieldDraft;
+    private StudioFieldDraft fieldDraft;
+    private StudioFieldDraft reopenPromotedFields;
+    private final StudioFieldFeedback fieldFeedback = new StudioFieldFeedback();
+    private StudioFieldFeedback.Snapshot fieldDiagnostic;
+    private Navigation navigation;
+    private IPanelHandler navigationPanel;
+    private ButtonWidget<?> navigationButton, revealNodeButton, revealSourceButton;
 
-    /** Unapplied typed fields belong to one exact project/node clause, including during recovery. */
-    private static final class FieldDraft {
+    private static final class Navigation {
 
-        final UUID project, node;
-        final String original;
-        final Map<String, String> values = new LinkedHashMap<>();
-        final Map<String, String> initial = new LinkedHashMap<>();
+        final StudioSourceMap map;
+        final StudioSourceMap.Span span;
+        final boolean toNode;
 
-        FieldDraft(UUID project, Node node, List<StudioNodeProperties.Field> fields) {
-            this.project = project;
-            this.node = node.id;
-            original = node.clause();
-            for (StudioNodeProperties.Field field : fields) values.put(field.getKey(), field.getValue());
-            initial.putAll(values);
-        }
-
-        FieldDraft(FieldDraft from) {
-            project = from.project;
-            node = from.node;
-            original = from.original;
-            values.putAll(from.values);
-            initial.putAll(from.initial);
-        }
-
-        boolean dirty() {
-            return !values.equals(initial);
+        Navigation(StudioSourceMap map, StudioSourceMap.Span span, boolean toNode) {
+            this.map = map;
+            this.span = span;
+            this.toNode = toNode;
         }
     }
+
+    private StudioFieldPicker.Session fieldPicker;
 
     private StudioGraphWidget graphEditor;
     private StudioDividerWidget divider;
@@ -162,7 +172,8 @@ public final class Mui2ProgrammingStation {
     private ListWidget<IWidget, ?> completionList;
     private List<StudioCompletion.Candidate> completions = Collections.emptyList();
     private SfmlCompletionCatalog.Snapshot symbols = SfmlCompletionCatalog.scan("");
-    private IPanelHandler nodesPanel, apiPanel, problemsPanel, inspectPanel, fieldsPanel, completionPanel, findPanel;
+    private IPanelHandler nodesPanel, apiPanel, problemsPanel, inspectPanel, fieldsPanel, completionPanel, findPanel,
+        pickerPanel, fieldDiagnosticPanel;
     private IPanelHandler catalogPanel, confirmationPanel, snippetsPanel, toolsPanel, buildsPanel;
     private ProjectPage catalog = new ProjectPage(Collections.emptyList(), 0, 0);
     private PublicationPage publications = new PublicationPage(Collections.emptyList(), 0, 0);
@@ -183,7 +194,7 @@ public final class Mui2ProgrammingStation {
         final UUID selected;
         final String clause;
         final View view;
-        final FieldDraft fields;
+        final StudioFieldDraft fields;
 
         Retained(Mui2ProgrammingStation studio) {
             ProgrammingStationDraftState state = studio.state;
@@ -197,7 +208,7 @@ public final class Mui2ProgrammingStation {
             selected = studio.inspected;
             clause = studio.clause;
             view = studio.view;
-            fields = studio.fieldDraft == null ? null : new FieldDraft(studio.fieldDraft);
+            fields = studio.fieldDraft == null ? null : new StudioFieldDraft(studio.fieldDraft);
         }
     }
 
@@ -251,12 +262,19 @@ public final class Mui2ProgrammingStation {
             return;
         }
         document.editCode(editor.source());
+        // Layout reimport can reuse a UUID with a new clause. Text now owns it; no old inspector may apply.
+        discardFields("Fields closed."); // Dirty Fields already refused the edit above; invalidate only the clean
+                                         // cached form.
+        if (graphEditor != null) {
+            graphEditor.cancelWire();
+            graphEditor.select(null);
+        }
         codeFocused = true;
         state.noteLocalEdit();
         state.source = document.source();
         if (!document.code()
             .equals(editor.source())) syncEditor();
-        diagnosticDelay = 6;
+        diagnostics.schedule(6);
         draftDiagnostic = "Draft changed; checking...";
     }
 
@@ -268,7 +286,7 @@ public final class Mui2ProgrammingStation {
         } finally {
             syncingEditor = false;
         }
-        diagnosticDelay = 6;
+        diagnostics.schedule(6);
     }
 
     public ModularPanel build() {
@@ -285,11 +303,17 @@ public final class Mui2ProgrammingStation {
                 super.postResize();
                 if (layoutHeader(getArea().w())) {
                     scheduleResize();
+                    return;
                 }
+                finishNavigation();
             }
 
             @Override
             public boolean onKeyPressed(char character, int key) {
+                if (key == Keyboard.KEY_F6 && authoringOnTop()) {
+                    reveal(!GuiScreen.isShiftKeyDown());
+                    return true;
+                }
                 if (key == Keyboard.KEY_F4) {
                     jumpToError();
                     return true;
@@ -398,11 +422,20 @@ public final class Mui2ProgrammingStation {
         viewButtons.add(viewButton("Split", 0, 36, View.SPLIT));
         viewButtons.add(viewButton("Code", 0, 36, View.CODE));
         for (ButtonWidget<?> entry : viewButtons) panel.child(entry);
+        navigationButton = button("Go", 0, 0, 22, () -> true, () -> {
+            navigationPanel.deleteCachedPanel();
+            navigationPanel.openPanel();
+        }).addTooltipLine("Reveal node: F6 | Reveal source: Shift+F6. Explicit navigation only.");
+        revealNodeButton = button("Reveal node", 0, 0, 76, () -> true, () -> reveal(true));
+        revealSourceButton = button("Reveal source", 0, 0, 84, () -> true, () -> reveal(false));
+        panel.child(navigationButton);
+        panel.child(revealNodeButton);
+        panel.child(revealSourceButton);
         authoringLabel = new TextWidget<>("AUTHORING").color(0xff868b96)
             .right(10)
             .top(68)
             .size(62, 10)
-            .setEnabledIf(widget -> workspace != null && panel.getArea().width - workspace.mainLeft >= 290);
+            .setEnabledIf(widget -> workspace != null && panel.getArea().width - workspace.mainLeft >= 530);
         panel.child(authoringLabel);
         panel.child(
             editor.left(8)
@@ -471,6 +504,10 @@ public final class Mui2ProgrammingStation {
         problemsPanel = IPanelHandler.simple(panel, (parent, player) -> buildProblems(), true);
         inspectPanel = IPanelHandler.simple(panel, (parent, player) -> buildInspectorPopup(), true);
         fieldsPanel = IPanelHandler.simple(panel, (parent, player) -> buildTypedFields(), true);
+        fieldDiagnosticPanel = IPanelHandler
+            .simple(panel, (parent, player) -> buildFieldDiagnostic(fieldDiagnostic), true);
+        pickerPanel = IPanelHandler.simple(panel, (parent, player) -> buildFieldPicker(), true);
+        navigationPanel = IPanelHandler.simple(panel, (parent, player) -> buildNavigation(), true);
         completionPanel = IPanelHandler.simple(panel, (parent, player) -> buildCompletion(), true);
         findPanel = IPanelHandler.simple(panel, (parent, player) -> buildFind(), true);
         toolsPanel = IPanelHandler.simple(panel, (parent, player) -> buildTools(), true);
@@ -518,6 +555,16 @@ public final class Mui2ProgrammingStation {
                 .size(w, workspace.viewHeight);
             x += w + 3;
         }
+        int navigationX = workspace.mainLeft + (workspace.compact ? 171 : 207);
+        navigationButton.pos(navigationX, workspace.viewTop + 2)
+            .height(workspace.viewHeight);
+        boolean navigationRoom = width - workspace.mainLeft >= 500;
+        revealNodeButton.pos(navigationX + 25, workspace.viewTop + 2)
+            .height(workspace.viewHeight)
+            .setEnabledIf(widget -> navigationRoom);
+        revealSourceButton.pos(navigationX + 104, workspace.viewTop + 2)
+            .height(workspace.viewHeight)
+            .setEnabledIf(widget -> navigationRoom);
         authoringLabel.top(workspace.viewTop + 2 + (workspace.viewHeight - 10) / 2);
         layoutWorkspace(width, workspace.editorTop);
         if (dockPane != null) {
@@ -663,6 +710,100 @@ public final class Mui2ProgrammingStation {
         if (next != View.CODE) graphEditor.fit();
     }
 
+    private UUID navigationProject() {
+        return state.saved == null ? state.localId : state.saved.id;
+    }
+
+    private ModularPanel buildNavigation() {
+        ModularPanel popup = modal("sfm_studio_navigation", 264, 142);
+        popup.child(
+            new TextWidget<>("Explicit source / node navigation").pos(8, 8)
+                .size(248, 12)
+                .color(0xffefa09a));
+        popup.child(button("Reveal node", 8, 30, 248, () -> true, () -> {
+            navigationPanel.closePanel();
+            reveal(true);
+        }).addTooltipLine("F6. Instruction/header token at the code caret; trivia has no node."));
+        popup.child(button("Reveal source", 8, 56, 248, () -> true, () -> {
+            navigationPanel.closePanel();
+            reveal(false);
+        }).addTooltipLine("Shift+F6. Select the current node's exact instruction/header in Code."));
+        // Compact layouts hide the side inspector. Pending fields must remain reachable after Escape.
+        popup.child(button("Reopen Fields", 8, 82, 122, () -> editable() && pendingFields(), () -> {
+            navigationPanel.closePanel();
+            openFields();
+        }).addTooltipLine("Resume unapplied fields without changing the document or selection."));
+        popup.child(button("Reopen clause", 134, 82, 122, () -> editable() && pendingClause(), () -> {
+            navigationPanel.closePanel();
+            inspectPanel.deleteCachedPanel();
+            inspectPanel.openPanel();
+        }).addTooltipLine("Resume the pending raw clause; Apply and Reset remain explicit."));
+        popup.child(button("Done", 168, 114, 88, () -> true, navigationPanel::closePanel));
+        return popup;
+    }
+
+    /** Separate from switchView: navigation must never Apply a clause or reload the code buffer. */
+    private void reveal(boolean toNode) {
+        navigation = null;
+        try {
+            StudioSourceMap map = StudioSourceMap.prepare(
+                navigationProject(),
+                document,
+                editor.source(),
+                state.awaitingReply() || !editable(),
+                pendingClause() || pendingFields(),
+                graphEditor.interactionPending());
+            StudioSourceMap.Span span = toNode ? map.atCaret(editor.buffer.caret())
+                : graphEditor.selected() == null ? null : map.node(graphEditor.selected().id);
+            if (span == null) {
+                status = toNode
+                    ? "No node here. Place the caret on an instruction/header token; comments, whitespace, NAME, ELSE and END have no node."
+                    : "Select a graph node before Reveal source.";
+                return;
+            }
+            // Explicit view change only; Split stays Split whenever its normal layout is usable.
+            boolean keepSplit = view == View.SPLIT && workspace != null
+                && panel.getArea().width - workspace.mainLeft >= 390;
+            view = keepSplit ? View.SPLIT : toNode ? View.VISUAL : View.CODE;
+            navigation = new Navigation(map, span, toNode);
+            layoutWidth = -1;
+            panel.scheduleResize();
+        } catch (IllegalArgumentException refused) {
+            status = "Navigation kept draft: " + refused.getMessage();
+        }
+    }
+
+    /**
+     * Hidden panes need a completed layout. Recheck ownership because a project reply can arrive before this callback.
+     */
+    private void finishNavigation() {
+        Navigation request = navigation;
+        if (request == null) return;
+        navigation = null;
+        try {
+            if (state.awaitingReply() || !editable()
+                || pendingClause()
+                || pendingFields()
+                || document.incomplete()
+                || graphEditor.interactionPending())
+                throw new IllegalArgumentException("Draft or request changed. Reveal again.");
+            request.map.requireCurrent(navigationProject(), document.code(), editor.source(), document.graph());
+            if (request.toNode) {
+                if (view == View.CODE) throw new IllegalArgumentException("View changed. Reveal again.");
+                graphEditor.reveal(request.span.node);
+                codeFocused = false;
+            } else {
+                if (view == View.VISUAL) throw new IllegalArgumentException("View changed. Reveal again.");
+                editor.revealRange(request.span.displayStart, request.span.displayEnd);
+                codeFocused = true;
+            }
+            status = request.toNode ? "Node revealed. Source, layout positions and undo history unchanged."
+                : "Source revealed. Text and undo history unchanged.";
+        } catch (IllegalArgumentException refused) {
+            status = "Navigation kept draft: " + refused.getMessage();
+        }
+    }
+
     private void layoutWorkspace(int width, int top) {
         if (workspace == null) return;
         if (view == View.SPLIT && width - workspace.mainLeft < 390) {
@@ -758,6 +899,7 @@ public final class Mui2ProgrammingStation {
                 if (editable() && !clause.equals(value)) {
                     state.noteLocalEdit();
                     clause = value;
+                    pendingDiagnosticsChanged();
                 }
             }));
         inspectorPane.child(
@@ -854,16 +996,28 @@ public final class Mui2ProgrammingStation {
             new TextWidget<>("program.sfml").color(0xff9ca5b0)
                 .height(20)
                 .widthRel(1f));
-        for (SfmlCompletionCatalog.OutlineEntry entry : symbols.outline())
-            outlineList.child(listButton("", 120, () -> !document.incomplete(), () -> {
+        for (SfmlCompletionCatalog.OutlineEntry entry : symbols.outline()) {
+            ButtonWidget<?> row = listButton("", 120, () -> !document.incomplete(), () -> {
                 switchView(View.CODE);
                 editor.goTo(entry.getOffset());
             }).widthRel(1f)
                 .height(18)
-                .overlay(
-                    IKey.str(entry.getTitle())
-                        .color(0xffc3c8d0))
-                .addTooltipLine(entry.getTitle() + " | line " + entry.getLine()));
+                .name("studio_outline_" + entry.getOffset());
+            row.overlay(IKey.dynamic(() -> {
+                // Use the laid-out row, including MUI2's reserved scroll space, with six pixels per edge.
+                int width = Math.max(0, row.getArea().width - 12);
+                if (width < Minecraft.getMinecraft().fontRenderer.getStringWidth("...")) return "";
+                String label = ellipsizeFor(entry.getTitle(), width);
+                // Font trimming must not leave half a surrogate pair in the display-only prefix.
+                if (label.endsWith("...") && label.length() > 3
+                    && Character.isHighSurrogate(label.charAt(label.length() - 4)))
+                    label = label.substring(0, label.length() - 4) + "...";
+                return label;
+            })
+                .color(0xffc3c8d0))
+                .addTooltipLine(entry.getTitle() + " | line " + entry.getLine());
+            outlineList.child(row);
+        }
         if (outlineList.isValid()) outlineList.scheduleResize();
     }
 
@@ -1105,7 +1259,7 @@ public final class Mui2ProgrammingStation {
         state.noteLocalEdit();
         state.source = document.source();
         syncEditor();
-        diagnosticDelay = 6;
+        diagnostics.schedule(6);
         draftDiagnostic = document.incomplete() ? "Visual draft: " + document.problem() : "Draft changed; checking...";
         if (document.incomplete()) status = "Visual draft kept: " + document.problem();
         else status = "Visual draft updated. Save writes this project; it does not install a manager program.";
@@ -1116,6 +1270,29 @@ public final class Mui2ProgrammingStation {
         inspected = node == null ? null : node.id;
         clause = node == null ? "" : node.clause();
         if (clauseField != null) clauseField.setText(clause);
+        pendingDiagnosticsChanged();
+    }
+
+    /** Only successful current-owner mutations invalidate last-action feedback; no validation occurs here. */
+    private void fieldsChanged(StudioFieldDraft draft) {
+        if (fieldDraft != draft) return;
+        status = fieldFeedback.changed(draft, status);
+        state.noteLocalEdit();
+        pendingDiagnosticsChanged();
+    }
+
+    private void discardFields(String replacement) {
+        status = fieldFeedback.finish(fieldDraft, status, replacement);
+        fieldDraft = null;
+    }
+
+    private boolean currentFieldDiagnostic(StudioFieldFeedback.Snapshot snapshot) {
+        return fieldFeedback.current(snapshot, fieldDraft) && fieldsPanel.isPanelOpen()
+            && fieldDraft.matches(navigationProject(), graphEditor.selected(), document.code());
+    }
+
+    private void pendingDiagnosticsChanged() {
+        diagnostics.pendingChanged(pendingClause() || pendingFields());
     }
 
     private boolean pendingClause() {
@@ -1123,7 +1300,9 @@ public final class Mui2ProgrammingStation {
         return node != null && inspected != null
             && inspected.equals(node.id)
             && !clause.trim()
-                .equals(node.clause());
+                .equals(
+                    node.clause()
+                        .trim()); // Parsed-span removals can leave legitimate boundary whitespace.
     }
 
     private boolean applyClause() {
@@ -1140,6 +1319,7 @@ public final class Mui2ProgrammingStation {
                 graph -> graph.node(node.id)
                     .setClause(value));
             graphChanged();
+            pendingDiagnosticsChanged();
             return true;
         } catch (IllegalArgumentException invalid) {
             status = "Inspector kept: " + invalid.getMessage() + ". Apply a valid clause or Reset.";
@@ -1163,26 +1343,41 @@ public final class Mui2ProgrammingStation {
     }
 
     private ModularPanel buildNodes() {
-        ModularPanel popup = modal("sfm_studio_add", 312, 228);
+        StudioLayout.NodePalette layout = new StudioLayout.NodePalette(
+            panel.getArea()
+                .w(),
+            panel.getArea()
+                .h());
+        ModularPanel popup = modal("sfm_studio_add", layout.width, layout.height);
         popup.child(
             new TextWidget<>("Add a step / execution order").color(0xffe7e8eb)
                 .pos(8, 8)
-                .size(296, 12));
-        int index = 0;
+                .size(layout.width - 16, 12));
+        ListWidget<IWidget, ?> list = new ListWidget<>().pos(8, 26)
+            .size(layout.width - 16, layout.listHeight);
         for (BlueprintGraph.Type type : BlueprintGraph.Type.values()) {
-            popup.child(button(type.title, 8, 26 + index++ * 21, 296, this::graphEditable, () -> {
+            list.child(listButton(type.title, layout.width - 22, this::graphEditable, () -> {
                 nodesPanel.closePanel();
                 graphEditor.add(type);
-            }).height(18)
+            }).widthRelOffset(1f, -6)
+                .height(21)
                 .addTooltipLine(type.defaultClause));
         }
-        popup.child(button("Inspect selected", 8, 184, 138, () -> graphEditor.selected() != null, () -> {
-            nodesPanel.closePanel();
-            inspectPanel.deleteCachedPanel();
-            inspectPanel.openPanel();
-        }));
-        popup.child(button("Fit", 150, 184, 62, () -> true, graphEditor::fit));
-        popup.child(button("Done", 216, 184, 88, () -> true, nodesPanel::closePanel));
+        popup.child(list);
+        popup.child(
+            button(
+                "Inspect selected",
+                8,
+                layout.footerY,
+                layout.width - 174,
+                () -> graphEditor.selected() != null,
+                () -> {
+                    nodesPanel.closePanel();
+                    inspectPanel.deleteCachedPanel();
+                    inspectPanel.openPanel();
+                }));
+        popup.child(button("Fit", layout.width - 162, layout.footerY, 62, () -> true, graphEditor::fit));
+        popup.child(button("Done", layout.width - 96, layout.footerY, 88, () -> true, nodesPanel::closePanel));
         return popup;
     }
 
@@ -1199,6 +1394,7 @@ public final class Mui2ProgrammingStation {
                     if (!clause.equals(value)) {
                         state.noteLocalEdit();
                         clause = value;
+                        pendingDiagnosticsChanged();
                     }
                 }))
                 .pos(8, 30)
@@ -1379,7 +1575,7 @@ public final class Mui2ProgrammingStation {
     }
 
     private void openFields() {
-        if ((!pendingFields() && !applyClause()) || graphEditor.selected() == null) return;
+        if (!pendingFields() && (!applyClause() || graphEditor.selected() == null)) return;
         clearAuthorFocus();
         fieldsPanel.deleteCachedPanel();
         fieldsPanel.openPanel();
@@ -1398,24 +1594,164 @@ public final class Mui2ProgrammingStation {
         popup.width(() -> StudioLayout.inspectorWidth(panel.getArea().width), Unit.Measure.PIXEL)
             .height(() -> StudioLayout.inspectorHeight(panel.getArea().height), Unit.Measure.PIXEL);
         Node node = graphEditor.selected();
-        List<StudioNodeProperties.Field> fields = StudioNodeProperties.inspect(node.type, node.clause());
         UUID project = state.saved == null ? state.localId : state.saved.id;
-        if (fieldDraft == null || !fieldDraft.project.equals(project)
-            || !fieldDraft.node.equals(node.id)
-            || !fieldDraft.original.equals(node.clause())) fieldDraft = new FieldDraft(project, node, fields);
-        FieldDraft draft = fieldDraft;
+        if (fieldDraft == null || !fieldDraft.dirty() && !fieldDraft.matches(project, node, document.code()))
+            fieldDraft = new StudioFieldDraft(
+                project,
+                node,
+                document.code(),
+                StudioNodeProperties.inspect(node.type, node.clause()));
+        StudioFieldDraft draft = fieldDraft;
+        List<StudioNodeProperties.Field> fields = StudioNodeProperties.inspect(draft.type, draft.original);
         popup.child(
-            new TextWidget<>(node.type.title + " / fields").color(0xffefa09a)
+            new TextWidget<>(draft.type.title + " / fields").color(0xffefa09a)
                 .left(8)
                 .right(8)
                 .top(8)
                 .height(12));
-        String[] error = { "" };
+        StudioFieldFeedback error = fieldFeedback;
+        status = error.open(draft, status);
         ListWidget<IWidget, ?> fieldList = new ListWidget<>().left(8)
             .right(8)
             .top(28)
             .bottom(66);
+        if (draft.type == BlueprintGraph.Type.NAMED_REDSTONE) {
+            boolean structured = draft.hasLabelRows();
+            String sideSuffix = fields.isEmpty() ? "" : StudioNamedRedstoneHeader.physicalSideSuffix(draft.original);
+            String sides = structured ? "Original physical sides: " + (sideSuffix.trim()
+                .isEmpty() ? "all" : sideSuffix.trim()) : "No truncation: edit the complete header.";
+            ParentWidget<?> help = new ParentWidget<>().widthRelOffset(1f, -6)
+                .height(54);
+            help.child(
+                new TextWidget<>(structured ? "PULSE is an alias for RISING." : "Manual header; no partial controls.")
+                    .left(0)
+                    .right(0)
+                    .top(0)
+                    .height(12)
+                    .color(0xffb0b3bb));
+            help.child(
+                new TextWidget<>(
+                    IKey.dynamic(
+                        () -> ellipsizeFor(
+                            sides,
+                            popup.getArea()
+                                .w() - 30))).left(0)
+                                    .right(0)
+                                    .top(14)
+                                    .height(12)
+                                    .color(0xff868b96)
+                                    .addTooltipLine(
+                                        structured ? "Original header suffix; edit Physical sides below: " + sideSuffix
+                                            : "Over 32 labels or unsupported rows. Apply or Cancel Fields before using the full-clause editor."));
+            help.child(
+                new TextWidget<>(
+                    structured ? "Physical sides: blank = all; EACH = explicit all."
+                        : "Header only: leave out DO and END.").left(0)
+                            .right(0)
+                            .top(28)
+                            .height(12)
+                            .color(0xff868b96));
+            fieldList.child(help);
+        }
+        // These are exactly the IO cases where the parsed exclusion descriptor was withheld.
+        if ((draft.type == Type.INPUT || draft.type == Type.OUTPUT) && draft.hasLabelRows()
+            && !draft.hasExclusionRows()) {
+            ParentWidget<?> notice = new ParentWidget<>().widthRelOffset(1f, -6)
+                .height(52);
+            notice.child(
+                new TextWidget<>("Exclusions require the full clause.").color(0xffefa09a)
+                    .left(0)
+                    .right(0)
+                    .top(0)
+                    .height(12));
+            notice.child(
+                new TextWidget<>("Over 32 rows or a trailing comma.").color(0xffb0b3bb)
+                    .left(0)
+                    .right(0)
+                    .top(14)
+                    .height(12));
+            notice.child(
+                new TextWidget<>("Apply or Cancel Fields first.").color(0xffb0b3bb)
+                    .left(0)
+                    .right(0)
+                    .top(28)
+                    .height(12)
+                    .addTooltipLine(
+                        "Other fields remain editable. Resolve them, then use the full SFML clause editor."));
+            fieldList.child(notice);
+        }
+        if ((draft.type == Type.INPUT || draft.type == Type.OUTPUT) && draft.hasLabelRows()
+            && !draft.hasResourceRows()
+            && !draft.hasLimitRows()) {
+            ParentWidget<?> notice = new ParentWidget<>().widthRelOffset(1f, -6)
+                .height(66);
+            notice.child(
+                new TextWidget<>("Resources require the full clause.").color(0xffefa09a)
+                    .left(0)
+                    .right(0)
+                    .top(0)
+                    .height(12));
+            notice.child(
+                new TextWidget<>("Unsupported limits, trailing OR/comma,").color(0xffb0b3bb)
+                    .left(0)
+                    .right(0)
+                    .top(14)
+                    .height(12));
+            notice.child(
+                new TextWidget<>("or over 32 selectors/limit rows.").color(0xffb0b3bb)
+                    .left(0)
+                    .right(0)
+                    .top(28)
+                    .height(12));
+            notice.child(
+                new TextWidget<>("Apply or Cancel Fields first.").color(0xffb0b3bb)
+                    .left(0)
+                    .right(0)
+                    .top(42)
+                    .height(12));
+            fieldList.child(notice);
+        }
+        boolean limitRowsShown = false;
+        if (draft.hasPrintArguments()) fieldList.child(buildPrintArguments(draft, fieldList, error));
+        if (draft.hasTransferArguments()) fieldList.child(buildTransferArguments(draft, fieldList, error));
         for (StudioNodeProperties.Field field : fields) {
+            if (draft.hasPrintArguments()) continue; // UUID rows own all Print expressions, including legacy aliases.
+            if (draft.hasTransferArguments()) continue; // Fixed roles own the entire Transfer suffix/argument list.
+            if (draft.hasIoAllowances() && StudioFieldDraft.numericLimitField(field.getKey())) continue;
+            if (draft.retiredLimitField(field.getKey())) {
+                if (!limitRowsShown) {
+                    fieldList.child(buildLimitRows(draft, fieldList, error));
+                    limitRowsShown = true;
+                }
+                continue;
+            }
+            if (field.getKey()
+                .equals("limits") && draft.hasLimitRows()) {
+                fieldList.child(buildLimitRows(draft, fieldList, error));
+                limitRowsShown = true;
+                continue;
+            }
+            if (field.getKey()
+                .equals("label") && draft.hasLabelRows()) {
+                fieldList.child(buildLabelRows(draft, fieldList, error));
+                if (draft.hasIoAllowances()) fieldList.child(buildIoAllowances(draft, error));
+                continue;
+            }
+            if (field.getKey()
+                .equals("exclusion") && draft.hasExclusionRows()) {
+                fieldList.child(buildExclusionRows(draft, fieldList, error));
+                continue;
+            }
+            if (field.getKey()
+                .equals("resource") && draft.hasResourceRows()) {
+                fieldList.child(buildResourceRows(draft, fieldList, error));
+                if (draft.canAddIndependentLimit()) fieldList.child(buildLimitPromotion(draft, error));
+                continue;
+            }
+            if (field.getType() == StudioNodeProperties.FieldType.ORE_FILTER) {
+                fieldList.child(buildOreFilter(draft, field, error));
+                continue;
+            }
             ParentWidget<?> row = new ParentWidget<>().widthRelOffset(1f, -6)
                 .height(43);
             row.child(
@@ -1424,10 +1760,8 @@ public final class Mui2ProgrammingStation {
                     .widthRelOffset(1f, -6)
                     .height(12));
             java.util.function.Consumer<String> change = value -> {
-                if (!value.equals(draft.values.get(field.getKey()))) {
-                    state.noteLocalEdit();
-                    draft.values.put(field.getKey(), value);
-                    diagnosticDelay = 0;
+                if (draft.set(field.getKey(), value)) {
+                    fieldsChanged(draft);
                 }
             };
             if (field.getType() == StudioNodeProperties.FieldType.BOOLEAN) {
@@ -1438,35 +1772,62 @@ public final class Mui2ProgrammingStation {
                         14,
                         contentWidth,
                         this::editable,
-                        () -> change.accept(Boolean.toString(!Boolean.parseBoolean(draft.values.get(field.getKey())))))
+                        () -> change.accept(Boolean.toString(!Boolean.parseBoolean(draft.value(field.getKey())))))
                             .name("studio_field_" + field.getKey())
                             .widthRelOffset(1f, -6)
                             .height(18)
                             .overlay(
                                 IKey.dynamic(
-                                    () -> Boolean.parseBoolean(draft.values.get(field.getKey())) ? "Enabled"
-                                        : "Disabled")
+                                    () -> Boolean.parseBoolean(draft.value(field.getKey())) ? "Enabled" : "Disabled")
                                     .color(0xffe7e8eb))
                             .addTooltipLine(field.getHelp()));
+            } else if (field.getType() == StudioNodeProperties.FieldType.REDSTONE_EDGE) {
+                row.child(button("", 0, 14, contentWidth, () -> editable() && fieldDraft == draft, () -> {
+                    if (fieldDraft != draft) return;
+                    String current = draft.value(field.getKey());
+                    change.accept(
+                        current.equalsIgnoreCase("RISING") ? "PULSE"
+                            : current.equalsIgnoreCase("PULSE") ? "FALLING" : "RISING");
+                }).name("studio_field_edge")
+                    .widthRelOffset(1f, -6)
+                    .height(18)
+                    .overlay(
+                        IKey.dynamic(() -> "Edge: " + draft.value(field.getKey()))
+                            .color(0xffe7e8eb))
+                    .addTooltipLine(field.getHelp()));
             } else if (field.getType() == StudioNodeProperties.FieldType.ROUND_ROBIN) {
                 row.child(button("", 0, 14, contentWidth, this::editable, () -> {
-                    String current = draft.values.get(field.getKey());
+                    String current = draft.value(field.getKey());
                     change.accept(current.equals("off") ? "label" : current.equals("label") ? "block" : "off");
                 }).name("studio_field_" + field.getKey())
                     .widthRelOffset(1f, -6)
                     .height(18)
                     .overlay(
-                        IKey.dynamic(() -> "Round robin: " + draft.values.get(field.getKey()))
+                        IKey.dynamic(() -> "Round robin: " + draft.value(field.getKey()))
                             .color(0xffe7e8eb))
                     .addTooltipLine(field.getHelp()));
-            } else row.child(
-                new TextFieldWidget().setMaxLength(BlueprintGraph.MAX_CLAUSE)
-                    .autoUpdateOnChange(true)
-                    .value(new StringValue.Dynamic(() -> draft.values.get(field.getKey()), change))
-                    .pos(0, 14)
-                    .widthRelOffset(1f, -6)
+            } else {
+                boolean pickable = StudioFieldPicker.target(draft.type, field, draft.value(field.getKey())) != null;
+                row.child(
+                    new TextFieldWidget().setMaxLength(BlueprintGraph.MAX_CLAUSE)
+                        .autoUpdateOnChange(true)
+                        .value(new StringValue.Dynamic(() -> draft.value(field.getKey()), change))
+                        .left(0)
+                        .right(pickable ? 60 : 0)
+                        .top(14)
+                        .height(18)
+                        .addTooltipLine(field.getHelp()));
+                if (pickable) row.child(listButton("Pick", 54, this::editable, () -> {
+                    try {
+                        openFieldPicker(draft, field);
+                    } catch (IllegalArgumentException invalid) {
+                        error.rejected(draft, invalid.getMessage());
+                    }
+                }).right(0)
+                    .top(14)
                     .height(18)
-                    .addTooltipLine(field.getHelp()));
+                    .addTooltipLine("Draft labels or client item IDs only. No live inventory scan."));
+            }
             fieldList.child(row);
         }
         popup.child(fieldList);
@@ -1479,50 +1840,1142 @@ public final class Mui2ProgrammingStation {
         popup.child(
             new TextWidget<>(
                 IKey.dynamic(
-                    () -> trimFor(
-                        error[0],
+                    () -> ellipsizeFor(
+                        error.message(draft),
                         popup.getArea()
-                            .w() - 16))).color(0xffefa09a)
+                            .w() - 84))).color(0xffefa09a)
                                 .left(8)
-                                .right(8)
+                                .right(68)
                                 .bottom(46)
                                 .height(12)
-                                .addTooltipLine(IKey.dynamic(() -> error[0])));
+                                .addTooltipLine(IKey.dynamic(() -> error.message(draft))));
+        // MUI2 requires one stable handler per panel name, even when Fields itself is rebuilt.
+        popup.child(
+            listButton(
+                "Details",
+                52,
+                () -> fieldDraft == draft && !error.message(draft)
+                    .isEmpty(),
+                () -> {
+                    if (fieldDraft != draft) return;
+                    removeFocus();
+                    fieldDiagnostic = error.snapshot(draft);
+                    if (!currentFieldDiagnostic(fieldDiagnostic)) return;
+                    fieldDiagnosticPanel.deleteCachedPanel();
+                    fieldDiagnosticPanel.openPanel();
+                }).right(8)
+                    .bottom(44)
+                    .height(16)
+                    .addTooltipLine("Read or copy the complete error; pending fields are kept."));
         popup.child(button("Apply fields", 8, height - 40, width - 166, () -> !fields.isEmpty() && editable(), () -> {
             try {
                 UUID currentProject = state.saved == null ? state.localId : state.saved.id;
-                Node current = document.graph() == null ? null
-                    : document.graph()
-                        .node(draft.node);
-                if (fieldDraft != draft || !draft.project.equals(currentProject)
-                    || current == null
-                    || !current.clause()
-                        .equals(draft.original))
-                    throw new IllegalArgumentException("Project or node changed. Cancel and reopen Fields.");
-                String next = node.clause();
-                for (StudioNodeProperties.Field field : fields) if (!draft.values.get(field.getKey())
-                    .equals(field.getValue()))
-                    next = StudioNodeProperties
-                        .update(node.type, next, field.getKey(), draft.values.get(field.getKey()));
-                String applied = next;
-                document.editGraph(
-                    graph -> graph.node(node.id)
+                Node current = graphEditor.selected();
+                if (fieldDraft != draft) throw new IllegalArgumentException("Fields changed. Cancel and reopen.");
+                String applied = draft.appliedClause(currentProject, current, document.code());
+                boolean changed = !applied.equals(current.clause());
+                if (changed) document.editGraph(
+                    graph -> graph.node(draft.node)
                         .setClause(applied));
-                fieldDraft = null;
-                graphChanged();
+                discardFields("Fields applied.");
+                // Off can retain edited pattern text while emitting no clause change. Clear controls, not history.
+                if (changed) graphChanged();
+                else pendingDiagnosticsChanged();
                 selectionChanged();
                 fieldsPanel.closePanel();
             } catch (IllegalArgumentException invalid) {
-                error[0] = invalid.getMessage();
-                status = "Fields kept: " + error[0];
+                status = error.failedApply(draft, invalid.getMessage(), status);
             }
         }).widthRelOffset(1f, -166)
             .topRelOffset(1f, -40));
         popup.child(button("Cancel", width - 96, height - 40, 88, () -> true, () -> {
-            if (fieldDraft == draft) fieldDraft = null;
+            if (fieldDraft != draft) return;
+            discardFields("Fields canceled.");
+            pendingDiagnosticsChanged();
             fieldsPanel.closePanel();
         }).leftRelOffset(1f, -96)
             .topRelOffset(1f, -40));
+        return popup;
+    }
+
+    private ModularPanel buildFieldDiagnostic(StudioFieldFeedback.Snapshot snapshot) {
+        String message = snapshot == null ? "" : snapshot.message;
+        int width = StudioLayout.inspectorWidth(panel.getArea().width);
+        int height = Math.min(260, StudioLayout.inspectorHeight(panel.getArea().height));
+        ModularPanel popup = modal("sfm_studio_field_diagnostic", width, height);
+        popup.width(() -> StudioLayout.inspectorWidth(panel.getArea().width), Unit.Measure.PIXEL)
+            .height(() -> Math.min(260, StudioLayout.inspectorHeight(panel.getArea().height)), Unit.Measure.PIXEL);
+        popup.onUpdateListener(widget -> { if (!currentFieldDiagnostic(snapshot)) popup.closeIfOpen(); }, true);
+        popup.child(
+            new TextWidget<>("Fields error / pending edits kept").color(0xffefa09a)
+                .left(8)
+                .right(8)
+                .top(8)
+                .height(12));
+        StudioReadOnlyPane output = new StudioReadOnlyPane(() -> true).left(8)
+            .right(8)
+            .top(28)
+            .bottom(40);
+        final int[] wrappedWidth = { -1 };
+        output.onUpdateListener(widget -> {
+            // Wait for layout: vanilla wrapping cannot advance a glyph at width 1.
+            int available = output.getArea().width - 10;
+            if (available < 10) return;
+            if (wrappedWidth[0] != available) {
+                wrappedWidth[0] = available;
+                output.completeLines(
+                    Minecraft.getMinecraft().fontRenderer.listFormattedStringToWidth(message, available));
+            }
+        }, true);
+        popup.child(output);
+        popup.child(
+            button(
+                "Copy error",
+                8,
+                height - 32,
+                90,
+                () -> currentFieldDiagnostic(snapshot),
+                () -> { if (currentFieldDiagnostic(snapshot)) GuiScreen.setClipboardString(message); })
+                    .topRelOffset(1f, -32));
+        popup.child(
+            listButton("Back to fields", 120, () -> true, popup::closeIfOpen).right(8)
+                .topRelOffset(1f, -32));
+        return popup;
+    }
+
+    private void openFieldPicker(StudioFieldDraft draft, StudioNodeProperties.Field field) {
+        openPicker(draft, StudioFieldPicker.target(draft.type, field, draft.value(field.getKey())));
+    }
+
+    private ParentWidget<?> buildOreFilter(StudioFieldDraft draft, StudioNodeProperties.Field field,
+        StudioFieldFeedback error) {
+        ParentWidget<?> row = new ParentWidget<>().widthRelOffset(1f, -6)
+            .height(74);
+        Runnable changed = () -> { fieldsChanged(draft); };
+        row.child(
+            new TextWidget<>(field.getName()).left(0)
+                .right(0)
+                .top(0)
+                .height(12)
+                .color(0xffb0b3bb));
+        row.child(listButton("", 90, () -> editable() && fieldDraft == draft, () -> {
+            StudioOreFilter.Mode[] modes = StudioOreFilter.Mode.values();
+            if (draft.setOreMode(
+                modes[(draft.oreMode()
+                    .ordinal() + 1) % modes.length]))
+                changed.run();
+        }).left(0)
+            .top(14)
+            .height(18)
+            .name("studio_ore_mode")
+            .overlay(
+                IKey.dynamic(
+                    () -> draft.oreMode() == StudioOreFilter.Mode.OFF ? "Off"
+                        : draft.oreMode() == StudioOreFilter.Mode.WITH ? "With" : "Without"))
+            .addTooltipLine(field.getHelp()));
+        row.child(
+            new TextFieldWidget().setMaxLength(BlueprintGraph.MAX_CLAUSE)
+                .autoUpdateOnChange(true)
+                .value(new StringValue.Dynamic(draft::orePattern, value -> {
+                    try {
+                        if (draft.setOrePattern(value)) changed.run();
+                    } catch (IllegalArgumentException invalid) {
+                        error.rejected(draft, invalid.getMessage());
+                    }
+                }))
+                .left(96)
+                .right(0)
+                .top(14)
+                .height(18)
+                .addTooltipLine("OreDictionary name pattern, e.g. ingotIron or ingot*. Only Off removes a filter.")
+                .addTooltipLine(field.getHelp()));
+        row.child(
+            new TextWidget<>("Items only. * wildcard; ASCII case-insensitive.").left(0)
+                .right(0)
+                .top(37)
+                .height(12)
+                .scale(.75f)
+                .color(0xffa9b3bd));
+        row.child(
+            new TextWidget<>("Unknown names valid. Fluids ignore this filter.").left(0)
+                .right(0)
+                .top(50)
+                .height(12)
+                .scale(.75f)
+                .color(0xffa9b3bd)
+                .addTooltipLine("Legacy OreDictionary names; no modern tag namespace translation."));
+        return row;
+    }
+
+    private ParentWidget<?> buildLabelRows(StudioFieldDraft draft, ListWidget<IWidget, ?> list,
+        StudioFieldFeedback error) {
+        ParentWidget<?> section = new ParentWidget<>().widthRelOffset(1f, -6);
+        Runnable[] rebuild = new Runnable[1];
+        Runnable changed = () -> { fieldsChanged(draft); };
+        rebuild[0] = () -> {
+            section.removeAll();
+            section.height(20 + draft.labelCount() * 26);
+            section.child(
+                new TextWidget<>(IKey.dynamic(() -> "Labels " + draft.labelCount() + "/32")).color(0xffb0b3bb)
+                    .left(0)
+                    .right(86)
+                    .top(0)
+                    .height(14)
+                    .addTooltipLine(
+                        "Ordered program references only. Duplicates/case are kept; no block binding or live inventory scan."));
+            section.child(
+                listButton(
+                    "Add label",
+                    82,
+                    () -> editable() && fieldDraft == draft && draft.labelCount() < StudioLabelRows.MAX_ROWS,
+                    () -> {
+                        try {
+                            removeFocus();
+                            draft.addLabel("\"new_label\"");
+                            changed.run();
+                            rebuild[0].run();
+                        } catch (IllegalArgumentException invalid) {
+                            error.rejected(draft, invalid.getMessage());
+                        }
+                    }).right(0)
+                        .top(0)
+                        .height(16)
+                        .name("studio_label_add"));
+            int index = 0;
+            for (StudioLabelRows.Row label : draft.labelRows()) {
+                ParentWidget<?> row = new ParentWidget<>().left(0)
+                    .right(0)
+                    .top(20 + index * 26)
+                    .height(26);
+                row.child(
+                    new TextWidget<>(Integer.toString(++index)).left(0)
+                        .top(5)
+                        .size(14, 12)
+                        .color(0xff868b96));
+                row.child(
+                    new TextFieldWidget().setMaxLength(BlueprintGraph.MAX_CLAUSE)
+                        .autoUpdateOnChange(true)
+                        .value(new StringValue.Dynamic(() -> draft.labelValue(label.id), value -> {
+                            try {
+                                if (draft.setLabel(label.id, value)) changed.run();
+                            } catch (IllegalArgumentException invalid) {
+                                error.rejected(draft, invalid.getMessage());
+                            }
+                        }))
+                        .left(17)
+                        .right(112)
+                        .top(2)
+                        .height(18)
+                        .addTooltipLine(
+                            "One literal label, with legacy quotes when needed. Invalid text stays pending until corrected or canceled."));
+                row.child(listButton("Pick", 50, this::editable, () -> {
+                    try {
+                        openPicker(draft, StudioFieldPicker.labelRowTarget(draft, label.id));
+                    } catch (IllegalArgumentException invalid) {
+                        error.rejected(draft, invalid.getMessage());
+                    }
+                }).right(58)
+                    .top(2)
+                    .height(18)
+                    .name("studio_label_pick_" + label.id));
+                row.child(
+                    listButton("Remove", 52, () -> editable() && fieldDraft == draft && draft.labelCount() > 1, () -> {
+                        try {
+                            removeFocus();
+                            draft.removeLabel(label.id);
+                            changed.run();
+                            rebuild[0].run();
+                        } catch (IllegalArgumentException invalid) {
+                            error.rejected(draft, invalid.getMessage());
+                        }
+                    }).right(0)
+                        .top(2)
+                        .height(18)
+                        .name("studio_label_remove_" + label.id));
+                section.child(row);
+            }
+            if (list.isValid()) list.scheduleResize();
+        };
+        rebuild[0].run();
+        return section;
+    }
+
+    private ParentWidget<?> buildExclusionRows(StudioFieldDraft draft, ListWidget<IWidget, ?> list,
+        StudioFieldFeedback error) {
+        ParentWidget<?> section = new ParentWidget<>().widthRelOffset(1f, -6);
+        Runnable[] rebuild = new Runnable[1];
+        Runnable changed = () -> { fieldsChanged(draft); };
+        rebuild[0] = () -> {
+            section.removeAll();
+            section.height(42 + draft.exclusionCount() * 26);
+            section.child(
+                new TextWidget<>(IKey.dynamic(() -> "Exclusions " + draft.exclusionCount() + "/32")).color(0xffb0b3bb)
+                    .left(0)
+                    .right(104)
+                    .top(0)
+                    .height(14)
+                    .addTooltipLine(
+                        "Ordered global EXCEPT selectors. Duplicates/case are kept; no inventory scan. Remove all rows to clear EXCEPT."));
+            section.child(
+                listButton(
+                    "Add exclusion",
+                    100,
+                    () -> editable() && fieldDraft == draft && draft.exclusionCount() < StudioExclusionRows.MAX_ROWS,
+                    () -> {
+                        try {
+                            removeFocus();
+                            draft.addExclusion("");
+                            changed.run();
+                            rebuild[0].run();
+                        } catch (IllegalArgumentException invalid) {
+                            error.rejected(draft, invalid.getMessage());
+                        }
+                    }).right(0)
+                        .top(0)
+                        .height(16)
+                        .name("studio_exclusion_add"));
+            section.child(
+                new TextWidget<>("Blank rows block Apply; Remove deletes.").color(0xff868b96)
+                    .left(0)
+                    .right(0)
+                    .top(22)
+                    .height(16));
+            int index = 0;
+            for (StudioExclusionRows.Row label : draft.exclusionRows()) {
+                ParentWidget<?> row = new ParentWidget<>().left(0)
+                    .right(0)
+                    .top(42 + index * 26)
+                    .height(26);
+                row.child(
+                    new TextWidget<>(Integer.toString(++index)).left(0)
+                        .top(5)
+                        .size(14, 12)
+                        .color(0xff868b96));
+                row.child(
+                    new TextFieldWidget().setMaxLength(BlueprintGraph.MAX_CLAUSE)
+                        .autoUpdateOnChange(true)
+                        .value(new StringValue.Dynamic(() -> draft.exclusionValue(label.id), value -> {
+                            try {
+                                if (draft.setExclusion(label.id, value)) changed.run();
+                            } catch (IllegalArgumentException invalid) {
+                                error.rejected(draft, invalid.getMessage());
+                            }
+                        }))
+                        .left(17)
+                        .right(112)
+                        .top(2)
+                        .height(18)
+                        .addTooltipLine(
+                            "One resource selector. Blank/invalid rows block Apply; use Remove to delete. Picker can repair the row; fluids/metadata stay manual."));
+                row.child(listButton("Pick", 50, this::editable, () -> {
+                    try {
+                        openPicker(draft, StudioFieldPicker.exclusionRowTarget(draft, label.id));
+                    } catch (IllegalArgumentException invalid) {
+                        error.rejected(draft, invalid.getMessage());
+                    }
+                }).right(58)
+                    .top(2)
+                    .height(18)
+                    .name("studio_exclusion_pick_" + label.id));
+                row.child(
+                    listButton(
+                        "Remove",
+                        52,
+                        () -> editable() && fieldDraft == draft && draft.exclusionCount() > 0,
+                        () -> {
+                            try {
+                                removeFocus();
+                                draft.removeExclusion(label.id);
+                                changed.run();
+                                rebuild[0].run();
+                            } catch (IllegalArgumentException invalid) {
+                                error.rejected(draft, invalid.getMessage());
+                            }
+                        }).right(0)
+                            .top(2)
+                            .height(18)
+                            .name("studio_exclusion_remove_" + label.id));
+                section.child(row);
+            }
+            if (list.isValid()) list.scheduleResize();
+        };
+        rebuild[0].run();
+        return section;
+    }
+
+    private ParentWidget<?> buildResourceRows(StudioFieldDraft draft, ListWidget<IWidget, ?> list,
+        StudioFieldFeedback error) {
+        ParentWidget<?> section = new ParentWidget<>().widthRelOffset(1f, -6);
+        Runnable[] rebuild = new Runnable[1];
+        Runnable changed = () -> { fieldsChanged(draft); };
+        rebuild[0] = () -> {
+            section.removeAll();
+            section.height(56 + draft.resourceCount() * 26);
+            section.child(
+                new TextWidget<>(IKey.dynamic(() -> "Resources (OR) " + draft.resourceCount() + "/32"))
+                    .color(0xffb0b3bb)
+                    .left(0)
+                    .right(104)
+                    .top(0)
+                    .height(14)
+                    .addTooltipLine(
+                        draft.type == Type.IF
+                            ? "OR selectors form one matching set for the comparison threshold. Existing set operator, filters and exclusions stay. Remove all to restore match-all."
+                            : "OR alternatives share one quantity, retention and ore filter. Duplicates/case are kept. Remove all to restore match-all."));
+            section.child(
+                listButton(
+                    "Add resource",
+                    100,
+                    () -> editable() && fieldDraft == draft
+                        && draft.resourceCount() < StudioResourceAlternatives.MAX_ROWS,
+                    () -> {
+                        try {
+                            removeFocus();
+                            draft.addResource("");
+                            changed.run();
+                            rebuild[0].run();
+                        } catch (IllegalArgumentException invalid) {
+                            error.rejected(draft, invalid.getMessage());
+                        }
+                    }).right(0)
+                        .top(0)
+                        .height(16)
+                        .name("studio_resource_add"));
+            section.child(
+                new TextWidget<>("Blank rows block Apply; Remove deletes.").color(0xff868b96)
+                    .left(0)
+                    .right(0)
+                    .top(36)
+                    .height(16));
+            section.child(
+                new TextWidget<>(
+                    IKey.dynamic(
+                        () -> draft.resourceCount() == 0 ? "No selectors: matches all resources."
+                            : draft.type == Type.IF ? "OR forms one matching set to compare."
+                                : "OR shares one allowance and retention.")).color(0xff868b96)
+                                    .left(0)
+                                    .right(0)
+                                    .top(22)
+                                    .height(12));
+            int index = 0;
+            for (StudioResourceAlternatives.Row label : draft.resourceRows()) {
+                ParentWidget<?> row = new ParentWidget<>().left(0)
+                    .right(0)
+                    .top(56 + index * 26)
+                    .height(26);
+                row.child(
+                    new TextWidget<>(Integer.toString(++index)).left(0)
+                        .top(5)
+                        .size(14, 12)
+                        .color(0xff868b96));
+                row.child(
+                    new TextFieldWidget().setMaxLength(BlueprintGraph.MAX_CLAUSE)
+                        .autoUpdateOnChange(true)
+                        .value(new StringValue.Dynamic(() -> draft.resourceValue(label.id), value -> {
+                            try {
+                                if (draft.setResource(label.id, value)) changed.run();
+                            } catch (IllegalArgumentException invalid) {
+                                error.rejected(draft, invalid.getMessage());
+                            }
+                        }))
+                        .left(17)
+                        .right(112)
+                        .top(2)
+                        .height(18)
+                        .addTooltipLine(
+                            "One resource selector. Blank/invalid rows block Apply; use Remove to delete. Picker can repair the row; fluids/metadata stay manual."));
+                row.child(listButton("Pick", 50, this::editable, () -> {
+                    try {
+                        openPicker(draft, StudioFieldPicker.resourceRowTarget(draft, label.id));
+                    } catch (IllegalArgumentException invalid) {
+                        error.rejected(draft, invalid.getMessage());
+                    }
+                }).right(58)
+                    .top(2)
+                    .height(18)
+                    .name("studio_resource_pick_" + label.id));
+                row.child(
+                    listButton(
+                        "Remove",
+                        52,
+                        () -> editable() && fieldDraft == draft && draft.resourceCount() > 0,
+                        () -> {
+                            try {
+                                removeFocus();
+                                draft.removeResource(label.id);
+                                changed.run();
+                                rebuild[0].run();
+                            } catch (IllegalArgumentException invalid) {
+                                error.rejected(draft, invalid.getMessage());
+                            }
+                        }).right(0)
+                            .top(2)
+                            .height(18)
+                            .name("studio_resource_remove_" + label.id));
+                section.child(row);
+            }
+            if (list.isValid()) list.scheduleResize();
+        };
+        rebuild[0].run();
+        return section;
+    }
+
+    private ParentWidget<?> buildIoAllowances(StudioFieldDraft draft, StudioFieldFeedback error) {
+        ParentWidget<?> section = new ParentWidget<>().widthRelOffset(1f, -6)
+            .height(112);
+        java.util.function.Consumer<java.util.function.BooleanSupplier> change = edit -> {
+            try {
+                if (!editable() || fieldDraft != draft || !draft.hasIoAllowances())
+                    throw new IllegalArgumentException("Number controls changed. Reopen Fields.");
+                if (edit.getAsBoolean()) {
+                    fieldsChanged(draft);
+                }
+            } catch (IllegalArgumentException invalid) {
+                error.rejected(draft, invalid.getMessage());
+            }
+        };
+        for (Part part : Part.values()) {
+            int top = part == Part.AMOUNT ? 0 : 56;
+            boolean input = draft.type == Type.INPUT;
+            String key = part == Part.AMOUNT ? "amount" : "retain";
+            String title = part == Part.AMOUNT ? "Amount (items / fluid mB)"
+                : input ? "Leave at least (source)" : "Fill up to (destination)";
+            section.child(
+                new TextWidget<>(title).left(0)
+                    .right(0)
+                    .top(top)
+                    .height(12)
+                    .color(0xffb0b3bb));
+            section.child(
+                listButton(
+                    "",
+                    112,
+                    () -> editable() && fieldDraft == draft,
+                    () -> change.accept(() -> draft.setAllowanceEnabled(part, !draft.allowanceEnabled(part)))).left(0)
+                        .top(top + 16)
+                        .height(18)
+                        .name("studio_io_" + key + "_mode")
+                        .overlay(
+                            IKey.dynamic(
+                                () -> part == Part.AMOUNT ? draft.allowanceEnabled(part) ? "Limited" : "Unlimited"
+                                    : draft.allowanceEnabled(part) ? "Explicit"
+                                        : input ? "Default: 0" : "Default: no cap")
+                                .color(0xffe7e8eb))
+                        .addTooltipLine("Enabling an omitted number starts blank and blocks Apply until filled.")
+                        .addTooltipLine(
+                            "Disabled numbers emit no syntax; their text/EACH stay in this draft until Apply or Cancel."));
+            section.child(
+                new TextFieldWidget().setMaxLength(BlueprintGraph.MAX_CLAUSE)
+                    .autoUpdateOnChange(true)
+                    .value(
+                        new StringValue.Dynamic(
+                            () -> draft.allowanceText(part),
+                            value -> change.accept(() -> draft.setAllowanceText(part, value))))
+                    .left(116)
+                    .right(72)
+                    .top(top + 16)
+                    .height(18)
+                    .name("studio_io_" + key + "_value")
+                    .setEnabledIf(
+                        widget -> fieldDraft == draft && draft.hasIoAllowances() && draft.allowanceEnabled(part))
+                    .addTooltipLine(
+                        "Nonnegative signed 64-bit integer. Explicit zero differs from omission. Items or fluid mB."));
+            ParentWidget<?> omitted = new ParentWidget<>().left(116)
+                .right(72)
+                .top(top + 16)
+                .height(18)
+                .background(StudioTheme.INSET)
+                .setEnabledIf(
+                    widget -> fieldDraft == draft && draft.hasIoAllowances() && !draft.allowanceEnabled(part));
+            omitted.child(
+                new TextWidget<>(part == Part.AMOUNT ? "No limit" : input ? "0 (default)" : "No cap").left(3)
+                    .right(3)
+                    .top(4)
+                    .height(12)
+                    .color(0xff868b96));
+            section.child(omitted);
+            section.child(
+                listButton(
+                    "",
+                    68,
+                    () -> editable() && fieldDraft == draft && draft.allowanceEnabled(part),
+                    () -> change.accept(() -> draft.setAllowanceEach(part, !draft.allowanceEach(part)))).right(0)
+                        .top(top + 16)
+                        .height(18)
+                        .name("studio_field_" + key + "Each")
+                        .overlay(
+                            IKey.dynamic(() -> "EACH: " + (draft.allowanceEach(part) ? "on" : "off"))
+                                .color(0xffe7e8eb))
+                        .addTooltipLine(
+                            "Per resource type for this number only; independent of the other number and container EACH."));
+            section.child(
+                new TextWidget<>(
+                    part == Part.AMOUNT ? "OR shares this movement allowance."
+                        : input ? "Default reserves no source stock." : "Default has no destination stock cap.").left(0)
+                            .right(0)
+                            .top(top + 38)
+                            .height(12)
+                            .color(0xff868b96));
+        }
+        return section;
+    }
+
+    private ParentWidget<?> buildLimitPromotion(StudioFieldDraft draft, StudioFieldFeedback error) {
+        ParentWidget<?> section = new ParentWidget<>().widthRelOffset(1f, -6)
+            .height(68);
+        section.child(
+            new TextWidget<>("OR shares this limit's allowance.").left(0)
+                .right(0)
+                .top(0)
+                .height(12)
+                .color(0xffb0b3bb));
+        section.child(
+            listButton(
+                "Add independent limit",
+                188,
+                () -> editable() && fieldDraft == draft && draft.canAddIndependentLimit(),
+                () -> {
+                    try {
+                        removeFocus();
+                        if (fieldDraft != draft) return;
+                        StudioFieldDraft replacement = draft
+                            .addIndependentLimit(navigationProject(), graphEditor.selected(), document.code());
+                        status = error.finish(draft, status, "Fields changed; Apply to check.");
+                        fieldDraft = replacement;
+                        fieldsChanged(replacement);
+                        status = "Independent rows: complete the blank row before Apply; Cancel discards all Fields edits.";
+                        fieldsPanel.deleteCachedPanel();
+                        fieldsPanel.closePanel();
+                        // A physical click queues closure until input dispatch finishes. Opening now is ignored
+                        // by SecondaryPanel while it is still open; reopen the same owner after closure/release.
+                        reopenPromotedFields = replacement;
+                    } catch (IllegalArgumentException invalid) {
+                        status = error.failedApply(draft, invalid.getMessage(), status);
+                    }
+                }).left(0)
+                    .top(16)
+                    .height(18)
+                    .name("studio_limit_promote")
+                    .addTooltipLine(
+                        "Keeps validated pending edits as the first complete SFML limit; adds a blank second row.")
+                    .addTooltipLine(
+                        "Replaces typed amount/retention/OR/ore controls with full-clause rows. Source changes only on Apply."));
+        section.child(
+            new TextWidget<>("Adds a blank full-SFML row.").left(0)
+                .right(0)
+                .top(38)
+                .height(12)
+                .color(0xff868b96));
+        section.child(
+            new TextWidget<>("Apply waits until all rows are valid.").left(0)
+                .right(0)
+                .top(52)
+                .height(12)
+                .color(0xff868b96));
+        return section;
+    }
+
+    private ParentWidget<?> buildTransferArguments(StudioFieldDraft draft, ListWidget<IWidget, ?> list,
+        StudioFieldFeedback error) {
+        ParentWidget<?> section = new ParentWidget<>().widthRelOffset(1f, -6);
+        Runnable[] rebuild = new Runnable[1];
+        rebuild[0] = () -> {
+            section.removeAll();
+            section.height(74 + draft.transferArgumentCount() * 50);
+            section.child(
+                new TextWidget<>(IKey.dynamic(() -> "Transfer " + draft.transferArgumentCount() + "/4")).left(0)
+                    .right(120)
+                    .top(0)
+                    .height(14)
+                    .color(0xffb0b3bb));
+            section.child(
+                listButton(
+                    "",
+                    116,
+                    () -> editable() && fieldDraft == draft && draft.transferArgumentCount() < 4,
+                    () -> {
+                        try {
+                            removeFocus();
+                            draft.addTransferArgument("");
+                            fieldsChanged(draft);
+                            rebuild[0].run();
+                        } catch (IllegalArgumentException invalid) {
+                            error.rejected(draft, invalid.getMessage());
+                        }
+                    }).right(0)
+                        .top(0)
+                        .height(16)
+                        .name("studio_transfer_argument_add")
+                        .overlay(
+                            IKey.dynamic(
+                                () -> draft.transferArgumentCount() == 2 ? "Add item filter"
+                                    : draft.transferArgumentCount() == 3 ? "Add amount" : "All roles added")
+                                .color(0xffe7e8eb)));
+            section.child(
+                new TextWidget<>(
+                    IKey.dynamic(() -> draft.transferArgumentCount() == 2 ? "All items" : "Matching items")).left(0)
+                        .right(0)
+                        .top(24)
+                        .height(12)
+                        .color(0xffb0b3bb));
+            section.child(
+                new TextWidget<>(
+                    IKey.dynamic(
+                        () -> draft.transferArgumentCount() < 4 ? "Amount: automatic (available stock)"
+                            : "Amount: explicit; zero moves nothing")).left(0)
+                                .right(0)
+                                .top(38)
+                                .height(12)
+                                .color(0xff868b96));
+            section.child(
+                new TextWidget<>("Blank fields block Apply.").left(0)
+                    .right(0)
+                    .top(52)
+                    .height(12)
+                    .color(0xff868b96));
+            int index = 0;
+            for (StudioTransferArguments.Row argument : draft.transferArgumentRows()) {
+                int position = index++;
+                boolean optional = position >= 2, picker = argument.role != StudioTransferArguments.Role.AMOUNT;
+                ParentWidget<?> row = new ParentWidget<>().left(0)
+                    .right(0)
+                    .top(74 + position * 50)
+                    .height(50);
+                row.child(
+                    new TextWidget<>(argument.role.title).left(0)
+                        .right(optional ? 120 : 0)
+                        .top(0)
+                        .height(12)
+                        .color(0xffb0b3bb));
+                row.child(
+                    new TextFieldWidget().setMaxLength(BlueprintGraph.MAX_CLAUSE)
+                        .autoUpdateOnChange(true)
+                        .value(new StringValue.Dynamic(() -> draft.transferArgumentValue(argument.id), value -> {
+                            try {
+                                if (draft.setTransferArgument(argument.id, value)) fieldsChanged(draft);
+                            } catch (IllegalArgumentException invalid) {
+                                error.rejected(draft, invalid.getMessage());
+                            }
+                        }))
+                        .left(0)
+                        .right(picker ? 46 : 0)
+                        .top(18)
+                        .height(18)
+                        .addTooltipLine(
+                            argument.role == StudioTransferArguments.Role.AMOUNT
+                                ? "Integer expression. Explicit zero is not automatic stock."
+                                : "One typed expression. Nested commas stay inside this role.")
+                        .addTooltipLine("Apply checks all roles together. Over-budget expressions require Text."));
+                if (picker) row.child(listButton("Pick", 42, () -> editable() && fieldDraft == draft, () -> {
+                    try {
+                        openPicker(draft, StudioFieldPicker.transferRowTarget(draft, argument.id));
+                    } catch (IllegalArgumentException invalid) {
+                        error.rejected(draft, invalid.getMessage());
+                    }
+                }).right(0)
+                    .top(18)
+                    .height(18)
+                    .name("studio_transfer_argument_pick_" + argument.id)
+                    .addTooltipLine(
+                        "Only a bare LABEL(\"...\") or ITEM(\"...\") is eligible; other expressions stay manual."));
+                if (optional) row.child(
+                    listButton(
+                        argument.role == StudioTransferArguments.Role.AMOUNT ? "Remove amount" : "Remove item filter",
+                        116,
+                        () -> editable() && fieldDraft == draft && position == draft.transferArgumentCount() - 1,
+                        () -> {
+                            try {
+                                removeFocus();
+                                draft.removeTransferArgument(argument.id);
+                                fieldsChanged(draft);
+                                rebuild[0].run();
+                            } catch (IllegalArgumentException invalid) {
+                                error.rejected(draft, invalid.getMessage());
+                            }
+                        }).right(0)
+                            .top(0)
+                            .height(14)
+                            .name("studio_transfer_argument_remove_" + argument.id)
+                            .addTooltipLine("Remove amount before item filter. Source and destination are required."));
+                section.child(row);
+            }
+            if (list.isValid()) list.scheduleResize();
+        };
+        rebuild[0].run();
+        return section;
+    }
+
+    private ParentWidget<?> buildPrintArguments(StudioFieldDraft draft, ListWidget<IWidget, ?> list,
+        StudioFieldFeedback error) {
+        ParentWidget<?> section = new ParentWidget<>().widthRelOffset(1f, -6);
+        Runnable[] rebuild = new Runnable[1];
+        rebuild[0] = () -> {
+            section.removeAll();
+            section.height(56 + draft.printArgumentCount() * 26);
+            section.child(
+                new TextWidget<>(IKey.dynamic(() -> "Print arguments " + draft.printArgumentCount() + "/8"))
+                    .color(0xffb0b3bb)
+                    .left(0)
+                    .right(104)
+                    .top(0)
+                    .height(14));
+            section.child(
+                listButton(
+                    "Add argument",
+                    100,
+                    () -> editable() && fieldDraft == draft
+                        && draft.printArgumentCount() < StudioPrintArguments.MAX_ROWS,
+                    () -> {
+                        try {
+                            removeFocus();
+                            draft.addPrintArgument("");
+                            fieldsChanged(draft);
+                            rebuild[0].run();
+                        } catch (IllegalArgumentException invalid) {
+                            error.rejected(draft, invalid.getMessage());
+                        }
+                    }).right(0)
+                        .top(0)
+                        .height(16)
+                        .name("studio_print_argument_add"));
+            section.child(
+                new TextWidget<>("Expressions print from left to right.").color(0xff868b96)
+                    .left(0)
+                    .right(0)
+                    .top(22)
+                    .height(12));
+            section.child(
+                new TextWidget<>("Blank blocks Apply; keep at least one.").color(0xff868b96)
+                    .left(0)
+                    .right(0)
+                    .top(36)
+                    .height(12));
+            int index = 0;
+            for (StudioPrintArguments.Row argument : draft.printArgumentRows()) {
+                ParentWidget<?> row = new ParentWidget<>().left(0)
+                    .right(0)
+                    .top(56 + index * 26)
+                    .height(26);
+                row.child(
+                    new TextWidget<>(Integer.toString(++index)).left(0)
+                        .top(5)
+                        .size(14, 12)
+                        .color(0xff868b96));
+                row.child(
+                    new TextFieldWidget().setMaxLength(BlueprintGraph.MAX_CLAUSE)
+                        .autoUpdateOnChange(true)
+                        .value(new StringValue.Dynamic(() -> draft.printArgumentValue(argument.id), value -> {
+                            try {
+                                if (draft.setPrintArgument(argument.id, value)) fieldsChanged(draft);
+                            } catch (IllegalArgumentException invalid) {
+                                error.rejected(draft, invalid.getMessage());
+                            }
+                        }))
+                        .left(17)
+                        .right(64)
+                        .top(2)
+                        .height(18)
+                        .addTooltipLine("One expression. Quote literal messages; nested commas stay inside this row.")
+                        .addTooltipLine("Apply checks syntax/types. Over-budget expressions require Text."));
+                row.child(
+                    listButton(
+                        "Remove",
+                        60,
+                        () -> editable() && fieldDraft == draft && draft.printArgumentCount() > 1,
+                        () -> {
+                            try {
+                                removeFocus();
+                                draft.removePrintArgument(argument.id);
+                                fieldsChanged(draft);
+                                rebuild[0].run();
+                            } catch (IllegalArgumentException invalid) {
+                                error.rejected(draft, invalid.getMessage());
+                            }
+                        }).right(0)
+                            .top(2)
+                            .height(18)
+                            .name("studio_print_argument_remove_" + argument.id));
+                section.child(row);
+            }
+            if (list.isValid()) list.scheduleResize();
+        };
+        rebuild[0].run();
+        return section;
+    }
+
+    private ParentWidget<?> buildLimitRows(StudioFieldDraft draft, ListWidget<IWidget, ?> list,
+        StudioFieldFeedback error) {
+        ParentWidget<?> section = new ParentWidget<>().widthRelOffset(1f, -6);
+        Runnable[] rebuild = new Runnable[1];
+        Runnable changed = () -> { fieldsChanged(draft); };
+        rebuild[0] = () -> {
+            section.removeAll();
+            section.height(72 + draft.limitCount() * 26);
+            section.child(
+                new TextWidget<>(IKey.dynamic(() -> "Independent limits " + draft.limitCount() + "/32"))
+                    .color(0xffb0b3bb)
+                    .left(0)
+                    .right(104)
+                    .top(0)
+                    .height(14)
+                    .addTooltipLine(
+                        "Each row is a complete SFML limit clause, e.g. 16 RETAIN 2 item:minecraft:iron_ingot."));
+            section.child(
+                listButton(
+                    "Add limit",
+                    100,
+                    () -> editable() && fieldDraft == draft && draft.limitCount() < StudioLimitRows.MAX_ROWS,
+                    () -> {
+                        try {
+                            removeFocus();
+                            draft.addLimit("");
+                            changed.run();
+                            rebuild[0].run();
+                        } catch (IllegalArgumentException invalid) {
+                            error.rejected(draft, invalid.getMessage());
+                        }
+                    }).right(0)
+                        .top(0)
+                        .height(16)
+                        .name("studio_limit_add"));
+            section.child(
+                new TextWidget<>("Each row: full clause, separate allowance.").color(0xff868b96)
+                    .left(0)
+                    .right(0)
+                    .top(22)
+                    .height(12));
+            section.child(
+                new TextWidget<>("OR shares its row; first match wins.").color(0xff868b96)
+                    .left(0)
+                    .right(0)
+                    .top(36)
+                    .height(12)
+                    .addTooltipLine(
+                        "Comma rows have independent allowances. Their order matters when selectors overlap."));
+            section.child(
+                new TextWidget<>("Blank blocks Apply; keep at least one.").color(0xff868b96)
+                    .left(0)
+                    .right(0)
+                    .top(50)
+                    .height(12));
+            int index = 0;
+            for (StudioLimitRows.Row limit : draft.limitRows()) {
+                ParentWidget<?> row = new ParentWidget<>().left(0)
+                    .right(0)
+                    .top(72 + index * 26)
+                    .height(26);
+                row.child(
+                    new TextWidget<>(Integer.toString(++index)).left(0)
+                        .top(5)
+                        .size(14, 12)
+                        .color(0xff868b96));
+                row.child(
+                    new TextFieldWidget().setMaxLength(BlueprintGraph.MAX_CLAUSE)
+                        .autoUpdateOnChange(true)
+                        .value(new StringValue.Dynamic(() -> draft.limitValue(limit.id), value -> {
+                            try {
+                                if (draft.setLimit(limit.id, value)) changed.run();
+                            } catch (IllegalArgumentException invalid) {
+                                error.rejected(draft, invalid.getMessage());
+                            }
+                        }))
+                        .left(17)
+                        .right(64)
+                        .top(2)
+                        .height(18)
+                        .addTooltipLine(
+                            "One complete static limit, e.g. 16 EACH RETAIN 2 item:minecraft:iron_ingot OR item:minecraft:gold_ingot WITH #ingot*.")
+                        .addTooltipLine(
+                            "Text scrolls horizontally. Blank/invalid rows block Apply; Remove deletes a row."));
+                row.child(
+                    listButton("Remove", 60, () -> editable() && fieldDraft == draft && draft.limitCount() > 1, () -> {
+                        try {
+                            removeFocus();
+                            draft.removeLimit(limit.id);
+                            changed.run();
+                            rebuild[0].run();
+                        } catch (IllegalArgumentException invalid) {
+                            error.rejected(draft, invalid.getMessage());
+                        }
+                    }).right(0)
+                        .top(2)
+                        .height(18)
+                        .name("studio_limit_remove_" + limit.id));
+                section.child(row);
+            }
+            if (list.isValid()) list.scheduleResize();
+        };
+        rebuild[0].run();
+        return section;
+    }
+
+    private void openPicker(StudioFieldDraft draft, StudioFieldPicker.Target target) {
+        if (!editable() || fieldDraft != draft) throw new IllegalArgumentException("Fields changed. Reopen Fields.");
+        UUID project = state.saved == null ? state.localId : state.saved.id;
+        draft.requireCurrent(project, graphEditor.selected(), document.code());
+        if (target == null)
+            throw new IllegalArgumentException("This field needs manual editing; no simple literal picker applies.");
+        StudioFieldPicker.Snapshot candidates;
+        if (target.labels()) candidates = StudioFieldPicker.labels(document.code(), target);
+        else {
+            // Only registry keys. Never construct stacks, ask display-name handlers, read NEI or scan a world.
+            Iterable<String> keys = () -> new java.util.Iterator<String>() {
+
+                private final java.util.Iterator<?> entries = Item.itemRegistry.getKeys()
+                    .iterator();
+
+                public boolean hasNext() {
+                    return entries.hasNext();
+                }
+
+                public String next() {
+                    Object key = entries.next();
+                    return key == null ? null : key.toString();
+                }
+            };
+            candidates = StudioFieldPicker.items(keys, target);
+        }
+        fieldPicker = new StudioFieldPicker.Session(draft, target, candidates);
+        removeFocus();
+        pickerPanel.deleteCachedPanel();
+        pickerPanel.openPanel();
+    }
+
+    private ModularPanel buildFieldPicker() {
+        StudioFieldPicker.Session session = fieldPicker;
+        int width = Math.min(
+            392,
+            panel.getArea()
+                .w() - 16);
+        int height = Math.min(
+            300,
+            panel.getArea()
+                .h() - 16);
+        ModularPanel popup = modal("sfm_studio_picker", width, height);
+        popup.width(
+            () -> Math.min(
+                392,
+                panel.getArea()
+                    .w() - 16),
+            Unit.Measure.PIXEL)
+            .height(
+                () -> Math.min(
+                    300,
+                    panel.getArea()
+                        .h() - 16),
+                Unit.Measure.PIXEL);
+        popup.child(
+            new TextWidget<>(session.labels() ? "Pick a draft label" : "Pick a client item ID").color(0xffefa09a)
+                .left(8)
+                .right(8)
+                .top(8)
+                .height(12));
+        popup.child(
+            new TextWidget<>(session.snapshot.origin).color(0xffb0b3bb)
+                .left(8)
+                .right(8)
+                .top(24)
+                .height(12)
+                .addTooltipLine(session.snapshot.origin));
+        ListWidget<IWidget, ?> list = new ListWidget<>().left(8)
+            .right(8)
+            .top(64)
+            .bottom(78);
+        String[] query = { "" }, count = { "" }, error = { "" };
+        Runnable rebuild = () -> {
+            list.removeAll();
+            StudioFieldPicker.Results results = session.snapshot.search(query[0]);
+            // Put incompleteness first so trimming at small GUI scales cannot hide it.
+            count[0] = (session.snapshot.truncated ? "Snapshot capped | " : "")
+                + (session.snapshot.omitted > 0 ? "Omitted " + session.snapshot.omitted + " | " : "")
+                + "Showing "
+                + results.entries.size()
+                + "/"
+                + results.matches
+                + " | scanned "
+                + session.snapshot.visited;
+            for (StudioFieldPicker.Candidate candidate : results.entries)
+                list.child(listButton(candidate.value, width - 22, this::editable, () -> {
+                    session.select(candidate);
+                    error[0] = "";
+                }).widthRelOffset(1f, -6)
+                    .height(22)
+                    .overlay(
+                        IKey.dynamic(
+                            () -> (session.selectedValue()
+                                .equals(candidate.value) ? "> " : "") + trimFor(
+                                    candidate.value,
+                                    popup.getArea()
+                                        .w() - 40))
+                            .color(0xffe7e8eb))
+                    .addTooltipLine(candidate.value));
+            if (list.isValid()) list.scheduleResize();
+        };
+        rebuild.run();
+        popup.child(
+            new TextFieldWidget().setMaxLength(StudioFieldPicker.MAX_QUERY)
+                .autoUpdateOnChange(true)
+                .value(new StringValue.Dynamic(() -> query[0], value -> {
+                    query[0] = value;
+                    rebuild.run();
+                }))
+                .left(8)
+                .right(8)
+                .top(42)
+                .height(18)
+                .addTooltipLine("Search this bounded snapshot; manual field editing remains available."));
+        popup.child(list);
+        popup.child(
+            new TextWidget<>(
+                IKey.dynamic(
+                    () -> trimFor(
+                        error[0].isEmpty() ? count[0] : error[0],
+                        popup.getArea()
+                            .w() - 16))).color(0xffb0b3bb)
+                                .left(8)
+                                .right(8)
+                                .bottom(60)
+                                .height(12)
+                                .addTooltipLine(IKey.dynamic(() -> count[0] + "\n" + error[0])));
+        popup.child(
+            new TextWidget<>(
+                IKey.dynamic(
+                    () -> trimFor(
+                        "Selected: " + session.selectedValue(),
+                        popup.getArea()
+                            .w() - 16))).color(0xffe7e8eb)
+                                .left(8)
+                                .right(8)
+                                .bottom(44)
+                                .height(12));
+        popup.child(
+            listButton(
+                "Choose (pending)",
+                width - 112,
+                () -> editable() && fieldPicker == session
+                    && !session.selectedValue()
+                        .isEmpty(),
+                () -> {
+                    try {
+                        if (fieldPicker != session) throw new IllegalArgumentException("Picker changed");
+                        UUID project = state.saved == null ? state.localId : state.saved.id;
+                        if (session.choose(fieldDraft, project, graphEditor.selected(), document.code()))
+                            fieldsChanged(fieldDraft);
+                        fieldPicker = null;
+                        pickerPanel.closePanel();
+                    } catch (IllegalArgumentException invalid) {
+                        error[0] = invalid.getMessage();
+                    }
+                }).left(8)
+                    .bottom(8)
+                    .widthRelOffset(1f, -112)
+                    .height(20));
+        popup.child(listButton("Cancel", 88, () -> true, () -> {
+            fieldPicker = null;
+            pickerPanel.closePanel();
+        }).right(8)
+            .bottom(8)
+            .height(20));
         return popup;
     }
 
@@ -1610,8 +3063,18 @@ public final class Mui2ProgrammingStation {
 
     public void tick() {
         if (cancelled) return;
+        if (reopenPromotedFields != null) {
+            if (fieldDraft != reopenPromotedFields
+                || !reopenPromotedFields.matches(navigationProject(), graphEditor.selected(), document.code())) {
+                reopenPromotedFields = null;
+            } else if (!fieldsPanel.isPanelOpen() && !Mouse.isButtonDown(0)) {
+                reopenPromotedFields = null;
+                fieldsPanel.deleteCachedPanel();
+                fieldsPanel.openPanel();
+            }
+        }
         // Compile once after typing settles, never once per rendered frame.
-        if (diagnosticDelay >= 0 && --diagnosticDelay < 0) checkDraft();
+        if (diagnostics.tick()) checkDraft();
         if (!opened) {
             opened = true;
             refreshCatalog = true;
@@ -1686,7 +3149,7 @@ public final class Mui2ProgrammingStation {
             // Write acknowledgements advance only the saved baseline. Newer code,
             // disconnected nodes and unapplied inspector text remain locally owned.
             if (reply.action == Action.LOAD && !recoveredVisual) {
-                fieldDraft = null;
+                discardFields("Fields closed.");
                 document.load(state.source);
                 if (graphEditor != null) graphEditor.resetSelection();
             }
@@ -1738,22 +3201,13 @@ public final class Mui2ProgrammingStation {
     }
 
     private void checkDraft() {
-        diagnosticDelay = -1;
         symbols = SfmlCompletionCatalog.scan(document.code());
         rebuildOutline();
-        if (document.incomplete()) {
-            draftDiagnostic = "Visual draft: " + document.problem();
-            return;
-        }
-        if (pendingClause() || pendingFields()) {
-            draftDiagnostic = "Inspector has unapplied changes. Apply or Reset before continuing.";
-            return;
-        }
-        ca.teamdman.sfml.program_builder.ProgramBuildResult result = new ca.teamdman.sfml.program_builder.ProgramBuilder(
-            editorSource()).build();
+        StudioDraftDiagnostics.Result checked = diagnostics.check(document, pendingClause() || pendingFields());
+        draftDiagnostic = checked.message;
+        ca.teamdman.sfml.program_builder.ProgramBuildResult result = checked.compiled;
+        if (result == null) return;
         editor.diagnostic(result.isSuccess() ? null : result.getErrorMessage());
-        draftDiagnostic = result.isSuccess() ? "Draft: valid | Ctrl+S save | Ctrl+Space insert | F4 error"
-            : result.getErrorMessage();
         if (view == View.SPLIT && document.graph() == null) {
             try {
                 document.openVisual();
@@ -1826,7 +3280,7 @@ public final class Mui2ProgrammingStation {
         state.newDraft();
         projectMemory.remember(memoryScope, null);
         publications = new PublicationPage(Collections.emptyList(), 0, 0);
-        fieldDraft = null;
+        discardFields("Fields closed.");
         document.load(state.source);
         if (graphEditor != null) graphEditor.resetSelection();
         syncEditor();
@@ -2123,7 +3577,7 @@ public final class Mui2ProgrammingStation {
             state.discardDraft();
             cache().remove(discarded);
         }
-        fieldDraft = null;
+        discardFields("Fields closed.");
         loadingRecovery = null;
         recoveryOverCurrent = false;
         document.load(state.source);
@@ -2257,11 +3711,12 @@ public final class Mui2ProgrammingStation {
     }
 
     private void restoreVisual(Retained retained) {
+        discardFields("Fields recovered; Apply to check.");
         document.restore(retained.visual);
         view = retained.view;
         inspected = retained.selected;
         clause = retained.clause;
-        fieldDraft = retained.fields == null ? null : new FieldDraft(retained.fields);
+        fieldDraft = retained.fields == null ? null : new StudioFieldDraft(retained.fields);
         if (graphEditor != null) {
             graphEditor.select(retained.selected);
             clause = retained.clause;
@@ -2324,6 +3779,7 @@ public final class Mui2ProgrammingStation {
     public void close() {
         if (graphEditor != null) graphEditor.finishInteraction();
         if (!retain()) return;
+        status = fieldFeedback.finish(fieldDraft, status, "Fields closed.");
         closeAction.run();
     }
 
@@ -2331,6 +3787,7 @@ public final class Mui2ProgrammingStation {
         if (cancelled) return;
         if (graphEditor != null) graphEditor.finishInteraction();
         retain();
+        status = fieldFeedback.finish(fieldDraft, status, "Fields closed.");
         cancelled = true;
         if (terminal != null) terminal.cancel();
         if (editor.isValid() && editor.isFocused()) editor.getContext()
@@ -2356,6 +3813,13 @@ public final class Mui2ProgrammingStation {
         int newline = text.indexOf('\n');
         return Minecraft.getMinecraft().fontRenderer
             .trimStringToWidth(newline < 0 ? text : text.substring(0, newline), width);
+    }
+
+    /** Distinguish a summary from the complete diagnostic available through Details. */
+    private static String ellipsizeFor(String text, int width) {
+        String trimmed = trimFor(text, Math.max(1, width));
+        if (trimmed.equals(text)) return text;
+        return trimFor(text, Math.max(1, width - Minecraft.getMinecraft().fontRenderer.getStringWidth("..."))) + "...";
     }
 
     private static ButtonWidget<?> button(String label, int x, int y, int width, BooleanSupplier available,

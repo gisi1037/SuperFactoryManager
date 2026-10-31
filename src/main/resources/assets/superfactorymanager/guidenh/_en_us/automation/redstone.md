@@ -107,3 +107,12 @@ Outputs write connected native ports and can fall back to supported legacy Steve
 Output levels latch until another write changes them, including while the manager is paused or removed, and survive world reload. Input readings and edge histories do not survive as saved events. Selected faces update before neighbor notifications; unchanged writes are silent. Native writes share a limit of 256 attempts per manager invocation across loops and due triggers. Earlier writes remain if later work faults.
 
 Visual's Signal node supports literal output levels; computed levels require Text. Supported providers must work with guarded loaded-world access. A provider that requires casting that view to World is unsupported. SFM checks its own direct reads/notifications without force-loading chunks; downstream mod callbacks still have their usual world behavior. Verify the actual circuit and any legacy adapter before making production depend on it.
+
+Studio fields edit 1–32 ordered destination labels and a literal level in either
+statement order and either quantity position. Add, Pick or Remove references,
+keeping at least one label. Blank/invalid rows block Apply, including pending
+level edits. EACH, round robin and side/slot restrictions stay intact. Omitted
+levels keep default 15; static literals retain the compiler's existing 0–15 clamp.
+Two-quantity, computed-level and over-32-label clauses stay in the full-clause
+editor. **Pick** uses draft references only, without checking connectivity;
+**Choose (pending)** followed by **Apply fields** commits the change.

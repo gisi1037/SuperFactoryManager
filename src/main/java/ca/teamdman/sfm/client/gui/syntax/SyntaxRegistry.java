@@ -45,19 +45,19 @@ public final class SyntaxRegistry {
             "Named Redstone Port RISING edge",
             SnippetCategory.TRIGGER,
             "EVERY REDSTONE RISING FROM <sensor> NORTH SIDE DO\n  <statements>\nEND",
-            "Runs when the selected native-port input rises; use absolute faces, without slots or round robin");
+            "Runs when the selected native-port input rises; Visual Port edge header supports labels/physical faces, without slots or round robin");
         snippet(
             "trig_port_pulse",
             "Named Redstone Port PULSE edge",
             SnippetCategory.TRIGGER,
             "EVERY REDSTONE PULSE FROM <sensor> NORTH SIDE DO\n  <statements>\nEND",
-            "PULSE FROM is an alias for a named native-port rising edge");
+            "PULSE FROM is a named native-port rising edge alias; distinct from the manager Pulse trigger");
         snippet(
             "trig_port_falling",
             "Named Redstone Port FALLING edge",
             SnippetCategory.TRIGGER,
             "EVERY REDSTONE FALLING FROM <sensor> NORTH SIDE DO\n  <statements>\nEND",
-            "Runs when the selected native-port input falls; missing/incomplete groups are unavailable");
+            "Runs when the selected native-port input falls; Visual Port edge header is available, missing/incomplete groups are unavailable");
         snippet(
             "trig_port_gate",
             "Native port edges drive an output",

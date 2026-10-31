@@ -12,6 +12,7 @@ import net.minecraft.nbt.NBTTagCompound;
 
 import org.junit.jupiter.api.Test;
 
+import ca.teamdman.sfm.client.blueprint.BlueprintCompiler;
 import ca.teamdman.sfm.common.network.CableNetwork;
 import ca.teamdman.sfm.common.program.DebugConsole;
 import ca.teamdman.sfm.common.program.DebugValueFormatter;
@@ -32,6 +33,37 @@ import ca.teamdman.sfml.program_builder.VisualCapabilityAnalyzer;
 import ca.teamdman.sfml.program_builder.VisualCapabilityReport;
 
 class SfmlPrintTest {
+
+    @Test
+    void visualRoundTripPreservesCapturedOutputAndDisabledCapture() throws Exception {
+        String source = "-- 😀 diagnostic\nEVERY 20 TICKS DO IF TRUE THEN "
+            + "PRINT(\"Case 🏭\", (2 + 3), LABEL(\"source\").available(), [1,2], {x:1}) "
+            + "ELSE PRINT(\"wrong branch\") END PRINT(\"after\") END";
+        String generated = BlueprintCompiler.generate(BlueprintCompiler.importText(source));
+        for (boolean capture : new boolean[] { false, true }) {
+            AuditRegressionTest.Fixture first = new AuditRegressionTest.Fixture(),
+                second = new AuditRegressionTest.Fixture();
+            TileEntityManager before = new TileEntityManager(), after = new TileEntityManager();
+            before.getDebugConsole()
+                .setEnabled(capture);
+            after.getDebugConsole()
+                .setEnabled(capture);
+            build(source).getProgram()
+                .tick(context(first, before));
+            build(generated).getProgram()
+                .tick(context(second, after));
+            assertEquals(
+                before.getDebugConsole()
+                    .snapshot(),
+                after.getDebugConsole()
+                    .snapshot());
+            assertEquals(
+                capture ? 2 : 0,
+                after.getDebugConsole()
+                    .snapshot()
+                    .size());
+        }
+    }
 
     private static ProgramBuildResult build(String source) {
         ProgramBuildResult result = new ProgramBuilder(source).buildWithSyntax();
@@ -197,7 +229,7 @@ class SfmlPrintTest {
     }
 
     @Test
-    void printSyntaxRequiresOneToEightArgumentsAndRemainsAStatementWithPreciseVisualBlocker() {
+    void printSyntaxRequiresOneToEightArgumentsAndSupportsACompleteVisualStatement() {
         for (String body : Arrays.asList("PRINT()", "PRINT(1,)", "PRINT(1,2,3,4,5,6,7,8,9)", "LET $x = PRINT(1)"))
             assertFalse(
                 new ProgramBuilder("EVERY 20 TICKS DO " + body + " END").build()
@@ -205,17 +237,10 @@ class SfmlPrintTest {
                 body);
         ProgramBuildResult result = build("EVERY 20 TICKS DO\n PRINT(1,2,3,4,5,6,7,8)\nEND");
         VisualCapabilityReport report = VisualCapabilityAnalyzer.analyze(result);
-        assertFalse(report.isAvailable());
-        assertEquals(
-            1,
+        assertTrue(report.isAvailable(), report.getMessage());
+        assertTrue(
             report.getBlockers()
-                .size());
-        VisualCapabilityReport.Blocker blocker = report.getBlockers()
-            .get(0);
-        assertEquals(VisualCapabilityReport.Kind.PRINT_STATEMENT, blocker.kind);
-        assertEquals(2, blocker.line);
-        assertEquals(1, blocker.column);
-        assertTrue(blocker.message.contains("PRINT"));
+                .isEmpty());
         assertEquals(
             result.getProgram()
                 .toString(),

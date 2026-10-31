@@ -156,23 +156,16 @@ public final class Mui2BlueprintEditor implements ProgramEditSession.Receiver {
         }
         for (int i = 0; i < Type.values().length; i++) {
             final int action = 10 + i;
+            final String title = Type.values()[i].menuTitle();
             panel.child(
-                button(
-                    new String[] { "Timer", "Pulse", "Input", "Output", "If", "Forget", "Signal" }[i],
-                    6 + i * 41,
-                    51,
-                    39,
-                    () -> action(action)).overlay(
-                        IKey.dynamic(
-                            () -> (editable() ? "" : "\u00a78")
-                                + new String[] { "Timer", "Pulse", "Input", "Output", "If", "Forget", "Signal" }[action
-                                    - 10])));
+                button(title, 6 + (i % 5) * 58, 51 + (i / 5) * 23, 54, () -> action(action))
+                    .overlay(IKey.dynamic(() -> (editable() ? "" : "\u00a78") + title)));
         }
         canvas = new Canvas();
         panel.child(
             canvas.left(8)
                 .right(8)
-                .top(76)
+                .top(99)
                 .bottom(76));
         panel.child(
             new TextWidget<>("Drag headers | wheel zoom/scroll | right-drag pan | right-click pin unwires").left(8)

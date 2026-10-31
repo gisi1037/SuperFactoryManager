@@ -131,11 +131,11 @@ class SfmlItemQueryIntegrationTest {
     }
 
     @Test
-    void completeProgramClassificationKeepsTypedQueriesInText() {
+    void completeProgramClassificationAdmitsSelfContainedPredicateQueries() {
         String source = "EVERY 20 TICKS DO IF (FALSE AND LABEL(\"unreachable\").empty(ITEM(\"*\"))) THEN END END";
         ProgramBuildResult result = new ProgramBuilder(source).buildWithSyntax();
         assertTrue(result.isSuccess(), result.getErrorMessage());
-        assertFalse(
+        assertTrue(
             VisualCapabilityAnalyzer.analyze(result)
                 .isAvailable());
         assertEquals(

@@ -23,7 +23,6 @@ import ca.teamdman.sfml.data.ProgramStateSchema;
 import ca.teamdman.sfml.data.QueryBudget;
 import ca.teamdman.sfml.data.StateAccess;
 import ca.teamdman.sfml.program_builder.ProgramBuilder;
-import ca.teamdman.sfml.program_builder.VisualCapabilityReport.Kind;
 
 /** End-to-end eligibility, lifecycle and ordering tests with notification-maintained port counters. */
 class NamedRedstoneTriggerTest {
@@ -52,19 +51,19 @@ class NamedRedstoneTriggerTest {
     }
 
     @Test
-    void namedTriggersRemainTextOnlyWithoutLosingSource() {
+    void namedTriggersNowHaveVisualRootsWithoutLosingSource() {
         String source = "EVERY REDSTONE FALLING FROM sensor NORTH SIDE DO FORGET END";
         BlueprintCompiler.ImportResult result = BlueprintCompiler.inspectText(source);
-        assertNull(result.graph);
+        // Slice21 intentionally enables this wrapper; unsupported body statements still retain their blockers.
+        assertTrue(result.report.isAvailable());
         assertEquals(
-            Kind.NAMED_REDSTONE_TRIGGER,
-            result.report.getBlockers()
-                .get(0).kind);
-        assertEquals(
-            1,
-            result.report.getBlockers()
-                .get(0).line);
-        assertThrows(BlueprintCompiler.ImportException.class, () -> BlueprintCompiler.importText(source));
+            ca.teamdman.sfm.client.blueprint.BlueprintGraph.Type.NAMED_REDSTONE,
+            result.graph.triggers()
+                .get(0).type);
+        ca.teamdman.sfm.client.blueprint.StudioDocument document = new ca.teamdman.sfm.client.blueprint.StudioDocument();
+        document.load(source);
+        document.openVisual();
+        assertEquals(source, document.source());
     }
 
     @Test

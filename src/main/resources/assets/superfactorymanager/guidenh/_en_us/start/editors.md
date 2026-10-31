@@ -32,6 +32,8 @@ explain pins, node fields and controls.
 
 Variables, loops and other advanced programs may require text.
 If Visual cannot represent the whole program, it keeps the source intact.
+Transfer and Print steps are also available for simple item routes and messages.
+See the advanced editor page for their supported expression subset.
 
 ## Keep projects in Studio
 

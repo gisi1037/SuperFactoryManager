@@ -21,7 +21,7 @@ class StudioNodePropertiesTest {
             + "EXCEPT item:minecraft:coal TO EMPTY SLOTS IN EACH \"Input NBT:Foo\" "
             + "ROUND ROBIN BY BLOCK North,Top SIDE SLOTS 0,2-8";
         List<Field> fields = StudioNodeProperties.inspect(Type.OUTPUT, clause);
-        assertEquals(10, fields.size());
+        assertEquals(13, fields.size());
         assertEquals("\"Input NBT:Foo\"", field(fields, "label").getValue());
         assertEquals("16", field(fields, "amount").getValue());
         assertEquals("2", field(fields, "retain").getValue());
@@ -42,7 +42,7 @@ class StudioNodePropertiesTest {
         String clause = "FrOm EACH \"Chest \uD83C\uDFED\" Round Robin By Label West SIDE SLOT 1-4 "
             + "InPuT 64 retain 7 item:minecraft:iron_ingot";
         List<Field> fields = StudioNodeProperties.inspect(Type.INPUT, clause);
-        assertEquals(9, fields.size());
+        assertEquals(12, fields.size());
         assertEquals("\"Chest \uD83C\uDFED\"", field(fields, "label").getValue());
         assertEquals(
             clause.replace("64 retain", "12 retain"),
@@ -82,19 +82,23 @@ class StudioNodePropertiesTest {
     }
 
     @Test
-    void ambiguousGroupsAndResourceAllowancesRemainRawRatherThanCollapsingThem() {
-        assertTrue(
-            StudioNodeProperties.inspect(Type.INPUT, "INPUT 64 FROM first, second NORTH SIDE")
-                .isEmpty());
-        assertTrue(
-            StudioNodeProperties.inspect(Type.OUTPUT, "OUTPUT TO first, second")
-                .isEmpty());
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> StudioNodeProperties.update(Type.OUTPUT, "OUTPUT TO first, second", "label", "new"));
+    void orderedGroupsKeepTheirCompleteSpanAndIndependentResourceAllowancesUseClauseRows() {
+        assertEquals(
+            "first, second",
+            field(StudioNodeProperties.inspect(Type.INPUT, "INPUT 64 FROM first, second NORTH SIDE"), "label")
+                .getValue());
+        assertEquals(
+            "INPUT 32 FROM first, second NORTH SIDE",
+            StudioNodeProperties.update(Type.INPUT, "INPUT 64 FROM first, second NORTH SIDE", "amount", "32"));
+        assertEquals(
+            "first, second",
+            field(StudioNodeProperties.inspect(Type.OUTPUT, "OUTPUT TO first, second"), "label").getValue());
         String multiple = "OUTPUT 16 item:minecraft:iron_ingot, 2 RETAIN 1 item:minecraft:coal TO target";
         List<Field> fields = StudioNodeProperties.inspect(Type.OUTPUT, multiple);
-        assertEquals(6, fields.size());
+        assertEquals(8, fields.size());
+        assertEquals(
+            "16 item:minecraft:iron_ingot, 2 RETAIN 1 item:minecraft:coal",
+            field(fields, "limits").getValue());
         assertEquals(
             "label",
             fields.get(0)
@@ -108,9 +112,9 @@ class StudioNodePropertiesTest {
     }
 
     @Test
-    void labelEditorRejectsMultipleLabelsModifiersNewlinesCommentsAndInvalidQuotes() {
+    void labelEditorRejectsModifiersTrailingCommaNewlinesCommentsAndInvalidQuotes() {
         String clause = "INPUT 64 RETAIN 1 FROM source NORTH SIDE SLOTS 0-8";
-        for (String invalid : new String[] { "first, second", "other SOUTH SIDE", "other OUTPUT TO stolen",
+        for (String invalid : new String[] { "first,", "other SOUTH SIDE", "other OUTPUT TO stolen",
             "other\nOUTPUT TO stolen", "other\rOUTPUT TO stolen", "other -- hidden", "\"unfinished", "", "other@" })
             assertThrows(
                 IllegalArgumentException.class,
@@ -143,10 +147,7 @@ class StudioNodePropertiesTest {
             StudioNodeProperties.inspect(Type.PULSE, "EVERY REDSTONE PULSE")
                 .isEmpty());
         assertTrue(
-            StudioNodeProperties.inspect(Type.IF, "source HAS GT 0 item:*")
-                .isEmpty());
-        assertTrue(
-            StudioNodeProperties.inspect(Type.REDSTONE, "OUTPUT 15 REDSTONE LEVEL TO target NORTH SIDE")
+            StudioNodeProperties.inspect(Type.IF, "source HAS GT 0 item:* AND TRUE")
                 .isEmpty());
         assertTrue(
             StudioNodeProperties.inspect(Type.FORGET, "FORGET source")
@@ -175,7 +176,7 @@ class StudioNodePropertiesTest {
     @Test
     void absentAmountsAreNotInventedAndFieldsAreImmutable() {
         List<Field> fields = StudioNodeProperties.inspect(Type.INPUT, "INPUT FROM source");
-        assertEquals(5, fields.size());
+        assertEquals(8, fields.size());
         assertFalse(
             fields.get(0)
                 .getHelp()

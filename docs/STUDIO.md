@@ -103,9 +103,52 @@ use one surface at a time; compact Insert and Tools menus keep working space fre
 Drag the divider to adjust the balance between graph and code. Both panes keep a
 minimum usable width; resizing does not change source or saved node positions.
 
-Supported nodes are Timer, Pulse, Input, Output, If, Forget and Redstone output.
+Supported nodes are Timer, Pulse, Port edge, Input, Output, If, Forget, Redstone
+output, Transfer and Print. The Add step list scrolls above its fixed footer.
 Source containing unsupported statements remains available in Code; conversion
 refuses before replacing it with a partial graph.
+
+Transfer represents the existing two-, three- and four-argument item action
+without `INTO`. Its fields edit fixed source/destination roles and explicitly
+add/remove optional item/amount suffixes. Print has one field per expression,
+in source order (one to eight), with Add/Remove controls. Quote literal messages.
+Both nodes accept self-contained literals, arithmetic, `LABEL`/`ITEM`
+constructors and compiler-supported receiver methods such as `.slots()` and
+`.count()`. Other function calls, including built-ins such as `LEN` and `ORE`,
+still require Code. Declarations, assignments, result capture,
+loops, player functions and direct ELSE IF remain
+text-only. If predicates also support bounded self-contained expressions, described
+below. Data expressions in other statement positions keep their restrictions.
+
+**Port edge** starts a block from named native Redstone Port input edges. It is
+distinct from **Pulse**, which keeps the existing manager pulse trigger. Basic
+**Fields** offers an **Edge** selector (`RISING`, `PULSE`, `FALLING`) and
+1–32 ordered literal label rows. For example:
+
+```text
+every redstone rising from "signal" north side
+```
+
+Use `RISING` (or its `PULSE` alias) or `FALLING`, one or more legacy label names,
+and optional physical sides (`NORTH`, `EAST`, `SOUTH`, `WEST`, `TOP`, `BOTTOM`, or
+`EACH SIDE`). These are label names, not `LABEL(...)` expressions. Slots, round
+robin, relative sides and `NULL SIDE` are rejected. Omitted sides keep all six.
+The initial observation establishes a baseline; it does not synthesize an edge.
+Fields validates the whole header on Apply, retaining body/source on refusal.
+Each label row has a bounded draft-reference picker, not a live network scan.
+Case, duplicate labels and ordering are kept. **Physical sides** accepts comma-separated
+`TOP`, `BOTTOM`, `NORTH`, `SOUTH`, `EAST`, `WEST`; blank restores the default all six,
+and `EACH` explicitly selects all. Leave out the `SIDE` keyword. Relative faces,
+`NULL`, `UP` and `DOWN` are not accepted by this field.
+Headers over 32 labels retain one complete manual **Trigger header** field,
+without `DO` or `END`; no rows are truncated and no partial edge controls appear.
+Invalid pending rows, edge or side values block the entire Apply. Cancel leaves source
+unchanged; one successful Apply is one undo step. Unchanged header lexemes and
+untouched physical-side spelling and gaps are preserved. Changing an existing side
+value keeps its `SIDE` keyword and surrounding gaps; clearing removes the entire
+qualifier while retaining its boundary whitespace. Adding sides inserts a separating
+space before the new qualifier and keeps existing trailing whitespace.
+Named trigger bodies must still contain only supported Visual statements.
 
 | Gesture | Action |
 | --- | --- |
@@ -129,10 +172,207 @@ scrolls. It provides supported timer and routing settings while preserving
 unrelated filters and modifiers. Ambiguous clauses keep the full-clause
 fallback. Apply or reset pending edits before changing views or saving.
 
+Simple legacy **If / HAS** conditions expose 1–32 ordered label rows, comparison,
+a literal threshold and 0–32 ordered **Resources (OR)** rows. The selectors form
+one matching set; the existing set operator determines how counts are compared.
+Zero resource rows restores match-all, while blank/invalid rows block Apply.
+Keep at least one label. Parentheses, set operator (including EACH), side/slot
+restrictions, round robin, filters and exclusions stay intact. Compound/negated
+legacy conditions, trailing OR and groups over 32 use the full clause.
+
+Self-contained typed **If** predicates use one **Condition** field. For example,
+`(LABEL("source").available() AND NOT LABEL("source").empty())`,
+`source HAS >= (2 + 3)` and `REDSTONE >= (2 + 3)` use existing runtime syntax.
+Keep the parentheses around typed Boolean expressions and computed thresholds;
+leave out `IF`, `THEN` and `END`. No query runs in Fields: one Apply validates and
+commits the whole predicate, while Cancel and Undo retain their existing behavior.
+Only `LABEL`/`ITEM` constructors and existing receiver methods are eligible;
+scoped variables, other calls and unsupported body statements still require Code.
+New typed predicates have bounded depth/operator/postfix work. Legacy label-list
+commas do not reset the enclosing Boolean budget; real data-container siblings
+retain local budgets. Unsupported or over-budget source is retained intact.
+**Signal** exposes 1–32 ordered destination label rows and a literal level in either
+statement order and either quantity position. Add, Pick or Remove references,
+keeping at least one label. Invalid/blank rows block the whole Apply, including
+pending level edits. EACH, round robin, sides/slots and untouched source stay.
+An omitted level remains the existing default 15; static levels retain the
+compiler's existing 0–15 clamp. Two-quantity, computed-level and over-32-label
+forms stay manual; no new qualifier controls or live connectivity check is added.
+
+**Input / Output** nodes with 1–32 literal labels offer ordered label rows and
+the existing allowance/resource/routing fields. Edit or Pick each row, append
+with **Add label**, or **Remove** a row while keeping at least one. Duplicate
+names, exact case, legacy quoted lexemes and order are retained. These are
+program references; this does not rename blocks or observe live bindings.
+Groups larger than 32 stay fully manual, without truncation.
+
+Every row operation and picker choice stays pending with the other fields until
+one **Apply fields**; Cancel preserves source and history. Pick can repair blank
+or invalid pending text, but every row must be one valid literal before Apply.
+Removing a row removes its following comma/spacing, or its preceding delimiter
+for the last row; unaffected separators/lexemes stay exact. Appending adds
+`, ` and the new row. Necessary token-boundary spaces stay inside the edited
+label-list span. Retained/reopened drafts preserve row identity and pending text;
+pickers reject stale row identities and structural revisions, including ABA.
+After closing a pending inspector with Escape or Done, use **Go > Reopen Fields**
+or **Go > Reopen clause** to resume it, including at compact sizes. Reopening
+does not apply edits or reload source; Apply/Cancel or Apply/Reset remain explicit.
+
+Fields errors describe the last attempted action, not live validation. A successful
+pending edit clears its old error and disables its old **Details**, even if the new
+text is still invalid. Use Apply to check again. No-op or rejected edits retain the
+current error. Cancel, successful Apply and rebuilt/recovered Fields retire that
+form's feedback without discarding another status or compiler Problems. The footer
+may say **Fields changed; Apply to check** until Apply or Cancel; that is not a
+claim that the pending fields are valid.
+
+Accepted text edits clear the selected visual node and its clean cached inspector,
+including comment edits and code Undo/Redo. Select the node again after returning
+to Visual/Split; retained layout identity must not expose an older clause for Apply.
+No-op text changes keep selection. Genuine pending Fields/raw edits still block
+text editing until Apply/Cancel or Apply/Reset.
+An accepted text edit also cancels a pending click-to-connect wire from the older
+graph. Cursor movement or an unchanged source does not clear selection or cancel it.
+
+Eligible Input / Output nodes offer an **OreDictionary filter** with **Off**,
+**With** or **Without** and one name pattern, such as `ingotIron` or `ingot*`.
+Only Off removes the filter; an enabled blank/invalid pattern blocks Apply.
+Mode and pattern remain pending with the other fields, including pattern edits
+while Off. Escape/reopen, resize and recovery keep both controls. Applying an
+unchanged clause clears pending controls without adding a source/history edit.
+
+This legacy filter applies to **items only**: fluids ignore it. It matches
+OreDictionary names with `*` wildcards and ASCII case-insensitive matching;
+unknown names are valid (With matches none, Without excludes none). It does not
+translate modern tag names, accept `?`/regex, or inspect NBT. No registry scan or
+ore picker is performed. Eligible OR alternatives share this one filter.
+Independent limits use full clause rows rather than nested resource/filter controls.
+Single-limit trailing OR, trailing inclusion commas and oversized selector groups
+keep structured resource/filter editing manual. Compound filters remain unsupported by this
+backport. Other safe fields remain available.
+Unchanged WITH/WITHOUT/TAG/# spelling and spacing are retained. Removing a
+filter-only clause preserves the existing Input/Output quantity/retention defaults.
+
+Eligible Input / Output nodes offer **Resources (OR)** with 0–32 ordered selectors
+inside one resource limit. An eligible unrestricted node or existing single static limit also offers
+**Unlimited / Limited** movement amount and **Leave at least** (Input) or
+**Fill up to** (Output) retention. Enable a number to enter it; an initially
+omitted number starts blank and blocks Apply until filled. Disabled numbers emit
+no syntax: amount defaults to unlimited, Input retention to zero, Output retention
+to no stock cap. Explicit `0` differs from omission. Values are nonnegative signed
+64-bit integers, measured in items or fluid mB. Each number's **EACH** applies per
+resource type, independently of the other number and container EACH.
+
+Disabling a number retains its last text/EACH locally for re-enabling and recovery;
+only enabled values are validated/emitted. Apply, Cancel or explicit conversion
+to full rows ends that latent control state. Removing the final limit term can
+restore implicit defaults, keeping global EXCEPT/labels. Initially unrestricted
+nodes start with both numbers disabled and blank latent cells; leaving them off
+preserves the exact original clause. Numbers, resources, ore filters, EXCEPT and
+routing can be edited together in one Apply. **Add independent limit** remains
+unavailable on an initially unrestricted node until Apply and reopening Fields
+establishes an explicit limit; no implicit match-all first row is created.
+Multiple rows, computed values and unsupported forms retain their old controls or
+manual fallback. Numeric controls are retired after **Add independent limit**;
+the full row text then owns their values.
+
+**Resources (OR)** selectors are
+inside one resource limit, in either statement order. **OR shares one quantity,
+retention and ore filter**; it does not create independent allowances. Add a row,
+type one selector or Pick a base item ID. Blank/invalid rows block Apply; use
+Remove to delete. Removing all rows explicitly restores the existing match-all
+default while retaining quantity/retention and their different IO defaults.
+Duplicates, case, quoted OR text and unchanged selector/separator spelling stay.
+Quantity/retention EACH scopes, WITH/WITHOUT tags, EXCEPT, routing and EMPTY SLOTS
+remain intact. Lexer checks keep compact quoted boundaries token-safe. Single-limit
+trailing OR, trailing inclusion commas and selector groups over32 stay manual
+with an inline explanation; other safe Fields remain editable. Manual
+fluid IDs and quoted metadata remain legal; no NBT filter syntax is added.
+
+Existing IO clauses with **2–32 independent limits** offer numbered full-clause
+rows. Each row is one complete static SFML limit, for example
+`16 EACH RETAIN 2 item:minecraft:iron_ingot OR item:minecraft:gold_ingot WITH #ingot*`.
+Comma rows have separate allowances; OR shares only its row. The first matching
+row wins, so order matters for overlapping selectors. Edit text horizontally,
+**Add limit** or **Remove**, keeping at least one row. Blank/invalid rows block
+the whole Apply, including global label/EACH/exclusion/routing/EMPTY edits.
+These rows have no nested typed controls or pickers. An eligible existing single
+static limit offers **Add independent limit** beside Resources (OR). It validates
+all pending Fields, keeps the resulting limit as row 1 and adds a blank row 2.
+Amount/retention/OR/ore controls become full-clause text; global fields stay active.
+Conversion changes no program source until Apply. Invalid pending fields refuse
+conversion without losing edits; Cancel discards all pending Fields. Absent limits
+and unsupported forms do not offer conversion. A pending list reduced to one row
+keeps row mode until Apply; reopening uses existing single-limit Fields.
+Unchanged row lexemes, duplicates, case, Unicode and comma gaps are retained.
+Top-level trailing commas, over32 limits and unsupported forms stay manual without
+truncation. Dynamic limits still require Text; no new Visual syntax is introduced.
+Overly nested or complex row syntax is refused before parsing; parentheses inside
+quoted resource IDs remain ordinary literal characters. Comments are not row text.
+
+**Exclusions** edits 0–32 ordered global IO `EXCEPT` selectors, independently of
+inclusion-limit complexity. Add a row, type one resource or Pick a client item
+ID. Fluids and quoted metadata remain manual. Duplicates, case and unchanged
+selector/separator spelling are retained. A blank or invalid row blocks Apply;
+use **Remove** to delete it. Removing the last row removes the complete EXCEPT
+clause. Trailing exclusion commas and groups over 32 stay fully manual, without
+truncation. Inclusion limits, ore filters, labels and routing stay intact.
+Choose only changes that pending row; all rows and other Fields commit together
+on Apply. Cancel, recovery, stale-owner/row guards and exact Undo remain intact.
+
+Manual-only exclusions now show an inline notice explaining the row limit or
+trailing comma. Other Fields remain editable: Apply or Cancel them before using
+the full clause. If an error summary ends in `...`, use **Details** to read the
+complete wrapped message, scroll vertically or **Copy error**. **Back to fields**
+or Escape returns to the same pending edits without applying or discarding them.
+
+Eligible fields have **Pick**: labels come only from references in the current
+draft, and items come from client base registry IDs. This is not a live network
+browser; metadata/NBT and complex expressions remain manual. Bare `LABEL("…")`
+and `ITEM("…")` Transfer arguments are eligible; `.side()`/`.slots()` expressions
+are not replaced. Selecting a row is temporary; **Choose (pending)** changes
+only the field, then **Apply fields** changes the graph in one undo step.
+Picker Cancel keeps earlier pending edits; Fields Cancel discards unapplied
+fields. A changed project, node or source requires reopening Fields.
+
+Snapshots are taken once per explicit opening: at most 256 draft labels with
+4,096 reference visits, or 8,192 item-key visits, including invalid keys.
+Search is limited to 96 characters and displays at most 64 matches. Capped or
+unrepresentable/invalid entries are reported; manual editing stays available.
+Legacy and typed label strings retain their existing distinct escaping rules.
+
+Problems refreshes once when entering or leaving pending inspector state,
+including Fields Cancel/Apply, a manual revert and raw Reset/Apply. It never
+silently applies pending work. Genuine compiler errors and incomplete visual
+drafts retain priority; ordinary idle ticks do not reparse source.
+
 Supported visual edits preserve source comments and reuse node layout identities
 where their structure can still be matched. Disconnected nodes stay in an
 incomplete visual draft; saving is blocked until they are connected or undone.
 The last safe source remains available for preview.
+
+## Reveal source and graph nodes
+
+Use **Go > Reveal node** (F6) at the code caret, or **Go > Reveal source**
+(Shift+F6) for the selected graph node. Wide layouts also show direct buttons.
+These are explicit actions: typing, moving the caret or selecting a node does
+not switch panes or steal focus. Split stays Split when there is enough space;
+a narrow workspace explicitly reveals the target in Visual or Code.
+
+Reveal node matches instruction/header tokens, including trigger `DO` and If
+`THEN`, by trigger and TRUE/FALSE/AFTER branch roles. Duplicate identical
+statements resolve to their own current UUIDs. NAME, comments, whitespace, ELSE,
+END, EOF and a caret inside a surrogate pair have no node; move onto a token.
+Reveal source selects the exact instruction or header, including its interior
+formatting/comments, with the caret at its first character. It preserves raw
+saved line endings while accounting for the editor's normalized LF display.
+
+Navigation pans/zooms the viewport without moving saved nodes, rewriting code,
+changing dirty state or clearing text/graph Undo and Redo. Pending fields/raw
+clauses, an active canvas gesture/wire, an in-flight project request, an
+incomplete graph or unsupported code refuse navigation with a notice. It never
+silently Applies. Maps are built only on explicit requests and checked again
+after pane layout against the exact project, source and ordered graph identity.
 
 ## Recover unfinished work
 
@@ -233,6 +473,40 @@ The old legacy screen cannot authorize reference reset; use the native console.
 See [reference performance](REFERENCE_PERFORMANCE.md) for loading limits,
 correctness-checked measurements and remaining qualification gates.
 
+
+## Print argument rows
+
+**Print Fields** offers 1–8 ordered expression rows. Add an argument, enter its
+expression, or Remove an argument; at least one must remain. Quote literal
+messages. Commas inside strings, arrays, structs and calls stay in their row.
+Blank or invalid rows block the whole Apply. Apply commits all rows together as
+one undo step; pending edits do not run. Cancel leaves source untouched.
+Untouched expressions and separator spacing stay exact. Changed expressions trim
+only outer whitespace when applied, matching the original scalar field editor.
+Complex expressions that exceed the editor's nesting/chain budget stay intact
+for Text editing. Compiler syntax, type and visual-capability checks still apply.
+
+## Transfer overload controls
+
+**Transfer Fields** keeps Source and Destination required. **Add item filter**
+adds the third argument, then **Add amount** adds the fourth. New fields start
+blank and block Apply until completed. Remove amount before removing the item
+filter; required roles cannot be removed. No default expression is inserted.
+
+Two arguments transfer all available items. Three transfer matching items. Both
+use the existing finite stock snapshot. Four use an explicit integer amount:
+**zero moves nothing**, and removing the amount restores automatic stock. Fields
+shows which mode is pending. Apply checks all roles and commits once; pending
+edits do not transfer anything. Cancel, copied recovery and Undo/Redo preserve
+the source and role identities.
+
+**Pick** accepts only a bare `LABEL("...")` or `ITEM("...")`. Clicking it on a
+blank/complex expression explains that manual editing is required. Label side/
+slot expressions and exact item keys remain valid manual expressions. Picker
+Choose changes only its pending role, even when another role is invalid. Stale
+picker actions after structural changes or copied recovery are refused. Result
+capture with `INTO`, unsupported functions and over-budget expressions stay in
+Text. Existing runtime and visual-capability rules remain unchanged.
 
 ## Player profiler and live values
 

@@ -19,6 +19,7 @@ import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 import org.lwjgl.opengl.GL11;
 
+import ca.teamdman.sfm.client.blueprint.BlueprintCanvasGeometry;
 import ca.teamdman.sfm.client.blueprint.BlueprintCompiler;
 import ca.teamdman.sfm.client.blueprint.BlueprintDocument;
 import ca.teamdman.sfm.client.blueprint.BlueprintGraph;
@@ -36,6 +37,7 @@ import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSession.Receiver {
 
     private static final int NODE_W = 144;
+    private static final int CANVAS_TOP = BlueprintCanvasGeometry.TOP;
     private final TileEntityManager manager;
     private final GuiScreen parent;
     private String original = "";
@@ -110,9 +112,9 @@ public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSe
         add(4, 214, 6, 34, "Fit");
         add(5, 250, 6, 32, "Undo");
         add(6, 284, 6, 30, "Copy");
-        String[] labels = { "Timer", "Pulse", "Input", "Output", "If", "Forget", "Signal" };
-        for (int i = 0; i < labels.length; i++) add(10 + i, 6 + i * 39, 28, 37, labels[i]);
-        add(7, 281, 28, 33, "Name");
+        for (int i = 0; i < Type.values().length; i++)
+            add(10 + i, 6 + (i % 5) * 61, 28 + (i / 5) * 21, 57, Type.values()[i].menuTitle());
+        add(7, 250, 49, 64, "Name");
         String old = field == null ? "" : field.getText();
         field = new GuiTextField(fontRendererObj, 8, height - 47, width - 89, 16);
         field.setMaxStringLength(BlueprintGraph.MAX_CLAUSE);
@@ -252,7 +254,7 @@ public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSe
                         Node previous = graph.node(selected);
                         double x = previous != null && !type.isTrigger() ? previous.x() : (width / 2.0 - panX) / zoom;
                         double y = previous != null && !type.isTrigger() ? previous.y() + nodeHeight(previous) + 32
-                            : (bottom() / 2.0 - 50 - panY) / zoom;
+                            : ((bottom() - CANVAS_TOP) / 2.0 - panY) / zoom;
                         x = Math.max(-999000, Math.min(999000, x));
                         y = Math.max(-999000, Math.min(999000, y));
                         while (occupied(x, y, type == Type.IF ? 88 : 48)) y += 120;
@@ -264,10 +266,10 @@ public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSe
                             graph.connect(previous.id, previous.type.continuation(), node.id);
                         select(node);
                         if (node.x() < worldX(6) || node.x() + NODE_W > worldX(width - 6)
-                            || node.y() < worldY(50)
+                            || node.y() < worldY(CANVAS_TOP)
                             || node.y() + nodeHeight(node) > worldY(bottom())) {
                             panX = width / 2.0 - 6 - (node.x() + NODE_W / 2.0) * zoom;
-                            panY = (bottom() - 50) / 2.0 - (node.y() + nodeHeight(node) / 2.0) * zoom;
+                            panY = (bottom() - CANVAS_TOP) / 2.0 - (node.y() + nodeHeight(node) / 2.0) * zoom;
                         }
                         showPreview = false;
                         rebuildPreview(true);
@@ -378,7 +380,7 @@ public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSe
     }
 
     private double worldY(int y) {
-        return (y - 50 - panY) / zoom;
+        return BlueprintCanvasGeometry.worldY(y, panY, zoom);
     }
 
     private int nodeHeight(Node node) {
@@ -394,7 +396,7 @@ public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSe
         super.mouseClicked(x, y, button);
         if (!editSession.state.isEditable()) return;
         field.mouseClicked(x, y, button);
-        if (graph == null || showPreview || y < 50 || y >= bottom() || x < 6 || x >= width - 6) return;
+        if (graph == null || showPreview || y < CANVAS_TOP || y >= bottom() || x < 6 || x >= width - 6) return;
         if (pendingField()) {
             try {
                 applyField();
@@ -486,17 +488,17 @@ public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSe
         int wheel = Mouse.getEventDWheel();
         int x = Mouse.getEventX() * width / mc.displayWidth;
         int y = height - Mouse.getEventY() * height / mc.displayHeight - 1;
-        if (wheel == 0 || y < 50 || y >= bottom()) return;
+        if (wheel == 0 || y < CANVAS_TOP || y >= bottom()) return;
         if (showPreview) previewOffset = Math.max(
             0,
             Math.min(
-                Math.max(0, previewLines.length - (bottom() - 56) / 10),
+                Math.max(0, previewLines.length - (bottom() - CANVAS_TOP - 6) / 10),
                 previewOffset - Integer.signum(wheel) * 3));
         else {
             double wx = worldX(x), wy = worldY(y);
             zoom = Math.max(0.25, Math.min(1.5, zoom * (wheel > 0 ? 1.1 : 1 / 1.1)));
             panX = x - 6 - wx * zoom;
-            panY = y - 50 - wy * zoom;
+            panY = BlueprintCanvasGeometry.anchoredPanY(y, wy, zoom);
         }
     }
 
@@ -515,9 +517,7 @@ public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSe
             maxX = Math.max(maxX, node.x() + NODE_W);
             maxY = Math.max(maxY, node.y() + nodeHeight(node));
         }
-        zoom = Math.max(
-            0.25,
-            Math.min(1, Math.min((width - 40) / (maxX - minX), Math.max(40, bottom() - 66) / (maxY - minY))));
+        zoom = BlueprintCanvasGeometry.fitZoom(width, bottom(), maxX - minX, maxY - minY);
         panX = 12 - minX * zoom;
         panY = 10 - minY * zoom;
     }
@@ -525,25 +525,26 @@ public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSe
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         drawDefaultBackground();
-        drawRect(4, 48, width - 4, bottom() + 2, 0xff151718);
-        drawRect(6, 50, width - 6, bottom(), 0xff26292b);
+        drawRect(4, CANVAS_TOP - 2, width - 4, bottom() + 2, 0xff151718);
+        drawRect(6, CANVAS_TOP, width - 6, bottom(), 0xff26292b);
         // Clip in physical pixels so every Minecraft GUI scale uses the same logical layout.
         GL11.glEnable(GL11.GL_SCISSOR_TEST);
         GL11.glScissor(
             6 * mc.displayWidth / width,
             (height - bottom()) * mc.displayHeight / height,
             (width - 12) * mc.displayWidth / width,
-            Math.max(0, bottom() - 50) * mc.displayHeight / height);
+            Math.max(0, bottom() - CANVAS_TOP) * mc.displayHeight / height);
         if (showPreview) {
-            for (int row = 0; row < (bottom() - 54) / 10 && previewOffset + row < previewLines.length; row++) {
+            for (int row = 0; row < (bottom() - CANVAS_TOP - 4) / 10
+                && previewOffset + row < previewLines.length; row++) {
                 int line = previewOffset + row;
                 int end = fontRendererObj.trimStringToWidth(previewLines[line], width - 28)
                     .length();
-                SfmlSyntaxRenderer.draw(fontRendererObj, highlighted, line, 0, end, 12, 54 + row * 10);
+                SfmlSyntaxRenderer.draw(fontRendererObj, highlighted, line, 0, end, 12, CANVAS_TOP + 4 + row * 10);
             }
         } else if (graph != null) {
             GL11.glPushMatrix();
-            GL11.glTranslated(6 + panX, 50 + panY, 0);
+            GL11.glTranslated(6 + panX, BlueprintCanvasGeometry.screenY(0, panY, zoom), 0);
             GL11.glScaled(zoom, zoom, 1);
             for (Edge edge : graph.edges()) {
                 Node from = graph.node(edge.from), to = graph.node(edge.to);
@@ -566,7 +567,7 @@ public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSe
                     0xffead79a);
             }
             for (Node node : graph.nodes()) if (node.x() + NODE_W >= worldX(6) && node.x() <= worldX(width - 6)
-                && node.y() + nodeHeight(node) >= worldY(50)
+                && node.y() + nodeHeight(node) >= worldY(CANVAS_TOP)
                 && node.y() <= worldY(bottom())) drawNode(node);
             GL11.glPopMatrix();
         }

@@ -17,6 +17,61 @@ import org.junit.jupiter.api.Test;
 /** Real Forge membership tests, isolated from the ordinary headless suite's registries and Loader singleton. */
 class ResourceSelectorOreTest {
 
+    @Test
+    void studioAbsentIoNumbersKeepRealItemDefaultsZeroReserveCapAndConservation() throws Throwable {
+        invoke("studioAbsentIoNumbersKeepRealItemDefaultsZeroReserveCapAndConservation");
+    }
+
+    @Test
+    void studioAbsentIoNumbersKeepRealFluidMillibucketsAndConservation() throws Throwable {
+        invoke("studioAbsentIoNumbersKeepRealFluidMillibucketsAndConservation");
+    }
+
+    @Test
+    void studioOptionalIoNumbersKeepRealItemReserveTargetEachAndConservation() throws Throwable {
+        invoke("studioOptionalIoNumbersKeepRealItemReserveTargetEachAndConservation");
+    }
+
+    @Test
+    void studioOptionalIoNumbersKeepRealFluidMillibucketsDefaultsZeroAndConservation() throws Throwable {
+        invoke("studioOptionalIoNumbersKeepRealFluidMillibucketsDefaultsZeroAndConservation");
+    }
+
+    @Test
+    void studioSingleLimitPromotionKeepsRealItemMetadataQuotasAndOverlapPriority() throws Throwable {
+        invoke("studioSingleLimitPromotionKeepsRealItemMetadataQuotasAndOverlapPriority");
+    }
+
+    @Test
+    void studioSingleLimitPromotionKeepsFluidDefaultsRetentionOrderAndTwoToOne() throws Throwable {
+        invoke("studioSingleLimitPromotionKeepsFluidDefaultsRetentionOrderAndTwoToOne");
+    }
+
+    @Test
+    void automaticReturnCannotClearReplacementOrReplayRemovedDisk() throws Throwable {
+        invoke("automaticReturnCannotClearReplacementOrReplayRemovedDisk");
+    }
+
+    @Test
+    void automaticReturnFencesAbaDiskReplacement() throws Throwable {
+        invoke("automaticReturnFencesAbaDiskReplacement");
+    }
+
+    @Test
+    void automaticReturnJournalsBeforeReentrantManualExecution() throws Throwable {
+        invoke("automaticReturnJournalsBeforeReentrantManualExecution");
+    }
+
+    @Test
+    void saveInsideThrowingAutomaticReturnRetainsUncertaintyAfterReload() throws Throwable {
+        invoke("saveInsideThrowingAutomaticReturnRetainsUncertaintyAfterReload");
+    }
+
+    @Test
+    void confirmedAutomaticReturnRestoresOnlyKnownRemainderAcrossSaveReload() throws Throwable {
+        invoke("confirmedAutomaticReturnRestoresOnlyKnownRemainderAcrossSaveReload");
+    }
+
     private static LaunchClassLoader isolated;
     private static Class<?> fixture;
 
@@ -67,6 +122,41 @@ class ResourceSelectorOreTest {
         } finally {
             thread.setContextClassLoader(previous);
         }
+    }
+
+    @Test
+    void studioGlobalExclusionsKeepRealItemMetadataAndFluidSemantics() throws Throwable {
+        invoke("studioGlobalExclusionsKeepRealItemMetadataAndFluidSemantics");
+    }
+
+    @Test
+    void studioExclusionRowsRetainRealMetadataAndMixedItemFluidMatching() throws Throwable {
+        invoke("studioExclusionRowsRetainRealMetadataAndMixedItemFluidMatching");
+    }
+
+    @Test
+    void studioResourceAlternativesShareOneLimitAndKeepMixedUnionAndExclusions() throws Throwable {
+        invoke("studioResourceAlternativesShareOneLimitAndKeepMixedUnionAndExclusions");
+    }
+
+    @Test
+    void studioHasRowsKeepRealCountsSetOperatorsDuplicatesAndUnavailableDefaults() throws Throwable {
+        invoke("studioHasRowsKeepRealCountsSetOperatorsDuplicatesAndUnavailableDefaults");
+    }
+
+    @Test
+    void studioIndependentLimitRowsKeepItemAllowancesOreMetadataAndOverlapPriority() throws Throwable {
+        invoke("studioIndependentLimitRowsKeepItemAllowancesOreMetadataAndOverlapPriority");
+    }
+
+    @Test
+    void studioIndependentLimitRowsKeepRealFluidMatchingPriorityRemovalAndConservation() throws Throwable {
+        invoke("studioIndependentLimitRowsKeepRealFluidMatchingPriorityRemovalAndConservation");
+    }
+
+    @Test
+    void studioLegacyOreFiltersKeepRealMembershipCaseUnknownAndFluidSemantics() throws Throwable {
+        invoke("studioLegacyOreFiltersKeepRealMembershipCaseUnknownAndFluidSemantics");
     }
 
     @Test

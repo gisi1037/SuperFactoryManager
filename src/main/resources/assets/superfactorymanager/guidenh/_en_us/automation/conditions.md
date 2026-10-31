@@ -55,4 +55,12 @@ END
 
 Data expressions must produce booleans; there is no automatic integer/string truthiness. Put a data condition in parentheses, for example `IF ($amount > 0) THEN`. An integer expression can also supply a HAS threshold in parentheses. [Expressions](/language/expressions.md) explains arithmetic and typed comparisons.
 
+In Studio Visual, simple HAS conditions offer 1–32 label rows, comparison, a
+literal threshold and 0–32 OR resource selectors. OR forms one matching set;
+the set operator still controls how counts are compared. Remove all resource
+rows to restore match-all; blank rows block Apply. Keep at least one label.
+Compound/negated conditions, computed thresholds, trailing OR and groups over 32
+keep the full-clause editor. Label suggestions are draft references, not a check
+that an inventory is connected.
+
 A condition does not reserve stock or guarantee the next output succeeds. Queries later in the same invocation see earlier confirmed transfers, while already captured data remains a snapshot. A runtime fault pauses the manager without undoing earlier transfers or STATE writes. Use [TRANSFER's result](/automation/transfers.md) when later logic must distinguish actual movement from an attempted output.

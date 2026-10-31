@@ -63,4 +63,4 @@ LABEL_REF and RESOURCE_SELECTOR values may live in locals, arrays and structs an
 
 Queries, contents, transfers and typed redstone share per-manager-invocation limits across all due triggers: 1,024 label-position visits, 8,192 provider calls, 16,384 slot-work units and 16,384 collection/allocation reservations. Returned sided indices and deduplication also cost work. Provider exceptions, invalid stacks, overflow and exhausted budgets fault instead of appearing empty or unavailable. These limits cannot interrupt one external callback and do not guarantee a fixed tick duration. Ordinary HAS/INPUT/OUTPUT retain their own behavior.
 
-Typed queries currently require Text. Use [PRINT and debugging](/reference/debugging.md) to inspect results.
+Typed queries usually use Text. Self-contained receiver queries such as LABEL("chest").count(ITEM("*")) can also appear in Visual's Print expressions; variables, other function calls and data expressions in conditions still require Text. See [editor limits](/advanced/editors.md) and [PRINT and debugging](/reference/debugging.md).

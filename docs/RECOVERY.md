@@ -43,8 +43,8 @@ player GUI for these actions yet.
 
 Headless tests exercise conservation, metadata/NBT, partial/full capacity, sided
 access, missing sources/chunks, stale IDs, callback mutations/exceptions, owner
-changes and command permissions. Scoped daily-803 tests also exercised orderly
-world saves and reloads. Disk and destination saves are not atomic; these tools do not promise
+changes and command permissions. Orderly world-save/reload evidence is recorded in the
+[daily-803 recovery result](../integration/evidence/daily-803-recovery.json). Disk and destination saves are not atomic; these tools do not promise
 exactly-once transfers after a process or host crash, or for arbitrary handlers
 that violate their inventory contract.
 
@@ -102,4 +102,4 @@ A fresh full daily-803 Java17 dedicated server with 296 mods and Dynamic Invento
 passed the command sequence and an orderly restart using synthetic evidence:
 exactly one inactive receipt persisted, stock/STATE were unchanged, and distant
 source/target regions were not generated. This does not qualify real tank failures,
-crash atomicity or two-player authority timing.
+crash atomicity or two-player authority timing. See [reliability qualification](../integration/evidence/reliability-qualification-2026-10-28.json).

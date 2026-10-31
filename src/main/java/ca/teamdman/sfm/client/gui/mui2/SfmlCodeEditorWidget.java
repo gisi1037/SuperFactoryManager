@@ -192,6 +192,16 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
         }
     }
 
+    /** Read-only navigation: preserve text and both history stacks, focus the first selected character. */
+    public void revealRange(int start, int end) {
+        buffer.select(end, start);
+        blink = 0;
+        if (isValid()) {
+            getContext().focus(this);
+            ensureVisible();
+        }
+    }
+
     public void undo() {
         if (buffer.undo()) refresh();
     }

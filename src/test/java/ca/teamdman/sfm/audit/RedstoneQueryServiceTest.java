@@ -12,6 +12,10 @@ import net.minecraftforge.common.util.ForgeDirection;
 
 import org.junit.jupiter.api.Test;
 
+import ca.teamdman.sfm.client.blueprint.BlueprintGraph.Node;
+import ca.teamdman.sfm.client.blueprint.BlueprintGraph.Type;
+import ca.teamdman.sfm.client.blueprint.StudioFieldDraft;
+import ca.teamdman.sfm.client.blueprint.StudioNodeProperties;
 import ca.teamdman.sfm.common.network.CableNetwork;
 import ca.teamdman.sfm.common.program.ProgramContext;
 import ca.teamdman.sfm.common.program.RedstoneQueryService;
@@ -200,6 +204,80 @@ class RedstoneQueryServiceTest {
         assertEquals(3, port.outputs[2], "Earlier completed writes remain in place after the budget fault");
         fixture.run("OUTPUT 4 REDSTONE LEVEL TO signal NORTH SIDE");
         assertEquals(257, port.outputWrites, "A fresh invocation receives a new allowance");
+    }
+
+    @Test
+    void studioSignalRowsDriveBothPortsOnceAndKeepDisconnectedUnloadedAndZeroLevelBehavior() throws Exception {
+        for (String form : new String[] { "OUTPUT 27 EACH REDSTONE LEVEL TO EACH %s NORTH SIDE SLOTS 0,2",
+            "OUTPUT REDSTONE LEVELS 27 EACH TO EACH %s NORTH SIDE SLOTS 0,2",
+            "TO EACH %s NORTH SIDE SLOTS 0,2 OUTPUT 27 EACH REDSTONE LEVEL",
+            "TO EACH %s NORTH SIDE SLOTS 0,2 OUTPUT REDSTONE LEVELS 27 EACH" }) {
+            Fixture fixture = new Fixture();
+            RecordingPort first = port(fixture, SRC), second = port(fixture, DST);
+            BlockPos farPosition = new BlockPos(40, 64, 40);
+            RecordingPort far = port(fixture, farPosition);
+            fixture.labels.addPosition("alpha", SRC);
+            fixture.labels.addPosition("beta", DST);
+            fixture.labels.addPosition("alias", SRC);
+            fixture.labels.addPosition("far", farPosition);
+            String clause = String.format(form, "alpha,beta"), source = "every 20 ticks do " + clause + " end";
+            Node node = new Node(java.util.UUID.randomUUID(), Type.REDSTONE, 0, 0, clause);
+            java.util.UUID project = java.util.UUID.randomUUID();
+            StudioFieldDraft draft = new StudioFieldDraft(
+                project,
+                node,
+                source,
+                StudioNodeProperties.inspect(Type.REDSTONE, clause));
+            draft.addLabel("alias");
+            draft.addLabel("far");
+            draft.set("level", "00007");
+            String changed = draft.appliedClause(project, node, source);
+            fixture.run(changed);
+            assertEquals(1, first.outputWrites, "Duplicate-position alias must not multiply writes");
+            assertEquals(1, second.outputWrites);
+            assertEquals(0, far.outputWrites);
+            assertEquals(7, first.outputs[2]);
+            assertEquals(7, second.outputs[2]);
+            for (int side = 0; side < 6; side++) if (side != 2) {
+                assertEquals(0, first.outputs[side]);
+                assertEquals(0, second.outputs[side]);
+            }
+            fixture.world.unloaded.add(DST);
+            fixture.run(changed);
+            assertEquals(2, first.outputWrites);
+            assertEquals(1, second.outputWrites);
+            fixture.world.unloaded.remove(DST);
+            fixture.run(StudioNodeProperties.update(Type.REDSTONE, changed, "level", "0"));
+            assertEquals(0, first.outputs[2]);
+            assertEquals(0, second.outputs[2]);
+            assertEquals(0, far.outputWrites);
+        }
+    }
+
+    @Test
+    void studioSignalLabelEditRetainsRoundRobinResolutionOrder() throws Exception {
+        Fixture fixture = new Fixture();
+        RecordingPort first = port(fixture, SRC), second = port(fixture, DST);
+        fixture.labels.addPosition("alpha", SRC);
+        fixture.labels.addPosition("beta", DST);
+        String clause = "TO alpha,beta ROUND ROBIN BY LABEL NORTH SIDE OUTPUT 4 REDSTONE LEVEL";
+        String changed = StudioNodeProperties.update(Type.REDSTONE, clause, "label", "alpha,beta,alpha");
+        RedstoneOutputStatement output = (RedstoneOutputStatement) parse("every 20 ticks do " + changed + " end")
+            .getTriggers()
+            .get(0)
+            .getBlock()
+            .getStatements()
+            .get(0);
+        ProgramContext context = context(fixture);
+        output.tick(context);
+        assertEquals(1, first.outputWrites);
+        assertEquals(0, second.outputWrites);
+        output.tick(context);
+        assertEquals(1, first.outputWrites);
+        assertEquals(1, second.outputWrites);
+        output.tick(context);
+        assertEquals(2, first.outputWrites);
+        assertEquals(1, second.outputWrites);
     }
 
     private static void assertUnavailable(RedstoneQueryService service, LabelReference label) {

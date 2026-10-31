@@ -3,6 +3,20 @@ package ca.teamdman.sfm.client.gui.mui2;
 /** Logical GUI coordinates, independent of display pixels and Minecraft GUI scale. */
 public final class StudioLayout {
 
+    /** The scrollable node list has its own viewport; adding types cannot collide with its footer. */
+    public static final class NodePalette {
+
+        public final int width, height, listHeight, footerY;
+
+        public NodePalette(int screenWidth, int screenHeight) {
+            width = Math.max(280, Math.min(312, screenWidth - 12));
+            height = Math.max(132, Math.min(228, screenHeight - 12));
+            footerY = height - 44;
+            listHeight = footerY - 34;
+        }
+
+    }
+
     /** Geometry for the native IDE. Dock and sidebar preferences are clamped at each GUI scale. */
     public static final class Workspace {
 

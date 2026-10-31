@@ -69,7 +69,7 @@ class VisualCapabilityTest {
     }
 
     @Test
-    void elseIfAndNestedDataAreReportedTogetherAtTheirActualLocations() {
+    void elseIfRemainsBlockedWhenItsSelfContainedPredicateIsSupported() {
         String source = "EVERY 20 TICKS DO\n IF FALSE THEN\n" + "  IF TRUE THEN FORGET ELSE IF FALSE THEN FORGET END\n"
             + " ELSE IF (1 > 0) THEN FORGET ELSE IF FALSE THEN FORGET END\nEND";
         VisualCapabilityReport report = BlueprintCompiler.inspectText(source).report;
@@ -80,7 +80,7 @@ class VisualCapabilityTest {
                 .filter(b -> b.kind == Kind.ELSE_IF)
                 .count());
         assertEquals(
-            1,
+            0,
             report.getBlockers()
                 .stream()
                 .filter(b -> b.kind == Kind.DATA_EXPRESSION)

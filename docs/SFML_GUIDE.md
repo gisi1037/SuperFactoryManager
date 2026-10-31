@@ -172,7 +172,8 @@ development tree during that transition; normal manager and label-gun entry
 points use MUI2.
 
 Choose **Visual** for the candidate node editor. The palette contains Timer,
-Pulse, Input, Output, If, Forget and Signal (redstone output). IO nodes hold an
+Pulse, Port edge, Input, Output, If, Forget, Signal (redstone output), Transfer
+and Print. IO nodes hold an
 ordinary SFML clause; specialized forms for every modifier are not present yet.
 
 - Select a node, edit the bottom field, then use **Enter** or **Apply**.
@@ -1479,8 +1480,17 @@ Periodic refresh alone does not rebase, and ordinary signal changes do not
 invalidate the network. Reliable capture depends on provider neighbor notifications;
 arbitrary unnotified transitions and edges across connection gaps cannot be reconstructed.
 
-Named triggers require Text until matching visual nodes are added. The visual
-editor reports this limitation without rewriting the program. Round robin, slot
+The Visual **Port edge** node supports these named triggers when their bodies
+use supported Visual statements. Its **Fields** inspector provides an edge
+selector and 1–32 ordered literal label rows, with draft-reference pickers.
+`PULSE` is a rising-edge alias, not an additional event. **Physical sides** accepts
+comma-separated `TOP`, `BOTTOM`, `NORTH`, `SOUTH`, `EAST`, `WEST` without `SIDE`.
+Blank restores all six default faces; `EACH` explicitly selects all. Relative faces,
+`NULL`, `UP` and `DOWN` are rejected. Side, edge and label edits apply together;
+an invalid value keeps the complete pending draft without changing the program.
+Untouched header text is preserved, including an existing mixed-case `SIDE` keyword.
+Headers over 32 labels keep the entire manual header field, without `DO`/`END`,
+rather than truncating the list. Invalid pending fields cannot partially apply. Round robin, slot
 selection, relative faces and NULL SIDE are invalid in named triggers. Bare
 `REDSTONE` and `EVERY REDSTONE PULSE DO` retain the manager/legacy behavior above;
 they do not automatically combine all native ports.

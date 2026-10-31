@@ -30,8 +30,13 @@ final class StudioReadOnlyPane extends Widget<StudioReadOnlyPane> implements Int
     }
 
     void lines(List<String> value) {
+        completeLines(value.subList(0, Math.min(512, value.size())));
+    }
+
+    /** One bounded diagnostic snapshot must remain fully readable; terminal/log callers retain the 512-row cap. */
+    void completeLines(List<String> value) {
         if (value.equals(lines)) return;
-        lines = new ArrayList<>(value.subList(0, Math.min(512, value.size())));
+        lines = new ArrayList<>(value);
         cachedWidth = -1;
         first = Math.min(first, Math.max(0, lines.size() - 1));
     }

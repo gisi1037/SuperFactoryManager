@@ -9,7 +9,9 @@ import java.util.regex.Pattern;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.antlr.v4.runtime.tree.TerminalNode;
 
+import ca.teamdman.langs.SFMLLexer;
 import ca.teamdman.langs.SFMLParser;
 import ca.teamdman.sfml.program_builder.VisualCapabilityReport.Blocker;
 import ca.teamdman.sfml.program_builder.VisualCapabilityReport.Kind;
@@ -45,11 +47,7 @@ public final class VisualCapabilityAnalyzer {
     }
 
     private static void inspect(ParseTree tree, List<Blocker> blockers) {
-        if (tree instanceof SFMLParser.NamedRedstoneTriggerContext) blockers.add(
-            at(
-                Kind.NAMED_REDSTONE_TRIGGER,
-                "Named redstone edge trigger currently requires the text editor",
-                (ParserRuleContext) tree));
+        // Named redstone headers now have a complete graph root. Continue inspecting every body statement.
         if (tree instanceof SFMLParser.FunctionDefinitionContext) {
             blockers.add(
                 at(
@@ -74,20 +72,19 @@ public final class VisualCapabilityAnalyzer {
             return;
         }
         if (tree instanceof SFMLParser.TransferStatementContext) {
-            blockers.add(
+            // Expressions belong to this complete action node. Result capture is a declaration,
+            // and stays text-only until scoped data nodes exist. Enclosing blockers still win.
+            if (((SFMLParser.TransferStatementContext) tree).INTO() != null) blockers.add(
                 at(
                     Kind.TRANSFER_STATEMENT,
-                    "Value-driven TRANSFER currently requires the text editor",
+                    "TRANSFER result capture currently requires the text editor",
                     (ParserRuleContext) tree));
             inspectCalls(tree, blockers);
             return;
         }
         if (tree instanceof SFMLParser.PrintStatementContext) {
-            blockers.add(
-                at(
-                    Kind.PRINT_STATEMENT,
-                    "PRINT statement currently requires the text editor",
-                    (ParserRuleContext) tree));
+            // Only these two complete statement nodes own data expressions. Other expression
+            // positions retain their precise DATA_EXPRESSION and function blockers below.
             inspectCalls(tree, blockers);
             return;
         }
@@ -121,8 +118,32 @@ public final class VisualCapabilityAnalyzer {
                         condition.getStartIndex(),
                         end.getStopIndex() + 1));
             }
+            // Predicate expressions own only this IF's conditions. Bodies retain every general blocker.
+            for (SFMLParser.BoolexprContext predicate : branch.boolexpr()) inspectPredicate(predicate, blockers);
+            for (SFMLParser.BlockContext body : branch.block()) inspect(body, blockers);
+            return;
         }
         for (int i = 0; i < tree.getChildCount(); i++) inspect(tree.getChild(i), blockers);
+    }
+
+    private static void inspectPredicate(ParseTree tree, List<Blocker> blockers) {
+        if (tree instanceof SFMLParser.DataExpressionContext) {
+            if (usesVariable(tree)) blockers.add(
+                at(
+                    Kind.DATA_EXPRESSION,
+                    "Scoped condition variables currently require the text editor",
+                    (ParserRuleContext) tree));
+            inspectCalls(tree, blockers);
+            return;
+        }
+        for (int i = 0; i < tree.getChildCount(); i++) inspectPredicate(tree.getChild(i), blockers);
+    }
+
+    private static boolean usesVariable(ParseTree tree) {
+        if (tree instanceof TerminalNode && ((TerminalNode) tree).getSymbol()
+            .getType() == SFMLLexer.VARIABLE) return true;
+        for (int i = 0; i < tree.getChildCount(); i++) if (usesVariable(tree.getChild(i))) return true;
+        return false;
     }
 
     private static boolean playerCall(SFMLParser.FunctionCallContext context) {

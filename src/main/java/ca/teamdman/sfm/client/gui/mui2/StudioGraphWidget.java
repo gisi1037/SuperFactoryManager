@@ -98,6 +98,26 @@ public final class StudioGraphWidget extends Widget<StudioGraphWidget> implement
         selectionChanged.run();
     }
 
+    public boolean interactionPending() {
+        return nodeDrag.active() || panning || wireFrom != null;
+    }
+
+    /** Explicit navigation changes only the viewport/selection, never positions, source or history. */
+    public void reveal(UUID id) {
+        if (interactionPending()) throw new IllegalArgumentException("Finish the canvas gesture before navigating.");
+        Node node = document.graph() == null ? null
+            : document.graph()
+                .node(id);
+        if (node == null) throw new IllegalArgumentException("Node changed. Reveal again.");
+        zoom = Math.min(
+            zoom,
+            Math.max(.25, Math.min((getArea().width - 16d) / NODE_W, (getArea().height - 16d) / height(node))));
+        panX = getArea().width / 2d - (node.x() + NODE_W / 2d) * zoom;
+        panY = getArea().height / 2d - (node.y() + height(node) / 2d) * zoom;
+        select(id);
+        if (isValid()) getContext().focus(this);
+    }
+
     public boolean cancelWire() {
         boolean pending = wireFrom != null;
         wireFrom = null;

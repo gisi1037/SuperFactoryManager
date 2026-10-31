@@ -38,6 +38,11 @@ public final class BlueprintCompiler {
         return generate(graph, true);
     }
 
+    /** Navigation validates the complete source once and compares this bounded structural projection. */
+    static String navigationProjection(BlueprintGraph graph) {
+        return generate(graph, false);
+    }
+
     private static String generate(BlueprintGraph graph, boolean validate) {
         StringBuilder text = new StringBuilder();
         if (!graph.comments()
@@ -99,6 +104,10 @@ public final class BlueprintCompiler {
     }
 
     public static void validateClause(Type type, String clause) {
+        if (type == Type.IF) StudioConditionSyntax.parse(clause);
+        if (type == Type.PRINT) StudioExpressionSyntax.print(clause);
+        if (type == Type.TRANSFER) StudioExpressionSyntax.transfer(clause);
+        if (type == Type.NAMED_REDSTONE) StudioNamedRedstoneHeader.parse(clause);
         if (clause == null || clause.length() > BlueprintGraph.MAX_CLAUSE)
             throw new IllegalArgumentException("Node clause too long");
         String source = type.isTrigger() ? clause + " DO\nEND"
@@ -108,12 +117,10 @@ public final class BlueprintCompiler {
             .size() != 1) throw new IllegalArgumentException("One clause per node");
         SFMLParser.TriggerContext trigger = tree.trigger(0);
         if (type.isTrigger()) {
-            boolean right = type == Type.TIMER ? trigger instanceof SFMLParser.TimerTriggerContext
-                : trigger instanceof SFMLParser.PulseTriggerContext;
-            if (!right || !block(trigger).statement()
+            if (type != triggerType(trigger) || !triggerBlock(trigger).statement()
                 .isEmpty()) throw new IllegalArgumentException("Use the matching trigger header without DO or END");
         } else {
-            List<SFMLParser.StatementContext> statements = block(trigger).statement();
+            List<SFMLParser.StatementContext> statements = triggerBlock(trigger).statement();
             if (statements.size() != 1 || typeOf(statements.get(0)) != type)
                 throw new IllegalArgumentException("Use one " + type.title + " clause");
             if (type == Type.IF) {
@@ -201,19 +208,16 @@ public final class BlueprintCompiler {
             if (tree instanceof SFMLParser.StatementContext) {
                 SFMLParser.IfStatementContext branch = ((SFMLParser.StatementContext) tree).ifStatement();
                 clause = branch == null ? context : branch.boolexpr(0);
+                if (branch != null) for (SFMLParser.BoolexprContext predicate : branch.boolexpr()) {
+                    try {
+                        StudioConditionSyntax.parse(fragment(tokens, predicate));
+                    } catch (IllegalArgumentException unsafe) {
+                        blockers.add(VisualCapabilityAnalyzer.at(Kind.GRAPH_LIMIT, unsafe.getMessage(), predicate));
+                    }
+                }
             } else {
                 SFMLParser.TriggerContext trigger = (SFMLParser.TriggerContext) tree;
-                int end = trigger instanceof SFMLParser.TimerTriggerContext
-                    ? ((SFMLParser.TimerTriggerContext) trigger).DO()
-                        .getSymbol()
-                        .getTokenIndex()
-                    : trigger instanceof SFMLParser.NamedRedstoneTriggerContext
-                        ? ((SFMLParser.NamedRedstoneTriggerContext) trigger).DO()
-                            .getSymbol()
-                            .getTokenIndex()
-                        : ((SFMLParser.PulseTriggerContext) trigger).DO()
-                            .getSymbol()
-                            .getTokenIndex();
+                int end = triggerDo(trigger).getTokenIndex();
                 if (fragment(
                     tokens,
                     context.getStart()
@@ -243,14 +247,8 @@ public final class BlueprintCompiler {
                 .trim());
         int columnX = 20;
         for (SFMLParser.TriggerContext trigger : tree.trigger()) {
-            Type type = trigger instanceof SFMLParser.TimerTriggerContext ? Type.TIMER : Type.PULSE;
-            int end = trigger instanceof SFMLParser.TimerTriggerContext
-                ? ((SFMLParser.TimerTriggerContext) trigger).DO()
-                    .getSymbol()
-                    .getTokenIndex()
-                : ((SFMLParser.PulseTriggerContext) trigger).DO()
-                    .getSymbol()
-                    .getTokenIndex();
+            Type type = triggerType(trigger);
+            int end = triggerDo(trigger).getTokenIndex();
             Node node = new Node(
                 UUID.randomUUID(),
                 type,
@@ -262,7 +260,7 @@ public final class BlueprintCompiler {
                         .getTokenIndex(),
                     end - 1));
             graph.add(node);
-            importBlock(graph, tokens, block(trigger), node, Pin.NEXT, columnX, 1);
+            importBlock(graph, tokens, triggerBlock(trigger), node, Pin.NEXT, columnX, 1);
             for (Node placed : graph.nodes()) columnX = Math.max(columnX, (int) placed.x() + 210);
         }
         layout(graph);
@@ -335,9 +333,32 @@ public final class BlueprintCompiler {
         return new double[] { maxX, y };
     }
 
-    private static SFMLParser.BlockContext block(SFMLParser.TriggerContext trigger) {
-        return trigger instanceof SFMLParser.TimerTriggerContext ? ((SFMLParser.TimerTriggerContext) trigger).block()
-            : ((SFMLParser.PulseTriggerContext) trigger).block();
+    public static Type triggerType(SFMLParser.TriggerContext trigger) {
+        if (trigger instanceof SFMLParser.TimerTriggerContext) return Type.TIMER;
+        if (trigger instanceof SFMLParser.PulseTriggerContext) return Type.PULSE;
+        if (trigger instanceof SFMLParser.NamedRedstoneTriggerContext) return Type.NAMED_REDSTONE;
+        throw new IllegalArgumentException("Unsupported trigger type");
+    }
+
+    public static Token triggerDo(SFMLParser.TriggerContext trigger) {
+        if (trigger instanceof SFMLParser.TimerTriggerContext) return ((SFMLParser.TimerTriggerContext) trigger).DO()
+            .getSymbol();
+        if (trigger instanceof SFMLParser.PulseTriggerContext) return ((SFMLParser.PulseTriggerContext) trigger).DO()
+            .getSymbol();
+        if (trigger instanceof SFMLParser.NamedRedstoneTriggerContext)
+            return ((SFMLParser.NamedRedstoneTriggerContext) trigger).DO()
+                .getSymbol();
+        throw new IllegalArgumentException("Unsupported trigger type");
+    }
+
+    public static SFMLParser.BlockContext triggerBlock(SFMLParser.TriggerContext trigger) {
+        if (trigger instanceof SFMLParser.TimerTriggerContext)
+            return ((SFMLParser.TimerTriggerContext) trigger).block();
+        if (trigger instanceof SFMLParser.PulseTriggerContext)
+            return ((SFMLParser.PulseTriggerContext) trigger).block();
+        if (trigger instanceof SFMLParser.NamedRedstoneTriggerContext)
+            return ((SFMLParser.NamedRedstoneTriggerContext) trigger).block();
+        throw new IllegalArgumentException("Unsupported trigger type");
     }
 
     private static Type typeOf(SFMLParser.StatementContext statement) {
@@ -346,6 +367,8 @@ public final class BlueprintCompiler {
         if (statement.redstoneOutputStatement() != null) return Type.REDSTONE;
         if (statement.forgetStatement() != null) return Type.FORGET;
         if (statement.ifStatement() != null) return Type.IF;
+        if (statement.transferStatement() != null) return Type.TRANSFER;
+        if (statement.printStatement() != null) return Type.PRINT;
         throw new IllegalArgumentException("Unsupported statement; use the text editor");
     }
 
