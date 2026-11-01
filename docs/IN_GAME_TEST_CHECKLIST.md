@@ -426,3 +426,9 @@ existing operator recovery workflow; never erase recovery data to make a test pa
 
 - [ ] Use a timer trigger that prints before BREAK and after it. Only the first PRINT appears once per scheduled run; a second due trigger still runs. Put BREAK inside an IF, then after WAIT, and confirm no skipped statements replay on the next run.
 - [ ] Inside a loop, BREAK still exits only that loop and the remaining trigger statements run. A BREAK outside loops in a player function must remain a compiler error. Confirm redstone triggers await the next matching pulse/edge, without a synthetic restart.
+
+
+## Enter completion and drag selection
+
+- [ ] Press Enter after a brace, IF/THEN, DO loop, timer/redstone trigger and function header. Check the indented body caret, existing closer reuse, nested outer closer preservation and one-step Undo/Redo. Verify comments/strings and selecting text do not generate extra closers. Toggle Settings → Auto-close OFF/ON.
+- [ ] Select code down past the bottom and up past the top. Keep holding the pointer still: scrolling must continue and preserve the original anchor. Check left/right with wrapping OFF, wrapping ON, game/Studio scales and short/end-of-file documents. Release, focus change or opening a modal must stop it; scrollbar dragging must remain independent.

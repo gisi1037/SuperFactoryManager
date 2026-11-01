@@ -601,3 +601,12 @@ loop** (`for (index, value) in sequence`). Both use BODY/AFTER. The former has a
 whole-header field; the latter has separate index/value/source fields. Completion
 and syntax coloring respect mutable header LET scope versus read-only foreach
 binders. Mandatory header separators stay part of executable/layout identity.
+
+## Enter completion and selection scrolling
+
+Press Enter after an opening brace or a keyword block header to create an indented
+body and its matching closer. An existing matching closer is reused. The edit and
+caret position undo together. Strings, comments and selected replacement text do
+not trigger completion. Settings → Auto-close toggles it for this client session.
+Drag a code selection toward or beyond the viewport edges to keep scrolling; hold
+the pointer there to continue. Wrapping disables horizontal selection scrolling.

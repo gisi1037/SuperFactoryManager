@@ -632,11 +632,15 @@ public final class Mui2ProgrammingStation {
             }).height(18));
         }
         popup.child(button("Done", 216, 174, 88, () -> true, toolsPanel::closePanel));
-        popup.child(button("", 8, 174, 202, () -> !state.busy(), () -> {
+        popup.child(button("", 112, 174, 98, () -> !state.busy(), () -> {
             if (!applyClause()) return;
             removeFocus();
             advancedTools = !advancedTools;
-        }).overlay(IKey.dynamic(() -> advancedTools ? "Use Essentials tools" : "Use Advanced tools")));
+        }).overlay(IKey.dynamic(() -> advancedTools ? "Tools: Advanced" : "Tools: Basic")));
+        popup.child(
+            button("", 8, 174, 100, () -> true, SfmlCodeEditorWidget::toggleAutoCloseBlocks)
+                .overlay(IKey.dynamic(() -> "Auto-close: " + (SfmlCodeEditorWidget.autoClosesBlocks() ? "ON" : "OFF")))
+                .addTooltipLine("Enter inserts matching } or end. Applies to editors in this client session."));
         popup.child(
             new TextWidget<>("Studio scale").pos(8, 202)
                 .size(92, 12)

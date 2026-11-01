@@ -14,6 +14,7 @@ import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.GuiScreen;
 
 import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
 
 import com.cleanroommc.modularui.ModularUI;
 import com.cleanroommc.modularui.api.drawable.IKey;
@@ -29,6 +30,7 @@ import com.cleanroommc.modularui.widget.scroll.VerticalScrollData;
 import com.cleanroommc.modularui.widgets.VoidWidget;
 
 import ca.teamdman.sfm.client.gui.EditorDiagnostic;
+import ca.teamdman.sfm.client.gui.syntax.SfmlAutoClose;
 import ca.teamdman.sfm.client.gui.syntax.SfmlBlockMatches;
 import ca.teamdman.sfm.client.gui.syntax.SfmlCompletionCatalog;
 import ca.teamdman.sfm.client.gui.syntax.SfmlHighlighter;
@@ -43,6 +45,7 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
     implements IFocusedWidget, ModernInteractable {
 
     private static final int LINE_HEIGHT = 10;
+    private static boolean autoCloseBlocks = true;
     public final SfmlEditorBuffer buffer = new SfmlEditorBuffer();
     private final Runnable changed, save, suggest, close;
     private final BooleanSupplier editable;
@@ -53,6 +56,8 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
     private String cachedSource, highlightedSource = "";
     private int cachedWidth = -1, cachedHeight = -1, gutter = 25, blink;
     private boolean wrap;
+    private boolean selecting;
+    private final SfmlSelectionScroll selectionScroll = new SfmlSelectionScroll();
     private Runnable diagnosticAction = () -> {};
     private Runnable focused = () -> {}, find = () -> {};
     private SfmlCompletionCatalog.Snapshot catalog = SfmlCompletionCatalog.scan("");
@@ -125,6 +130,7 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
     }
 
     public void load(String source) {
+        selecting = false;
         buffer.load(source);
         refresh();
     }
@@ -228,6 +234,14 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
         return wrap;
     }
 
+    public static boolean autoClosesBlocks() {
+        return autoCloseBlocks;
+    }
+
+    public static void toggleAutoCloseBlocks() {
+        autoCloseBlocks = !autoCloseBlocks;
+    }
+
     public int line() {
         return lineAt(buffer.caret());
     }
@@ -245,6 +259,7 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
 
     @Override
     public void onRemoveFocus(ModularGuiContext context) {
+        selecting = false;
         dismissCompletion();
         if (ModularUI.Mods.LWJGL3IFY.isLoaded()) InputEvents.endTextInput();
     }
@@ -253,6 +268,7 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
     public void onUpdate() {
         super.onUpdate();
         blink++;
+        if (!isFocused() || !inputGate.getAsBoolean()) selecting = false;
         if (!isFocused() || !inputGate.getAsBoolean() || !editable.getAsBoolean()) dismissCompletion();
         else inlineCompletion.update(source(), buffer.caret(), buffer.selected(), System.nanoTime());
     }
@@ -310,6 +326,7 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
         super.preDraw(context, transformed);
         if (!transformed) return;
         measure();
+        updateSelectionDrag();
         if (getScrollX() != completionScrollX || getScrollY() != completionScrollY) dismissCompletion();
         completionScrollX = getScrollX();
         completionScrollY = getScrollY();
@@ -426,12 +443,15 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
     @Override
     public Result onMousePressed(int button) {
         if (!inputGate.getAsBoolean()) return Result.IGNORE;
+        selecting = false;
         dismissCompletion();
         if (getScrollArea().mouseClicked(getContext())) return Result.SUCCESS;
         if (!isHovering()) return Result.IGNORE;
         if (button == 0) {
             getContext().focus(this);
             buffer.move(atMouse(), Interactable.hasShiftDown());
+            selecting = true;
+            selectionScroll.reset(System.nanoTime());
         }
         return Result.SUCCESS;
     }
@@ -440,7 +460,46 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
     public void onMouseDrag(int button, long time) {
         dismissCompletion();
         super.onMouseDrag(button, time);
-        if (button == 0 && isFocused() && !getScrollArea().isDragging()) buffer.move(atMouse(), true);
+        if (button == 0 && selecting && isFocused() && inputGate.getAsBoolean() && !getScrollArea().isDragging())
+            buffer.move(atMouse(), true);
+    }
+
+    @Override
+    public boolean onMouseRelease(int button) {
+        if (button == 0) {
+            if (selecting && isFocused() && inputGate.getAsBoolean()) buffer.move(atMouse(), true);
+            selecting = false;
+        }
+        return super.onMouseRelease(button);
+    }
+
+    private void updateSelectionDrag() {
+        if (!selecting) return;
+        if (!isFocused() || !inputGate.getAsBoolean()
+            || !Mouse.isCreated()
+            || !Mouse.isButtonDown(0)
+            || getScrollArea().isDragging()) {
+            selecting = false;
+            return;
+        }
+        buffer.move(atMouse(), true);
+        if (!buffer.selected() && isHovering()) {
+            selectionScroll.reset(System.nanoTime());
+            return;
+        }
+        selectionScroll.update(
+            System.nanoTime(),
+            getContext().getMouseX(),
+            getContext().getMouseY(),
+            getArea().w(),
+            getArea().h(),
+            wrap);
+        boolean moved = getScrollArea().getScrollY()
+            .scrollBy(getScrollArea(), selectionScroll.dy);
+        if (!wrap) moved |= getScrollArea().getScrollX()
+            .scrollBy(getScrollArea(), selectionScroll.dx);
+        if (moved) buffer.move(atMouse(), true);
+        blink = 0;
     }
 
     private int atMouse() {
@@ -626,13 +685,12 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
     }
 
     private void newline() {
-        int start = lineStart(buffer.caret());
-        String before = source().substring(start, buffer.caret());
-        int indent = leading(before);
-        String upper = before.trim()
-            .toUpperCase(Locale.ROOT);
-        if (upper.endsWith(" DO") || upper.endsWith(" THEN") || upper.equals("ELSE")) indent += 2;
-        insert("\n" + spaces(indent));
+        try {
+            SfmlAutoClose.enter(buffer, autoCloseBlocks);
+            refresh();
+        } catch (IllegalArgumentException rejected) {
+            error.accept(rejected.getMessage());
+        }
     }
 
     public void autoIndent() {

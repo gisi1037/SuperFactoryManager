@@ -167,3 +167,10 @@ Disk copier and automatic block completion remain planned.
 Outside loops, BREAK ends only the current trigger activation. It starts fresh
 at its next normal schedule/edge; other due triggers continue. Nearest-loop
 behavior, completed effects and function-local restrictions remain intact.
+
+## Enter completion and drag selection
+
+Enter now inserts a block body and missing closer, with existing-closer reuse,
+caret placement and one-step undo. Settings exposes session-wide Auto-close.
+Text selection scrolls at viewport edges each frame, including with a stationary
+held pointer. Scaled native mouse/keyboard behavior remains a manual check.
