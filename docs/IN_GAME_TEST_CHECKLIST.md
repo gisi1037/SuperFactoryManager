@@ -432,3 +432,25 @@ existing operator recovery workflow; never erase recovery data to make a test pa
 
 - [ ] Press Enter after a brace, IF/THEN, DO loop, timer/redstone trigger and function header. Check the indented body caret, existing closer reuse, nested outer closer preservation and one-step Undo/Redo. Verify comments/strings and selecting text do not generate extra closers. Toggle Settings → Auto-close OFF/ON.
 - [ ] Select code down past the bottom and up past the top. Keep holding the pointer still: scrolling must continue and preserve the original anchor. Check left/right with wrapping OFF, wrapping ON, game/Studio scales and short/end-of-file documents. Release, focus change or opening a modal must stop it; scrollbar dragging must remain independent.
+
+
+## Saved-source Base64 transfer
+
+- [ ] Save two projects, publish an older build of one, then save a newer draft.
+  Keep unsaved edits in the editor. Project selector → Transfer → Export all to
+  clipboard must export only the saved sources/names, including the newer saved
+  draft. Open editor source, selection, layout and remembered project stay intact.
+- [ ] In another world (including a different player identity), Read clipboard,
+  inspect names, then Import as new. Existing projects with matching names must
+  remain unchanged; imported projects have fresh IDs/revision zero and no builds.
+  Save/check/publish normally before imprinting disks. No code executes on import.
+- [ ] Check pagination with more than 32 saved projects. A second player's private
+  projects must be absent. Source-only library drafts can copy, but their references
+  must be republished and relinked; no grants/builds carry over.
+- [ ] Invalid Base64, damaged data, unsupported versions and oversized entries must
+  leave the destination unchanged. Insufficient project slots must reject before
+  any creates. Stop after a pending import keeps confirmed copies and stops further
+  requests. Timeouts/closure never auto-retry; inspect the catalog before retrying.
+- [ ] Confirm progress remains readable, clipboard paste is complete, closing the
+  popup keeps transfer running, and closing the station prevents further requests.
+  Station reopening must remember the originally selected project.

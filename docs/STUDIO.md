@@ -610,3 +610,30 @@ caret position undo together. Strings, comments and selected replacement text do
 not trigger completion. Settings → Auto-close toggles it for this client session.
 Drag a code selection toward or beyond the viewport edges to keep scrolling; hold
 the pointer there to continue. Wrapping disables horizontal selection scrolling.
+
+
+## Copy saved programs between worlds
+
+Open the top project selector, then **Transfer**.
+
+1. Save any edits you want to include, then choose **Export all to clipboard**.
+2. Keep that single Base64 string in a text file or paste it elsewhere.
+3. In the destination world's Programming Station, open **Transfer** and choose
+   **Read clipboard** to preview the program names.
+4. Choose **Import as new**. Each program becomes a new saved project owned by
+   the importing player. Existing projects and the currently open draft stay intact.
+
+Exports include all your saved project names and exact SFML source, across every
+catalog page. They exclude unsaved edits, builds/history, disks, execution rights,
+world block labels and runtime state. Imports do not compile, publish or run code.
+Library draft source is included if it is one of your projects, but imports referring
+to old library revisions must be republished/relinked in the destination world.
+
+The archive begins `SFM-PROGRAMS-1:` and contains compressed Base64 data. Existing
+project/source limits still apply (128 projects per player). Import checks available
+space first and creates copies one at a time. **Stop** waits for the outstanding
+request; already imported copies remain. If interrupted or unconfirmed, inspect
+projects before retrying: imports do not roll back the whole batch or auto-retry.
+Closing the transfer popup leaves it running while the station stays open; closing
+the station stops further requests after the one already sent. Bad clipboard data
+is rejected before any create request. No oversized archive packet is sent.

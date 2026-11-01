@@ -53,6 +53,7 @@ import ca.teamdman.sfm.client.blueprint.StudioResourceAlternatives;
 import ca.teamdman.sfm.client.blueprint.StudioSourceMap;
 import ca.teamdman.sfm.client.blueprint.StudioTransferArguments;
 import ca.teamdman.sfm.client.gui.ProgrammingStationDraftState;
+import ca.teamdman.sfm.client.gui.StationSourceTransfer;
 import ca.teamdman.sfm.client.gui.syntax.SfmlCompletionCatalog;
 import ca.teamdman.sfm.client.gui.syntax.SnippetCategory;
 import ca.teamdman.sfm.client.gui.syntax.StudioCompletion;
@@ -63,6 +64,7 @@ import ca.teamdman.sfm.common.net.PacketStationReply;
 import ca.teamdman.sfm.common.net.PacketStationRequest;
 import ca.teamdman.sfm.common.net.PacketStationRequest.Action;
 import ca.teamdman.sfm.common.net.SFMNetwork;
+import ca.teamdman.sfm.common.program.project.ProgramSourceArchive;
 import ca.teamdman.sfm.common.program.project.ProjectDraft;
 import ca.teamdman.sfm.common.program.project.ProjectPage;
 import ca.teamdman.sfm.common.program.project.ProjectWorkspace;
@@ -178,6 +180,11 @@ public final class Mui2ProgrammingStation {
     private IPanelHandler nodesPanel, apiPanel, problemsPanel, inspectPanel, fieldsPanel, completionPanel, findPanel,
         pickerPanel, fieldDiagnosticPanel;
     private IPanelHandler catalogPanel, confirmationPanel, snippetsPanel, toolsPanel, buildsPanel;
+    private IPanelHandler archivePanel;
+    private StationSourceTransfer archiveTransfer;
+    private List<ProgramSourceArchive.Entry> archivePreview = Collections.emptyList();
+    private StudioReadOnlyPane archiveOutput;
+    private String archiveStatus = "Export your saved programs, or preview an archive from the clipboard.";
     private IPanelHandler librariesPanel;
     private ProjectPage catalog = new ProjectPage(Collections.emptyList(), 0, 0);
     private PublicationPage publications = new PublicationPage(Collections.emptyList(), 0, 0);
@@ -512,6 +519,7 @@ public final class Mui2ProgrammingStation {
                 .height(11)
                 .addTooltipLine(IKey.dynamic(() -> status)));
         catalogPanel = IPanelHandler.simple(panel, (parent, player) -> buildCatalog(), true);
+        archivePanel = IPanelHandler.simple(panel, (parent, player) -> buildArchive(), true);
         confirmationPanel = IPanelHandler.simple(panel, (parent, player) -> buildConfirmation(), true);
         snippetsPanel = IPanelHandler.simple(panel, (parent, player) -> buildSnippets(), true);
         nodesPanel = IPanelHandler.simple(panel, (parent, player) -> buildNodes(), true);
@@ -3150,6 +3158,10 @@ public final class Mui2ProgrammingStation {
         }
         if (state.tick()) {
             status = state.timeoutMessage();
+            if (archiveTransfer != null && archiveTransfer.next() != null) {
+                archiveStatus = status;
+                updateArchiveOutput();
+            }
             retain();
         }
         if (terminal != null) terminal.tick();
@@ -3162,6 +3174,21 @@ public final class Mui2ProgrammingStation {
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.thePlayer == null || mc.thePlayer.openContainer.windowId != windowId) return;
         if (!state.matchesPending(reply.requestId, reply.action)) return;
+        if (archiveTransfer != null && archiveTransfer.next() != null
+            && state.receiveArchive(reply.requestId, reply.action)) {
+            try {
+                if (reply.accepted) archiveTransfer.accept(reply.page, reply.draft);
+                else archiveTransfer.fail(reply.message + " Inspect projects before retrying an import.");
+                if (archiveTransfer.exported() != null) GuiScreen.setClipboardString(archiveTransfer.exported());
+            } catch (IllegalArgumentException | IllegalStateException failure) {
+                archiveTransfer.fail(failure.getMessage() + " Inspect projects before retrying an import.");
+            }
+            archiveStatus = status = archiveTransfer.message();
+            updateArchiveOutput();
+            if (archiveTransfer.next() != null) sendArchiveRequest();
+            else if (archiveTransfer.importing()) refreshCatalog = true;
+            return;
+        }
         boolean libraryCatalog = reply.action == Action.LIST && reply.requestId == libraryCatalogRequest;
         UUID previous = state.saved == null ? null : state.saved.id;
         String previousSource = state.source;
@@ -3865,6 +3892,135 @@ public final class Mui2ProgrammingStation {
         if (!state.awaitingReply()) request(Action.LIST, null, catalog.offset);
     }
 
+    private boolean archiveIdle() {
+        return !state.awaitingReply() && (archiveTransfer == null || archiveTransfer.next() == null);
+    }
+
+    private void openArchive() {
+        if (!archiveIdle()) return;
+        catalogPanel.closePanel();
+        removeFocus();
+        archivePanel.deleteCachedPanel();
+        archivePanel.openPanel();
+    }
+
+    private ModularPanel buildArchive() {
+        ModularPanel popup = modal("sfm_station_source_archive", 312, 228);
+        popup.child(
+            new TextWidget<>("Transfer saved programs").pos(8, 8)
+                .size(296, 12)
+                .color(0xffefa09a));
+        popup.child(
+            new StudioPanelDragWidget().pos(4, 4)
+                .widthRelOffset(1f, -8)
+                .height(18));
+        popup.child(
+            new TextWidget<>("Source only. No builds or unsaved edits.").pos(8, 27)
+                .size(296, 12));
+        popup.child(button("Export all to clipboard", 8, 44, 296, this::archiveIdle, () -> {
+            archiveTransfer = new StationSourceTransfer(Minecraft.getMinecraft().thePlayer.getUniqueID(), null);
+            sendArchiveRequest();
+        }).height(18));
+        popup.child(button("Read clipboard", 8, 68, 144, this::archiveIdle, () -> {
+            archiveTransfer = null;
+            try {
+                archivePreview = ProgramSourceArchive.decode(GuiScreen.getClipboardString());
+                archiveStatus = "Preview: " + archivePreview.size() + " saved programs. Import creates new copies.";
+            } catch (IllegalArgumentException failure) {
+                archivePreview = Collections.emptyList();
+                archiveStatus = failure.getMessage();
+            }
+            updateArchiveOutput();
+        }).height(18));
+        popup.child(
+            button(
+                "Import as new",
+                160,
+                68,
+                144,
+                () -> archiveIdle() && !archivePreview.isEmpty() && !state.uncertainWrite,
+                () -> {
+                    archiveTransfer = new StationSourceTransfer(
+                        Minecraft.getMinecraft().thePlayer.getUniqueID(),
+                        archivePreview);
+                    sendArchiveRequest();
+                }).height(18)
+                    .addTooltipLine(
+                        "Creates copies without overwriting. An interrupted import may leave some copies."));
+        archiveOutput = new StudioReadOnlyPane(() -> archivePanel.isPanelOpen()).pos(8, 94)
+            .size(296, 98);
+        popup.child(archiveOutput);
+        updateArchiveOutput();
+        popup.child(button("Stop", 8, 199, 88, () -> archiveTransfer != null && archiveTransfer.next() != null, () -> {
+            archiveTransfer.stopAfterReply();
+            archiveStatus = status = archiveTransfer.message();
+            updateArchiveOutput();
+        }).addTooltipLine("Stops after the outstanding request replies. Already imported copies are kept."));
+        popup.child(
+            button("Done", 216, 199, 88, () -> true, archivePanel::closePanel)
+                .addTooltipLine("Transfer continues while this station remains open. Stop first to finish early."));
+        return popup;
+    }
+
+    private void updateArchiveOutput() {
+        if (archiveOutput == null) return;
+        List<String> lines = new ArrayList<>();
+        lines.add(archiveStatus);
+        lines.add("Saved names + exact SFML; current draft stays untouched.");
+        lines.add("Library imports need republishing/relinking in the new world.");
+        lines.add("Import is sequential; inspect projects before retrying failures.");
+        if (archiveTransfer != null && archiveTransfer.exported() != null) lines.add(
+            "Archive size: " + archiveTransfer.exported()
+                .length() + " clipboard characters.");
+        List<ProgramSourceArchive.Entry> entries = archiveTransfer == null ? archivePreview : archiveTransfer.entries();
+        for (int i = 0; i < entries.size(); i++) lines.add((i + 1) + ". " + entries.get(i).name);
+        List<String> wrapped = new ArrayList<>();
+        for (String line : lines)
+            wrapped.addAll(Minecraft.getMinecraft().fontRenderer.listFormattedStringToWidth(line, 286));
+        archiveOutput.completeLines(wrapped);
+    }
+
+    private void sendArchiveRequest() {
+        StationSourceTransfer.Request step = archiveTransfer.next();
+        if (step == null || cancelled) return;
+        PacketStationRequest request = new PacketStationRequest();
+        request.x = station.xCoord;
+        request.y = station.yCoord;
+        request.z = station.zCoord;
+        request.windowId = windowId;
+        request.sessionId = sessionId;
+        request.action = step.action;
+        request.projectId = step.project;
+        request.offset = step.offset;
+        if (step.entry != null) {
+            request.name = step.entry.name;
+            request.source = step.entry.source;
+        }
+        try {
+            request.requestId = state.beginArchive(step.action);
+            try {
+                request.validate();
+            } catch (IllegalArgumentException invalid) {
+                state.notSent();
+                throw invalid;
+            }
+        } catch (IllegalArgumentException | IllegalStateException failure) {
+            archiveTransfer.fail(failure.getMessage());
+            archiveStatus = status = archiveTransfer.message();
+            updateArchiveOutput();
+            return;
+        }
+        archiveStatus = status = archiveTransfer.message();
+        updateArchiveOutput();
+        // Keep the pending slot on transport failure: a write might already have reached the server.
+        try {
+            SFMNetwork.WRAPPER.sendToServer(request);
+        } catch (IllegalStateException failure) {
+            archiveStatus = status = "Transfer send unconfirmed; wait or inspect projects before retrying.";
+            updateArchiveOutput();
+        }
+    }
+
     private ModularPanel buildCatalog() {
         ModularPanel popup = modal("sfm_station_projects", 312, 228);
         popup.child(
@@ -3950,6 +4106,9 @@ public final class Mui2ProgrammingStation {
             protect("New draft", this::newDraft);
         }));
         popup.child(button("Done", 242, 188, 62, () -> true, catalogPanel::closePanel));
+        popup.child(
+            button("Transfer", 166, 188, 72, this::archiveIdle, this::openArchive)
+                .addTooltipLine("Export all saved programs as Base64, or import new copies from the clipboard."));
         return popup;
     }
 

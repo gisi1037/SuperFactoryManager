@@ -174,3 +174,12 @@ Enter now inserts a block body and missing closer, with existing-closer reuse,
 caret placement and one-step undo. Settings exposes session-wide Auto-close.
 Text selection scrolls at viewport edges each frame, including with a stationary
 held pointer. Scaled native mouse/keyboard behavior remains a manual check.
+
+## Saved-source transfer
+
+Project selector → Transfer exports all your saved program names/source into one
+Base64 string. Read clipboard previews it; Import as new creates fresh copies.
+Existing projects, current drafts and the station selection remain intact. Builds,
+permissions and runtime state do not transfer; library references need relinking.
+Import is sequential, keeps confirmed copies on interruption and never auto-retries.
+Native clipboard and two-world UI checks remain manual.

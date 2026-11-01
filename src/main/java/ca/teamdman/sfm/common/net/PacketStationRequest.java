@@ -29,7 +29,9 @@ public final class PacketStationRequest implements IMessage {
         WRITE_DISK,
         RESTORE_BUILD,
         PUBLISH_LIBRARY,
-        LIST_LIBRARY_PUBLICATIONS
+        LIST_LIBRARY_PUBLICATIONS,
+        ARCHIVE_LOAD,
+        ARCHIVE_CREATE
     }
 
     public int x, y, z, windowId, offset;
@@ -46,11 +48,14 @@ public final class PacketStationRequest implements IMessage {
             : ProjectWorkspace.MAX_PROJECTS_PER_OWNER;
         if (expectedRevision < 0 || offset < 0 || offset > pageLimit)
             throw new IllegalArgumentException("Invalid project revision/page");
-        if (action != Action.CREATE && action != Action.LIST && projectId == null)
+        if (action != Action.CREATE && action != Action.ARCHIVE_CREATE && action != Action.LIST && projectId == null)
             throw new IllegalArgumentException("A project is required");
         BoundedUtf8.encode(name, ProjectWorkspace.MAX_NAME_BYTES);
         BoundedUtf8.encode(source, ProjectWorkspace.MAX_SOURCE_BYTES);
         BoundedUtf8.encode(buildDigest, 64);
+        if (action == Action.ARCHIVE_LOAD && (!name.isEmpty() || !source.isEmpty() || offset != 0)
+            || action == Action.ARCHIVE_CREATE && (offset != 0 || expectedRevision != 0))
+            throw new IllegalArgumentException("Invalid saved-program transfer request");
         if (action == Action.WRITE_DISK || action == Action.RESTORE_BUILD ? !isBuildDigest(buildDigest)
             : !buildDigest.isEmpty()) throw new IllegalArgumentException("Invalid selected build digest");
         if ((action == Action.PUBLISH || action == Action.LIST_PUBLICATIONS

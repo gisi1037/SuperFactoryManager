@@ -131,6 +131,19 @@ public final class StationProjectService {
                     admitted = store
                         .load(owner, request.projectId, result -> finishDraft(player, container, request, result));
                     break;
+                case ARCHIVE_CREATE:
+                    admitted = store.create(
+                        owner,
+                        request.name,
+                        request.source,
+                        result -> finishArchiveDraft(player, container, request, result));
+                    break;
+                case ARCHIVE_LOAD:
+                    admitted = store.load(
+                        owner,
+                        request.projectId,
+                        result -> finishArchiveDraft(player, container, request, result));
+                    break;
                 case SAVE:
                     admitted = store.save(
                         owner,
@@ -300,6 +313,14 @@ public final class StationProjectService {
         // An admitted save may finish after closure, but it must not rebind a stale block/UI.
         if (result.isSuccess() && container.pendingRequestId == request.requestId
             && authorized(player, request) == container) container.station.selectProject(result.value.id);
+        finish(player, container, request, reply);
+    }
+
+    /** Archive reads/copies must not change which project this station remembers as selected. */
+    private static void finishArchiveDraft(EntityPlayerMP player, ProgrammingStationMui2Container container,
+        PacketStationRequest request, ProjectResult<ProjectDraft> result) {
+        PacketStationReply reply = reply(request, result);
+        reply.draft = result.value;
         finish(player, container, request, reply);
     }
 

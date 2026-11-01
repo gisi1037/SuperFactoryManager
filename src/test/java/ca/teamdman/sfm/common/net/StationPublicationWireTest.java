@@ -441,6 +441,26 @@ class StationPublicationWireTest {
         }
     }
 
+    @Test
+    void archiveReadsRejectSourceAndArchiveCreatesRequireFreshRevisionWithoutASelectedProject() {
+        PacketStationRequest read = request(PacketStationRequest.Action.ARCHIVE_LOAD);
+        read.validate();
+        read.source = "smuggled draft";
+        assertThrows(IllegalArgumentException.class, () -> decodeRequest(encodeUnvalidatedRequest(read)));
+        PacketStationRequest create = request(PacketStationRequest.Action.ARCHIVE_CREATE);
+        create.projectId = null;
+        create.name = "Imported";
+        create.source = "saved draft";
+        PacketStationRequest decoded = decodeRequest(encode(create));
+        assertNull(decoded.projectId);
+        assertEquals("saved draft", decoded.source);
+        create.expectedRevision = 1;
+        assertThrows(IllegalArgumentException.class, create::validate);
+        create.expectedRevision = 0;
+        create.offset = 1;
+        assertThrows(IllegalArgumentException.class, create::validate);
+    }
+
     private static PacketStationRequest request(PacketStationRequest.Action action) {
         PacketStationRequest request = new PacketStationRequest();
         request.action = action;

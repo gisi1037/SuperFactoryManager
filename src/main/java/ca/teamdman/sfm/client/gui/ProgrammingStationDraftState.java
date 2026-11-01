@@ -26,6 +26,7 @@ public final class ProgrammingStationDraftState {
     private Action action;
     private int ticks;
     private boolean waiting, timedOut;
+    private boolean archiveRequest;
     private boolean recoveryLoad;
     private String sentName, sentSource;
     private long localEditGeneration, sentEditGeneration;
@@ -124,6 +125,8 @@ public final class ProgrammingStationDraftState {
 
     /** Timeout never cancels or retries a server write, including writing a held physical disk. */
     public String timeoutMessage() {
+        if (archiveRequest) return "No transfer confirmation. Import may be partial; do not retry blindly. "
+            + "Current draft kept. A late reply is still accepted; reopen and inspect projects if needed.";
         if (action == Action.WRITE_DISK)
             return "No disk-write confirmation. Check the held disk before retrying; do not write another disk. "
                 + "Draft kept; a late reply is still accepted.";
@@ -134,6 +137,23 @@ public final class ProgrammingStationDraftState {
 
     public long begin(Action next) {
         return begin(next, false);
+    }
+
+    /** Transfers borrow only the correlated pending slot, never the editor's saved/dirty baseline. */
+    public long beginArchive(Action next) {
+        if (next != Action.LIST && next != Action.ARCHIVE_LOAD && next != Action.ARCHIVE_CREATE)
+            throw new IllegalArgumentException("Unsupported archive request");
+        if (next == Action.ARCHIVE_CREATE && uncertainWrite)
+            throw new IllegalStateException("Reconcile the previous unconfirmed save before importing");
+        long id = begin(next, true);
+        archiveRequest = true;
+        return id;
+    }
+
+    public boolean receiveArchive(long id, Action next) {
+        if (!archiveRequest || !matchesPending(id, next)) return false;
+        waiting = timedOut = archiveRequest = false;
+        return true;
     }
 
     public long beginRecoveryLoad() {
@@ -172,6 +192,7 @@ public final class ProgrammingStationDraftState {
                 || !selectedBuild.project.equals(saved.id)))
             throw new IllegalStateException("Select an immutable published build before writing the held disk.");
         action = next;
+        archiveRequest = false;
         recoveryLoad = next == Action.LOAD && recovering;
         sentName = name;
         sentSource = source;
@@ -191,7 +212,7 @@ public final class ProgrammingStationDraftState {
     public boolean tick() {
         if (!waiting || timedOut || ++ticks <= 200) return false;
         timedOut = true;
-        if (action == Action.CREATE || action == Action.SAVE) uncertainWrite = true;
+        if (!archiveRequest && (action == Action.CREATE || action == Action.SAVE)) uncertainWrite = true;
         return true;
     }
 
@@ -208,7 +229,7 @@ public final class ProgrammingStationDraftState {
 
     public boolean receive(long id, Action receivedAction, boolean accepted, ProjectDraft draft,
         ProjectValidation checked, PublicationReceipt published, PublicationSource restored) {
-        if (!matchesPending(id, receivedAction)) return false;
+        if (archiveRequest || !matchesPending(id, receivedAction)) return false;
         waiting = false;
         timedOut = false;
         if (action == Action.CREATE || action == Action.SAVE || accepted && action == Action.LOAD)
@@ -281,6 +302,7 @@ public final class ProgrammingStationDraftState {
 
     /** Encoding/preflight failed before a packet was sent; this cannot cancel a server operation. */
     public void notSent() {
+        archiveRequest = false;
         waiting = timedOut = false;
         requestId = 0;
     }
@@ -308,6 +330,7 @@ public final class ProgrammingStationDraftState {
         name = "Untitled";
         source = "";
         waiting = timedOut = uncertainWrite = false;
+        archiveRequest = false;
         requestId = 0;
         localEditGeneration = sentEditGeneration = 0;
         editedAtGenerationLimit = false;

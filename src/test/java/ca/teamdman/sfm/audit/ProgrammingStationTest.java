@@ -192,8 +192,10 @@ class ProgrammingStationTest {
                 || action == PacketStationRequest.Action.LIST_LIBRARY_PUBLICATIONS
                 || action == PacketStationRequest.Action.WRITE_DISK
                 || action == PacketStationRequest.Action.RESTORE_BUILD;
-            request.name = publicationAction ? "" : "Local project";
-            request.source = publicationAction ? "" : "invalid draft \ud83d\ude00";
+            request.name = publicationAction || action == PacketStationRequest.Action.ARCHIVE_LOAD ? ""
+                : "Local project";
+            request.source = publicationAction || action == PacketStationRequest.Action.ARCHIVE_LOAD ? ""
+                : "invalid draft \ud83d\ude00";
             request.buildDigest = action == PacketStationRequest.Action.WRITE_DISK
                 || action == PacketStationRequest.Action.RESTORE_BUILD
                     ? new PublishedProgram("EVERY 20 TICKS DO END").digest()
