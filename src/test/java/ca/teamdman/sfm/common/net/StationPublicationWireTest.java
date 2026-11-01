@@ -8,6 +8,8 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import ca.teamdman.sfm.common.program.project.LibraryImport;
+import ca.teamdman.sfm.common.program.project.LibraryModule;
 import ca.teamdman.sfm.common.program.project.ProjectDraft;
 import ca.teamdman.sfm.common.program.project.ProjectPage;
 import ca.teamdman.sfm.common.program.project.ProjectValidation;
@@ -15,6 +17,7 @@ import ca.teamdman.sfm.common.program.project.ProjectWorkspace;
 import ca.teamdman.sfm.common.program.project.PublicationPage;
 import ca.teamdman.sfm.common.program.project.PublicationReceipt;
 import ca.teamdman.sfm.common.program.project.PublicationSource;
+import ca.teamdman.sfm.common.program.project.PublishedLibrary;
 import ca.teamdman.sfm.common.program.project.PublishedProgram;
 import cpw.mods.fml.common.network.ByteBufUtils;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
@@ -77,6 +80,38 @@ class StationPublicationWireTest {
     }
 
     @Test
+    void linkedRestoreReturnsOnlyRootSourceWithIndependentIntegrityAndExactClosedReceipt() {
+        PublishedLibrary library = new PublishedLibrary(
+            "integer twice(integer value) { RETURN value * 2 } -- private-library-body");
+        UUID libraryProject = new UUID(6, 7);
+        LibraryImport reference = new LibraryImport("util", libraryProject, 3, library.digest());
+        String source = "IMPORT util FROM \"" + libraryProject
+            + "\" REVISION 3 DIGEST \""
+            + library.digest()
+            + "\" EVERY 20 TICKS { PRINT(util.twice(21)) }";
+        PublishedProgram bundle = new PublishedProgram(
+            source,
+            Collections.singletonList(new LibraryModule(reference, library)));
+        PublicationReceipt receipt = new PublicationReceipt(OWNER, PROJECT, 2, bundle.digest(), "Linked");
+        PacketStationReply sent = reply(PacketStationRequest.Action.RESTORE_BUILD, true);
+        sent.restored = new PublicationSource(receipt, bundle);
+        byte[] wire = encode(sent);
+        PublicationSource restored = decodeReply(wire).restored;
+        assertEquals(source, restored.source);
+        assertEquals(PublishedProgram.LINKED_FORMAT, restored.format);
+        assertEquals(bundle.digest(), restored.receipt.digest);
+        assertEquals(new PublishedProgram(source).digest(), restored.sourceDigest);
+        assertFalse(new String(wire, java.nio.charset.StandardCharsets.UTF_8).contains("private-library-body"));
+        assertThrows(IllegalArgumentException.class, () -> new PublicationSource(receipt, source));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> PublicationSource.fromWire(receipt, source + " ", restored.format, restored.sourceDigest));
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> PublicationSource.fromWire(receipt, source, PublishedProgram.FORMAT, restored.sourceDigest));
+    }
+
+    @Test
     void maximumRestoreSourceFitsTheActualBoundedReplyWithoutGrantOrDraftPayloads() {
         String prefix = "EVERY 20 TICKS DO END --";
         String source = prefix
@@ -94,10 +129,12 @@ class StationPublicationWireTest {
     @Test
     void publicationRequestsContainOnlySavedProjectAndRevisionAndRejectClientSource() {
         for (PacketStationRequest.Action action : new PacketStationRequest.Action[] {
-            PacketStationRequest.Action.PUBLISH, PacketStationRequest.Action.LIST_PUBLICATIONS }) {
+            PacketStationRequest.Action.PUBLISH, PacketStationRequest.Action.LIST_PUBLICATIONS,
+            PacketStationRequest.Action.PUBLISH_LIBRARY, PacketStationRequest.Action.LIST_LIBRARY_PUBLICATIONS }) {
             PacketStationRequest request = request(action);
             request.expectedRevision = Long.MAX_VALUE;
-            if (action == PacketStationRequest.Action.LIST_PUBLICATIONS)
+            if (action == PacketStationRequest.Action.LIST_PUBLICATIONS
+                || action == PacketStationRequest.Action.LIST_LIBRARY_PUBLICATIONS)
                 request.offset = ProjectWorkspace.MAX_PUBLICATIONS_PER_PROJECT;
             PacketStationRequest copy = decodeRequest(encode(request));
             assertEquals(PROJECT, copy.projectId);
@@ -135,7 +172,8 @@ class StationPublicationWireTest {
         save.name = "unsaved name";
         save.source = "unsaved source";
         for (PacketStationRequest.Action action : new PacketStationRequest.Action[] {
-            PacketStationRequest.Action.PUBLISH, PacketStationRequest.Action.LIST_PUBLICATIONS }) {
+            PacketStationRequest.Action.PUBLISH, PacketStationRequest.Action.LIST_PUBLICATIONS,
+            PacketStationRequest.Action.PUBLISH_LIBRARY, PacketStationRequest.Action.LIST_LIBRARY_PUBLICATIONS }) {
             byte[] bytes = encode(save);
             bytes[44] = (byte) action.ordinal();
             assertThrows(IllegalArgumentException.class, () -> decodeRequest(bytes));
@@ -147,10 +185,13 @@ class StationPublicationWireTest {
         for (PacketStationRequest.Action action : PacketStationRequest.Action.values()) {
             int expected = action == PacketStationRequest.Action.LIST ? 1
                 : action == PacketStationRequest.Action.VALIDATE ? 2
-                    : action == PacketStationRequest.Action.PUBLISH ? 3
-                        : action == PacketStationRequest.Action.LIST_PUBLICATIONS ? 4
-                            : action == PacketStationRequest.Action.WRITE_DISK ? -1
-                                : action == PacketStationRequest.Action.RESTORE_BUILD ? 5 : 0;
+                    : action == PacketStationRequest.Action.PUBLISH
+                        || action == PacketStationRequest.Action.PUBLISH_LIBRARY
+                            ? 3
+                            : action == PacketStationRequest.Action.LIST_PUBLICATIONS
+                                || action == PacketStationRequest.Action.LIST_LIBRARY_PUBLICATIONS ? 4
+                                    : action == PacketStationRequest.Action.WRITE_DISK ? -1
+                                        : action == PacketStationRequest.Action.RESTORE_BUILD ? 5 : 0;
             for (int payload = -1; payload < 6; payload++) {
                 PacketStationReply reply = reply(action, true);
                 addPayload(reply, payload);

@@ -7,6 +7,9 @@
       "include": "#comments"
     },
     {
+      "include": "#library-import"
+    },
+    {
       "include": "#strings"
     },
     {
@@ -68,6 +71,20 @@
     }
   ],
   "repository": {
+    "library-import": {
+      "name": "meta.library-import.sfml",
+      "match": "\\b((?i:import))\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+((?i:from))\\s+(\"[^\"\\n]*\")\\s+((?i:revision))\\s+([0-9]+)\\s+((?i:digest))\\s+(\"[^\"\\n]*\")",
+      "captures": {
+        "1": { "name": "keyword.control.sfml" },
+        "2": { "name": "entity.name.namespace.sfml" },
+        "3": { "name": "keyword.control.sfml" },
+        "4": { "name": "string.quoted.double.sfml" },
+        "5": { "name": "keyword.control.sfml" },
+        "6": { "name": "constant.numeric.sfml" },
+        "7": { "name": "keyword.control.sfml" },
+        "8": { "name": "string.quoted.double.sfml" }
+      }
+    },
     "loop-declaration": {
       "patterns": [
         {

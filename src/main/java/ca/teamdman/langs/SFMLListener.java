@@ -25,6 +25,20 @@ public interface SFMLListener extends ParseTreeListener {
     void exitProgram(SFMLParser.ProgramContext ctx);
 
     /**
+     * Enter a parse tree produced by {@link SFMLParser#importDeclaration}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterImportDeclaration(SFMLParser.ImportDeclarationContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#importDeclaration}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitImportDeclaration(SFMLParser.ImportDeclarationContext ctx);
+
+    /**
      * Enter a parse tree produced by {@link SFMLParser#functionDefinition}.
      * 
      * @param ctx the parse tree

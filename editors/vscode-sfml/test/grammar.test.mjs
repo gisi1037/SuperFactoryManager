@@ -49,6 +49,17 @@ test("the manifest registers the SFML grammar and local editing runtime", async 
   }
 });
 
+test("exact library headers color namespaces and metadata without reserving ordinary names", () => {
+  const line = 'ImPoRt util FrOm "00000000-0000-0000-0000-000000000001" ReViSiOn 3 DiGeSt "' + 'a'.repeat(64) + '"';
+  expectScope(line, "ImPoRt", "keyword.control.sfml");
+  expectScope(line, "util", "entity.name.namespace.sfml");
+  expectScope(line, "ReViSiOn", "keyword.control.sfml");
+  expectScope(line, "3", "constant.numeric.sfml");
+  expectScope(line, "DiGeSt", "keyword.control.sfml");
+  assert.ok(!tokenScope('let import = 1', 'import').includes("keyword.control.sfml"));
+  expectScope('-- ' + line, "ImPoRt", "comment.line.double-dash.sfml");
+});
+
 test("all alphabetic lexer keywords are colored in upper, lower and mixed case", async () => {
   const source = await readFile(new URL("../../src/main/resources/assets/superfactorymanager/grammar/SFML.g4", root), "utf8");
   const names = [...source.matchAll(/^[A-Z_]+\s*:\s*([A-Z](?:\s+[A-Z])+)(?=\s*[;|])/gm)]

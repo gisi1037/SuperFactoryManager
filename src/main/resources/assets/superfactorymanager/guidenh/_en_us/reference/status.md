@@ -59,7 +59,9 @@ with `id` and `amount` fields is data, not a native ItemStack or transfer key.
 
 ## Publishing and operational views
 
-The station publishes immutable root-source bundles from exact saved revisions.
+The station publishes immutable root-only or library-linked bundles from exact
+saved revisions. [Reusable functions](/advanced/libraries.md) covers exact owned
+library revisions; the build embeds its complete leaf-library source closure.
 Imprint disk is available in the normal station UI, with exact-publication and fresh-medium server checks. Ordinary source disks remain supported. The manager
 Overview/Expand chart shows measured full-update cost and scheduler state without
 exporting private source. Statement tracing, node highlighting and breakpoints
@@ -67,7 +69,7 @@ remain separate work.
 
 ## Planned, not callable today
 
-- Reusable published libraries and imports.
+- Cross-player library sharing, nested library imports and module constants.
 - Server recipe candidates/requirements, machine recipe-map resolution and
   optional NEI selection tools. GuideNH displaying a crafting recipe is separate
   from an SFML recipe-query API.

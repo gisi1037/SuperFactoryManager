@@ -42,6 +42,26 @@ public class SFMLBaseListener implements SFMLListener {
      * </p>
      */
     @Override
+    public void enterImportDeclaration(SFMLParser.ImportDeclarationContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitImportDeclaration(SFMLParser.ImportDeclarationContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
     public void enterFunctionDefinition(SFMLParser.FunctionDefinitionContext ctx) {}
 
     /**

@@ -29,6 +29,17 @@ divider or the horizontal dock divider to resize those regions. Studio stays fix
 in place. Popups open centered on the screen. The **Settings** and unsaved-draft
 dialogs can be moved by dragging their title bars.
 
+**Settings > Publish library** publishes the exact saved functions-only project.
+**Insert library** browses your own projects and their immutable library revisions
+without changing the open program. Choose an alias to insert one exact import as
+one undoable edit. Imports follow an optional NAME and precede other declarations.
+Save, then **Check** the linked server revision; local checking cannot resolve
+private libraries. Program builds freeze the selected source closure, so later
+library edits do not change installed programs. Libraries cannot implicitly read
+root STATE/globals or call root-private functions. See the advanced GuideNH
+[reusable functions](../src/main/resources/assets/superfactorymanager/guidenh/_en_us/advanced/libraries.md)
+page for limits and the complete workflow.
+
 Open **Settings > Studio scale** to change the editor's GUI scale with
 **-** and **+**. **Game** restores following Minecraft's GUI scale. The choice is
 saved on this client and applies to Studio and its dialogs only; the HUD, Manager

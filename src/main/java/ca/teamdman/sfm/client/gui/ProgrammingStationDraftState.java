@@ -19,6 +19,7 @@ public final class ProgrammingStationDraftState {
     public ProjectDraft saved;
     public ProjectValidation validation;
     public PublicationReceipt publication;
+    public PublicationReceipt libraryPublication;
     private PublicationReceipt selectedBuild;
     public boolean uncertainWrite, ignoredLateLoad, ignoredLateRestore;
     private long requestId;
@@ -32,6 +33,36 @@ public final class ProgrammingStationDraftState {
     private PublicationReceipt sentBuild;
     private boolean editedAtGenerationLimit;
 
+    /** A transient picker may inspect other projects, but may edit only the exact draft it opened over. */
+    public static final class DraftSnapshot {
+
+        private final UUID local;
+        private final ProjectDraft saved;
+        private final String name, source;
+        private final long generation;
+
+        private DraftSnapshot(ProgrammingStationDraftState state) {
+            local = state.localId;
+            saved = state.saved;
+            name = state.name;
+            source = state.source;
+            generation = state.localEditGeneration;
+        }
+    }
+
+    public DraftSnapshot snapshot() {
+        return new DraftSnapshot(this);
+    }
+
+    public boolean current(DraftSnapshot snapshot) {
+        return snapshot != null && localEditGeneration != Long.MAX_VALUE
+            && snapshot.generation == localEditGeneration
+            && snapshot.local.equals(localId)
+            && snapshot.saved == saved
+            && snapshot.name.equals(name)
+            && snapshot.source.equals(source);
+    }
+
     /** Includes visual-only edits that leave the last serializable source unchanged. */
     public void noteLocalEdit() {
         if (localEditGeneration < Long.MAX_VALUE) localEditGeneration++;
@@ -41,6 +72,15 @@ public final class ProgrammingStationDraftState {
     public boolean dirty() {
         return !name.equals(saved == null ? "Untitled" : saved.name)
             || !source.equals(saved == null ? "" : saved.source);
+    }
+
+    /** A server result describes the editor only while its exact saved name/source/revision still match. */
+    public ProjectValidation currentValidation() {
+        return !dirty() && !uncertainWrite
+            && saved != null
+            && validation != null
+            && validation.id.equals(saved.id)
+            && validation.revision == saved.revision ? validation : null;
     }
 
     public boolean canReplace() {
@@ -117,12 +157,16 @@ public final class ProgrammingStationDraftState {
             "Previous save unconfirmed. Copy this draft and inspect the saved project before writing again.");
         if ((next == Action.SAVE || next == Action.VALIDATE
             || next == Action.PUBLISH
+            || next == Action.PUBLISH_LIBRARY
             || next == Action.LIST_PUBLICATIONS
             || next == Action.WRITE_DISK
             || next == Action.RESTORE_BUILD) && saved == null)
             throw new IllegalStateException("Create a project first.");
-        if ((next == Action.VALIDATE || next == Action.PUBLISH) && dirty()) throw new IllegalStateException(
-            "Save source and name changes before checking or publishing a saved revision.");
+        if ((next == Action.VALIDATE || next == Action.PUBLISH || next == Action.PUBLISH_LIBRARY) && dirty())
+            throw new IllegalStateException(
+                "Save source and name changes before checking or publishing a saved revision.");
+        if (next == Action.PUBLISH_LIBRARY && uncertainWrite)
+            throw new IllegalStateException("Reconcile the unconfirmed save before publishing a library.");
         if ((next == Action.WRITE_DISK || next == Action.RESTORE_BUILD)
             && (selectedBuild == null || !selectedBuild.owner.equals(saved.owner)
                 || !selectedBuild.project.equals(saved.id)))
@@ -203,6 +247,7 @@ public final class ProgrammingStationDraftState {
             }
             if (saved == null || !saved.owner.equals(draft.owner) || !saved.id.equals(draft.id)) {
                 publication = null;
+                libraryPublication = null;
                 selectedBuild = null;
             }
             saved = draft;
@@ -219,6 +264,13 @@ public final class ProgrammingStationDraftState {
             && published.project.equals(saved.id)
             && published.owner.equals(saved.owner)
             && published.revision == saved.revision) publication = published;
+        if (published != null && action == Action.PUBLISH_LIBRARY
+            && saved != null
+            && sentSaved != null
+            && saved == sentSaved
+            && published.project.equals(saved.id)
+            && published.owner.equals(saved.owner)
+            && published.revision == saved.revision) libraryPublication = published;
         return true;
     }
 
@@ -251,6 +303,7 @@ public final class ProgrammingStationDraftState {
         localId = UUID.randomUUID();
         validation = null;
         publication = null;
+        libraryPublication = null;
         selectedBuild = null;
         name = "Untitled";
         source = "";
@@ -274,10 +327,11 @@ public final class ProgrammingStationDraftState {
     public String revisionLine() {
         String revision = saved == null ? "Not created" : "Saved r" + saved.revision;
         if (dirty()) revision += " | edited";
-        if (validation != null)
-            revision += " | Validated r" + validation.revision + ": " + (validation.valid ? "OK" : "ERROR");
+        ProjectValidation current = currentValidation();
+        if (current != null) revision += " | Validated r" + current.revision + ": " + (current.valid ? "OK" : "ERROR");
         else revision += " | not validated";
         if (publication != null) revision += " | Published r" + publication.revision;
+        if (libraryPublication != null) revision += " | Library r" + libraryPublication.revision;
         return revision;
     }
 

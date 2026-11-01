@@ -154,6 +154,20 @@ public final class StationProjectService {
                         finish(player, container, request, reply);
                     });
                     break;
+                case PUBLISH_LIBRARY:
+                    admitted = store.publishLibrary(owner, request.projectId, request.expectedRevision, result -> {
+                        PacketStationReply reply = reply(request, result);
+                        reply.publication = result.value;
+                        finish(player, container, request, reply);
+                    });
+                    break;
+                case LIST_LIBRARY_PUBLICATIONS:
+                    admitted = store.listLibraryPublications(owner, request.projectId, request.offset, result -> {
+                        PacketStationReply reply = reply(request, result);
+                        reply.publications = result.value;
+                        finish(player, container, request, reply);
+                    });
+                    break;
                 case WRITE_DISK:
                     HeldDiskWriteTransaction medium = HeldDiskWriteTransaction.capture(player.inventory);
                     World writeWorld = player.worldObj;

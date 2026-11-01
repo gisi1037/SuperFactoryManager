@@ -6,6 +6,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.UUID;
 
 import ca.teamdman.sfm.common.util.BoundedUtf8;
@@ -49,6 +51,21 @@ final class PublicationIO {
             if (!(c >= '0' && c <= '9' || c >= 'a' && c <= 'f')) return false;
         }
         return true;
+    }
+
+    static String digest(byte[] bytes) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                .digest(bytes);
+            StringBuilder hex = new StringBuilder(64);
+            for (byte value : digest) {
+                hex.append(Character.forDigit((value >>> 4) & 15, 16));
+                hex.append(Character.forDigit(value & 15, 16));
+            }
+            return hex.toString();
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 unavailable", impossible);
+        }
     }
 
     static IOException invalid() {

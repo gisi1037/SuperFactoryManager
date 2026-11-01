@@ -22,6 +22,14 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     T visitProgram(SFMLParser.ProgramContext ctx);
 
     /**
+     * Visit a parse tree produced by {@link SFMLParser#importDeclaration}.
+     *
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitImportDeclaration(SFMLParser.ImportDeclarationContext ctx);
+
+    /**
      * Visit a parse tree produced by {@link SFMLParser#functionDefinition}.
      * 
      * @param ctx the parse tree

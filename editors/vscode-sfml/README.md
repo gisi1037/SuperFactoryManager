@@ -296,6 +296,16 @@ Tests use VS Code's TextMate/Oniguruma tokenizer. The mod's
 `VscodeSfmlExtensionTest` also compiles every snippet's default expansion against
 the real SFML compiler in its documented insertion context.
 
+Library imports pin an exact owned project revision and digest. Studio's
+**Publish library** and **Insert library** workflow prepares these headers;
+use `alias.function(...)` to call an export. The grammar colors complete import
+headers and namespaces while keeping `import`, `revision` and `digest` usable
+as ordinary variable names. Keywords ignore case; aliases/functions do not.
+Private world libraries are not resolved by the offline compiler. Save and use
+Studio's **Check** for linked validation; an unresolved-import diagnostic does
+not mean the Java compiler bridge is unavailable. Library hover/signature lookup
+from private server storage is not provided by this extension.
+
 The extension follows the official VS Code guides for
 [syntax highlighting](https://code.visualstudio.com/api/language-extensions/syntax-highlight-guide),
 [language configuration](https://code.visualstudio.com/api/language-extensions/language-configuration-guide)

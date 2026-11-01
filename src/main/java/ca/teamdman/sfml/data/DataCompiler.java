@@ -33,6 +33,7 @@ public final class DataCompiler {
     private int locals, maxLocals, constantCells, constantStringCharacters;
     private boolean used;
     private final Map<String, CompiledFunction> functions = new LinkedHashMap<>();
+    private final Set<String> importedNamespaces = new HashSet<>();
     private final Set<CompiledFunction> rootCalls = new HashSet<>();
     private CompiledFunction currentFunction;
     private boolean usedBeforeFunction;
@@ -57,7 +58,19 @@ public final class DataCompiler {
 
     public CompiledFunction declareFunction(String name, List<String> names, List<DataType> types,
         List<Boolean> referenceParameters, DataType result, String source) {
-        if (stateBuiltinCalls.contains(name))
+        return declareFunction(
+            name,
+            names,
+            types,
+            referenceParameters,
+            result,
+            source,
+            new SourceLocation(1, 0, "Function"));
+    }
+
+    public CompiledFunction declareFunction(String name, List<String> names, List<DataType> types,
+        List<Boolean> referenceParameters, DataType result, String source, SourceLocation definition) {
+        if (definition.getModuleAlias() == null && stateBuiltinCalls.contains(name))
             throw new IllegalArgumentException("Function conflicts with a built-in used in STATE defaults: " + name);
         if (functions.size() >= 128) throw new IllegalArgumentException("Function definitions exceed 128");
         if (!FUNCTION_NAME.matcher(name)
@@ -77,10 +90,47 @@ public final class DataCompiler {
             || name.equalsIgnoreCase("SETCIRCUIT"))
             throw new IllegalArgumentException("Reserved built-in function: " + name);
         if (names.size() > 16) throw new IllegalArgumentException("Function parameters exceed 16");
-        if (functions.containsKey(name)) throw new IllegalArgumentException("Duplicate function: " + name);
-        CompiledFunction function = new CompiledFunction(name, names, types, referenceParameters, result, source);
-        functions.put(name, function);
+        String alias = definition.getModuleAlias();
+        if (alias != null && name.indexOf('.') >= 0)
+            throw new IllegalArgumentException("Library exports require simple function names");
+        if (alias == null)
+            for (String namespace : importedNamespaces) if (name.equals(namespace) || name.startsWith(namespace + "."))
+                throw new IllegalArgumentException("Function conflicts with imported namespace: " + namespace);
+        String key = alias == null ? name : alias + "." + name;
+        if (functions.containsKey(key)) throw new IllegalArgumentException("Duplicate function: " + key);
+        CompiledFunction function = new CompiledFunction(
+            key,
+            names,
+            types,
+            referenceParameters,
+            result,
+            source,
+            definition);
+        functions.put(key, function);
         return function;
+    }
+
+    public void importNamespace(String alias) {
+        if (!importedNamespaces.add(alias)) throw new IllegalArgumentException("Duplicate imported namespace");
+        if (state.containsKey(alias) || globals.containsKey(alias))
+            throw new IllegalArgumentException("Binding conflicts with imported namespace: " + alias);
+        for (String name : functions.keySet()) if (name.equals(alias) || name.startsWith(alias + "."))
+            throw new IllegalArgumentException("Function conflicts with imported namespace: " + alias);
+    }
+
+    public SourceLocation location(int line, int column, String kind) {
+        return currentFunction == null ? new SourceLocation(line, column, kind)
+            : new SourceLocation(
+                line,
+                column,
+                kind,
+                currentFunction.getModuleAlias(),
+                currentFunction.getModuleRevision());
+    }
+
+    private CompiledFunction resolveFunction(String name) {
+        String alias = currentFunction == null ? null : currentFunction.getModuleAlias();
+        return alias == null ? functions.get(name) : name.indexOf('.') < 0 ? functions.get(alias + "." + name) : null;
     }
 
     public void beginFunction(CompiledFunction function) {
@@ -118,8 +168,13 @@ public final class DataCompiler {
     private void validateFunction(CompiledFunction function, Set<CompiledFunction> complete,
         Set<CompiledFunction> visiting) {
         if (complete.contains(function)) return;
-        if (!visiting.add(function))
-            throw new IllegalArgumentException("Recursive function call: " + function.getName());
+        if (!visiting.add(function)) {
+            IllegalArgumentException failure = new IllegalArgumentException(
+                "Recursive function call: " + function.getName());
+            if (function.getModuleAlias() != null) throw function.getDefinitionLocation()
+                .annotate(failure);
+            throw failure;
+        }
         for (CompiledFunction called : function.getCalls()) validateFunction(called, complete, visiting);
         function.inheritWait();
         visiting.remove(function);
@@ -197,6 +252,7 @@ public final class DataCompiler {
     }
 
     public void declareGlobal(String name, String expression, int line, int column) {
+        if (importedNamespaces.contains(name)) throw error(line, column, "Binding conflicts with imported namespace");
         if (globals.containsKey(name) || state.containsKey(name))
             throw error(line, column, "Duplicate/shadowed variable: $" + name);
         if (globals.size() >= ProgramGlobals.MAX_GLOBALS)
@@ -235,6 +291,8 @@ public final class DataCompiler {
 
     private Binding declareLocal(String name, DataType type, boolean readOnly) {
         used = true;
+        if ((currentFunction == null || currentFunction.getModuleAlias() == null) && importedNamespaces.contains(name))
+            throw new IllegalArgumentException("Binding conflicts with imported namespace: " + name);
         if (find(name) != null) throw new IllegalArgumentException("Duplicate/shadowed variable: $" + name);
         if (locals >= 256) throw new IllegalArgumentException("Local bindings exceed 256");
         Binding binding = new Binding(name, type, locals++, false, readOnly);
@@ -250,7 +308,7 @@ public final class DataCompiler {
             if (binding != null) return binding;
         }
         // Persistent bindings belong to the calling manager, never to the shared compiled function.
-        if (currentFunction != null) return state.get(name);
+        if (currentFunction != null) return currentFunction.getModuleAlias() == null ? state.get(name) : null;
         Binding global = globals.get(name);
         return global == null ? state.get(name) : global;
     }
@@ -318,8 +376,11 @@ public final class DataCompiler {
         }
     }
 
-    private static DataExpression expressionPlan(final Node compiled, String source, int line, int column) {
-        SourceLocation location = new SourceLocation(line, column, "Expression");
+    private DataExpression expressionPlan(final Node compiled, String source, int line, int column) {
+        return expressionPlan(compiled, source, location(line, column, "Expression"));
+    }
+
+    private static DataExpression expressionPlan(final Node compiled, String source, SourceLocation location) {
         return new DataExpression() {
 
             @Override
@@ -379,7 +440,7 @@ public final class DataCompiler {
             }
             parser.end();
             require(value.getType(), type);
-            return new Assignment(binding, indices, value, line, column, target);
+            return new Assignment(binding, indices, value, line, column, target, location(line, column, "Assignment"));
         } catch (IllegalArgumentException ex) {
             throw error(line, column, ex.getMessage(), ex);
         }
@@ -460,15 +521,15 @@ public final class DataCompiler {
         private final String target;
         private final SourceLocation location;
 
-        private Assignment(Binding binding, List<Node> indices, DataExpression rhs, int line, int column,
-            String target) {
+        private Assignment(Binding binding, List<Node> indices, DataExpression rhs, int line, int column, String target,
+            SourceLocation location) {
             this.binding = binding;
             this.indices = indices;
             this.rhs = rhs;
             this.line = line;
             this.column = column;
             this.target = target;
-            location = new SourceLocation(line, column, "Assignment");
+            this.location = location;
         }
 
         public void execute(DataRuntime runtime) {
@@ -966,7 +1027,7 @@ public final class DataCompiler {
 
     private Node functionCall(String name, List<Node> arguments, boolean constantOnly, boolean statement) {
         // Preserve exact-name player functions; defaults fill only otherwise unresolved names.
-        CompiledFunction function = functions.get(name);
+        CompiledFunction function = resolveFunction(name);
         if (function == null) {
             Node collection = collectionCall(name, arguments, constantOnly, statement);
             if (collection != null) return collection;
@@ -1090,6 +1151,11 @@ public final class DataCompiler {
             depth = Math.max(depth, argument.depth + 1);
             constant &= argument.constant;
         }
+        return collectionPlan(operation, target, arguments, result, depth, constant);
+    }
+
+    private static Node collectionPlan(DynamicArrayFunctions.Operation operation, Node target, List<Node> arguments,
+        DataType result, int depth, boolean constant) {
         return new Node(result, depth, constant) {
 
             @Override
@@ -1110,6 +1176,20 @@ public final class DataCompiler {
     private static boolean collectionStatement(String name) {
         DynamicArrayFunctions.Operation operation = DynamicArrayFunctions.Operation.parse(name);
         return operation != null && operation.mutates;
+    }
+
+    private static Node dynamicLabelPlan(Node name) {
+        return new Node(DataType.LABEL_REF, name.depth + 1, false) {
+
+            @Override
+            protected DataValue compute(DataRuntime runtime) {
+                String value = name.evaluate(runtime)
+                    .asString();
+                runtime.work(value.length() + 1);
+                runtime.allocate(1);
+                return DataValue.label(LabelReference.of(value));
+            }
+        };
     }
 
     private static Node arrayConstructor(List<Node> arguments) {
@@ -1577,17 +1657,7 @@ public final class DataCompiler {
                     }
                     if (currentFunction == null) dynamicLabels = true;
                     else dynamicLabelFunctions.add(currentFunction);
-                    return new Node(DataType.LABEL_REF, name.depth + 1, false) {
-
-                        @Override
-                        protected DataValue compute(DataRuntime runtime) {
-                            String value = name.evaluate(runtime)
-                                .asString();
-                            runtime.work(value.length() + 1);
-                            runtime.allocate(1);
-                            return DataValue.label(LabelReference.of(value));
-                        }
-                    };
+                    return dynamicLabelPlan(name);
                 }
                 if (!constructor.equals("ITEM") && !constructor.equals("ORE") && !constructor.equals("FLUID")) {
                     List<Node> arguments = new ArrayList<>();
@@ -1597,7 +1667,8 @@ public final class DataCompiler {
                     } while (accept(","));
                     expect(")");
                     boolean statement = callStatement && nesting == 1 && peek("<EOF>");
-                    if (statement && (functions.containsKey(token) || collectionStatement(token))) statementCall = true;
+                    if (statement && (resolveFunction(token) != null || collectionStatement(token)))
+                        statementCall = true;
                     return functionCall(token, arguments, constantOnly, statement);
                 }
                 String argument = take();

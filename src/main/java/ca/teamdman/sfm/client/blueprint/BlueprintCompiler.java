@@ -147,6 +147,8 @@ public final class BlueprintCompiler {
                     + (type == Type.IF ? "IF " + clause + " THEN\nEND" : type.isLoop() ? clause + " DO\nEND" : clause)
                     + "\nEND";
         SFMLParser.ProgramContext tree = parseSyntax(source);
+        if (!tree.importDeclaration()
+            .isEmpty()) throw new IllegalArgumentException("Use one node clause without imports");
         if (declaration) {
             if (tree.name() != null || !tree.trigger()
                 .isEmpty()
@@ -210,7 +212,10 @@ public final class BlueprintCompiler {
             .isEmpty()) return true;
         if (tree instanceof SFMLParser.DataPrimaryContext) {
             SFMLParser.DataPrimaryContext primary = (SFMLParser.DataPrimaryContext) tree;
-            if (primary.IDENTIFIER() != null || primary.VARIABLE() != null) return true;
+            if (primary.IDENTIFIER() != null || primary.VARIABLE() != null
+                || primary.IMPORT() != null
+                || primary.REVISION() != null
+                || primary.DIGEST() != null) return true;
         }
         for (int i = 0; i < tree.getChildCount(); i++) if (hasScopedReference(tree.getChild(i))) return true;
         return false;

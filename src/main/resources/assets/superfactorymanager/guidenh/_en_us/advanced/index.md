@@ -35,5 +35,7 @@ complete examples, diagnostics, recovery, performance limits and feature status.
   saved revisions, reference disks and draft recovery.
 - [Text and Visual controls](editors.md): editing ordinary source disks, graph
   import limits and guarded saves.
+- [Reusable functions](libraries.md): publish your own library and pin its exact
+  revision in several programs.
 - [Labels and cable networks](labels.md): gun controls, grouped selections and
   connection rules.

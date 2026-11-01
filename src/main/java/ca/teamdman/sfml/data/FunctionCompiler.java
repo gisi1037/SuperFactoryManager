@@ -30,29 +30,54 @@ public final class FunctionCompiler {
     }
 
     public void compile(List<SFMLParser.FunctionDefinitionContext> definitions) {
+        List<CompiledFunction> functions = declare(definitions, null, -1);
+        compileBodies(definitions, functions);
+        data.validateFunctions();
+    }
+
+    public List<CompiledFunction> declare(List<SFMLParser.FunctionDefinitionContext> definitions, String moduleAlias,
+        long revision) {
         List<CompiledFunction> functions = new ArrayList<>();
         // Declare every signature first, so body compilation supports forward references.
         for (SFMLParser.FunctionDefinitionContext definition : definitions) {
-            List<String> names = new ArrayList<>();
-            List<DataType> types = new ArrayList<>();
-            List<Boolean> references = new ArrayList<>();
-            for (SFMLParser.FunctionParameterContext parameter : definition.functionParameter()) {
-                names.add(variable(parameter.variableName()));
-                types.add(type(parameter.dataType()));
-                references.add(parameter.REF() != null);
-                if (types.get(types.size() - 1) == DataType.VOID)
-                    throw fail(parameter, "Function parameters cannot be void");
+            try {
+                List<String> names = new ArrayList<>();
+                List<DataType> types = new ArrayList<>();
+                List<Boolean> references = new ArrayList<>();
+                for (SFMLParser.FunctionParameterContext parameter : definition.functionParameter()) {
+                    names.add(variable(parameter.variableName()));
+                    types.add(type(parameter.dataType()));
+                    references.add(parameter.REF() != null);
+                    if (types.get(types.size() - 1) == DataType.VOID)
+                        throw fail(parameter, "Function parameters cannot be void");
+                }
+                functions.add(
+                    data.declareFunction(
+                        definition.functionName()
+                            .getText(),
+                        names,
+                        types,
+                        references,
+                        type(definition.dataType()),
+                        source(definition),
+                        new SourceLocation(
+                            definition.getStart()
+                                .getLine(),
+                            definition.getStart()
+                                .getCharPositionInLine(),
+                            "Function",
+                            moduleAlias,
+                            revision)));
+            } catch (IllegalArgumentException invalid) {
+                if (moduleAlias != null) throw moduleFailure(definition, moduleAlias, revision, invalid);
+                throw invalid;
             }
-            functions.add(
-                data.declareFunction(
-                    definition.functionName()
-                        .getText(),
-                    names,
-                    types,
-                    references,
-                    type(definition.dataType()),
-                    source(definition)));
         }
+        return functions;
+    }
+
+    public void compileBodies(List<SFMLParser.FunctionDefinitionContext> definitions,
+        List<CompiledFunction> functions) {
         for (int i = 0; i < definitions.size(); i++) {
             CompiledFunction function = functions.get(i);
             result = function.getReturnType();
@@ -63,10 +88,32 @@ public final class FunctionCompiler {
                         definitions.get(i)
                             .block()));
             } catch (IllegalArgumentException ex) {
+                if (function.getModuleAlias() != null) throw moduleFailure(
+                    definitions.get(i),
+                    function.getModuleAlias(),
+                    function.getModuleRevision(),
+                    ex);
                 throw new IllegalArgumentException("Function " + function.getName() + ": " + ex.getMessage());
             }
         }
-        data.validateFunctions();
+    }
+
+    private static RuntimeException moduleFailure(ParserRuleContext definition, String alias, long revision,
+        IllegalArgumentException error) {
+        if (error instanceof SfmlRuntimeException && ((SfmlRuntimeException) error).isModuleLocation()) return error;
+        java.util.regex.Matcher coordinates = java.util.regex.Pattern.compile("Line (\\d+), Col (\\d+):")
+            .matcher(error.getMessage() == null ? "" : error.getMessage());
+        boolean found = coordinates.find();
+        return new SourceLocation(
+            found ? Integer.parseInt(coordinates.group(1))
+                : definition.getStart()
+                    .getLine(),
+            found ? Integer.parseInt(coordinates.group(2))
+                : definition.getStart()
+                    .getCharPositionInLine(),
+            "Function",
+            alias,
+            revision).annotate(error);
     }
 
     private DataType type(SFMLParser.DataTypeContext context) {
@@ -213,7 +260,7 @@ public final class FunctionCompiler {
                         }
                 int index = commands.size() - 1;
                 Command command = commands.get(index);
-                SourceLocation location = new SourceLocation(
+                SourceLocation location = data.location(
                     statement.getStart()
                         .getLine(),
                     statement.getStart()
@@ -325,15 +372,17 @@ public final class FunctionCompiler {
         SFMLParser.ForUpdateContext update = loop.forUpdate();
         Command step = update == null ? runtime -> null
             : forClause(null, update.dataAssignment(), update.functionCallStatement());
+        boolean hasInitializer = initializer != null, hasUpdate = update != null;
+        Object key = new Object();
         return runtime -> {
             if (runtime.isResumable()) return ResumableLoops.javaFor(
                 runtime,
-                loop,
-                initializer == null ? null : () -> first.execute(runtime),
+                key,
+                !hasInitializer ? null : () -> first.execute(runtime),
                 () -> test.evaluate(runtime)
                     .asBoolean(),
                 () -> body.execute(runtime),
-                update == null ? null : () -> step.execute(runtime));
+                !hasUpdate ? null : () -> step.execute(runtime));
             first.execute(runtime);
             while (true) {
                 runtime.loopStep();
@@ -394,9 +443,10 @@ public final class FunctionCompiler {
             array.getType()
                 .getElementType());
         Body body = block(loop.block());
+        Object key = new Object();
         return runtime -> {
             if (runtime.isResumable())
-                return ResumableLoops.array(runtime, loop, index, binder, array, () -> body.execute(runtime));
+                return ResumableLoops.array(runtime, key, index, binder, array, () -> body.execute(runtime));
             DataValue snapshot = array.evaluate(runtime);
             for (int i = 0; i < snapshot.size(); i++) {
                 runtime.loopStep();

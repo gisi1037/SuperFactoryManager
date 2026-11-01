@@ -34,6 +34,15 @@ public final class ProgramBuilder {
     }
 
     private ProgramBuildResult build(boolean retainSyntax) {
+        return build(retainSyntax, false);
+    }
+
+    /** Package-private syntax snapshot for import/link validation; never a published executable result. */
+    static ProgramBuildResult parseSyntax(String source) {
+        return new ProgramBuilder(source).build(true, true);
+    }
+
+    private ProgramBuildResult build(boolean retainSyntax, boolean syntaxOnly) {
         if (source.trim()
             .isEmpty()) {
             return ProgramBuildResult.failure(Collections.singletonList("Program is empty"));
@@ -94,6 +103,20 @@ public final class ProgramBuilder {
 
             if (!errors.isEmpty()) {
                 return ProgramBuildResult.failure(errors);
+            }
+
+            if (syntaxOnly) return ProgramBuildResult.success(null, tree, tokens);
+            if (!tree.importDeclaration()
+                .isEmpty()) {
+                SFMLParser.ImportDeclarationContext declaration = tree.importDeclaration(0);
+                return ProgramBuildResult.failure(
+                    Collections.singletonList(
+                        "Line " + declaration.getStart()
+                            .getLine()
+                            + ", Col "
+                            + declaration.getStart()
+                                .getCharPositionInLine()
+                            + ": Library imports require a resolved published bundle; check the saved project"));
             }
 
             ASTBuilder builder = new ASTBuilder();

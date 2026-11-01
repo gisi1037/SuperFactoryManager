@@ -125,3 +125,15 @@ references and their structural epochs; reload/reset creates a fresh lifetime.
 Label handles and query snapshots remain RAM-only. A synthetic collection
 characterization covers incremental and bulk growth, removal, live heap writes
 and separate persistence verification without timing-based pass/fail thresholds.
+
+## Exact reusable libraries
+
+The station can publish a saved functions-only project as an immutable library
+and insert an exact owned revision through a paged picker. Calls use explicit
+aliases. Closed V2 program bundles embed every selected leaf library; later
+edits or missing authoring artifacts do not substitute another revision at run
+time. V1 program/grant formats remain supported. Modules share normal compiler
+and runtime bounds, but cannot implicitly capture root state or private names.
+Runtime diagnostics preserve library coordinates. Source restoration returns the
+root program only, and linked pretty-printing never flattens private modules.
+Cross-player sharing, module constants and nested imports remain separate work.

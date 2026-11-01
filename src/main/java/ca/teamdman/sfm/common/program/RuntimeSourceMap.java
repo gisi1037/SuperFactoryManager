@@ -49,7 +49,7 @@ public final class RuntimeSourceMap {
 
     /** Failure path only. An annotation outside the token map retains its original location. */
     public SourceLocation map(SourceLocation compiledLocation) {
-        if (compiledLocation == null) return null;
+        if (compiledLocation == null || compiledLocation.isModuleLocation()) return compiledLocation;
         int index = Arrays.binarySearch(original, key(compiledLocation.getLine(), compiledLocation.getColumn()));
         if (index < 0 || currentLines[index] == compiledLocation.getLine()
             && currentColumns[index] == compiledLocation.getColumn()) return compiledLocation;

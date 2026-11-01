@@ -13,9 +13,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
-import ca.teamdman.sfml.program_builder.ProgramBuildResult;
-import ca.teamdman.sfml.program_builder.ProgramBuilder;
-
 /**
  * One world-owned authoring service. The server submits immutable inputs and drains completions; only the dedicated
  * worker touches project files or compiles drafts. No Minecraft world, inventory or controller object crosses that
@@ -36,6 +33,8 @@ public final class ProjectWorkspace implements AutoCloseable {
     public static final int MAX_DIAGNOSTIC_CHARS = 1024;
     public static final int MAX_PUBLICATIONS_PER_PROJECT = 128, MAX_PROGRAMS_PER_WORLD = 4096;
     public static final long MAX_PROGRAM_BYTES_PER_WORLD = 64L * 1024 * 1024;
+    public static final int MAX_LIBRARIES_PER_WORLD = 4096;
+    public static final long MAX_LIBRARY_BYTES_PER_WORLD = 64L * 1024 * 1024;
     public static final int MAX_EXECUTION_GRANTS_PER_WORLD = 4096;
     public static final long MAX_EXECUTION_GRANT_BYTES_PER_WORLD = 2L * 1024 * 1024;
     private final ProjectRepository repository;
@@ -90,6 +89,23 @@ public final class ProjectWorkspace implements AutoCloseable {
     public boolean listPublications(UUID owner, UUID id, int offset,
         Consumer<ProjectResult<PublicationPage>> callback) {
         return submit(() -> repository.listPublications(owner, id, offset), callback);
+    }
+
+    /** Library authority is separate from executable publication authority, even for the same project/revision. */
+    public boolean publishLibrary(UUID owner, UUID id, long expectedRevision,
+        Consumer<ProjectResult<PublicationReceipt>> callback) {
+        return submit(() -> repository.publishLibrary(owner, id, expectedRevision), callback);
+    }
+
+    public boolean listLibraryPublications(UUID owner, UUID id, int offset,
+        Consumer<ProjectResult<PublicationPage>> callback) {
+        return submit(() -> repository.listLibraryPublications(owner, id, offset), callback);
+    }
+
+    /** Explicit source access requires an authenticated owner and an exact library receipt, never a bearer grant. */
+    public boolean loadLibrary(UUID owner, LibraryImport reference,
+        Consumer<ProjectResult<PublishedLibrary>> callback) {
+        return submit(() -> repository.loadLibrary(owner, reference), callback);
     }
 
     /** Source-author access only. Owner must be the authenticated server player, never a bearer grant. */
@@ -227,15 +243,7 @@ public final class ProjectWorkspace implements AutoCloseable {
 
     public boolean validate(UUID owner, UUID id, long expectedRevision,
         Consumer<ProjectResult<ProjectValidation>> callback) {
-        return submit(() -> {
-            ProjectDraft draft = repository.load(owner, id);
-            if (draft.revision != expectedRevision) throw new ProjectRepository.Failure(
-                ProjectResult.Status.STALE,
-                "Project changed; reload before validating");
-            ProgramBuildResult result = new ProgramBuilder(draft.source).build();
-            // Discard the temporary compiled plan: validation grants no run/install authority.
-            return new ProjectValidation(draft, result.isSuccess(), diagnostic(result.getErrorMessage()));
-        }, callback);
+        return submit(() -> repository.validate(owner, id, expectedRevision), callback);
     }
 
     /**

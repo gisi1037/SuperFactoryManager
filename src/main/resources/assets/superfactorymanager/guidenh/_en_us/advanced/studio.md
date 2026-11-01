@@ -144,8 +144,9 @@ in the bottom Build revisions dock, then press the dock's **Imprint disk** butto
 The held disk must have no program, labels, STATE, recovery or custom metadata.
 An older published build may be selected; unsaved changes are never included.
 Insert the imprinted disk into a manager and copy its labels from the Label Gun.
-After an uncertain imprint reply, inspect the disk before retrying. Reusable
-library imports are still planned.
+After an uncertain imprint reply, inspect the disk before retrying. You can also
+[publish reusable functions](libraries.md) from a functions-only project and pin
+an exact owned library revision in another program.
 
 Ordinary execution disks still hold source and persistent STATE. The
 reference workflow writes only a published-build reference to a fresh disk, then

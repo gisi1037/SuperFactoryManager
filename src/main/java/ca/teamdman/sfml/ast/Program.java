@@ -14,6 +14,7 @@ public final class Program implements Statement {
     private final boolean dynamicLabels;
     private final int localCount;
     private final String name;
+    private final String linkedSource;
     private final List<Trigger> triggers;
     private final Set<String> referencedLabels;
     private final List<ca.teamdman.sfml.data.CompiledFunction> functions;
@@ -70,6 +71,26 @@ public final class Program implements Statement {
         ca.teamdman.sfml.data.ProgramStateSchema stateSchema, boolean dataFeatures, int localCount,
         List<ca.teamdman.sfml.data.CompiledFunction> functions, List<ca.teamdman.sfml.data.GlobalDeclaration> globals,
         boolean waitFeatures, boolean dynamicLabels) {
+        this(
+            name,
+            triggers,
+            referencedLabels,
+            stateSchema,
+            dataFeatures,
+            localCount,
+            functions,
+            globals,
+            waitFeatures,
+            dynamicLabels,
+            null);
+    }
+
+    public Program(String name, List<Trigger> triggers, Set<String> referencedLabels,
+        ca.teamdman.sfml.data.ProgramStateSchema stateSchema, boolean dataFeatures, int localCount,
+        List<ca.teamdman.sfml.data.CompiledFunction> functions, List<ca.teamdman.sfml.data.GlobalDeclaration> globals,
+        boolean waitFeatures, boolean dynamicLabels, String linkedSource) {
+        if (linkedSource != null) ca.teamdman.sfm.common.util.BoundedUtf8.encode(linkedSource, 30000);
+        this.linkedSource = linkedSource;
         this.waitFeatures = waitFeatures;
         this.dynamicLabels = dynamicLabels;
         this.globals = Collections.unmodifiableList(new java.util.ArrayList<>(globals));
@@ -213,6 +234,7 @@ public final class Program implements Statement {
 
     @Override
     public String toString() {
+        if (linkedSource != null) return linkedSource;
         StringBuilder sb = new StringBuilder();
         if (name != null && !name.isEmpty()) {
             sb.append("NAME \"")

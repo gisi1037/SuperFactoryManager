@@ -40,9 +40,12 @@ public final class RuntimeDiagnostic {
         if (located != null) {
             ca.teamdman.sfml.data.SourceLocation location = sourceMap == null ? located.getLocation()
                 : sourceMap.map(located.getLocation());
+            String origin = location.isModuleLocation()
+                ? "Library " + location.getModuleAlias() + " r" + location.getModuleRevision() + " line "
+                : "SFML line ";
             add(
                 result,
-                "SFML line " + location
+                origin + location
                     .getLine() + ", column " + (location.getColumn() + 1) + " | " + location.getStatementKind());
         } else add(result, "SFML source location unavailable for this failure.");
         add(

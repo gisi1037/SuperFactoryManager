@@ -58,6 +58,7 @@ public final class CompiledFunction {
     }
 
     private final String name, source;
+    private final SourceLocation definitionLocation;
     private final List<String> parameterNames;
     private final List<DataType> parameterTypes;
     private final List<Boolean> referenceParameters;
@@ -95,6 +96,11 @@ public final class CompiledFunction {
 
     CompiledFunction(String name, List<String> names, List<DataType> types, List<Boolean> references,
         DataType returnType, String source) {
+        this(name, names, types, references, returnType, source, new SourceLocation(1, 0, "Function"));
+    }
+
+    CompiledFunction(String name, List<String> names, List<DataType> types, List<Boolean> references,
+        DataType returnType, String source, SourceLocation definitionLocation) {
         if (references.size() != types.size() || names.size() != types.size())
             throw new IllegalArgumentException("Function parameter metadata mismatch");
         boolean ref = false;
@@ -107,10 +113,23 @@ public final class CompiledFunction {
         mayMutateReferences = ref;
         this.returnType = returnType;
         this.source = source;
+        this.definitionLocation = definitionLocation;
     }
 
     public String getName() {
         return name;
+    }
+
+    public SourceLocation getDefinitionLocation() {
+        return definitionLocation;
+    }
+
+    public String getModuleAlias() {
+        return definitionLocation.getModuleAlias();
+    }
+
+    public long getModuleRevision() {
+        return definitionLocation.getModuleRevision();
     }
 
     public List<String> getParameterNames() {

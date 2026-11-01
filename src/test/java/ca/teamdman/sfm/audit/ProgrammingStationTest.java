@@ -188,6 +188,8 @@ class ProgrammingStationTest {
             request.projectId = UUID.randomUUID();
             boolean publicationAction = action == PacketStationRequest.Action.PUBLISH
                 || action == PacketStationRequest.Action.LIST_PUBLICATIONS
+                || action == PacketStationRequest.Action.PUBLISH_LIBRARY
+                || action == PacketStationRequest.Action.LIST_LIBRARY_PUBLICATIONS
                 || action == PacketStationRequest.Action.WRITE_DISK
                 || action == PacketStationRequest.Action.RESTORE_BUILD;
             request.name = publicationAction ? "" : "Local project";
@@ -213,14 +215,17 @@ class ProgrammingStationTest {
                 else if (action == PacketStationRequest.Action.VALIDATE)
                     reply.validation = new ProjectValidation(request.projectId, 0, false, "Line 1: invalid draft");
                 else if (action == PacketStationRequest.Action.PUBLISH
-                    || action == PacketStationRequest.Action.LIST_PUBLICATIONS) {
+                    || action == PacketStationRequest.Action.LIST_PUBLICATIONS
+                    || action == PacketStationRequest.Action.PUBLISH_LIBRARY
+                    || action == PacketStationRequest.Action.LIST_LIBRARY_PUBLICATIONS) {
                         PublicationReceipt receipt = new PublicationReceipt(
                             UUID.randomUUID(),
                             request.projectId,
                             0,
                             new PublishedProgram("EVERY 20 TICKS DO END").digest(),
                             "Saved project");
-                        if (action == PacketStationRequest.Action.PUBLISH) reply.publication = receipt;
+                        if (action == PacketStationRequest.Action.PUBLISH
+                            || action == PacketStationRequest.Action.PUBLISH_LIBRARY) reply.publication = receipt;
                         else reply.publications = new PublicationPage(Arrays.asList(receipt), 1, 0);
                     } else if (action == PacketStationRequest.Action.RESTORE_BUILD)
                         reply.restored = new ca.teamdman.sfm.common.program.project.PublicationSource(

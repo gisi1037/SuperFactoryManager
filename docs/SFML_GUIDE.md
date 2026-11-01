@@ -1107,6 +1107,25 @@ faults before that statement writes. Historic literal levels still clamp to 0-15
 Functions and loops are described above. Dynamic trigger intervals, resource IDs,
 recursion and runtime cadence setters remain future work.
 
+### Reusable function libraries
+
+Reusable functions can also be published from a functions-only Studio project.
+Use **Settings > Publish library** on a saved draft, then **Insert library** in
+another program to select an exact owned revision and alias. Imports appear after
+NAME and before declarations; calls use `alias.function(...)`. Save and Check
+the linked server revision. Offline checking reports that imports need linking.
+Published program builds embed the exact selected library source; later library
+edits cannot alter an existing build or running manager. Libraries have isolated
+parameters/locals and cannot implicitly read root STATE/globals/private functions.
+Pass values or explicit REF parameters. The initial scope is same-owner,
+functions-only leaf libraries, with at most eight revisions/120,000 aggregate
+UTF-8 source bytes, retaining all shared function/type/work/runtime bounds.
+See the advanced GuideNH
+[reusable functions](../src/main/resources/assets/superfactorymanager/guidenh/_en_us/advanced/libraries.md)
+page for the full workflow. Cross-owner sharing, constants and nested imports
+remain separate work. Module failures retain module coordinates; they are not
+root editor locations. Runtime code and mutable STATE still have separate owners.
+
 ### STATE follows the program disk
 
 STATE declarations appear after NAME and before triggers. Their defaults must be
@@ -2046,10 +2065,10 @@ Syntax that compiles is not by itself a qualified pack feature.
 | Integer bitwise operators and shifts | Implemented for signed 64-bit integers with checked 0–63 shift distances. | Text only; headless coverage, no new full-pack runtime qualification. |
 | Typed item count/empty/availability | LABEL/ITEM/ORE handles, side/slot modifiers and no-argument item predicates; bounded live reads, Text only. | Unit/world fixtures cover the item slice; fluid/proxy adapters and broader pack qualification remain open. |
 | PRINT and manager debug terminal | Opt-in bounded output, capture controls, status/STATE/saved-label/recent-log inspection and panel-local command recall. | Headless command/protocol/runtime coverage; exact client scope recorded separately. |
-| Counted/array FOR and WHILE | Readonly loop locals, array snapshots, shared step/work/registration limits; Text only. | Headless signed-boundary, scope, iteration and item/fluid transfer regressions; no hard tick-time guarantee. |
-| Player-written functions | Type-first value functions and VOID procedures, direct STATE reads and procedure writes, explicit REF parameters, forward calls and shared invocation bounds; Text only. | No recursion, imports or user extension methods. Ordinary parameters are copies; REF must be explicit at both ends. |
+| Counted/array FOR, indexed forms and WHILE | Scoped locals, array snapshots and shared step/work/registration limits; Code and supported Visual nodes. | Java-style initializer locals are mutable; foreach binders are readonly. Headless scope/WAIT/transfer regressions; no hard tick-time guarantee. |
+| Player-written functions | Type-first value functions and VOID procedures, direct STATE reads and procedure writes, explicit REF parameters, forward calls and shared invocation bounds; Text only. | Same-owner exact library imports are supported. No recursion, nested imports or user extension methods. Ordinary parameters are copies; REF must be explicit at both ends. |
 | WAIT and ghost circuits | Game-tick suspension through trigger/function calls, plus optional GT SETCIRCUIT actions; Text only. | Sleeping frames live only in RAM and cancel on unload/replacement/fault. Real-pack GT machine qualification remains separate from headless service tests. |
-| Programming Station | Full-screen MUI2 projects, guarded saves/checks, published builds and imprinted reference disks that managers can run. | Root-source builds; reusable published libraries and imports remain planned. |
+| Programming Station | Full-screen MUI2 projects, guarded saves/checks, published builds and imprinted reference disks that managers can run. | Root-only and closed library-linked builds; functions-only libraries owned by the same player. Broader sharing remains separate work. |
 | Runtime-adjustable cadence / fullness and acceptance queries | Requested future shared Java API work. | count/empty do not measure capacity or acceptance; no current cadence/fullness API. |
 | Event-driven destination availability | Deferred. | No implementation or measured cache gain. |
 | EU / RF and arbitrary energy APIs | Not established by this item/fluid language. | No supported energy-transfer example or adapter claim. |

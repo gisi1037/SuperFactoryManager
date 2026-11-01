@@ -18,13 +18,15 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
 import ca.teamdman.sfm.common.util.BoundedUtf8;
+import ca.teamdman.sfml.program_builder.BundleCompiler;
+import ca.teamdman.sfml.program_builder.LibraryImports;
 import ca.teamdman.sfml.program_builder.ProgramBuildResult;
-import ca.teamdman.sfml.program_builder.ProgramBuilder;
 
 /** Worker-only filesystem backend. Paths come exclusively from authenticated UUIDs. */
 final class ProjectRepository {
@@ -140,24 +142,28 @@ final class ProjectRepository {
         Path receiptFile = publications == null ? null : publications.resolve(expectedRevision + ".bin");
         if (receiptFile != null && Files.exists(receiptFile, LinkOption.NOFOLLOW_LINKS)) {
             PublicationReceipt existing = readReceipt(receiptFile, owner, id, expectedRevision);
-            verifyProgram(existing.digest);
-            if (expectedRevision > draft.revision
-                || expectedRevision == draft.revision && (!existing.name.equals(draft.name)
-                    || !existing.digest.equals(new PublishedProgram(draft.source).digest())))
-                throw malformed();
+            PublishedProgram closed = verifyProgram(existing.digest);
+            if (expectedRevision > draft.revision || expectedRevision == draft.revision
+                && (!existing.name.equals(draft.name) || !closed.source.equals(draft.source))) throw malformed();
             return existing; // Lost ACK can be reconciled even after a newer draft was saved.
         }
         if (draft.revision != expectedRevision)
             throw new Failure(ProjectResult.Status.STALE, "Project changed; reload before publishing");
-        ProgramBuildResult build = new ProgramBuilder(draft.source).build();
+        PublishedProgram program;
+        try {
+            program = resolveProgram(owner, draft.source);
+        } catch (IllegalArgumentException invalid) {
+            throw new Failure(ProjectResult.Status.INVALID, ProjectWorkspace.diagnostic(invalid.getMessage()));
+        }
+        ProgramBuildResult build = BundleCompiler.build(program);
         if (!build.isSuccess())
             throw new Failure(ProjectResult.Status.INVALID, ProjectWorkspace.diagnostic(build.getErrorMessage()));
         // The mutable compiled plan is intentionally discarded, never cached or shared.
-        PublishedProgram program = new PublishedProgram(draft.source);
         PublicationReceipt receipt = new PublicationReceipt(owner, id, expectedRevision, program.digest(), draft.name);
         if (publications != null
             && publicationRevisions(publications).size() >= ProjectWorkspace.MAX_PUBLICATIONS_PER_PROJECT)
             throw new Failure(ProjectResult.Status.LIMIT, "Publication limit reached");
+        if (publications != null) checkReceiptQuota(publications, receipt.encode().length);
         Path programs = programDirectory(true);
         Path bundle = programs.resolve(receipt.digest + ".sfmp");
         if (Files.exists(bundle, LinkOption.NOFOLLOW_LINKS)) {
@@ -173,12 +179,108 @@ final class ProjectRepository {
         return receipt;
     }
 
+    /** Exact same-owner leaf publication; artifact and receipts are separate from executable programs. */
+    PublicationReceipt publishLibrary(UUID owner, UUID id, long expectedRevision) throws IOException {
+        if (expectedRevision < 0) throw new IllegalArgumentException("Invalid project revision");
+        ProjectDraft draft = load(owner, id);
+        Path project = ownerDirectory(owner, false).resolve(id.toString());
+        Path publications = childDirectory(project, "library-publications", false);
+        Path receiptFile = publications == null ? null : publications.resolve(expectedRevision + ".bin");
+        if (receiptFile != null && Files.exists(receiptFile, LinkOption.NOFOLLOW_LINKS)) {
+            PublicationReceipt existing = readReceipt(receiptFile, owner, id, expectedRevision);
+            PublishedLibrary library = verifyLibrary(existing.digest);
+            if (expectedRevision > draft.revision || expectedRevision == draft.revision
+                && (!existing.name.equals(draft.name) || !library.source.equals(draft.source))) throw malformed();
+            return existing;
+        }
+        if (draft.revision != expectedRevision)
+            throw new Failure(ProjectResult.Status.STALE, "Project changed; reload before publishing");
+        ProgramBuildResult build = BundleCompiler.validateLibrary(draft.source);
+        if (!build.isSuccess())
+            throw new Failure(ProjectResult.Status.INVALID, ProjectWorkspace.diagnostic(build.getErrorMessage()));
+        PublishedLibrary library = new PublishedLibrary(draft.source);
+        PublicationReceipt receipt = new PublicationReceipt(owner, id, expectedRevision, library.digest(), draft.name);
+        if (publications != null
+            && publicationRevisions(publications).size() >= ProjectWorkspace.MAX_PUBLICATIONS_PER_PROJECT)
+            throw new Failure(ProjectResult.Status.LIMIT, "Library publication limit reached");
+        if (publications != null) checkReceiptQuota(publications, receipt.encode().length);
+        Path libraries = libraryDirectory(true);
+        Path artifact = libraries.resolve(receipt.digest + ".sfmlib");
+        if (Files.exists(artifact, LinkOption.NOFOLLOW_LINKS)) {
+            if (!verifyLibrary(receipt.digest).source.equals(library.source)) throw malformed();
+        } else {
+            byte[] bytes = library.encode();
+            checkArtifactQuota(
+                libraries,
+                bytes.length,
+                ".sfmlib",
+                ProjectWorkspace.MAX_LIBRARIES_PER_WORLD,
+                ProjectWorkspace.MAX_LIBRARY_BYTES_PER_WORLD);
+            writeImmutable(libraries, artifact, bytes);
+        }
+        publications = childDirectory(project, "library-publications", true);
+        writeImmutable(publications, publications.resolve(expectedRevision + ".bin"), receipt.encode());
+        return receipt;
+    }
+
+    /** Never resolve by hash alone: the authenticated owner's exact immutable library receipt is mandatory. */
+    PublishedLibrary loadLibrary(UUID owner, LibraryImport reference) throws IOException {
+        if (reference == null) throw new IllegalArgumentException("Library selection is required");
+        requireId(owner);
+        Path ownerPath = ownerDirectory(owner, false);
+        if (ownerPath == null) throw missing();
+        Path project = ownerPath.resolve(reference.project.toString());
+        if (!Files.exists(project, LinkOption.NOFOLLOW_LINKS)) throw missing();
+        requireDirectory(project);
+        Path publications = childDirectory(project, "library-publications", false);
+        if (publications == null) throw missing();
+        Path file = publications.resolve(reference.revision + ".bin");
+        if (!Files.exists(file, LinkOption.NOFOLLOW_LINKS)) throw missing();
+        PublicationReceipt receipt = readReceipt(file, owner, reference.project, reference.revision);
+        if (!receipt.digest.equals(reference.digest))
+            throw new Failure(ProjectResult.Status.STALE, "Library does not match the selection");
+        return verifyLibrary(receipt.digest);
+    }
+
+    /** Only worker transactions may resolve authoring imports or build mutable plans. */
+    private PublishedProgram resolveProgram(UUID owner, String source) throws IOException {
+        List<LibraryImport> imports = LibraryImports.parse(source);
+        if (imports.size() > PublishedProgram.MAX_MODULES)
+            throw new IllegalArgumentException("Library import limit reached");
+        List<LibraryModule> modules = new ArrayList<>();
+        for (LibraryImport reference : imports)
+            modules.add(new LibraryModule(reference, loadLibrary(owner, reference)));
+        return new PublishedProgram(source, modules);
+    }
+
+    ProjectValidation validate(UUID owner, UUID id, long expectedRevision) throws IOException {
+        ProjectDraft draft = load(owner, id);
+        if (draft.revision != expectedRevision)
+            throw new Failure(ProjectResult.Status.STALE, "Project changed; reload before validating");
+        ProgramBuildResult result;
+        try {
+            result = BundleCompiler.build(resolveProgram(owner, draft.source));
+        } catch (IllegalArgumentException invalid) {
+            result = ProgramBuildResult
+                .failure(Collections.singletonList(ProjectWorkspace.diagnostic(invalid.getMessage())));
+        }
+        return new ProjectValidation(draft, result.isSuccess(), ProjectWorkspace.diagnostic(result.getErrorMessage()));
+    }
+
     PublicationPage listPublications(UUID owner, UUID id, int offset) throws IOException {
+        return listPublications(owner, id, offset, "publications");
+    }
+
+    PublicationPage listLibraryPublications(UUID owner, UUID id, int offset) throws IOException {
+        return listPublications(owner, id, offset, "library-publications");
+    }
+
+    private PublicationPage listPublications(UUID owner, UUID id, int offset, String kind) throws IOException {
         if (offset < 0 || offset > ProjectWorkspace.MAX_PUBLICATIONS_PER_PROJECT)
             throw new IllegalArgumentException("Invalid publication page");
         load(owner, id); // Existence and ownership are required even for an empty catalog.
         Path project = ownerDirectory(owner, false).resolve(id.toString());
-        Path directory = childDirectory(project, "publications", false);
+        Path directory = childDirectory(project, kind, false);
         List<Long> revisions = directory == null ? new ArrayList<>() : publicationRevisions(directory);
         revisions.sort(Comparator.reverseOrder());
         int start = Math.min(offset, revisions.size());
@@ -209,7 +311,7 @@ final class ProjectRepository {
         PublicationReceipt receipt = readReceipt(receiptFile, owner, id, revision);
         if (!expectedDigest.equals(receipt.digest))
             throw new Failure(ProjectResult.Status.STALE, "Published build does not match the selection");
-        return new PublicationSource(receipt, verifyProgram(receipt.digest).source);
+        return new PublicationSource(receipt, verifyProgram(receipt.digest));
     }
 
     /** Issues only from an existing authenticated publication; never publishes or substitutes a draft. */
@@ -262,7 +364,7 @@ final class ProjectRepository {
         ExecutionGrant grant = ExecutionGrant.decode(readBounded(file, ExecutionGrant.MAX_BYTES));
         if (!reference.equals(grant.reference)) throw missingGrant();
         PublishedProgram bundle = verifyProgram(reference.digest);
-        ProgramBuildResult build = new ProgramBuilder(bundle.source).build();
+        ProgramBuildResult build = BundleCompiler.build(bundle);
         if (!build.isSuccess()) throw new Failure(ProjectResult.Status.INVALID, "Published program cannot be compiled");
         return new PreparedExecution(reference, build.getProgram(), bundle.source, grant.owner);
     }
@@ -328,6 +430,21 @@ final class ProjectRepository {
         return sfm == null ? null : childDirectory(sfm, "programs", create);
     }
 
+    private PublishedLibrary verifyLibrary(String digest) throws IOException {
+        Path directory = libraryDirectory(false);
+        if (directory == null) throw malformed();
+        PublishedLibrary library = PublishedLibrary
+            .decode(readBounded(directory.resolve(digest + ".sfmlib"), PublishedLibrary.MAX_BYTES));
+        if (!digest.equals(library.digest())) throw malformed();
+        return library;
+    }
+
+    private Path libraryDirectory(boolean create) throws IOException {
+        requireDirectory(worldDirectory);
+        Path sfm = childDirectory(worldDirectory, "sfm", create);
+        return sfm == null ? null : childDirectory(sfm, "libraries", create);
+    }
+
     private static Path childDirectory(Path parent, String name, boolean create) throws IOException {
         requireDirectory(parent);
         Path directory = parent.resolve(name);
@@ -380,29 +497,54 @@ final class ProjectRepository {
         }
     }
 
+    private static void checkReceiptQuota(Path directory, int addedBytes) throws IOException {
+        long bytes = addedBytes;
+        int scanned = 0;
+        long maximum = (long) ProjectWorkspace.MAX_PUBLICATIONS_PER_PROJECT * PublicationReceipt.MAX_BYTES;
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
+            for (Path file : stream) {
+                if (++scanned >= ProjectWorkspace.MAX_PUBLICATIONS_PER_PROJECT)
+                    throw new Failure(ProjectResult.Status.LIMIT, "Publication limit reached");
+                if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) throw malformed();
+                long size = Files.size(file);
+                if (size > maximum - bytes)
+                    throw new Failure(ProjectResult.Status.LIMIT, "Publication byte limit reached");
+                bytes += size;
+            }
+        }
+    }
+
     private static void checkProgramQuota(Path directory, int addedBytes) throws IOException {
+        checkArtifactQuota(
+            directory,
+            addedBytes,
+            ".sfmp",
+            ProjectWorkspace.MAX_PROGRAMS_PER_WORLD,
+            ProjectWorkspace.MAX_PROGRAM_BYTES_PER_WORLD);
+    }
+
+    private static void checkArtifactQuota(Path directory, int addedBytes, String suffix, int maximumCount,
+        long maximumBytes) throws IOException {
         int count = 0;
         long bytes = addedBytes;
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
             for (Path file : stream) {
-                if (++count >= ProjectWorkspace.MAX_PROGRAMS_PER_WORLD)
-                    throw new Failure(ProjectResult.Status.LIMIT, "World program limit reached");
+                if (++count >= maximumCount)
+                    throw new Failure(ProjectResult.Status.LIMIT, "World artifact limit reached");
                 if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) throw malformed();
                 String name = file.getFileName()
                     .toString();
-                if (!isPending(name)
-                    && !(name.endsWith(".sfmp") && PublicationIO.isDigest(name.substring(0, name.length() - 5))))
-                    throw malformed();
+                if (!isPending(name) && !(name.endsWith(suffix)
+                    && PublicationIO.isDigest(name.substring(0, name.length() - suffix.length())))) throw malformed();
                 long size = Files.size(file);
-                if (size > ProjectWorkspace.MAX_PROGRAM_BYTES_PER_WORLD - bytes)
-                    throw new Failure(ProjectResult.Status.LIMIT, "World program byte limit reached");
+                if (size > maximumBytes - bytes)
+                    throw new Failure(ProjectResult.Status.LIMIT, "World artifact byte limit reached");
                 bytes += size;
-                if (bytes > ProjectWorkspace.MAX_PROGRAM_BYTES_PER_WORLD)
-                    throw new Failure(ProjectResult.Status.LIMIT, "World program byte limit reached");
+                if (bytes > maximumBytes)
+                    throw new Failure(ProjectResult.Status.LIMIT, "World artifact byte limit reached");
             }
         }
-        if (bytes > ProjectWorkspace.MAX_PROGRAM_BYTES_PER_WORLD)
-            throw new Failure(ProjectResult.Status.LIMIT, "World program byte limit reached");
+        if (bytes > maximumBytes) throw new Failure(ProjectResult.Status.LIMIT, "World artifact byte limit reached");
     }
 
     private static byte[] readBounded(Path file, int maximum) throws IOException {

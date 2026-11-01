@@ -471,8 +471,7 @@ class SfmlFunctionTest {
         assertPlanOwnership(program, new java.util.IdentityHashMap<>());
     }
 
-    private static void assertPlanOwnership(Object value, java.util.IdentityHashMap<Object, Boolean> visited)
-        throws Exception {
+    static void assertPlanOwnership(Object value, java.util.IdentityHashMap<Object, Boolean> visited) throws Exception {
         if (value == null || visited.put(value, Boolean.TRUE) != null) return;
         assertFalse(
             value instanceof DataCompiler || value instanceof FunctionCompiler

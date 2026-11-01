@@ -42,13 +42,14 @@ package ca.teamdman.langs;
     }
 }
 
-program : name? ((stateDeclaration | dataDeclaration) SEMICOLON?)* (functionDefinition | trigger)* EOF;
+program : name? importDeclaration* ((stateDeclaration | dataDeclaration) SEMICOLON?)* (functionDefinition | trigger)* EOF;
+importDeclaration : IMPORT identifier FROM string REVISION NUMBER DIGEST string SEMICOLON?;
 
 functionDefinition : FUNCTION functionName LPAREN (functionParameter (COMMA functionParameter)*)? RPAREN RETURNS dataType (DO block END | LBRACE block RBRACE)
                    | dataType functionName LPAREN (functionParameter (COMMA functionParameter)*)? RPAREN ((DO | THEN) block END | LBRACE block RBRACE);
 functionName : dataName (DOT dataName)*;
 functionParameter : REF? (variableName COLON dataType | dataType variableName);
-variableName : VARIABLE | IDENTIFIER;
+variableName : VARIABLE | IDENTIFIER | IMPORT | REVISION | DIGEST;
 dataType : (dataName | LBRACE (typeField (COMMA typeField)*)? RBRACE) typeDimension*;
 typeDimension : LBRACKET NUMBER? RBRACKET;
 typeField : dataName COLON dataType;
@@ -229,7 +230,7 @@ label           : identifier dataSuffix*  #RawLabel
 
 emptyslots      : EMPTY (SLOTS | SLOT) IN ;
 
-identifier : (IDENTIFIER | WAIT | SETCIRCUIT | TRANSFER | TRANSFERF | INTO | LET | SET | STATE | PRINT | FUNCTION | RETURNS | RETURN | FOR | WHILE | STEP | RISING | FALLING | REDSTONE | LEVEL | LEVELS | GLOBAL | SECOND | SECONDS | TOP | BOTTOM | LEFT | RIGHT | FRONT | BACK) ;
+identifier : (IDENTIFIER | IMPORT | REVISION | DIGEST | WAIT | SETCIRCUIT | TRANSFER | TRANSFERF | INTO | LET | SET | STATE | PRINT | FUNCTION | RETURNS | RETURN | FOR | WHILE | STEP | RISING | FALLING | REDSTONE | LEVEL | LEVELS | GLOBAL | SECOND | SECONDS | TOP | BOTTOM | LEFT | RIGHT | FRONT | BACK) ;
 
 // Typed data expressions. Multiplication retains the legacy wildcard token.
 stateDeclaration : STATE variableName EQ_SYMBOL dataExpression;
@@ -259,13 +260,13 @@ dataSign : (PLUS | DASH | BIT_NOT) dataSign | dataPostfix;
 dataPostfix : dataPrimary dataSuffix*;
 dataSuffix : DOT dataName (LPAREN (dataExpression (COMMA dataExpression)*)? RPAREN)?
            | LBRACKET dataExpression RBRACKET;
-dataPrimary : NUMBER | STRING | VARIABLE | TRUE | FALSE | LPAREN dataExpression RPAREN
+dataPrimary : NUMBER | STRING | VARIABLE | IMPORT | REVISION | DIGEST | TRUE | FALSE | LPAREN dataExpression RPAREN
             | functionCall | IDENTIFIER
             | LBRACKET (dataExpression (COMMA dataExpression)* COMMA?)? RBRACKET
             | LBRACE (dataField (COMMA dataField)* COMMA?)? RBRACE;
 dataField : dataName COLON dataExpression;
 // All legacy keyword spellings are legal fixed field names.
-dataName : IDENTIFIER | WAIT | SETCIRCUIT | TRANSFER | TRANSFERF | INTO | LET | SET | STATE | PRINT | FUNCTION | RETURNS | RETURN | IF | THEN | ELSE | HAS | OVERALL | SOME | ONE | LONE
+dataName : IDENTIFIER | IMPORT | REVISION | DIGEST | WAIT | SETCIRCUIT | TRANSFER | TRANSFERF | INTO | LET | SET | STATE | PRINT | FUNCTION | RETURNS | RETURN | IF | THEN | ELSE | HAS | OVERALL | SOME | ONE | LONE
          | TRUE | FALSE | NOT | AND | OR | GT | LT | EQ | LE | GE | FROM | TO | INPUT | OUTPUT
          | WHERE | SLOTS | SLOT | RETAIN | EACH | EXCEPT | FORGET | EMPTY | IN | WITHOUT | WITH
          | TAG | ROUND | ROBIN | BY | LABEL | BLOCK | TOP | BOTTOM | NORTH | EAST | SOUTH | WEST
@@ -283,6 +284,9 @@ number: NUMBER ;
 //
 
 // DATA STATEMENTS
+IMPORT : I M P O R T;
+REVISION : R E V I S I O N;
+DIGEST : D I G E S T;
 SETCIRCUIT : S E T C I R C U I T;
 WAIT : W A I T;
 TRANSFER : T R A N S F E R;

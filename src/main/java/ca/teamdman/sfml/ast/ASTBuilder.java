@@ -11,11 +11,55 @@ import org.antlr.v4.runtime.tree.TerminalNode;
 
 import ca.teamdman.langs.SFMLBaseVisitor;
 import ca.teamdman.langs.SFMLParser;
+import ca.teamdman.sfml.data.CompiledFunction;
 import ca.teamdman.sfml.data.DataCompiler;
 import ca.teamdman.sfml.data.DataExpression;
 import ca.teamdman.sfml.data.DataType;
+import ca.teamdman.sfml.data.FunctionCompiler;
+import ca.teamdman.sfml.data.SfmlRuntimeException;
+import ca.teamdman.sfml.data.SourceLocation;
 
 public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
+
+    public static final class LibraryUnit {
+
+        public final String alias;
+        public final long revision;
+        public final List<SFMLParser.FunctionDefinitionContext> definitions;
+
+        public LibraryUnit(String alias, long revision, List<SFMLParser.FunctionDefinitionContext> definitions) {
+            this.alias = alias;
+            this.revision = revision;
+            this.definitions = definitions;
+        }
+
+        RuntimeException failure(IllegalArgumentException error) {
+            if (error instanceof SfmlRuntimeException && ((SfmlRuntimeException) error).isModuleLocation())
+                return error;
+            java.util.regex.Matcher coordinates = java.util.regex.Pattern.compile("Line (\\d+), Col (\\d+):")
+                .matcher(error.getMessage() == null ? "" : error.getMessage());
+            boolean found = coordinates.find();
+            int line = found ? Integer.parseInt(coordinates.group(1)) : 1;
+            int column = found ? Integer.parseInt(coordinates.group(2)) : 0;
+            return new SourceLocation(line, column, "Library", alias, revision).annotate(error);
+        }
+    }
+
+    private final List<LibraryUnit> libraries;
+    private final String linkedSource;
+
+    public ASTBuilder() {
+        this(Collections.emptyList());
+    }
+
+    public ASTBuilder(List<LibraryUnit> libraries) {
+        this(libraries, null);
+    }
+
+    public ASTBuilder(List<LibraryUnit> libraries, String linkedSource) {
+        this.libraries = libraries;
+        this.linkedSource = linkedSource;
+    }
 
     private boolean outputLimits;
     private boolean triggerLabel;
@@ -52,8 +96,33 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
                 declaration.getStart()
                     .getCharPositionInLine());
         }
-        new ca.teamdman.sfml.data.FunctionCompiler(data, statement -> (Statement) visit(statement))
-            .compile(ctx.functionDefinition());
+        FunctionCompiler functions = new FunctionCompiler(data, statement -> (Statement) visit(statement));
+        for (LibraryUnit library : libraries) {
+            try {
+                data.importNamespace(library.alias);
+            } catch (IllegalArgumentException error) {
+                throw library.failure(error);
+            }
+        }
+        List<CompiledFunction> rootFunctions = functions.declare(ctx.functionDefinition(), null, -1);
+        List<List<CompiledFunction>> exports = new ArrayList<>();
+        for (LibraryUnit library : libraries) {
+            try {
+                exports.add(functions.declare(library.definitions, library.alias, library.revision));
+            } catch (IllegalArgumentException error) {
+                throw library.failure(error);
+            }
+        }
+        functions.compileBodies(ctx.functionDefinition(), rootFunctions);
+        for (int i = 0; i < libraries.size(); i++) {
+            LibraryUnit library = libraries.get(i);
+            try {
+                functions.compileBodies(library.definitions, exports.get(i));
+            } catch (IllegalArgumentException error) {
+                throw library.failure(error);
+            }
+        }
+        data.validateFunctions();
         for (SFMLParser.DataDeclarationContext declaration : ctx.dataDeclaration()) {
             data.declareGlobal(
                 variable(declaration.variableName()),
@@ -84,7 +153,12 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
             data.getFunctions(),
             data.getGlobalDeclarations(),
             data.hasWait(),
-            data.hasDynamicLabels());
+            data.hasDynamicLabels(),
+            libraries.isEmpty() ? null
+                : linkedSource != null ? linkedSource
+                    : ctx.getStart()
+                        .getInputStream()
+                        .toString());
     }
 
     @Override

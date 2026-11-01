@@ -20,7 +20,7 @@ import io.netty.buffer.ByteBuf;
 /** One correlated result. Catalog/source/validation are separate, bounded payloads. */
 public final class PacketStationReply implements IMessage {
 
-    private static final int VERSION = 0x53545006;
+    private static final int VERSION = 0x53545007;
     public int x, y, z, windowId;
     public UUID sessionId;
     public long requestId;
@@ -111,6 +111,8 @@ public final class PacketStationReply implements IMessage {
         if (restored != null) {
             writeReceipt(buffer, restored.receipt);
             ProgramEditWire.string(buffer, restored.source, ProjectWorkspace.MAX_SOURCE_BYTES);
+            buffer.writeByte(restored.format);
+            ProgramEditWire.string(buffer, restored.sourceDigest, 64);
         }
     }
 
@@ -185,9 +187,11 @@ public final class PacketStationReply implements IMessage {
             }
             publications = new PublicationPage(entries, total, offset);
         }
-        if (buffer.readBoolean()) restored = new PublicationSource(
+        if (buffer.readBoolean()) restored = PublicationSource.fromWire(
             readReceipt(buffer),
-            ProgramEditWire.string(buffer, ProjectWorkspace.MAX_SOURCE_BYTES));
+            ProgramEditWire.string(buffer, ProjectWorkspace.MAX_SOURCE_BYTES),
+            buffer.readUnsignedByte(),
+            ProgramEditWire.string(buffer, 64));
         int payloads = (draft == null ? 0 : 1) + (page == null ? 0 : 1)
             + (validation == null ? 0 : 1)
             + (publication == null ? 0 : 1)
@@ -202,9 +206,11 @@ public final class PacketStationReply implements IMessage {
                 expectedPayload = validation != null;
                 break;
             case PUBLISH:
+            case PUBLISH_LIBRARY:
                 expectedPayload = publication != null;
                 break;
             case LIST_PUBLICATIONS:
+            case LIST_LIBRARY_PUBLICATIONS:
                 expectedPayload = publications != null;
                 break;
             case WRITE_DISK:

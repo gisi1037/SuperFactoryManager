@@ -45,6 +45,18 @@ public final class SfmlRuntimeException extends IllegalArgumentException {
         return location;
     }
 
+    public String getModuleAlias() {
+        return location == null ? null : location.getModuleAlias();
+    }
+
+    public long getModuleRevision() {
+        return location == null ? -1 : location.getModuleRevision();
+    }
+
+    public boolean isModuleLocation() {
+        return location != null && location.isModuleLocation();
+    }
+
     /** Bounded reason without compiled coordinates or function prefixes. */
     public String getDetail() {
         return detail;
@@ -89,6 +101,11 @@ public final class SfmlRuntimeException extends IllegalArgumentException {
 
     private static String format(SourceLocation location, String detail, List<String> functions) {
         StringBuilder text = new StringBuilder();
+        if (location != null && location.isModuleLocation()) text.append("Library ")
+            .append(location.getModuleAlias())
+            .append(" revision ")
+            .append(location.getModuleRevision())
+            .append(" | ");
         if (location != null) text.append("Line ")
             .append(location.getLine())
             .append(", Col ")

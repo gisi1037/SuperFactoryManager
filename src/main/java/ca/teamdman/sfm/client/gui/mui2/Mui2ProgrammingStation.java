@@ -141,6 +141,7 @@ public final class Mui2ProgrammingStation {
     private ParentWidget<?> dockPane, problemDock, terminalDock, watchDock, buildDock;
     private StudioProblemsPane problemOutput;
     private List<String> draftErrors = Collections.emptyList();
+    private boolean draftImports;
     private String diagnosticSource = "", lastProblemSource;
     private StudioDebugTerminal terminal;
     private StudioDividerWidget dockDivider, sidebarDivider, inspectorDivider;
@@ -177,8 +178,17 @@ public final class Mui2ProgrammingStation {
     private IPanelHandler nodesPanel, apiPanel, problemsPanel, inspectPanel, fieldsPanel, completionPanel, findPanel,
         pickerPanel, fieldDiagnosticPanel;
     private IPanelHandler catalogPanel, confirmationPanel, snippetsPanel, toolsPanel, buildsPanel;
+    private IPanelHandler librariesPanel;
     private ProjectPage catalog = new ProjectPage(Collections.emptyList(), 0, 0);
     private PublicationPage publications = new PublicationPage(Collections.emptyList(), 0, 0);
+    private ProjectPage libraryProjects = new ProjectPage(Collections.emptyList(), 0, 0);
+    private PublicationPage libraryRevisions = new PublicationPage(Collections.emptyList(), 0, 0);
+    private ProjectPage.Entry libraryProject;
+    private PublicationReceipt selectedLibrary;
+    private ProgrammingStationDraftState.DraftSnapshot libraryDraft;
+    private long libraryCatalogRequest;
+    private UUID libraryRevisionProject;
+    private String libraryAlias = "math";
     private String status = "New local draft. Name it, then Create to save a project.";
     private boolean cancelled, opened;
     private Runnable protectedAction;
@@ -366,7 +376,8 @@ public final class Mui2ProgrammingStation {
             .background(StudioTheme.PRIMARY)
             .addTooltipLine("Ctrl+S. Save this draft to your private project.");
         checkButton = button("Check", 0, 3, 46, () -> !state.busy(), this::validate).height(21)
-            .addTooltipLine("Checks the exact saved server revision. Save edits first.");
+            .addTooltipLine("Checks the exact saved server revision. Save edits first.")
+            .addTooltipLine("Library imports link on Check saved; local draft checks cannot resolve library projects.");
         imprintButton = button("Imprint disk", 0, 3, 80, () -> true, this::openBuilds).height(21)
             .addTooltipLine("Select an immutable saved build in Build revisions, then imprint the held fresh disk.");
         panel.child(toolsButton);
@@ -516,6 +527,7 @@ public final class Mui2ProgrammingStation {
         findPanel = IPanelHandler.simple(panel, (parent, player) -> buildFind(), true);
         toolsPanel = IPanelHandler.simple(panel, (parent, player) -> buildTools(), true);
         buildsPanel = IPanelHandler.simple(panel, (parent, player) -> buildPublications(), true);
+        librariesPanel = IPanelHandler.simple(panel, (parent, player) -> buildLibraries(), true);
         if (document.graph() != null) {
             UUID recoveredSelection = inspected;
             String recoveredClause = clause;
@@ -604,20 +616,20 @@ public final class Mui2ProgrammingStation {
                 .widthRelOffset(1f, -8)
                 .height(20));
         String[] names = { "New draft", "Copy", "Undo", "Redo", "Indent", "Wrap", "Find / Replace", "Validate saved",
-            "API reference", "Problems", "Terminal", "Saved builds" };
+            "API reference", "Problems", "Terminal", "Saved builds", "Publish library", "Insert library" };
         Runnable[] commands = { () -> protect("New draft", this::newDraft), this::copy, () -> undo(false),
             () -> undo(true), () -> { if (codeEditable()) editor.autoIndent(); }, () -> {
                 editor.toggleWrap();
                 savedWrap = editor.wraps();
-            }, this::openFind, this::validate, this::openApi, this::openProblems, this::openTerminal,
-            this::openBuilds };
+            }, this::openFind, this::validate, this::openApi, this::openProblems, this::openTerminal, this::openBuilds,
+            this::publishLibrary, this::openLibraries };
         for (int i = 0; i < names.length; i++) {
             Runnable command = commands[i];
             boolean readOnly = i == 1 || i == 9;
-            popup.child(button(names[i], 8 + i % 2 * 150, 29 + i / 2 * 24, 146, () -> readOnly || !state.busy(), () -> {
+            popup.child(button(names[i], 8 + i % 2 * 150, 29 + i / 2 * 20, 146, () -> readOnly || !state.busy(), () -> {
                 toolsPanel.closePanel();
                 command.run();
-            }).height(20));
+            }).height(18));
         }
         popup.child(button("Done", 216, 174, 88, () -> true, toolsPanel::closePanel));
         popup.child(button("", 8, 174, 202, () -> !state.busy(), () -> {
@@ -998,7 +1010,10 @@ public final class Mui2ProgrammingStation {
                 () -> !state.busy(),
                 () -> protect("Use " + template.title, () -> template(template))).widthRel(1f)
                     .height(20)
-                    .addTooltipLine("Create a local draft. Label names must match your disk labels."));
+                    .addTooltipLine(
+                        template == StudioTemplates.Template.LIBRARY
+                            ? "Create a functions-only library draft. Save it, then use Publish library in Settings."
+                            : "Create a local draft. Label names must match your disk labels."));
         outlineList.child(
             new TextWidget<>("program.sfml").color(0xff9ca5b0)
                 .height(20)
@@ -1041,9 +1056,17 @@ public final class Mui2ProgrammingStation {
         state.source = template.source;
         state.noteLocalEdit();
         document.load(template.source);
+        if (template == StudioTemplates.Template.LIBRARY) {
+            view = View.CODE;
+            codeFocused = true;
+            layoutWidth = -1;
+            panel.scheduleResize();
+        }
         syncEditor();
         if (view != View.CODE) document.openVisual();
-        status = "Template draft. Set source / destination disk labels, then Save and Check.";
+        status = template == StudioTemplates.Template.LIBRARY
+            ? "Function library draft. Save, then Publish library in Settings; imports select immutable revisions."
+            : "Template draft. Set source / destination disk labels, then Save and Check.";
     }
 
     private void buildDock() {
@@ -1252,6 +1275,7 @@ public final class Mui2ProgrammingStation {
     }
 
     private void updateProblems() {
+        refreshLibraryDiagnostics();
         boolean dirty = state.dirty() || visualDraft();
         if (problemOutput == null || draftDiagnostic.equals(lastProblemDiagnostic) && status.equals(lastProblemStatus)
             && lastProblemSaved == state.saved
@@ -3116,7 +3140,7 @@ public final class Mui2ProgrammingStation {
                 request(Action.LOAD, rememberedProject, 0);
             }
         }
-        if (refreshCatalog && !state.awaitingReply()) {
+        if (refreshCatalog && !state.awaitingReply() && (librariesPanel == null || !librariesPanel.isPanelOpen())) {
             refreshCatalog = false;
             request(Action.LIST, null, 0);
         }
@@ -3134,6 +3158,7 @@ public final class Mui2ProgrammingStation {
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.thePlayer == null || mc.thePlayer.openContainer.windowId != windowId) return;
         if (!state.matchesPending(reply.requestId, reply.action)) return;
+        boolean libraryCatalog = reply.action == Action.LIST && reply.requestId == libraryCatalogRequest;
         UUID previous = state.saved == null ? null : state.saved.id;
         String previousSource = state.source;
         Retained previousDraft = reply.action == Action.RESTORE_BUILD && reply.accepted ? new Retained(this) : null;
@@ -3191,10 +3216,21 @@ public final class Mui2ProgrammingStation {
             return;
         }
         if (reply.page != null) {
-            catalog = reply.page;
-            rebuildOutline();
+            if (libraryCatalog) libraryProjects = reply.page;
+            else {
+                catalog = reply.page;
+                rebuildOutline();
+            }
         }
-        if (reply.publications != null && state.saved != null) {
+        if (reply.publications != null && reply.action == Action.LIST_LIBRARY_PUBLICATIONS
+            && libraryProject != null
+            && libraryProject.id.equals(libraryRevisionProject)) {
+            boolean matches = true;
+            for (PublicationReceipt entry : reply.publications.entries)
+                matches &= entry.owner.equals(mc.thePlayer.getUniqueID())
+                    && entry.project.equals(libraryRevisionProject);
+            if (matches) libraryRevisions = reply.publications;
+        } else if (reply.publications != null && reply.action == Action.LIST_PUBLICATIONS && state.saved != null) {
             // A catalog contains metadata only, and belongs to the current authenticated project.
             boolean matches = true;
             for (PublicationReceipt entry : reply.publications.entries)
@@ -3207,7 +3243,18 @@ public final class Mui2ProgrammingStation {
                 + reply.publication.digest.substring(0, 12)
                 + ". Draft edits cannot change this build.";
         }
-        if (reply.draft != null && !state.ignoredLateLoad) {
+        if (reply.publication != null && reply.action == Action.PUBLISH_LIBRARY
+            && state.libraryPublication == reply.publication) {
+            status = "Published immutable library r" + reply.publication.revision
+                + " | "
+                + reply.publication.digest.substring(0, 12)
+                + ". Use Insert library to select an exact revision.";
+            if (librariesPanel.isPanelOpen() && libraryProject != null
+                && libraryProject.id.equals(reply.publication.project))
+                request(Action.LIST_LIBRARY_PUBLICATIONS, libraryProject.id, 0);
+        }
+        if (reply.draft != null && !state.ignoredLateLoad
+            && (reply.action == Action.CREATE || reply.action == Action.SAVE || reply.action == Action.LOAD)) {
             projectMemory.remember(memoryScope, reply.draft.id);
             if (!reply.draft.id.equals(previous)) publications = new PublicationPage(Collections.emptyList(), 0, 0);
             boolean recoveredVisual = reply.action == Action.LOAD && loadingRecovery != null;
@@ -3244,7 +3291,8 @@ public final class Mui2ProgrammingStation {
         }
         if (state.ignoredLateLoad)
             status = "Load arrived after editing; your draft was kept. Save or retain it before loading again.";
-        if (reply.validation != null) status = reply.validation.message;
+        if (reply.validation != null) status = state.currentValidation() == reply.validation ? reply.validation.message
+            : "Saved r" + reply.validation.revision + " was checked; the current draft no longer matches that result.";
         if (reply.action == Action.PUBLISH && state.publication != null && !state.awaitingReply()) {
             state.selectBuild(state.publication);
             if (!publications.entries.contains(state.publication)) request(Action.LIST_PUBLICATIONS, state.saved.id, 0);
@@ -3295,6 +3343,7 @@ public final class Mui2ProgrammingStation {
     }
 
     private void checkDraft() {
+        draftImports = false;
         symbols = SfmlCompletionCatalog.scan(document.code());
         rebuildOutline();
         StudioDraftDiagnostics.Result checked = diagnostics.check(document, pendingClause() || pendingFields());
@@ -3305,6 +3354,17 @@ public final class Mui2ProgrammingStation {
             return;
         }
         diagnosticSource = document.code();
+        try {
+            draftImports = !ca.teamdman.sfml.program_builder.LibraryImports.parse(document.code())
+                .isEmpty();
+        } catch (IllegalArgumentException malformed) {
+            // The ordinary local compiler diagnostics retain malformed import/header coordinates.
+        }
+        if (draftImports) {
+            draftDiagnostic = "";
+            refreshLibraryDiagnostics();
+            return;
+        }
         draftErrors = result.getErrors();
         editor.diagnostic(result.isSuccess() ? null : result.getErrorMessage());
         if (view == View.SPLIT && document.graph() == null) {
@@ -3316,6 +3376,23 @@ public final class Mui2ProgrammingStation {
         }
     }
 
+    private void refreshLibraryDiagnostics() {
+        if (!draftImports || visualDraft()
+            || !document.code()
+                .equals(diagnosticSource))
+            return;
+        ca.teamdman.sfm.common.program.project.ProjectValidation linked = state.currentValidation();
+        String message = linked == null
+            ? "Local link needed: Save, then Check saved to validate exact library revisions. Imports are not resolved locally."
+            : linked.valid ? "Saved r" + linked.revision + ": linked validation OK. Local draft linking is unavailable."
+                : "Saved r" + linked.revision + ": " + linked.message;
+        if (message.equals(draftDiagnostic)) return;
+        draftDiagnostic = message;
+        draftErrors = linked == null || linked.valid ? Collections.emptyList()
+            : Collections.singletonList(linked.message);
+        editor.diagnostic(linked == null || linked.valid ? null : linked.message);
+    }
+
     private void validate() {
         if (document.incomplete() || pendingClause()) {
             status = "Finish the visual draft before validating a saved revision.";
@@ -3325,6 +3402,10 @@ public final class Mui2ProgrammingStation {
     }
 
     private void request(Action action, UUID id, int offset) {
+        request(action, id, offset, false);
+    }
+
+    private void request(Action action, UUID id, int offset, boolean libraryCatalog) {
         if (cancelled) return;
         try {
             if (action == Action.WRITE_DISK && !REFERENCE_DISKS_ENABLED)
@@ -3348,6 +3429,7 @@ public final class Mui2ProgrammingStation {
             PublicationReceipt selectedBuild = state.selectedBuild();
             request.expectedRevision = (action == Action.WRITE_DISK || action == Action.RESTORE_BUILD)
                 && selectedBuild != null ? selectedBuild.revision : state.saved == null ? 0 : state.saved.revision;
+            if (action == Action.LIST_LIBRARY_PUBLICATIONS) request.expectedRevision = 0;
             request.buildDigest = (action == Action.WRITE_DISK || action == Action.RESTORE_BUILD)
                 && selectedBuild != null ? selectedBuild.digest : "";
             request.name = write ? state.name : "";
@@ -3365,16 +3447,26 @@ public final class Mui2ProgrammingStation {
                 state.notSent();
                 throw invalid;
             }
+            if (action == Action.LIST) libraryCatalogRequest = libraryCatalog ? request.requestId : 0;
+            if (action == Action.LIST_LIBRARY_PUBLICATIONS) {
+                libraryRevisionProject = id;
+                selectedLibrary = null;
+            }
             SFMNetwork.WRAPPER.sendToServer(request);
             status = action == Action.VALIDATE ? "Validating saved revision r" + state.saved.revision + "..."
                 : action == Action.PUBLISH ? "Publishing saved revision r" + state.saved.revision + "..."
-                    : action == Action.WRITE_DISK
-                        ? "Writing selected build r" + request.expectedRevision + " to the held disk..."
-                        : action == Action.CREATE || action == Action.SAVE
-                            ? "Saving project; waiting for confirmation..."
-                            : action == Action.RESTORE_BUILD ? "Loading selected build source into the local draft..."
-                                : action == Action.LIST_PUBLICATIONS ? "Loading saved builds..."
-                                    : "Loading project data...";
+                    : action == Action.PUBLISH_LIBRARY
+                        ? "Publishing functions-only library r" + state.saved.revision + "..."
+                        : action == Action.WRITE_DISK
+                            ? "Writing selected build r" + request.expectedRevision + " to the held disk..."
+                            : action == Action.CREATE || action == Action.SAVE
+                                ? "Saving project; waiting for confirmation..."
+                                : action == Action.RESTORE_BUILD
+                                    ? "Loading selected build source into the local draft..."
+                                    : action == Action.LIST_PUBLICATIONS ? "Loading saved builds..."
+                                        : action == Action.LIST_LIBRARY_PUBLICATIONS
+                                            ? "Loading immutable library revisions..."
+                                            : "Loading project data...";
         } catch (IllegalArgumentException | IllegalStateException error) {
             restoreGuardApproved = false;
             if (action == Action.RESTORE_BUILD) releaseRestoreBackup();
@@ -3435,6 +3527,200 @@ public final class Mui2ProgrammingStation {
             return;
         }
         request(Action.PUBLISH, state.saved == null ? null : state.saved.id, 0);
+    }
+
+    private boolean canPublishLibrary() {
+        return state.saved != null && !state.awaitingReply()
+            && !state.dirty()
+            && !state.uncertainWrite
+            && !visualDraft();
+    }
+
+    private void publishLibrary() {
+        if (!canPublishLibrary()) {
+            status = "Save this functions-only project and reconcile pending requests before publishing a library.";
+            return;
+        }
+        ca.teamdman.sfml.program_builder.ProgramBuildResult checked = ca.teamdman.sfml.program_builder.BundleCompiler
+            .validateLibrary(state.saved.source);
+        if (!checked.isSuccess()) {
+            status = "Library publication blocked: " + checked.getErrorMessage();
+            return;
+        }
+        request(Action.PUBLISH_LIBRARY, state.saved.id, 0);
+    }
+
+    private void openLibraries() {
+        if (!editable() || state.awaitingReply() || visualDraft()) {
+            status = "Finish the visual draft and wait for pending requests before inserting a library.";
+            return;
+        }
+        switchView(View.CODE);
+        clearAuthorFocus();
+        libraryDraft = state.snapshot();
+        libraryProjects = new ProjectPage(Collections.emptyList(), 0, 0);
+        libraryRevisions = new PublicationPage(Collections.emptyList(), 0, 0);
+        libraryProject = null;
+        selectedLibrary = null;
+        libraryAlias = "math";
+        librariesPanel.deleteCachedPanel();
+        librariesPanel.openPanel();
+        request(Action.LIST, null, 0, true);
+    }
+
+    private ModularPanel buildLibraries() {
+        ModularPanel popup = modal("sfm_studio_libraries", 312, 228);
+        popup.child(
+            new TextWidget<>(
+                IKey.dynamic(
+                    () -> libraryProject == null ? "Insert library / your projects"
+                        : trimFor("Library / " + libraryProject.name, 296))).pos(8, 7)
+                            .size(296, 12)
+                            .color(0xffefa09a));
+        popup.child(
+            new StudioPanelDragWidget().pos(4, 4)
+                .widthRelOffset(1f, -8)
+                .height(20));
+        popup.child(
+            new TextWidget<>(IKey.dynamic(() -> trimFor(status, 296))).pos(8, 23)
+                .size(296, 16)
+                .color(0xffb0b3bb)
+                .addTooltipLine(IKey.dynamic(() -> status)));
+        for (int i = 0; i < CATALOG_ROWS; i++) {
+            final int row = i;
+            popup.child(
+                button(
+                    "",
+                    8,
+                    44 + i * 13,
+                    296,
+                    () -> !state.awaitingReply() && (libraryProject == null ? row < libraryProjects.entries.size()
+                        : row < libraryRevisions.entries.size()),
+                    () -> {
+                        if (libraryProject == null) {
+                            if (row >= libraryProjects.entries.size()) return;
+                            libraryProject = libraryProjects.entries.get(row);
+                            selectedLibrary = null;
+                            libraryRevisions = new PublicationPage(Collections.emptyList(), 0, 0);
+                            request(Action.LIST_LIBRARY_PUBLICATIONS, libraryProject.id, 0);
+                        } else if (row < libraryRevisions.entries.size()) {
+                            selectedLibrary = libraryRevisions.entries.get(row);
+                            status = "Selected library r" + selectedLibrary.revision
+                                + ". Choose an alias, then Insert header.";
+                        }
+                    }).height(12)
+                        .overlay(IKey.dynamic(() -> {
+                            if (libraryProject == null) {
+                                if (row >= libraryProjects.entries.size()) return row == 0 ? "No projects loaded." : "";
+                                ProjectPage.Entry entry = libraryProjects.entries.get(row);
+                                return trimFor(entry.name + " | saved r" + entry.revision, 280);
+                            }
+                            if (row >= libraryRevisions.entries.size())
+                                return row == 0 ? "No immutable library revisions." : "";
+                            PublicationReceipt entry = libraryRevisions.entries.get(row);
+                            return trimFor(
+                                (entry == selectedLibrary ? "> " : "") + "r"
+                                    + entry.revision
+                                    + " | "
+                                    + entry.digest.substring(0, 16),
+                                280);
+                        })
+                            .color(0xffe7e8eb))
+                        .addTooltipLine(
+                            "Browsing never loads another project or replaces this draft. Select an immutable library revision."));
+        }
+        popup.child(
+            button(
+                "Previous",
+                8,
+                152,
+                60,
+                () -> !state.awaitingReply()
+                    && (libraryProject == null ? libraryProjects.offset : libraryRevisions.offset) > 0,
+                () -> pageLibraries(false)).height(17));
+        popup.child(new TextWidget<>(IKey.dynamic(() -> {
+            int total = libraryProject == null ? libraryProjects.total : libraryRevisions.total;
+            int offset = libraryProject == null ? libraryProjects.offset : libraryRevisions.offset;
+            int rows = libraryProject == null ? CATALOG_ROWS : BUILD_ROWS;
+            return total == 0 ? "No entries" : (offset + 1) + "-" + Math.min(total, offset + rows) + " / " + total;
+        })).pos(74, 155)
+            .size(170, 12)
+            .color(0xffb0b3bb));
+        popup.child(
+            button(
+                "Next",
+                252,
+                152,
+                52,
+                () -> !state.awaitingReply()
+                    && (libraryProject == null ? libraryProjects.offset + CATALOG_ROWS < libraryProjects.total
+                        : libraryRevisions.offset + BUILD_ROWS < libraryRevisions.total),
+                () -> pageLibraries(true)).height(17));
+        popup.child(
+            new TextWidget<>("Alias").pos(8, 178)
+                .size(40, 12)
+                .color(0xffb0b3bb));
+        popup.child(
+            new TextFieldWidget().setMaxLength(32)
+                .autoUpdateOnChange(true)
+                .value(new StringValue.Dynamic(() -> libraryAlias, value -> libraryAlias = value))
+                .pos(48, 174)
+                .size(136, 18)
+                .addTooltipLine(
+                    "Case-sensitive namespace, e.g. math. ASCII letters, digits and underscore; first character cannot be a digit."));
+        popup.child(
+            button(
+                "Insert header",
+                190,
+                174,
+                114,
+                () -> editable() && !state.awaitingReply() && selectedLibrary != null && state.current(libraryDraft),
+                this::insertLibrary).height(18)
+                    .addTooltipLine(
+                        "One undoable header edit. If this draft changes, reopen the picker. Save, then Check saved to link imports."));
+        popup.child(button("Projects", 8, 201, 68, () -> !state.awaitingReply() && libraryProject != null, () -> {
+            libraryProject = null;
+            selectedLibrary = null;
+            request(Action.LIST, null, libraryProjects.offset, true);
+        }).height(18));
+        popup.child(
+            button("Publish current library", 80, 201, 154, this::canPublishLibrary, this::publishLibrary).height(18)
+                .addTooltipLine(
+                    "Publishes the current saved editor project, not the project being browsed. Functions-only leaf libraries."));
+        popup.child(button("Cancel", 242, 201, 62, () -> true, librariesPanel::closePanel).height(18));
+        return popup;
+    }
+
+    private void pageLibraries(boolean forward) {
+        if (libraryProject == null) request(
+            Action.LIST,
+            null,
+            Math.max(0, libraryProjects.offset + (forward ? CATALOG_ROWS : -CATALOG_ROWS)),
+            true);
+        else request(
+            Action.LIST_LIBRARY_PUBLICATIONS,
+            libraryProject.id,
+            Math.max(0, libraryRevisions.offset + (forward ? BUILD_ROWS : -BUILD_ROWS)));
+    }
+
+    private void insertLibrary() {
+        if (!editable() || state.awaitingReply() || visualDraft() || !state.current(libraryDraft)) {
+            status = "The draft changed while browsing. Reopen Insert library; current work was kept.";
+            return;
+        }
+        try {
+            StudioLibraryImports.Insertion insertion = StudioLibraryImports
+                .prepare(editor.source(), libraryAlias, selectedLibrary);
+            if (!editor.replaceRange(insertion.offset, insertion.offset, insertion.text)) return;
+            librariesPanel.closePanel();
+            diagnostics.schedule(1);
+            status = "Inserted " + libraryAlias
+                + " at exact library r"
+                + selectedLibrary.revision
+                + ". Local checks cannot resolve imports; Save, then Check saved for linked validation.";
+        } catch (IllegalArgumentException error) {
+            status = error.getMessage() + " Current draft kept.";
+        }
     }
 
     private ModularPanel buildPublications() {
@@ -3829,6 +4115,10 @@ public final class Mui2ProgrammingStation {
                 .size(296, 18)
                 .addTooltipLine("Search functions, examples and syntax"));
         popup.child(list);
+        popup.child(button("Insert library", 8, 188, 112, () -> !state.awaitingReply(), () -> {
+            snippetsPanel.closePanel();
+            openLibraries();
+        }));
         popup.child(button("Done", 242, 188, 62, () -> true, snippetsPanel::closePanel));
         return popup;
     }

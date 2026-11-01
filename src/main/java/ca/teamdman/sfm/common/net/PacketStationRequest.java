@@ -15,7 +15,7 @@ import io.netty.buffer.ByteBuf;
 /** Bounded authoring requests; identity always comes from the authenticated connection. */
 public final class PacketStationRequest implements IMessage {
 
-    private static final int VERSION = 0x53545005;
+    private static final int VERSION = 0x53545006;
     public static final int MAX_PACKET_BYTES = 32000;
 
     public enum Action {
@@ -27,7 +27,9 @@ public final class PacketStationRequest implements IMessage {
         PUBLISH,
         LIST_PUBLICATIONS,
         WRITE_DISK,
-        RESTORE_BUILD
+        RESTORE_BUILD,
+        PUBLISH_LIBRARY,
+        LIST_LIBRARY_PUBLICATIONS
     }
 
     public int x, y, z, windowId, offset;
@@ -39,7 +41,8 @@ public final class PacketStationRequest implements IMessage {
     public void validate() {
         if (action == null || sessionId == null || requestId <= 0 || windowId <= 0 || windowId > 255)
             throw new IllegalArgumentException("Invalid station session/request");
-        int pageLimit = action == Action.LIST_PUBLICATIONS ? ProjectWorkspace.MAX_PUBLICATIONS_PER_PROJECT
+        int pageLimit = action == Action.LIST_PUBLICATIONS || action == Action.LIST_LIBRARY_PUBLICATIONS
+            ? ProjectWorkspace.MAX_PUBLICATIONS_PER_PROJECT
             : ProjectWorkspace.MAX_PROJECTS_PER_OWNER;
         if (expectedRevision < 0 || offset < 0 || offset > pageLimit)
             throw new IllegalArgumentException("Invalid project revision/page");
@@ -51,11 +54,14 @@ public final class PacketStationRequest implements IMessage {
         if (action == Action.WRITE_DISK || action == Action.RESTORE_BUILD ? !isBuildDigest(buildDigest)
             : !buildDigest.isEmpty()) throw new IllegalArgumentException("Invalid selected build digest");
         if ((action == Action.PUBLISH || action == Action.LIST_PUBLICATIONS
+            || action == Action.PUBLISH_LIBRARY
+            || action == Action.LIST_LIBRARY_PUBLICATIONS
             || action == Action.WRITE_DISK
             || action == Action.RESTORE_BUILD)
             && (!name.isEmpty() || !source.isEmpty()
-                || (action == Action.PUBLISH || action == Action.WRITE_DISK || action == Action.RESTORE_BUILD)
-                    && offset != 0))
+                || (action == Action.PUBLISH || action == Action.PUBLISH_LIBRARY
+                    || action == Action.WRITE_DISK
+                    || action == Action.RESTORE_BUILD) && offset != 0))
             throw new IllegalArgumentException("Publication requests use saved server data only");
     }
 

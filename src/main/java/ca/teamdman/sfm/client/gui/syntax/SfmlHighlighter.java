@@ -169,10 +169,13 @@ public final class SfmlHighlighter {
             case SFMLLexer.NUMBER:
             case SFMLLexer.NUMBER_WITH_G_SUFFIX:
                 return Style.NUMBER;
+            case SFMLLexer.IMPORT:
+            case SFMLLexer.REVISION:
+            case SFMLLexer.DIGEST:
+                if (context.importHeader[index]) return type == SFMLLexer.IMPORT ? Style.FLOW : Style.KEYWORD;
+                return plainIdentifierStyle(tokens, index);
             case SFMLLexer.IDENTIFIER:
-                int before = previousVisible(tokens, index);
-                return before >= 0 && tokens.get(before)
-                    .getType() == SFMLLexer.DOT ? Style.LABEL : Style.VARIABLE;
+                return plainIdentifierStyle(tokens, index);
             case SFMLLexer.PRINT:
                 return Style.LABEL;
             case SFMLLexer.COLON:
@@ -279,6 +282,18 @@ public final class SfmlHighlighter {
         }
     }
 
+    private static Style plainIdentifierStyle(List<? extends Token> tokens, int index) {
+        int before = previousVisible(tokens, index);
+        return before >= 0 && tokens.get(before)
+            .getType() == SFMLLexer.DOT ? Style.LABEL : Style.VARIABLE;
+    }
+
+    private static boolean isPlainName(int type) {
+        return type == SFMLLexer.IDENTIFIER || type == SFMLLexer.IMPORT
+            || type == SFMLLexer.REVISION
+            || type == SFMLLexer.DIGEST;
+    }
+
     private static boolean isTypedCall(List<? extends Token> tokens, int index) {
         Token token = tokens.get(index);
         if (token.getChannel() != Token.DEFAULT_CHANNEL) return false;
@@ -331,17 +346,39 @@ public final class SfmlHighlighter {
 
     private static final class Context {
 
-        final boolean[] functionHeader, countedStep;
+        final boolean[] functionHeader, countedStep, importHeader;
 
         Context(int size) {
             functionHeader = new boolean[size];
             countedStep = new boolean[size];
+            importHeader = new boolean[size];
         }
     }
 
     /** Keep the old nearest-keyword rules, but visit each token once instead of rescanning every prefix. */
     private static Context findContext(List<? extends Token> tokens, boolean[] functionNames) {
         Context result = new Context(tokens.size());
+        int[] importPattern = { SFMLLexer.IMPORT, SFMLLexer.IDENTIFIER, SFMLLexer.FROM, SFMLLexer.STRING,
+            SFMLLexer.REVISION, SFMLLexer.NUMBER, SFMLLexer.DIGEST, SFMLLexer.STRING };
+        for (int first = 0; first < tokens.size(); first++) {
+            if (tokens.get(first)
+                .getType() != SFMLLexer.IMPORT) continue;
+            int next = first, last = first;
+            boolean matches = true;
+            for (int expected : importPattern) {
+                if (next >= tokens.size() || (expected == SFMLLexer.IDENTIFIER ? !isIdentifier(
+                    tokens.get(next)
+                        .getType())
+                    : tokens.get(next)
+                        .getType() != expected)) {
+                    matches = false;
+                    break;
+                }
+                last = next;
+                next = nextVisible(tokens, next);
+            }
+            if (matches) Arrays.fill(result.importHeader, first, last + 1, true);
+        }
         // Type-first declarations have no FUNCTION marker. Restrict keyword colors to a complete header.
         for (int first = 0; first < tokens.size(); first++) {
             if (!typeWord(
@@ -389,10 +426,10 @@ public final class SfmlHighlighter {
                 || type == SFMLLexer.STATE) function = false;
             if (type == SFMLLexer.FOR) {
                 int after = nextVisible(tokens, i);
-                countedFor = after < tokens.size() && tokens.get(after)
-                    .getType() == SFMLLexer.VARIABLE || after < tokens.size()
-                        && tokens.get(after)
-                            .getType() == SFMLLexer.IDENTIFIER;
+                countedFor = after < tokens.size() && (tokens.get(after)
+                    .getType() == SFMLLexer.VARIABLE || isPlainName(
+                        tokens.get(after)
+                            .getType()));
                 hasTo = false;
             } else if (type == SFMLLexer.TO) hasTo = true;
             else if (type == SFMLLexer.DO || type == SFMLLexer.END
@@ -421,8 +458,9 @@ public final class SfmlHighlighter {
                 tokens.get(i)
                     .getText())
                 && next < tokens.size()
-                && tokens.get(next)
-                    .getType() == SFMLLexer.IDENTIFIER) {
+                && isPlainName(
+                    tokens.get(next)
+                        .getType())) {
                 int after = nextVisible(tokens, next);
                 if (after < tokens.size() && (tokens.get(after)
                     .getType() == SFMLLexer.COMMA
@@ -470,7 +508,10 @@ public final class SfmlHighlighter {
     }
 
     private static boolean isFunctionIdentifier(int type) {
-        return type == SFMLLexer.IDENTIFIER || type == SFMLLexer.RISING
+        return type == SFMLLexer.IDENTIFIER || type == SFMLLexer.IMPORT
+            || type == SFMLLexer.REVISION
+            || type == SFMLLexer.DIGEST
+            || type == SFMLLexer.RISING
             || type == SFMLLexer.FALLING
             || type == SFMLLexer.TRANSFER
             || type == SFMLLexer.TRANSFERF
@@ -547,7 +588,7 @@ public final class SfmlHighlighter {
         switch (tokens.get(index)
             .getType()) {
             case SFMLLexer.FOR:
-                return next == SFMLLexer.VARIABLE || next == SFMLLexer.IDENTIFIER || next == SFMLLexer.LPAREN;
+                return next == SFMLLexer.VARIABLE || isPlainName(next) || next == SFMLLexer.LPAREN;
             case SFMLLexer.WHILE:
                 if (previous == SFMLLexer.FROM || previous == SFMLLexer.TO
                     || previous == SFMLLexer.EACH
@@ -614,6 +655,9 @@ public final class SfmlHighlighter {
             case SFMLLexer.WAIT:
             case SFMLLexer.INTO:
             case SFMLLexer.IDENTIFIER:
+            case SFMLLexer.IMPORT:
+            case SFMLLexer.REVISION:
+            case SFMLLexer.DIGEST:
             case SFMLLexer.LET:
             case SFMLLexer.SET:
             case SFMLLexer.STATE:
