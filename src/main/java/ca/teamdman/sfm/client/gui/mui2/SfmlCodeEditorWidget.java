@@ -29,6 +29,7 @@ import com.cleanroommc.modularui.widget.scroll.VerticalScrollData;
 import com.cleanroommc.modularui.widgets.VoidWidget;
 
 import ca.teamdman.sfm.client.gui.EditorDiagnostic;
+import ca.teamdman.sfm.client.gui.syntax.SfmlBlockMatches;
 import ca.teamdman.sfm.client.gui.syntax.SfmlCompletionCatalog;
 import ca.teamdman.sfm.client.gui.syntax.SfmlHighlighter;
 import ca.teamdman.sfm.client.gui.syntax.SfmlSyntaxRenderer;
@@ -315,9 +316,35 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
         shownCompletion = null;
         int first = Math.max(0, getScrollY() / LINE_HEIGHT - 1);
         int last = Math.min(rows.size(), first + getArea().h() / LINE_HEIGHT + 3);
+        SfmlBlockMatches.Pair matching = null;
+        if (!buffer.selected()) {
+            for (SfmlBlockMatches.Pair pair : highlighted.blockMatches) {
+                if (pair.touches(buffer.caret())) {
+                    matching = pair;
+                    break;
+                }
+            }
+        }
         for (int i = first; i < last; i++) {
             Row row = rows.get(i);
             int y = i * LINE_HEIGHT + 3;
+            // Guides occupy leading whitespace only, including wrapped continuation rows.
+            String physicalLine = highlighted.lines.get(row.line).text;
+            int indent = 0;
+            while (indent < physicalLine.length() && physicalLine.charAt(indent) == ' ') indent++;
+            int spaceWidth = Math.max(1, font().getStringWidth(" "));
+            int visibleColumn = row.column + Math.max(0, getScrollX() - gutter - 4) / spaceWidth;
+            int guideStart = (visibleColumn + 1) / 2 * 2;
+            int guideEnd = Math.min(indent, row.column + row.end - row.offset);
+            guideEnd = Math.min(guideEnd, row.column + (getScrollX() + getArea().w()) / spaceWidth + 1);
+            for (int column = guideStart; column < guideEnd; column += 2) {
+                int x = gutter + 4 + (column - row.column) * spaceWidth;
+                Gui.drawRect(x, y - 1, x + 1, y + 9, 0xff343b43);
+            }
+            if (matching != null) {
+                drawBlockMatch(row, y, matching.start, matching.end);
+                drawBlockMatch(row, y, matching.closeStart, matching.closeEnd);
+            }
             int selectionStart = Math.max(row.offset, buffer.start()), selectionEnd = Math.min(row.end, buffer.end());
             if (selectionEnd > selectionStart) {
                 int x1 = gutter + 4 + font().getStringWidth(source().substring(row.offset, selectionStart));
@@ -366,6 +393,15 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
                     errorLine ? 0xe07373 : 0x858b96);
             }
         }
+    }
+
+    private void drawBlockMatch(Row row, int y, int start, int end) {
+        int from = Math.max(row.offset, start), to = Math.min(row.end, end);
+        if (from >= to) return;
+        int x = gutter + 4 + font().getStringWidth(source().substring(row.offset, from));
+        int width = font().getStringWidth(source().substring(from, to));
+        Gui.drawRect(x, y - 1, x + width, y + 9, 0xff414149);
+        Gui.drawRect(x, y + 8, x + width, y + 9, 0xffcb7777);
     }
 
     @Override

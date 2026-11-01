@@ -15,6 +15,16 @@ item_ids: ["superfactorymanager:disk", "superfactorymanager:cable", "superfactor
 Gather **one manager, one blank disk, a Label Gun, two cables and two single
 chests**. NEI shows the recipes installed by your pack.
 
+Direct recipes target late HV: stainless steel, advanced circuits, HV components
+and advanced epoxy boards replace the old vanilla-material recipes. Use plain,
+unprogrammed ingredients; recipes refuse saved NBT rather than erase it.
+
+You can freely convert one plain Steve's Factory Manager controller or cable
+into our matching controller or full-block cable and back. Our full-block and
+Fancy cables also convert1:1. With Steve's Addons, its plain Labeler and our
+Label Gun convert both ways. Original pack recipes and both cable shapes remain
+visible in NEI. These swaps retain the legacy recipes' progression.
+
 ## What you need
 
 | Part | Purpose |
@@ -59,3 +69,7 @@ Leave it paused while setting up this first route.
 editing controls. Your normal inventory and hotbar stay below the machine pages.
 
 **Next: [name the chests](labels.md).**
+
+For cable conversion, put our full cable in the left column of a 3x3 crafting
+grid to return a legacy cable, or the right column for Fancy Cable. Either
+converts back to our full cable in any slot. Use plain, untagged items.

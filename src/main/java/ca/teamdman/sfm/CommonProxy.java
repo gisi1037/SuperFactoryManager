@@ -51,11 +51,12 @@ public class CommonProxy {
             .registerFactory(ca.teamdman.sfm.integration.mui2.ManagerMui2Factory.INSTANCE);
         com.cleanroommc.modularui.factory.GuiManager
             .registerFactory(ca.teamdman.sfm.integration.mui2.ProgrammingStationMui2Factory.INSTANCE);
-        ModRecipes.init();
     }
 
-    public void postInit(FMLPostInitializationEvent event) {
-        ModRecipes.postInit();
+    public void postInit(FMLPostInitializationEvent event) {}
+
+    public void loadComplete(cpw.mods.fml.common.event.FMLLoadCompleteEvent event) {
+        ModRecipes.loadComplete();
     }
 
     public void serverStarting(FMLServerStartingEvent event) {

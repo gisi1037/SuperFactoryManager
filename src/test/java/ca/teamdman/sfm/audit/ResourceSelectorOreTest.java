@@ -18,6 +18,21 @@ import org.junit.jupiter.api.Test;
 class ResourceSelectorOreTest {
 
     @Test
+    void cableConversionsHaveNoCompetingOutputs() throws Throwable {
+        invoke("cableConversionsHaveNoCompetingOutputs");
+    }
+
+    @Test
+    void recipeConversionsPreserveDataAndExactMetadata() throws Throwable {
+        invoke("recipeConversionsPreserveDataAndExactMetadata");
+    }
+
+    @Test
+    void lateHvRecipesCraftWithRealForgeOreMatching() throws Throwable {
+        invoke("lateHvRecipesCraftWithRealForgeOreMatching");
+    }
+
+    @Test
     void studioAbsentIoNumbersKeepRealItemDefaultsZeroReserveCapAndConservation() throws Throwable {
         invoke("studioAbsentIoNumbersKeepRealItemDefaultsZeroReserveCapAndConservation");
     }

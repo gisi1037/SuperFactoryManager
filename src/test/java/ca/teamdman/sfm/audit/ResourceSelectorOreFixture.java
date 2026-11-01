@@ -52,6 +52,18 @@ import cpw.mods.fml.relauncher.Side;
 /** Runs only inside the isolated LaunchClassLoader owned by ResourceSelectorOreTest. */
 public final class ResourceSelectorOreFixture {
 
+    public static void cableConversionsHaveNoCompetingOutputs() {
+        RecipeCraftingFixture.cableChoices();
+    }
+
+    public static void recipeConversionsPreserveDataAndExactMetadata() {
+        RecipeCraftingFixture.conversions();
+    }
+
+    public static void lateHvRecipesCraftWithRealForgeOreMatching() {
+        RecipeCraftingFixture.catalog();
+    }
+
     private static final String METAL = "sfmOreSelectorMetal", SECONDARY = "sfmOreSelectorSecondary";
     private static Item wildcard, metadata, unrelated, late;
 

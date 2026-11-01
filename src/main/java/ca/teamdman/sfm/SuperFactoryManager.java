@@ -15,7 +15,7 @@ import cpw.mods.fml.common.event.FMLServerStartingEvent;
     version = Tags.VERSION,
     name = "Super Factory Manager",
     acceptedMinecraftVersions = "[1.7.10]",
-    dependencies = "required-after:modularui2@[2.3.92,);required-after:gtnhlib@[0.11.52,)")
+    dependencies = "required-after:modularui2@[2.3.92,);required-after:gtnhlib@[0.11.52,);after:gregtech;after:gregtech_nh;after:StevesFactoryManager;after:StevesAddons;after:dreamcraft")
 public class SuperFactoryManager {
 
     public static final String MODID = "superfactorymanager";
@@ -40,6 +40,11 @@ public class SuperFactoryManager {
     @Mod.EventHandler
     public void postInit(FMLPostInitializationEvent event) {
         proxy.postInit(event);
+    }
+
+    @Mod.EventHandler
+    public void loadComplete(cpw.mods.fml.common.event.FMLLoadCompleteEvent event) {
+        proxy.loadComplete(event);
     }
 
     @Mod.EventHandler

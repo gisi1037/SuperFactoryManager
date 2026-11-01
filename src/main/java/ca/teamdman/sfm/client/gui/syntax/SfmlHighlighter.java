@@ -71,9 +71,11 @@ public final class SfmlHighlighter {
     public static final class Highlighted {
 
         public final List<Line> lines;
+        public final List<SfmlBlockMatches.Pair> blockMatches;
 
-        Highlighted(List<Line> lines) {
+        Highlighted(List<Line> lines, List<SfmlBlockMatches.Pair> blockMatches) {
             this.lines = Collections.unmodifiableList(lines);
+            this.blockMatches = Collections.unmodifiableList(blockMatches);
         }
     }
 
@@ -119,7 +121,7 @@ public final class SfmlHighlighter {
             lines.add(new Line(source.substring(start, end), spans));
             start = end + 1;
         }
-        return new Highlighted(lines);
+        return new Highlighted(lines, SfmlBlockMatches.collect(tokens, offsets));
     }
 
     private static Style classify(List<? extends Token> tokens, int index, boolean[] functionNames, Context context) {

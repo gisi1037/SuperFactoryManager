@@ -30,6 +30,7 @@ public class ClientProxy extends CommonProxy {
             .bus()
             .register(worldRenderer);
         MinecraftForge.EVENT_BUS.register(new LabelGunReminderOverlay());
+        MinecraftForge.EVENT_BUS.register(new ca.teamdman.sfm.client.gui.mui2.SfmlTextCursor());
         int fancyCableRenderId = cpw.mods.fml.client.registry.RenderingRegistry.getNextAvailableRenderId();
         ca.teamdman.sfm.common.block.BlockFancyCable.renderId = fancyCableRenderId;
         cpw.mods.fml.client.registry.RenderingRegistry
@@ -44,9 +45,6 @@ public class ClientProxy extends CommonProxy {
     public void postInit(FMLPostInitializationEvent event) {
         super.postInit(event);
         ca.teamdman.sfm.compat.guidenh.GuideNhSfml.register();
-        if (ca.teamdman.sfm.compat.Compat.isNEILoaded()) {
-            ca.teamdman.sfm.compat.nei.NEICompat.hideItems();
-        }
     }
 
     @Override

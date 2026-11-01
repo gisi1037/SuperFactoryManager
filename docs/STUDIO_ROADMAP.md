@@ -153,3 +153,11 @@ reduced allocation charges can allow more work within the allocation allowance.
 An opt-in benchmark separates compilation and actual scheduled execution for
 equivalent inline and immutable-library programs. Synthetic results are not a
 full-pack throughput guarantee. Native/full-pack qualification remains separate.
+
+## Cable, crafting and editor feedback checkpoint
+
+Full-block cable is available in NEI, with free reversible plain-item conversions.
+Direct recipes target late HV; see CRAFTING.md. Studio adds native text cursors,
+matching delimiter feedback and subtle two-space indent guides. Full-pack crafting,
+cursor appearance and scaled/wrapped editor rendering still require manual checks.
+Disk copier and automatic block completion remain planned.

@@ -2,9 +2,9 @@
 
 Use a disposable test world and record the exact SFM JAR, GTNH pack, Java version,
 single-player/dedicated server and optional mods. Test one matching client/server
-build. A prepared JAR is not necessarily installed: the latest prepared checkpoint
-when this list was written is8fbe82e. The new hardware/recipe features below are
-planned and are not present in that checkpoint.
+build. A prepared JAR is not necessarily installed. Older8fbe82e lacks the newer
+NBT/BREAK and late-HV recipe changes; use the matching updated test artifact.
+The disk copier and other explicitly planned features below are still future work.
 
 For each failure, keep the smallest program that reproduces it, installed build
 revision, expected/actual result, exact error and a screenshot if useful. Source
@@ -361,18 +361,34 @@ every 40 ticks {
   It must fail visibly and retain saved evidence, then recover only through the
   supported retry workflow. No arbitrary private-source access is implied.
 
+## Full-block cable, late-HV recipes and text cursor
+
+- [ ] Find our full-block Inventory Cable in NEI with SteveFM installed. Craft
+  the direct recipe (two cables), convert Steve's cable to it, convert it to
+  Fancy Cable and reverse the chain. Each swap consumes/produces exactly one.
+- [ ] Convert a plain legacy controller and plain addon Labeler both ways.
+  Confirm their original pack recipes still exist. A saved/renamed/tagged item
+  must refuse conversion without consuming it or discarding data.
+- [ ] Actually craft each direct output listed in [Crafting](CRAFTING.md), including
+  a blank disk from a blank data stick. Check NEI shapes, ore alternatives and
+  output counts. A programmed data stick must not be consumed. Check the startup
+  log for missing/unset GT component or material messages.
+- [ ] Compare full/fancy/mixed cable routes to the same inventory and Redstone
+  Port; break/reconnect and cross a chunk boundary. Discovery/access behavior
+  should match. The full cable has full-cube collision and rendering.
+- [ ] Hover over Studio code and editable text fields: the cursor becomes an
+  I-beam. Move onto buttons, scrollbars, modal controls and another GUI, then
+  close to the world: the prior pointer returns. Test game and Studio scales.
+  Text selection and typing must behave as before. Native backend appearance
+  needs manual qualification; a backend without custom cursor support should
+  keep text input working normally.
+
 ## Additions: test after implementation, not in the current checkpoint
 
 - [ ] **Disk copier:** one blank consumed per completed copy, unchanged source,
   exact program revision/labels, fresh independent runtime state, full-output
   refusal, disk replacement, unload/restart and hopper interactions. Invalid or
   recovery-blocked sources must refuse without losing media or recovery evidence.
-- [ ] **Full-block cable availability:** direct recipe and conversions yield the
-  existing full-cube cable. Mixed full/fancy paths discover identical inventories
-  and signals. Check placement, breaking, collisions and rendering.
-- [ ] **Late-HV recipes:** inspect every result/quantity in NEI and actually craft
-  it. Test direct and both conversion directions, item metadata and data-bearing
-  refusal/preservation. Check legacy paths cannot bypass intended progression.
 - [ ] **Cable label editor:** clear selected manager/disk, group assignments,
   multi-manager ambiguity, bulk edits, cancellation and stale topology/session
   refusal. Verify authoritative labels in running programs afterward.
@@ -398,3 +414,9 @@ Provider exception/recovery injection, interrupted saves, corrupt metadata,
 large-network churn and sustained server load require separate controlled
 fixtures. Ordinary manual success does not replace those checks. Review the
 existing operator recovery workflow; never erase recovery data to make a test pass.
+
+## Editor feedback and cable placement checks
+
+- [ ] Full cable in a 3x3 grid: left column gives legacy cable; right gives Fancy; center gives neither. Fancy/legacy revert to our full cable in any slot. Each conversion consumes one and produces one.
+- [ ] In Studio, nested two-space indents show faint vertical guides. Check horizontal scrolling, wrapping, zoom and selections; guides must stay in leading whitespace.
+- [ ] Place the caret beside braces or DO/THEN/END. Matching delimiters highlight without changing source. Test nested mixed blocks, ELSE IF, comments, strings and emoji.
