@@ -1177,6 +1177,12 @@ refresh work also retains its own lifecycle. These caps are engineering limits,
 not measured tick-time guarantees, and do not impose new cutoffs on legacy HAS,
 INPUT or OUTPUT.
 
+Availability checks do not retain a set of exposed slots, but still inspect all
+selected faces and inventory members and enforce range/raw-array work bounds.
+Nonsided contents scans read their contiguous range directly in ascending order.
+Both paths avoid intermediate collection allocations without caching live stock
+or suppressing later-provider errors. COUNT and EMPTY retain full stock checks.
+
 Query programs currently require Text. Visual refuses the complete unsupported
 construct without dropping source. Removing unsupported data expressions can
 restore Visual availability. The Labels and Queries palettes include the new snippets,

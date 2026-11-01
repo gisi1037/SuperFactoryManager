@@ -250,6 +250,19 @@ public final class ItemQueryService implements DataQueries {
     private static long read(IInventory inventory, ResourceSelector selector, QueryBudget budget, Access access,
         boolean stock, BlockPos position, ContentsCollector collector) {
         int size = size(inventory, budget);
+        if (!stock) return availableSlots(inventory, size, budget, access);
+        if (collector != null && !(inventory instanceof ISidedInventory)) {
+            // A nonsided view is already a unique, ascending range. Contents previously sorted
+            // a boxed HashSet back into this order; retain the range bound and live read order.
+            int end = Math.min(size - 1, access.lastSlot);
+            int count = Math.max(0, end - access.firstSlot + 1);
+            budget.chargeSlots(count);
+            if (count == 0) return -1;
+            long total = 0;
+            for (int slot = access.firstSlot; slot <= end; slot++)
+                total = Math.addExact(total, stack(inventory, slot, selector, budget, access, position, collector));
+            return total;
+        }
         budget.chargeAllocation(1);
         Set<Integer> slots = new HashSet<>();
         if (inventory instanceof ISidedInventory) {
@@ -279,7 +292,7 @@ public final class ItemQueryService implements DataQueries {
             Iterable<Integer> ordered = slots;
             if (collector != null) {
                 // HashSet iteration is not part of the observation order. Sort only contents scans;
-                // legacy count/available retain their provider work and allocation behavior.
+                // count/empty retain their provider work and iteration order.
                 budget.chargeSlots(slots.size());
                 budget.chargeAllocation(slots.size() * 2 + 1);
                 List<Integer> sorted = new ArrayList<>(slots);
@@ -293,6 +306,27 @@ public final class ItemQueryService implements DataQueries {
                 total = Math.addExact(total, stack(inventory, slot, selector, budget, access, position, collector));
         }
         return total;
+    }
+
+    /** Availability needs a valid exposed slot, not a retained set of every exposed slot. */
+    private static long availableSlots(IInventory inventory, int size, QueryBudget budget, Access access) {
+        if (!(inventory instanceof ISidedInventory)) {
+            int end = Math.min(size - 1, access.lastSlot);
+            int count = Math.max(0, end - access.firstSlot + 1);
+            budget.chargeSlots(count); // Preserve the range bound even though no slot objects are allocated.
+            return count == 0 ? -1 : 0;
+        }
+        boolean found = false;
+        for (ForgeDirection direction : ForgeDirection.VALID_DIRECTIONS) {
+            if ((access.sideMask & 1 << direction.ordinal()) == 0) continue;
+            budget.chargeProvider();
+            int[] exposed = ((ISidedInventory) inventory).getAccessibleSlotsFromSide(direction.ordinal());
+            if (exposed == null) continue;
+            budget.chargeSlots(exposed.length);
+            for (int slot : exposed) if (slot >= 0 && slot < size && access.includes(slot)) found = true;
+            // Do not return early: later faces may throw or return an over-budget view.
+        }
+        return found ? 0 : -1;
     }
 
     private static long readPair(IInventory first, IInventory second, ResourceSelector selector, QueryBudget budget,

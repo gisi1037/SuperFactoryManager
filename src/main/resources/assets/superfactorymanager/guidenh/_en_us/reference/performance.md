@@ -151,3 +151,10 @@ and loop progress are preserved. This changes the batch timing explicitly;
 finished transfers are not repeated. A single expensive operation still needs
 to fit its allowance.
 Event-assisted availability remains separate performance work.
+
+Availability checks validate exposed slots without building a boxed slot set.
+Ordinary nonsided contents scans read directly in ascending slot order instead
+of building and sorting intermediate collections. These reduce allocation while
+preserving fresh reads and validation of every selected provider. Count/empty
+queries still inspect their selected stock, including later-provider errors.
+Fluid tank snapshots also avoid oversized temporary lists for small tank views.

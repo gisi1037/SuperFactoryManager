@@ -251,7 +251,7 @@ public final class FluidTransferService {
         if (length > MAX_TANKS_PER_HANDLER) throw new IllegalArgumentException("Fluid tank view exceeds 256 tanks");
         budget.chargeSlots(length);
         budget.chargeAllocation(1 + length * 2);
-        List<Tank> result = new ArrayList<>();
+        List<Tank> result = new ArrayList<>(length);
         if (info == null) return result;
         for (FluidTankInfo tank : info) {
             if (tank == null || tank.capacity < 0

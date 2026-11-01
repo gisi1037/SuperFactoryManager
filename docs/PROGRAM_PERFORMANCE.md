@@ -111,3 +111,40 @@ the same opt-in property; they emit raw samples and checked useful-work counts.
 The separate [overall benchmark design](OVERALL_BENCHMARK.md) defines a common-
 feature original-port comparison. These newer-feature measurements stay in their
 own track and do not establish a cumulative speedup from the original port.
+
+## Native query allocation reduction (2026-10-31)
+
+Availability checks no longer construct boxed slot sets. Nonsided inventories
+validate their selected range directly; sided inventories still visit every
+selected face and raw slot entry. All physical inventory members remain subject
+to connectivity, loaded-state and error checks. Upfront range/raw-array budget
+bounds remain, so an absurd inventory size still fails before stock reads.
+
+Nonsided contents queries now read the selected contiguous range directly in
+ascending order, removing the boxed set, copied list and sort. Detached keys,
+grouping, origins and live read/registry callback order are preserved. Count and
+empty queries retain their existing iteration and full validation; there is no
+new contents cache, early return on stock, or skipped later-provider validation.
+Fluid tank snapshots pre-size their list after validating the 256-tank bound;
+every tank and side-consistency check remains. That fluid change was not timed.
+
+Fixed-work headless measurements compare public baseline `e184e3c` with these
+query changes on JDK 26.0.2.1, 512 MiB heaps, multiplier 16, two fresh JVMs per
+cohort, 40 warmups and 120 measured samples per workload/JVM. Setup and semantic
+assertions are outside timing; same-thread allocated bytes cover the timed work.
+Each sample checks completion, totals and origin order. Transfers serve as an
+unchanged control, with identical class bytes and identity/order/conservation
+checks. These measurements exercise fake loaded worlds and inventory providers.
+
+| Fixed completed workload | Allocated bytes, baseline → final | Reduction |
+| --- | ---: | ---: |
+| 10 availability queries, 4,096 nonsided slots | 2,608,064 → 5,504 | 99.79% |
+| 4 contents queries, 256 slots and four groups | 278,080 → 208,992 | 24.84% |
+| Unchanged transfer control, 54 distinct stacks / 108 items | 696,544 → 696,544 | 0% |
+
+Availability's pooled median falls from 0.30965 to 0.00530 ms for the ten-query
+fixture. Contents falls from 0.12740 to 0.09495 ms, but latency is noisy: the
+byte-identical transfer control varies from 0.29785 to 0.38170 ms between cohorts.
+The reproducible conclusions are reduced query allocation and the large
+availability improvement; there is no claimed general contents/transfer speedup,
+full-pack tick-time result, TPS gain, or cumulative original-port speedup.
