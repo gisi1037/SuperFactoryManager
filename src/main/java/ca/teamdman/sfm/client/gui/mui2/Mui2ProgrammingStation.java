@@ -367,7 +367,7 @@ public final class Mui2ProgrammingStation {
             .overlay(
                 IKey.dynamic(() -> trimFor(state.name + " v", projectSelector.getArea().width - 10))
                     .color(0xffe7e8eb))
-            .addTooltipLine("Current project. Browse and switch in the Projects column.");
+            .addTooltipLine("Open saved projects, recovery and program transfer.");
         panel.child(projectSelector);
         toolsButton = button("Settings", 0, 3, 46, () -> true, () -> {
             removeFocus();
@@ -1011,6 +1011,10 @@ public final class Mui2ProgrammingStation {
                 () -> !state.awaitingReply(),
                 () -> request(Action.LIST, null, catalog.offset)).widthRel(1f)
                     .height(18));
+        outlineList.child(
+            listButton("Transfer programs", 120, this::archiveIdle, this::openArchive).widthRel(1f)
+                .height(18)
+                .addTooltipLine("Export saved sources as Base64 or import new copies from the clipboard."));
         outlineList.child(
             new TextWidget<>("TEMPLATES").color(0xffc1878e)
                 .height(19)
@@ -3889,6 +3893,8 @@ public final class Mui2ProgrammingStation {
 
     private void openCatalog() {
         removeFocus();
+        catalogPanel.deleteCachedPanel();
+        catalogPanel.openPanel();
         if (!state.awaitingReply()) request(Action.LIST, null, catalog.offset);
     }
 

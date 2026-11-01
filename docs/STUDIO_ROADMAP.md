@@ -190,3 +190,7 @@ Per-frame text selection now samples the editor viewport before its content
 scroll transform. Scrolling is applied once, preventing an interior drag from
 jumping to EOF when the last line is visible. Real MUI2 matrix tests cover scale
 and both axes; native pointer behavior remains a manual regression check.
+
+The top project selector now opens its project dialog instead of only refreshing
+the sidebar. A direct Transfer programs sidebar button also opens source archive
+export/import, preserving the current draft.

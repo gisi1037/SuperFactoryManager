@@ -459,3 +459,8 @@ existing operator recovery workflow; never erase recovery data to make a test pa
   Drag across two middle lines and release. The endpoint must follow the pointer,
   without jumping to EOF or scrolling while the pointer is inside the code area.
   Repeat with horizontal scroll, wrapping and independent Studio scales.
+
+
+- [ ] The top project selector must open a project dialog, not only refresh the
+  sidebar. Its Transfer button and the sidebar's Transfer programs button must
+  both open the saved-source export/import dialog without replacing current edits.
