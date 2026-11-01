@@ -310,3 +310,5 @@ The extension follows the official VS Code guides for
 [syntax highlighting](https://code.visualstudio.com/api/language-extensions/syntax-highlight-guide),
 [language configuration](https://code.visualstudio.com/api/language-extensions/language-configuration-guide)
 and [VSIX packaging](https://code.visualstudio.com/api/working-with-extensions/publishing-extension).
+
+Captured ITEM_KEY NBT methods now have completion and hover help: hasnbt, nbttype, nbtinteger, nbtstring, nbttext, nbtkeys and nbtlength. Use JSON Pointer paths such as /heat. They inspect a contents snapshot without live item mutation or rescanning. Install the matching compiler build for diagnostics.

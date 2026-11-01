@@ -700,6 +700,13 @@ public final class SyntaxRegistry {
             "LET $stock = LABEL(\"<label>\").contents()",
             "Read-only exact item groups and physical locations; missing or over-budget views fault");
         snippet(
+            "query_item_nbt",
+            "Inspect item NBT heat and keys",
+            SnippetCategory.QUERY,
+            "FOR $stack IN LABEL(\"<label>\").contents() DO\n  PRINT($stack.id, $stack.metadata, $stack.item.nbtkeys())\n"
+                + "  IF ($stack.item.hasnbt(\"/heat\")) THEN\n    PRINT($stack.item.nbtinteger(\"/heat\"))\n  END\nEND",
+            "Read a captured exact item's tags; typed paths fault on wrong types, and never change or rescan the item");
+        snippet(
             "query_contents_filtered",
             "Scan ore-selected contents",
             SnippetCategory.QUERY,

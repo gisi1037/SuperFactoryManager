@@ -170,6 +170,11 @@ public final class DataRuntime {
         return left.matches(right, budget.queries);
     }
 
+    public DataValue inspectItemNbt(ItemIdentity item, String method, String path) {
+        if (budget.queries == null) budget.queries = new QueryBudget();
+        return item.inspectNbt(method, path, budget.queries, this);
+    }
+
     public boolean sameFluid(FluidIdentity left, FluidIdentity right) {
         if (budget.queries == null) budget.queries = new QueryBudget();
         return left.matches(right, budget.queries);

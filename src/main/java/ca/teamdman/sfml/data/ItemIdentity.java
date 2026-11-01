@@ -43,6 +43,10 @@ public final class ItemIdentity {
         return metadata;
     }
 
+    DataValue inspectNbt(String method, String path, QueryBudget budget, DataRuntime runtime) {
+        return nbt.inspect(method, path, budget, runtime);
+    }
+
     int getRetainedCharacters() {
         return Math.addExact(registryId.length(), nbt.getRetainedCharacters());
     }

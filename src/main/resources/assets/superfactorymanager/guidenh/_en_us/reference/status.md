@@ -56,8 +56,8 @@ qualified adapters. A machine appearing in NEI does not establish adapter suppor
 No general EU/RF/energy-transfer interface is provided by these item/fluid examples.
 
 Exact item keys preserve registry ID, metadata and NBT, including the distinction
-between no tag and an empty compound. There is no player-facing general item-NBT
-inspector or constructor for arbitrary exact ITEM_KEY values yet. A user struct
+between no tag and an empty compound. Captured keys support [read-only tag inspection](/advanced/nbt.md).
+A graphical tree and constructor for arbitrary exact ITEM_KEY values remain future work. A user struct
 with `id` and `amount` fields is data, not a native ItemStack or transfer key.
 
 ## Publishing and operational views
@@ -76,7 +76,7 @@ remain separate work.
 - Server recipe candidates/requirements, machine recipe-map resolution and
   optional NEI selection tools. GuideNH displaying a crafting recipe is separate
   from an SFML recipe-query API.
-- Rich NBT inspection and more collection/string helpers.
+- A graphical NBT tree, universal durability adapters and more collection/string helpers.
 - Cable-based network label editing and inventory-content browsing.
 - Runtime-adjustable scheduling and event-driven destination availability.
 

@@ -121,7 +121,9 @@ The sequence has its actual length, including zero. Groups expose `item: ITEM_KE
 Locations expose integer dimension/x/y/z/slot/sideMask/amount. Exact keys support
 `=` without registry/world reads; LABEL/RESOURCE_SELECTOR/collection equality is
 unchanged. Key display omits NBT payload, so matching-looking printed summaries
-are not proof of key equality. No public ITEM_KEY constructor or NBT inspector yet.
+are not proof of key equality. There is no public ITEM_KEY constructor. Captured
+keys support read-only HASNBT/NBTTYPE/NBTINTEGER/NBTSTRING/NBTTEXT/NBTKEYS/NBTLENGTH
+using bounded JSON Pointer paths; these never rescan an inventory or mutate tags.
 
 Provisional native caps are 256 groups/1024 locations; shared budgets can fail
 earlier. Exact NBT is limited to depth 16, 1024 nodes and 8192 canonical bytes/key,

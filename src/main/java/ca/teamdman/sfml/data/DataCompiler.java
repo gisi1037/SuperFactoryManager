@@ -911,6 +911,25 @@ public final class DataCompiler {
         };
     }
 
+    private static Node itemNbt(Node receiver, Node path, String method) {
+        require(receiver.type, DataType.ITEM_KEY);
+        require(path.type, DataType.STRING);
+        DataType result = method.equals("HASNBT") ? DataType.BOOLEAN
+            : method.equals("NBTINTEGER") || method.equals("NBTLENGTH") ? DataType.INTEGER
+                : method.equals("NBTKEYS") ? DataType.dynamicArray(DataType.STRING) : DataType.STRING;
+        return new Node(result, 1 + Math.max(receiver.depth, path.depth), false) {
+
+            @Override
+            protected DataValue compute(DataRuntime runtime) {
+                ItemIdentity item = receiver.evaluate(runtime)
+                    .asItemIdentity();
+                String pointer = path.evaluate(runtime)
+                    .asString();
+                return runtime.inspectItemNbt(item, method, pointer);
+            }
+        };
+    }
+
     private static Node query(Node receiver, Node selector, String method) {
         require(receiver.type, DataType.LABEL_REF);
         require(selector.type, DataType.RESOURCE_SELECTOR);
@@ -1534,6 +1553,17 @@ public final class DataCompiler {
                     String member = take();
                     if (accept("(")) {
                         String method = member.toUpperCase(Locale.ROOT);
+                        if (method.equals("HASNBT") || method.equals("NBTTYPE")
+                            || method.equals("NBTINTEGER")
+                            || method.equals("NBTSTRING")
+                            || method.equals("NBTTEXT")
+                            || method.equals("NBTKEYS")
+                            || method.equals("NBTLENGTH")) {
+                            Node path = peek(")") ? literal(DataValue.string("")) : expression();
+                            expect(")");
+                            node = itemNbt(node, path, method);
+                            continue;
+                        }
                         if (method.equals("SIDE")) {
                             String argument = take();
                             if (!argument.startsWith("\"") || !peek(")")) throw new IllegalArgumentException(

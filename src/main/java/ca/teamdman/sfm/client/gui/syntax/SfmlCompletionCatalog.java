@@ -600,6 +600,20 @@ public final class SfmlCompletionCatalog {
             "$<label>.contents()",
             "Capture exact item groups and locations. Optional item/ore selector. Unavailable/incomplete access faults; not a reservation or persistent state.",
             "label(\"inputs\").contents()");
+        String[] nbtNames = { "hasnbt", "nbttype", "nbtinteger", "nbtstring", "nbttext", "nbtkeys", "nbtlength" };
+        String[] nbtTypes = { "boolean", "string", "integer", "string", "string", "string[]", "integer" };
+        for (int i = 0; i < nbtNames.length; i++) {
+            String methodName = nbtNames[i];
+            String pointer = methodName.equals("nbtkeys") || methodName.equals("nbtlength") ? ""
+                : methodName.equals("nbtstring") ? "/display/Name" : "/heat";
+            method(
+                entries,
+                methodName,
+                "$item." + methodName + "([path: string]) -> " + nbtTypes[i],
+                "$<item>." + methodName + "(\"<path>\")",
+                "Read captured ITEM_KEY NBT using JSON Pointer paths, not live inventory data. Empty path selects root; ~1 escapes '/' and ~0 escapes '~'. Missing hasnbt returns false and nbttype returns missing; typed reads fault. Integer reads preserve byte/short/int/long; string requires a string; text displays scalars; keys returns sorted compound names; length counts container entries or UTF-16 string units. Bounded and read-only.",
+                "label(\"inputs\").contents()[0].item." + methodName + "(\"" + pointer + "\")");
+        }
         method(
             entries,
             "count",

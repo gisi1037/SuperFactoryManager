@@ -44,7 +44,7 @@ sideMask records the sides selected for the observation, not extraction permissi
 
 Groups appear in first-encounter order from label positions and ascending eligible slots. Repeated physical inventories/chest halves are deduplicated. Treat this as scan order, not a sort by item name or a permanently stable row index.
 
-An ITEM_KEY includes exact registry ID, metadata and canonical NBT. Quantity is separate. Compound entry order does not change a key; NBT types, list order and payload do. Absent NBT and an empty NBT compound are distinct keys. `=` and `==` compare keys exactly; `!=` detects a difference, including an NBT-only change. Printed key summaries omit the NBT payload, so identical-looking summaries do not prove equal variants. There is no public key constructor or general NBT inspector.
+An ITEM_KEY includes exact registry ID, metadata and canonical NBT. Quantity is separate. Compound entry order does not change a key; NBT types, list order and payload do. Absent NBT and an empty NBT compound are distinct keys. `=` and `==` compare keys exactly; `!=` detects a difference, including an NBT-only change. Printed key summaries omit the NBT payload, so identical-looking summaries do not prove equal variants. There is no public key constructor. Exact keys support [read-only NBT tag inspection](/advanced/nbt.md).
 
 ## Selecting worn tools
 
@@ -64,7 +64,7 @@ every 20 ticks {
 ```
 
 This selects at least 200 damage used, not 200 remaining. Maximum/remaining
-durability and individual NBT fields are not exposed yet. Other items may use
+durability is not universal; known item-specific NBT fields can be read through the tag API. Other items may use
 metadata for variants or store wear elsewhere; those need an inspection adapter.
 Using the exact `group.item` avoids also selecting undamaged variants.
 

@@ -78,6 +78,32 @@ class SfmlContentsIntegrationTest {
     }
 
     @Test
+    void nbtInspectionUsesCapturedContentsWithoutAdditionalProviderReads() throws Exception {
+        Fixture fixture = fixture();
+        CountingInventory source = new CountingInventory(2);
+        fixture.add("coolant", SRC, source);
+        ItemStack stack = stack(SCAN_ITEM, 1, 15, null);
+        NBTTagCompound tags = new NBTTagCompound();
+        tags.setInteger("heat", 55872);
+        tags.setByte("tag", (byte) 1);
+        stack.setTagCompound(tags);
+        source.setInventorySlotContents(0, stack);
+        Program program = program(
+            "state result = {heat:0, tag:0, keys:0} every 20 ticks { " + "let stock = label(\"coolant\").contents() "
+                + "if(len(stock) > 0 and stock[0].item.hasnbt(\"/heat\")) { "
+                + "result.heat = stock[0].item.nbtinteger(\"/heat\") "
+                + "result.tag = stock[0].item.nbtinteger(\"/tag\") "
+                + "result.keys = len(stock[0].item.nbtkeys()) } }");
+        Memory state = new Memory(program);
+        program.tick(context(fixture, state));
+        assertEquals(55872, state.number("heat"));
+        assertEquals(1, state.number("tag"));
+        assertEquals(2, state.number("keys"));
+        assertEquals(2, source.reads, "Only the original two-slot contents scan touches the inventory");
+        assertEquals(55872, tags.getInteger("heat"));
+    }
+
+    @Test
     void functionsAcceptAndReturnViewsLocationsAndExactKeysWithoutLosingTheirShapes() throws Exception {
         Fixture fixture = fixture();
         fixture.source.setInventorySlotContents(0, stack(SCAN_ITEM, 3, 4, null));

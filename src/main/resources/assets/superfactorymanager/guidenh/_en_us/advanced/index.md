@@ -37,5 +37,6 @@ complete examples, diagnostics, recovery, performance limits and feature status.
   import limits and guarded saves.
 - [Reusable functions](libraries.md): publish your own library and pin its exact
   revision in several programs.
+- [Read item NBT](nbt.md): inspect captured heat, wear and other typed tags.
 - [Labels and cable networks](labels.md): gun controls, grouped selections and
   connection rules.

@@ -2240,15 +2240,15 @@ every 20 ticks {
 }
 ```
 
-This threshold means at least 200 damage used. Maximum/remaining durability and
-individual NBT fields are not exposed yet. Items that encode wear differently
-need an inspection adapter; do not interpret every item's metadata as damage.
+This threshold means at least 200 damage used. Universal maximum/remaining
+durability is not exposed. Read-only ITEM_KEY NBT inspection can read known
+item-specific wear or heat tags; do not interpret every item's metadata as damage.
 
 A program-wide LET can retain a baseline snapshot across runs. Compare
 `$current[0].item != $original[0].item` after checking both lengths. This detects
 identity changes, not a universal crafting-complete signal: some machines may
-change NBT while processing or produce an identical final key. General NBT field
-inspection remains planned. The
+change NBT while processing or produce an identical final key. Read-only NBT
+inspection is described below. The
 [automatic infusion example](../examples/logistics/infusion-auto-nbt.sfml)
 loads one item per pedestal, waits for empty surrounding pedestals plus a changed
 center key, and retries collection if the output is full. It assumes one prepared
@@ -2269,6 +2269,34 @@ Oversized/corrupt NBT fails closed. Current provider qualification is headless;
 production pack, SRG list access, lifecycle and scaling checks remain open.
 [Full contracts and next work](STANDARD_LIBRARY.md).
 
+
+### Read captured item NBT
+
+An exact ITEM_KEY from `contents()[i].item` supports read-only `hasnbt`, `nbttype`,
+`nbtinteger`, `nbtstring`, `nbttext`, `nbtkeys` and `nbtlength`. Each accepts an
+optional STRING JSON Pointer; omitted/empty means the item's tag root. `/heat`
+reads the heat field, `/display/Name` a nested string, and `/list/0/value` a list
+child. Dots belong to names. Escape `/` within a name as `~1` and `~` as `~0`.
+
+`hasnbt` returns false on a missing path; `nbttype` returns `missing` or the exact
+NBT type (`byte`, `short`, `int`, `long`, `float`, `double`, `byte_array`, `string`,
+`list`, `compound`, `int_array`). Typed reads fault on missing/wrong types rather
+than inventing zero. Integer reads preserve signed byte/short/int/long; floats
+and doubles can be displayed using `nbttext`, without truncating into integers.
+`nbtstring` requires string NBT. `nbtkeys` returns sorted immediate compound keys
+as dynamic `string[]`; `nbtlength` counts compound/list/array entries, or UTF-16
+code units for strings. No tag differs from an empty compound.
+
+Paths are bounded to512 characters/16 segments. Key lists refuse more than256
+entries. All walks and results share runtime/query work/allocation allowances.
+These inspect immutable existing key bytes, without provider callbacks, chunk
+loads, rescans, mutable ItemStacks, new retained NBT trees or tag writes. An ITEM
+selector is not a key. Use a fresh contents scan to observe changed values.
+Exact transfer/comparison still uses the full original key.
+
+See the compiler-checked [in-game tests](IN_GAME_TEST_CHECKLIST.md) for coolant
+heat, bounded transfers and expected results. Universal remaining durability and
+a graphical NBT tree remain separate work; known item-specific tags are readable.
 
 ### Fluid methods and transfers
 

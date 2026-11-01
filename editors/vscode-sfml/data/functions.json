@@ -300,6 +300,55 @@
       ],
       "description": "Immutable per-tank rows: fluid (exact fluid/NBT key), id, amount (mB), dimension, x, y, z, tank, sideMask. Unavailable/incomplete groups fault. No reservation or persistent STATE. Defaults to FLUID(\"*\"); only FLUID selectors are accepted. .side() selects a physical face. .slots() is invalid. Ambiguous views across faces require one explicit side.",
       "example": "label(\"tank\").fcontents()"
+    },
+    "nbtlength": {
+      "signatures": [
+        "$item.nbtlength([path: string]) -> integer"
+      ],
+      "description": "Read captured ITEM_KEY NBT only; no live provider access or writes. JSON Pointer paths start with /; empty path selects root, ~1 escapes / and ~0 escapes ~. hasnbt returns false for missing paths; nbttype returns missing or the exact NBT type. Typed getters fault on missing/wrong type: nbtinteger reads byte/short/int/long without truncation, nbtstring requires string, nbttext displays scalar values including floats. nbtkeys returns sorted compound keys as string[] (max 256); nbtlength counts compound/list/array entries or UTF-16 string units. Paths max 512 characters/16 segments; shared work/allocation limits apply. Byte/int arrays and lists use zero-based indices. Use group.item from contents(), not an ITEM selector.",
+      "example": "for stack in label(\"reactor\").contents() {\n  print(stack.item.nbtlength(\"\"))\n}"
+    },
+    "nbttype": {
+      "signatures": [
+        "$item.nbttype([path: string]) -> string"
+      ],
+      "description": "Read captured ITEM_KEY NBT only; no live provider access or writes. JSON Pointer paths start with /; empty path selects root, ~1 escapes / and ~0 escapes ~. hasnbt returns false for missing paths; nbttype returns missing or the exact NBT type. Typed getters fault on missing/wrong type: nbtinteger reads byte/short/int/long without truncation, nbtstring requires string, nbttext displays scalar values including floats. nbtkeys returns sorted compound keys as string[] (max 256); nbtlength counts compound/list/array entries or UTF-16 string units. Paths max 512 characters/16 segments; shared work/allocation limits apply. Byte/int arrays and lists use zero-based indices. Use group.item from contents(), not an ITEM selector.",
+      "example": "for stack in label(\"reactor\").contents() {\n  print(stack.item.nbttype(\"/heat\"))\n}"
+    },
+    "hasnbt": {
+      "signatures": [
+        "$item.hasnbt([path: string]) -> boolean"
+      ],
+      "description": "Read captured ITEM_KEY NBT only; no live provider access or writes. JSON Pointer paths start with /; empty path selects root, ~1 escapes / and ~0 escapes ~. hasnbt returns false for missing paths; nbttype returns missing or the exact NBT type. Typed getters fault on missing/wrong type: nbtinteger reads byte/short/int/long without truncation, nbtstring requires string, nbttext displays scalar values including floats. nbtkeys returns sorted compound keys as string[] (max 256); nbtlength counts compound/list/array entries or UTF-16 string units. Paths max 512 characters/16 segments; shared work/allocation limits apply. Byte/int arrays and lists use zero-based indices. Use group.item from contents(), not an ITEM selector.",
+      "example": "for stack in label(\"reactor\").contents() {\n  print(stack.item.hasnbt(\"/heat\"))\n}"
+    },
+    "nbtstring": {
+      "signatures": [
+        "$item.nbtstring([path: string]) -> string"
+      ],
+      "description": "Read captured ITEM_KEY NBT only; no live provider access or writes. JSON Pointer paths start with /; empty path selects root, ~1 escapes / and ~0 escapes ~. hasnbt returns false for missing paths; nbttype returns missing or the exact NBT type. Typed getters fault on missing/wrong type: nbtinteger reads byte/short/int/long without truncation, nbtstring requires string, nbttext displays scalar values including floats. nbtkeys returns sorted compound keys as string[] (max 256); nbtlength counts compound/list/array entries or UTF-16 string units. Paths max 512 characters/16 segments; shared work/allocation limits apply. Byte/int arrays and lists use zero-based indices. Use group.item from contents(), not an ITEM selector.",
+      "example": "for stack in label(\"reactor\").contents() {\n  print(stack.item.nbtstring(\"/heat\"))\n}"
+    },
+    "nbttext": {
+      "signatures": [
+        "$item.nbttext([path: string]) -> string"
+      ],
+      "description": "Read captured ITEM_KEY NBT only; no live provider access or writes. JSON Pointer paths start with /; empty path selects root, ~1 escapes / and ~0 escapes ~. hasnbt returns false for missing paths; nbttype returns missing or the exact NBT type. Typed getters fault on missing/wrong type: nbtinteger reads byte/short/int/long without truncation, nbtstring requires string, nbttext displays scalar values including floats. nbtkeys returns sorted compound keys as string[] (max 256); nbtlength counts compound/list/array entries or UTF-16 string units. Paths max 512 characters/16 segments; shared work/allocation limits apply. Byte/int arrays and lists use zero-based indices. Use group.item from contents(), not an ITEM selector.",
+      "example": "for stack in label(\"reactor\").contents() {\n  print(stack.item.nbttext(\"/heat\"))\n}"
+    },
+    "nbtkeys": {
+      "signatures": [
+        "$item.nbtkeys([path: string]) -> string[]"
+      ],
+      "description": "Read captured ITEM_KEY NBT only; no live provider access or writes. JSON Pointer paths start with /; empty path selects root, ~1 escapes / and ~0 escapes ~. hasnbt returns false for missing paths; nbttype returns missing or the exact NBT type. Typed getters fault on missing/wrong type: nbtinteger reads byte/short/int/long without truncation, nbtstring requires string, nbttext displays scalar values including floats. nbtkeys returns sorted compound keys as string[] (max 256); nbtlength counts compound/list/array entries or UTF-16 string units. Paths max 512 characters/16 segments; shared work/allocation limits apply. Byte/int arrays and lists use zero-based indices. Use group.item from contents(), not an ITEM selector.",
+      "example": "for stack in label(\"reactor\").contents() {\n  print(stack.item.nbtkeys(\"\"))\n}"
+    },
+    "nbtinteger": {
+      "signatures": [
+        "$item.nbtinteger([path: string]) -> integer"
+      ],
+      "description": "Read captured ITEM_KEY NBT only; no live provider access or writes. JSON Pointer paths start with /; empty path selects root, ~1 escapes / and ~0 escapes ~. hasnbt returns false for missing paths; nbttype returns missing or the exact NBT type. Typed getters fault on missing/wrong type: nbtinteger reads byte/short/int/long without truncation, nbtstring requires string, nbttext displays scalar values including floats. nbtkeys returns sorted compound keys as string[] (max 256); nbtlength counts compound/list/array entries or UTF-16 string units. Paths max 512 characters/16 segments; shared work/allocation limits apply. Byte/int arrays and lists use zero-based indices. Use group.item from contents(), not an ITEM selector.",
+      "example": "for stack in label(\"reactor\").contents() {\n  print(stack.item.nbtinteger(\"/heat\"))\n}"
     }
   }
 }

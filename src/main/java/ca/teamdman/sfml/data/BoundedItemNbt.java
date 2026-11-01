@@ -92,6 +92,10 @@ final class BoundedItemNbt {
         return length;
     }
 
+    DataValue inspect(String method, String path, QueryBudget budget, DataRuntime runtime) {
+        return ItemNbtReader.read(payload, length, method, path, budget, runtime);
+    }
+
     int getComparisonWork() {
         return comparisonWork;
     }
