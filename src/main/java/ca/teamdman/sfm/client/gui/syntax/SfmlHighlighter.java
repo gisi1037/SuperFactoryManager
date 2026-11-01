@@ -547,7 +547,7 @@ public final class SfmlHighlighter {
         switch (tokens.get(index)
             .getType()) {
             case SFMLLexer.FOR:
-                return next == SFMLLexer.VARIABLE || next == SFMLLexer.IDENTIFIER;
+                return next == SFMLLexer.VARIABLE || next == SFMLLexer.IDENTIFIER || next == SFMLLexer.LPAREN;
             case SFMLLexer.WHILE:
                 if (previous == SFMLLexer.FROM || previous == SFMLLexer.TO
                     || previous == SFMLLexer.EACH

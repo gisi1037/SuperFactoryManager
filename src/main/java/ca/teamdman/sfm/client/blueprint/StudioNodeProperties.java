@@ -38,7 +38,8 @@ public final class StudioNodeProperties {
         REDSTONE_EDGE,
         PHYSICAL_SIDES,
         VARIABLE_NAME,
-        ASSIGNMENT_TARGET
+        ASSIGNMENT_TARGET,
+        LOOP_HEADER
     }
 
     public static final class Field {
@@ -827,6 +828,8 @@ public final class StudioNodeProperties {
                 if (!replacement.equalsIgnoreCase("RISING") && !replacement.equalsIgnoreCase("PULSE")
                     && !replacement.equalsIgnoreCase("FALLING"))
                     throw new IllegalArgumentException("Use RISING, PULSE, or FALLING");
+            } else if (selected.type == FieldType.LOOP_HEADER) {
+                BlueprintCompiler.validateClause(type, replacement);
             } else if (selected.type == FieldType.VARIABLE_NAME) {
                 SFMLParser parser = parser(replacement);
                 parser.variableName();
@@ -956,6 +959,24 @@ public final class StudioNodeProperties {
     private static List<Field> dataFields(Type type, String clause) {
         SFMLParser parser = parser(clause + (type.isLoop() ? " DO END" : ""));
         List<Field> fields = new ArrayList<>();
+        if (type == Type.JAVA_FOR) {
+            SFMLParser.JavaForContext loop = (SFMLParser.JavaForContext) parser.forStatement();
+            fields.add(
+                new Field(
+                    "header",
+                    "Initialize; condition; update",
+                    "FOR (LET index = 0; index < limit; index = index + 1). Empty clauses are allowed; test must be boolean.",
+                    FieldType.LOOP_HEADER,
+                    loop.getStart(),
+                    loop.RPAREN()
+                        .getSymbol(),
+                    null,
+                    0,
+                    false,
+                    "",
+                    clause));
+            return fields;
+        }
         if (type == Type.WHILE) {
             fields.add(
                 new Field(
@@ -968,7 +989,7 @@ public final class StudioNodeProperties {
                     clause));
             return fields;
         }
-        if (type == Type.FOR || type == Type.FOREACH) {
+        if (type == Type.FOR || type == Type.FOREACH || type == Type.INDEXED_FOREACH) {
             SFMLParser.ForStatementContext loop = parser.forStatement();
             if (loop instanceof SFMLParser.CountedForContext) {
                 SFMLParser.CountedForContext counted = (SFMLParser.CountedForContext) loop;
@@ -992,6 +1013,32 @@ public final class StudioNodeProperties {
                             FieldType.EXPRESSION,
                             counted.dataExpression(i),
                             clause));
+            } else if (loop instanceof SFMLParser.IndexedArrayForContext) {
+                SFMLParser.IndexedArrayForContext indexed = (SFMLParser.IndexedArrayForContext) loop;
+                fields.add(
+                    new Field(
+                        "indexName",
+                        "Index variable",
+                        "Read-only zero-based integer index.",
+                        FieldType.VARIABLE_NAME,
+                        indexed.variableName(0),
+                        clause));
+                fields.add(
+                    new Field(
+                        "name",
+                        "Element variable",
+                        "Read-only captured element value.",
+                        FieldType.VARIABLE_NAME,
+                        indexed.variableName(1),
+                        clause));
+                fields.add(
+                    new Field(
+                        "values",
+                        "Array or contents",
+                        "Iterate one captured snapshot in source order.",
+                        FieldType.EXPRESSION,
+                        indexed.dataExpression(),
+                        clause));
             } else {
                 SFMLParser.ArrayForContext array = (SFMLParser.ArrayForContext) loop;
                 fields.add(

@@ -465,6 +465,40 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     T visitArrayFor(SFMLParser.ArrayForContext ctx);
 
     /**
+     * Visit a parse tree produced by the {@code JavaFor}
+     * labeled alternative in {@link SFMLParser#forStatement}.
+     *
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitJavaFor(SFMLParser.JavaForContext ctx);
+
+    /**
+     * Visit a parse tree produced by the {@code IndexedArrayFor}
+     * labeled alternative in {@link SFMLParser#forStatement}.
+     *
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitIndexedArrayFor(SFMLParser.IndexedArrayForContext ctx);
+
+    /**
+     * Visit a parse tree produced by {@link SFMLParser#forInitializer}.
+     *
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitForInitializer(SFMLParser.ForInitializerContext ctx);
+
+    /**
+     * Visit a parse tree produced by {@link SFMLParser#forUpdate}.
+     *
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitForUpdate(SFMLParser.ForUpdateContext ctx);
+
+    /**
      * Visit a parse tree produced by {@link SFMLParser#whileStatement}.
      * 
      * @param ctx the parse tree

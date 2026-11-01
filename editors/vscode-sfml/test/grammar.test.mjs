@@ -93,6 +93,20 @@ test("fixed array and structural returns keep type, function and field scopes", 
   expectScope(structHeader, "status.empty", "entity.name.function.sfml");
 });
 
+test("Java-style headers and indexed foreach declarations have precise loop and binding scopes", () => {
+  const java = "FoR (let Index = 0; Index < len(values); Index = Index + 1) {";
+  expectScope(java, "FoR", "keyword.control.sfml");
+  expectScope(java, "Index", "variable.other.readwrite.sfml");
+  expectScope(java, "len", "support.function.sfml");
+  expectScope(java, ";", "punctuation.separator.sfml");
+  const indexed = "FOR ($Index, Value) IN values DO";
+  expectScope(indexed, "FOR", "keyword.control.sfml");
+  expectScope(indexed, "$Index", "variable.other.readonly.sfml");
+  expectScope(indexed, "Value", "variable.other.readonly.sfml");
+  expectScope(indexed, "IN", "keyword.control.sfml");
+  expectScope(indexed, "values", "variable.other.readwrite.sfml");
+});
+
 test("dynamic and mixed dimensions preserve function, type, nested struct and REF token scopes", () => {
   const arrayHeader = "integer[][2] rows.copy(ref integer[2][] values) {";
   expectScope(arrayHeader, "integer", "storage.type.sfml");
@@ -189,7 +203,9 @@ test("indentation covers mixed case blocks and else without indenting comments",
     "void reset() {", "integer f(integer n) { -- body", "every 20 ticks {", "} else {", "if (ready) {",
     "label_ref[2] routes() do", "integer next(integer value) then -- body", "void reset(ref integer value) DO",
     "{ready: boolean, count: integer} inspect() THEN", "integer[] copy(ref integer[] values) do",
-    "{rows: {value: integer}[][2]}[] records() then"]) {
+    "{rows: {value: integer}[][2]}[] records() then",
+    "for (let index = 0; index < len(values); index = index + 1) {",
+    "FoR (; true;) Do -- body", "for (index, value) in values {", "FOR ($Index, $Value) IN values DO"]) {
     assert.ok(increase.test(line), line);
   }
   for (const line of ["end", " END -- end block", "else", "Else If ($x) THEN"]) assert.ok(decrease.test(line), line);
@@ -204,7 +220,9 @@ test("fold markers nest blocks, without treating else as another opening block",
   const end = new RegExp(configuration.folding.markers.end);
   for (const line of ["every 20 ticks do", "if ($ready) then", "for $i in $items do", "-- region setup", "void f() {", "every 20 ticks {",
     "label_ref[2] routes() do", "integer next(integer value) then", "{ready: boolean} inspect() do",
-    "integer[][2] copy(ref integer[][2] values) do", "{rows: {value: integer}[]}[] records() then"])
+    "integer[][2] copy(ref integer[][2] values) do", "{rows: {value: integer}[]}[] records() then",
+    "for (let index = 0; index < len(values); index = index + 1) {",
+    "for (;; ) do", "for (index, value) in values {", "FOR ($Index, $Value) IN values DO"])
     assert.ok(start.test(line), line);
   for (const line of ["end", "END -- block", "-- endregion", "}", "} else {"]) assert.ok(end.test(line), line);
   assert.ok(!start.test("else if ($x) then"));
@@ -228,7 +246,7 @@ test("every published example tokenizes with the real TextMate engine", async ()
 
 test("snippets preserve literal variable sigils and unique completion prefixes", async () => {
   const snippets = await readJson("snippets/sfml.json");
-  assert.equal(Object.keys(snippets).length, 53);
+  assert.equal(Object.keys(snippets).length, 55);
   const prefixes = new Set();
   for (const [name, snippet] of Object.entries(snippets)) {
     assert.ok(!prefixes.has(snippet.prefix), name);
@@ -260,4 +278,14 @@ test("snippets preserve literal variable sigils and unique completion prefixes",
   assert.match(dynamic.body.join('\n'), /push\(ref /);
   assert.match(dynamic.body.join('\n'), /pop\(ref /);
   assert.match(dynamic.body.join('\n'), /array\(\[/);
+  const javaLoop = snippets["Java-style indexed loop complete program"];
+  const indexedLoop = snippets["Indexed sequence loop complete program"];
+  assert.equal(javaLoop.prefix, "forindex");
+  assert.equal(indexedLoop.prefix, "forindexed");
+  for (const snippet of [javaLoop, indexedLoop]) {
+    assert.match(snippet.body[0], /^every /);
+    assert.match(snippet.body[1], /let .* = \[1, 2\];/);
+  }
+  assert.match(javaLoop.body[2], /for \(let .* = 0; .* < len\(/);
+  assert.match(indexedLoop.body[2], /for \(.*?, .*?\) in /);
 });

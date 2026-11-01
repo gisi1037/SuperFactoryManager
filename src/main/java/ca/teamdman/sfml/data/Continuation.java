@@ -22,7 +22,7 @@ public final class Continuation {
     /** A compiled loop owns one cursor per active invocation, never one on its shared AST. */
     public static final class Progress {
 
-        public int index;
+        public int index, phase;
         public long current, end, step, due;
         public boolean initialized, inBody;
         public DataValue snapshot;

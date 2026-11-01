@@ -499,6 +499,14 @@ public final class BlueprintCompiler {
             SFMLParser.ArrayForContext loop = (SFMLParser.ArrayForContext) statement.forStatement();
             return (loop.DO() != null ? loop.DO() : loop.LBRACE()).getSymbol();
         }
+        if (statement.forStatement() instanceof SFMLParser.IndexedArrayForContext) {
+            SFMLParser.IndexedArrayForContext loop = (SFMLParser.IndexedArrayForContext) statement.forStatement();
+            return (loop.DO() != null ? loop.DO() : loop.LBRACE()).getSymbol();
+        }
+        if (statement.forStatement() instanceof SFMLParser.JavaForContext) {
+            SFMLParser.JavaForContext loop = (SFMLParser.JavaForContext) statement.forStatement();
+            return (loop.DO() != null ? loop.DO() : loop.LBRACE()).getSymbol();
+        }
         if (statement.whileStatement() != null) {
             SFMLParser.WhileStatementContext loop = statement.whileStatement();
             return (loop.DO() != null ? loop.DO() : loop.LBRACE()).getSymbol();
@@ -511,6 +519,10 @@ public final class BlueprintCompiler {
             return ((SFMLParser.CountedForContext) statement.forStatement()).block();
         if (statement.forStatement() instanceof SFMLParser.ArrayForContext)
             return ((SFMLParser.ArrayForContext) statement.forStatement()).block();
+        if (statement.forStatement() instanceof SFMLParser.IndexedArrayForContext)
+            return ((SFMLParser.IndexedArrayForContext) statement.forStatement()).block();
+        if (statement.forStatement() instanceof SFMLParser.JavaForContext)
+            return ((SFMLParser.JavaForContext) statement.forStatement()).block();
         if (statement.whileStatement() != null) return statement.whileStatement()
             .block();
         throw new IllegalArgumentException("Expected a loop statement");
@@ -519,6 +531,8 @@ public final class BlueprintCompiler {
     public static Type typeOf(SFMLParser.StatementContext statement) {
         if (statement.forStatement() instanceof SFMLParser.CountedForContext) return Type.FOR;
         if (statement.forStatement() instanceof SFMLParser.ArrayForContext) return Type.FOREACH;
+        if (statement.forStatement() instanceof SFMLParser.IndexedArrayForContext) return Type.INDEXED_FOREACH;
+        if (statement.forStatement() instanceof SFMLParser.JavaForContext) return Type.JAVA_FOR;
         if (statement.whileStatement() != null) return Type.WHILE;
         if (statement.dataDeclaration() != null) return Type.LET;
         if (statement.dataAssignment() != null) return Type.SET;
@@ -648,17 +662,17 @@ public final class BlueprintCompiler {
     }
 
     private static int normalized(Token token, Map<Integer, Integer> blocks) {
-        return token.getType() == SFMLLexer.SEMICOLON ? -2
-            : blocks.getOrDefault(token.getTokenIndex(), token.getType());
+        return blocks.getOrDefault(token.getTokenIndex(), token.getType());
     }
 
     /** Normalize only grammar-owned control delimiters. Struct literal braces remain exact source tokens. */
     private static Map<Integer, Integer> blockTokens(CommonTokenStream tokens) {
         boolean braces = false;
-        for (Token token : tokens.getTokens()) if (token.getType() == SFMLLexer.LBRACE) {
-            braces = true;
-            break;
-        }
+        for (Token token : tokens.getTokens())
+            if (token.getType() == SFMLLexer.LBRACE || token.getType() == SFMLLexer.SEMICOLON) {
+                braces = true;
+                break;
+            }
         if (!braces) return Collections.emptyMap();
         SFMLParser parser = new SFMLParser(tokens);
         parser.removeErrorListeners();
@@ -669,6 +683,12 @@ public final class BlueprintCompiler {
     }
 
     private static void normalizeBlocks(org.antlr.v4.runtime.tree.ParseTree tree, Map<Integer, Integer> replacements) {
+        if (tree instanceof org.antlr.v4.runtime.tree.TerminalNode) {
+            Token token = ((org.antlr.v4.runtime.tree.TerminalNode) tree).getSymbol();
+            // Header separators are executable syntax. Only statement/global terminators are optional.
+            if (token.getType() == SFMLLexer.SEMICOLON && (tree.getParent() instanceof SFMLParser.StatementContext
+                || tree.getParent() instanceof SFMLParser.ProgramContext)) replacements.put(token.getTokenIndex(), -2);
+        }
         if (tree instanceof SFMLParser.TriggerContext) {
             SFMLParser.TriggerContext trigger = (SFMLParser.TriggerContext) tree;
             Token open = triggerDo(trigger);

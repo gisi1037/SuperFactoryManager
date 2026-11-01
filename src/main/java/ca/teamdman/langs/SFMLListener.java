@@ -805,6 +805,66 @@ public interface SFMLListener extends ParseTreeListener {
     void exitArrayFor(SFMLParser.ArrayForContext ctx);
 
     /**
+     * Enter a parse tree produced by the {@code JavaFor}
+     * labeled alternative in {@link SFMLParser#forStatement}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterJavaFor(SFMLParser.JavaForContext ctx);
+
+    /**
+     * Exit a parse tree produced by the {@code JavaFor}
+     * labeled alternative in {@link SFMLParser#forStatement}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitJavaFor(SFMLParser.JavaForContext ctx);
+
+    /**
+     * Enter a parse tree produced by the {@code IndexedArrayFor}
+     * labeled alternative in {@link SFMLParser#forStatement}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterIndexedArrayFor(SFMLParser.IndexedArrayForContext ctx);
+
+    /**
+     * Exit a parse tree produced by the {@code IndexedArrayFor}
+     * labeled alternative in {@link SFMLParser#forStatement}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitIndexedArrayFor(SFMLParser.IndexedArrayForContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#forInitializer}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterForInitializer(SFMLParser.ForInitializerContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#forInitializer}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitForInitializer(SFMLParser.ForInitializerContext ctx);
+
+    /**
+     * Enter a parse tree produced by {@link SFMLParser#forUpdate}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterForUpdate(SFMLParser.ForUpdateContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#forUpdate}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitForUpdate(SFMLParser.ForUpdateContext ctx);
+
+    /**
      * Enter a parse tree produced by {@link SFMLParser#whileStatement}.
      * 
      * @param ctx the parse tree

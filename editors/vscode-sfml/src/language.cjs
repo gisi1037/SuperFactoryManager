@@ -109,6 +109,22 @@ function analyze(text) {
   }
   const scopes = [{ kind: 'root', bindings: new Map() }];
   let pendingParameters = [], pendingLoop;
+  const loopDeclarations = new Map();
+  function loopEntry(token, index = false) {
+    return { token, readOnly: true, signatures: [`for ${token.text}${index ? ': integer' : ''}`],
+      description: index
+        ? 'Read-only zero-based integer loop index. Bound only inside this loop body; the source is captured once.'
+        : 'Read-only loop value. Bound only inside this loop body; iteration uses one captured sequence snapshot.' };
+  }
+  function javaHeader(start) {
+    let depth = 0, semicolons = 0;
+    for (let j = start; j < tokens.length && j - start <= 1024; j++) {
+      if (tokens[j].text === '(' && ++depth > 64) return false;
+      if (tokens[j].text === ')' && --depth === 0) return semicolons === 2;
+      if (depth === 1 && tokens[j].text === ';') semicolons++;
+    }
+    return false;
+  }
   function declare(token, entry, scope = scopes.at(-1)) {
     token.binding = entry;
     scope.bindings.set(bindingName(token), entry);
@@ -125,8 +141,24 @@ function analyze(text) {
     }
     const token = tokens[i], lower = token.text?.toLowerCase();
     const field = tokens[i - 1]?.text === '.' || tokens[i + 1]?.text === ':';
+    if (!field && lower === 'for' && tokens[i + 1]?.text === '(') {
+      if (isName(tokens[i + 2]) && tokens[i + 3]?.text === ',' && isName(tokens[i + 4])
+        && tokens[i + 5]?.text === ')' && tokens[i + 6]?.text?.toLowerCase() === 'in') {
+        const entries = [loopEntry(tokens[i + 2], true), loopEntry(tokens[i + 4])];
+        loopDeclarations.set(i + 2, entries[0]);
+        loopDeclarations.set(i + 4, entries[1]);
+        pendingLoop = { entries };
+      } else if (javaHeader(i + 1)) {
+        const scope = { kind: 'for-header', bindings: new Map() };
+        scopes.push(scope);
+        pendingLoop = { entries: [], header: scope };
+      }
+    }
     if (!field && (lower === 'end' || lower === '}')) {
-      if (scopes.length > 1) scopes.pop();
+      if (scopes.length > 1) {
+        const closed = scopes.pop();
+        if (closed.header && scopes.at(-1) === closed.header) scopes.pop();
+      }
     } else if (!field && lower === 'else' && scopes.at(-1).kind === 'legacy') {
       scopes.pop();
       if (tokens[i + 1]?.text?.toLowerCase() !== 'if') scopes.push({ kind: 'legacy', bindings: new Map() });
@@ -135,15 +167,28 @@ function analyze(text) {
       scopes.push({ kind: structure ? 'structure' : lower === '{' ? 'brace' : 'legacy', bindings: new Map() });
       for (const parameter of pendingParameters) declare(parameter.token, parameter);
       pendingParameters = [];
-      if (pendingLoop && !structure) { declare(pendingLoop.token, pendingLoop); pendingLoop = undefined; }
+      if (pendingLoop && !structure) {
+        for (const entry of pendingLoop.entries) declare(entry.token, entry);
+        scopes.at(-1).header = pendingLoop.header;
+        pendingLoop = undefined;
+      }
     }
     if (!isName(token) || field) continue;
     const previous = tokens[i - 1]?.text?.toLowerCase();
-    if (['let', 'state', 'into', 'for'].includes(previous) && tokens[i - 2]?.text !== '.') {
+    if (loopDeclarations.has(i)) token.binding = loopDeclarations.get(i);
+    else if (['let', 'state', 'into', 'for'].includes(previous) && tokens[i - 2]?.text !== '.') {
+      const javaInitializer = previous === 'let' && scopes.at(-1).kind === 'for-header';
       const entry = { token, signatures: [`${previous} ${token.text}`],
         description: previous === 'state' ? 'Persistent disk STATE binding. Names are case-sensitive; the $ prefix is optional.'
+          : javaInitializer ? 'Mutable FOR initializer binding. Visible in the condition, body and update, and out of scope after the loop. Names are case-sensitive; the $ prefix is optional.'
           : 'Local or program RAM binding. Names are case-sensitive; the $ prefix is optional. Types are checked by the Java compiler.' };
-      if (previous === 'for') { token.binding = entry; pendingLoop = entry; }
+      if (javaInitializer) entry.readOnly = false;
+      if (previous === 'for') {
+        entry.readOnly = true;
+        entry.description = 'Read-only loop binding, visible only in this loop body. Iteration bounds or sequence are captured before entry.';
+        token.binding = entry;
+        pendingLoop = { entries: [entry] };
+      }
       else declare(token, entry);
     } else if (tokens[i + 1]?.text !== '(' && (tokens[i - 1]?.text !== ':' || scopes.at(-1).kind === 'structure')) {
       // Keep editing malformed, deeply nested source bounded as well.

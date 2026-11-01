@@ -9,11 +9,17 @@ import ca.teamdman.sfml.data.DataValue;
 /** DataValue is immutable, so retaining the evaluated value provides a stable snapshot. */
 public final class ArrayForStatement implements Statement {
 
-    private final DataCompiler.Binding binding;
+    private final DataCompiler.Binding indexBinding, binding;
     private final DataExpression array;
     private final Block body;
 
     public ArrayForStatement(DataCompiler.Binding binding, DataExpression array, Block body) {
+        this(null, binding, array, body);
+    }
+
+    public ArrayForStatement(DataCompiler.Binding indexBinding, DataCompiler.Binding binding, DataExpression array,
+        Block body) {
+        this.indexBinding = indexBinding;
         this.binding = binding;
         this.array = array;
         this.body = body;
@@ -25,7 +31,7 @@ public final class ArrayForStatement implements Statement {
         if (context.isResumable()) {
             context.enterLoop();
             try {
-                ca.teamdman.sfml.data.ResumableLoops.array(runtime, this, binding, array, () -> {
+                ca.teamdman.sfml.data.ResumableLoops.array(runtime, this, indexBinding, binding, array, () -> {
                     body.tick(context);
                     return null;
                 });
@@ -39,6 +45,7 @@ public final class ArrayForStatement implements Statement {
         try {
             for (int index = 0; index < snapshot.size(); index++) {
                 runtime.loopStep();
+                if (indexBinding != null) indexBinding.write(runtime, DataValue.integer(index));
                 binding.write(runtime, snapshot.get(index));
                 body.tick(context);
             }
@@ -49,6 +56,8 @@ public final class ArrayForStatement implements Statement {
 
     @Override
     public String toString() {
-        return "FOR $" + binding.name + " IN " + array + " DO\n" + body + "\nEND";
+        String binder = indexBinding == null ? "$" + binding.name
+            : "($" + indexBinding.name + ", $" + binding.name + ")";
+        return "FOR " + binder + " IN " + array + " DO\n" + body + "\nEND";
     }
 }

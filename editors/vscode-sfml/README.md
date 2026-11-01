@@ -22,7 +22,7 @@ Install the packaged extension from the repository's `editors/vscode-sfml`
 directory:
 
 ```sh
-code --install-extension dist/sfml-language-0.3.2.vsix
+code --install-extension dist/sfml-language-0.3.3.vsix
 ```
 
 You can also select **Extensions: Install from VSIX…** in the Command Palette and
@@ -34,7 +34,7 @@ choose that file. Reload VS Code if prompted.
   strings, comments, types, function calls and operators, including bitwise
   operators and `!=`.
 - Bracket and quote pairing, `--` line comments, indentation and block folding.
-- 53 lowercase snippets with editable tab stops. Type a prefix and select the
+- 55 lowercase snippets with editable tab stops. Type a prefix and select the
   snippet from completion, or use **Insert Snippet**. Tab moves between fields.
 - A dedicated variable color for plain names and optional `$names`, with dark/light/high-contrast defaults.
   Comments and string contents are excluded. Set `sfml.variableHighlighting.enabled`
@@ -170,6 +170,31 @@ already committed before a stale assignment fault are not rolled back. As with
 other REF effects, collection mutations cannot run in program-wide LET initializers or
 named-redstone subscription expressions.
 
+The `forindex` and `forindexed` snippets each insert a complete program with a
+local `values = [1, 2]` source:
+
+```sfml
+every 20 ticks {
+  let values = [1, 2];
+  for (let index = 0; index < len(values); index = index + 1) {
+    print(index, values[index]);
+  }
+  for (index, value) in values {
+    print(index, value);
+  }
+}
+```
+
+Java-style FOR initializers are mutable and visible through the condition, body
+and update, then leave scope. Body locals cannot be used in the update clause.
+Initializer, condition and update may be omitted; an omitted condition is true.
+An indexed sequence loop captures its source once, then binds a read-only
+zero-based integer index and read-only value inside each body. Its new bindings
+are unavailable in the source expression or after the loop. Both loop forms also
+accept `do ... end` bodies and run inside typed functions and void procedures.
+WAIT resumes the current phase; RETURN exits before the update. Shared work,
+allocation and loop-step limits still apply.
+
 All keywords accept upper, lower or mixed case. Variables, field names, labels,
 item IDs and OreDictionary names retain their own case-sensitive identities.
 Exact item keys from `contents()` include metadata and NBT: `!=` detects an
@@ -258,7 +283,7 @@ npm test
 npm run package
 ```
 
-The package is written to `dist/sfml-language-0.3.2.vsix`. Open this extension
+The package is written to `dist/sfml-language-0.3.3.vsix`. Open this extension
 directory in VS Code and press **F5** to try it in an Extension Development Host.
 The runtime has no external JavaScript dependencies and performs no program
 execution or network requests.

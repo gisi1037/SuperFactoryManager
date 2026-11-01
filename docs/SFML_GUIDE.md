@@ -824,6 +824,50 @@ legacy inventory scan or slow third-party callback. Counted, array and WHILE loo
 Iteration can build dynamic LABEL_REF values with `label("chest" + index)`
 and use them in queries and IO clauses. Resource selectors keep their own rules.
 
+### Indexed loop forms
+
+Use a Java-style loop when you want a mutable counter or custom update. The
+initializer runs once, the Boolean condition runs before each body, and the
+update runs after a completed body. Any header clause may be omitted; a missing
+condition means TRUE, so normal loop/work limits still stop an unbounded run.
+The initializer may declare LET, assign a variable or call a function; the update
+may assign or call. Use `index = index + 1`; `++`/`--` are not operators.
+
+```sfml
+every 20 ticks {
+  let values = [4, 8, 16]
+  for (let index = 0; index < len(values); index = index + 1) {
+    print(index, values[index])
+  }
+  for (index, value) in values {
+    print(index, value)
+  }
+}
+```
+
+The Java-style initializer's LET binding is mutable and visible in its test,
+body and update, then leaves scope. Body-only locals cannot be used in the
+update. Existing no-shadowing rules apply. The test must be BOOLEAN; unlike
+IF/WHILE, no extra parentheses are needed around the data-expression test.
+
+The index/value form uses a zero-based read-only INTEGER index and a read-only
+captured element. It supports fixed/dynamic arrays and native sequences. The
+source evaluates once before either binder is introduced; replacing or resizing
+the source does not change traversal. Neither binder can be reassigned or passed
+by REF. Both disappear after the loop. The one-variable `for value in values`
+and counted `for index = first to last step amount` forms remain supported.
+
+Both forms support braces or DO/END, trigger blocks and player functions. WAIT
+can suspend initialization, test, body or update; completed phases do not repeat
+on resume. A function RETURN exits before the update. Loop/work/depth/retention
+limits remain shared. BREAK and CONTINUE remain unsupported.
+
+Visual offers **For loop** and **Indexed array loop**, with BODY/AFTER pins.
+The For inspector edits its complete header; the indexed-array inspector edits
+index name, element name and source separately. Header semicolons are mandatory
+separators and are preserved by source identity/layout checks; optional statement
+terminators still normalize for Visual round-tripping.
+
 ### Player-written functions
 
 Define functions after top-level STATE/LET declarations and before triggers.

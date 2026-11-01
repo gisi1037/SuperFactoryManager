@@ -10,8 +10,11 @@ import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 
 import ca.teamdman.sfm.client.gui.syntax.SfmlCompletionCatalog;
+import ca.teamdman.sfm.client.gui.syntax.SfmlHighlighter;
 import ca.teamdman.sfm.client.gui.syntax.StudioCompletion;
 import ca.teamdman.sfm.client.gui.syntax.StudioCompletion.Candidate;
+import ca.teamdman.sfml.program_builder.ProgramBuildResult;
+import ca.teamdman.sfml.program_builder.ProgramBuilder;
 
 class StudioVariableCompletionTest {
 
@@ -111,6 +114,91 @@ class StudioVariableCompletionTest {
     }
 
     @Test
+    void javaLoopInitializerIsMutableAndVisibleInTestUpdateAndBodyOnly() {
+        String prefix = "LET $Outer = 1 EVERY 20 TICKS { ";
+        String[] scopes = { "FOR (LET $Index = 0; $~ < 4; $Index = $Index + 1) { PRINT(1); }",
+            "FOR (LET $Index = 0; $Index < 4; $Index = $~ + 1) { PRINT(1); }",
+            "FOR (LET $Index = 0; $Index < 4; $Index = $Index + 1) { PRINT($~); }" };
+        for (String loop : scopes) {
+            List<Candidate> result = at(prefix + loop + " }");
+            assertEquals(Arrays.asList("$Outer", "$Index"), names(result));
+            assertTrue(
+                result.get(1)
+                    .getHelp()
+                    .contains("Mutable loop variable"));
+        }
+        assertEquals(
+            Arrays.asList("$Outer"),
+            names(at(prefix + "FOR (LET $Index = $~; $Index < 4; $Index = $Index + 1) { PRINT(1); } }")));
+        assertEquals(
+            Arrays.asList("$Outer"),
+            names(at(prefix + "FOR (LET $Index = 0; $Index < 4; $Index = $Index + 1) { PRINT(1); } PRINT($~); }")));
+        assertTrue(at(prefix + "FOR (LET $~ = 0; TRUE; ) {} }").isEmpty());
+        compiled(prefix + "FOR (LET $Index = 0; $Index < 4; $Index = $Index + 1) { $Index = $Index + 1; } }");
+    }
+
+    @Test
+    void indexedArrayLoopBindersHaveDistinctReadOnlyRolesAndStayOutOfTheSourceExpression() {
+        String prefix = "LET $Values = [1,2] EVERY 20 TICKS DO ";
+        List<Candidate> body = at(prefix + "FOR ($Index, $Value) IN $Values DO PRINT($~) END END");
+        assertEquals(Arrays.asList("$Values", "$Index", "$Value"), names(body));
+        assertTrue(
+            body.get(1)
+                .getHelp()
+                .contains("Read-only loop index: integer"));
+        assertTrue(
+            body.get(2)
+                .getHelp()
+                .contains("Read-only loop value: source sequence element"));
+        assertEquals(Arrays.asList("$Values"), names(at(prefix + "FOR ($Index, $Value) IN $~ DO PRINT(1) END END")));
+        assertEquals(
+            Arrays.asList("$Values"),
+            names(at(prefix + "FOR ($Index, $Value) IN $Values DO PRINT(1) END PRINT($~) END")));
+        assertTrue(at(prefix + "FOR ($~, $Value) IN $Values DO PRINT(1) END END").isEmpty());
+        assertTrue(at(prefix + "FOR ($Index, $~) IN $Values DO PRINT(1) END END").isEmpty());
+        compiled(prefix + "FOR ($Index, $Value) IN $Values DO PRINT($Index, $Value) END END");
+    }
+
+    @Test
+    void newLoopScopesNestWithExistingLoopsFunctionsAndBodyLocalsWithoutLeaking() {
+        String function = "LET $Global = 1 integer work(integer $Argument) { "
+            + "FOR $Outer = 0 TO 2 DO FOR (LET $Index = 0; $Index < 2; $Index = $Index + 1) { ";
+        assertEquals(
+            Arrays.asList("$Argument", "$Outer", "$Index", "$Local"),
+            names(at(function + "LET $Local = 1; PRINT($~); } END RETURN 0; }")));
+        String indexed = "EVERY 20 TICKS { FOR (LET $Outer = 0; $Outer < 2; $Outer = $Outer + 1) { ";
+        assertEquals(Arrays.asList("$Outer"), names(at(indexed + "FOR ($Index, $Value) IN [$~] DO PRINT(1) END } }")));
+        assertEquals(
+            Arrays.asList("$Outer", "$Index", "$Value"),
+            names(at(indexed + "FOR ($Index, $Value) IN [1] DO PRINT($~) END } }")));
+        assertTrue(at(indexed + "FOR ($Index, $Value) IN [1] DO PRINT(1) END } PRINT($~); }").isEmpty());
+    }
+
+    @Test
+    void parenthesizedLoopHeadersUseFlowColorsWhileLegacyForLabelsAndResourcesStayIntact() {
+        for (String header : Arrays
+            .asList("FOR (LET index = 0; index < 2; index = index + 1)", "FOR (index, value) IN [1,2]")) {
+            String source = "EVERY 20 TICKS { " + header + " { PRINT(index); } }";
+            assertEquals(
+                SfmlHighlighter.Style.FLOW,
+                SfmlHighlighter.highlight(source).lines.get(0)
+                    .styleAt(source.indexOf("FOR")));
+            assertEquals(
+                SfmlHighlighter.Style.VARIABLE,
+                SfmlHighlighter.highlight(source).lines.get(0)
+                    .styleAt(source.indexOf("index")));
+            compiled(source);
+        }
+        String legacy = "EVERY 20 TICKS DO INPUT for FROM \"for\" OUTPUT for TO \"for\" END";
+        SfmlHighlighter.Highlighted highlighted = SfmlHighlighter.highlight(legacy);
+        for (int start = legacy.indexOf("for"); start >= 0; start = legacy.indexOf("for", start + 3)) assertNotEquals(
+            SfmlHighlighter.Style.FLOW,
+            highlighted.lines.get(0)
+                .styleAt(start));
+        compiled(legacy);
+    }
+
+    @Test
     void transferResultIsAvailableAfterTheStatementAndNotInItsDeclaration() {
         String before = "every 20 ticks do transfer(label(\"a\"), label(\"b\")) into $Moved ";
         assertEquals(Arrays.asList("$Moved"), names(at(before + "print($~) end")));
@@ -158,5 +246,10 @@ class StudioVariableCompletionTest {
         return candidates.stream()
             .map(Candidate::getName)
             .collect(Collectors.toList());
+    }
+
+    private static void compiled(String source) {
+        ProgramBuildResult result = new ProgramBuilder(source).build();
+        assertTrue(result.isSuccess(), result.getErrorMessage());
     }
 }

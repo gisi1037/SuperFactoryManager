@@ -100,6 +100,16 @@ final class StudioVariables {
                     add(names, declaration.variableName(), "Persistent state");
             } else if (node instanceof SFMLParser.DataDeclarationContext) {
                 SFMLParser.DataDeclarationContext declaration = (SFMLParser.DataDeclarationContext) node;
+                if (declaration.getParent() instanceof SFMLParser.ForInitializerContext) {
+                    SFMLParser.JavaForContext loop = (SFMLParser.JavaForContext) declaration.getParent()
+                        .getParent();
+                    // The initializer does not see its own binding. Test/update/body share the loop scope.
+                    if (completed(declaration, position)
+                        && (active.contains(loop.dataExpression()) || active.contains(loop.forUpdate())
+                            || active.contains(loop.block())))
+                        add(names, declaration.variableName(), "Mutable loop variable");
+                    continue;
+                }
                 boolean global = declaration.getParent() == program;
                 if (completed(declaration, position) && (global ? !function
                     : active.contains(
@@ -119,6 +129,12 @@ final class StudioVariables {
             } else if (node instanceof SFMLParser.ArrayForContext) {
                 SFMLParser.ArrayForContext loop = (SFMLParser.ArrayForContext) node;
                 if (active.contains(loop.block())) add(names, loop.variableName(), "Read-only loop variable");
+            } else if (node instanceof SFMLParser.IndexedArrayForContext) {
+                SFMLParser.IndexedArrayForContext loop = (SFMLParser.IndexedArrayForContext) node;
+                if (active.contains(loop.block())) {
+                    add(names, loop.variableName(0), "Read-only loop index: integer");
+                    add(names, loop.variableName(1), "Read-only loop value: source sequence element");
+                }
             } else if (node instanceof SFMLParser.TransferStatementContext) {
                 SFMLParser.TransferStatementContext transfer = (SFMLParser.TransferStatementContext) node;
                 if (transfer.variableName() != null && completed(transfer, position)
@@ -139,6 +155,7 @@ final class StudioVariables {
             || parent instanceof SFMLParser.FunctionParameterContext
             || parent instanceof SFMLParser.CountedForContext
             || parent instanceof SFMLParser.ArrayForContext
+            || parent instanceof SFMLParser.IndexedArrayForContext
             || parent instanceof SFMLParser.TransferStatementContext;
     }
 

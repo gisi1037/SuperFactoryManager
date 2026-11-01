@@ -34,7 +34,7 @@ class VscodeSfmlExtensionTest {
                 .getAsJsonObject();
         }
         assertEquals(
-            53,
+            55,
             snippets.entrySet()
                 .size(),
             "Update contexts deliberately when adding snippets");
@@ -88,6 +88,8 @@ class VscodeSfmlExtensionTest {
                 return fragment + "\nevery 20 ticks do end";
             case "every":
             case "dynamicarray":
+            case "forindex":
+            case "forindexed":
             case "everyglobal":
             case "pulse":
             case "redstonetrigger":

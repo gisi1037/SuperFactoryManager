@@ -321,3 +321,9 @@ Studio's Problems list wraps each issue and shows its location and source
 excerpt. Click to jump, or focus the list and use arrows/Enter. Gray inline
 completions appear after a typing pause when possible; Tab accepts and Esc
 dismisses. Explicit Ctrl+Space remains available.
+
+
+**For loop** supports `for (initialize; test; update)`; its header is edited as one
+field. **Indexed array loop** supports `for (index, value) in sequence`, with
+separate fields for both read-only binders and the captured source. Both have
+BODY/AFTER outputs. See [Loops](/language/loops.md) for scope, WAIT and bounds.

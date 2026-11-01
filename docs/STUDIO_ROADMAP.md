@@ -107,3 +107,10 @@ program details remain restricted to source authors. Retained details are local
 to the loaded manager and clear on program replacement or unload; this does not
 add persistent logs or alter transfer permissions. Formatting-only saves preserve
 running state and map later failures to saved source coordinates.
+
+## Indexed loops
+
+Studio supports Java-style three-clause FOR and zero-based index/value foreach,
+including BODY/AFTER graph pins and editable loop headers. WAIT resumes at the
+same loop phase without replaying completed effects. Loop-local completion,
+colors and compiler-backed VS Code snippets follow the same scope rules.

@@ -13,6 +13,9 @@
       "include": "#function-declaration"
     },
     {
+      "include": "#loop-declaration"
+    },
+    {
       "include": "#variables"
     },
     {
@@ -65,6 +68,32 @@
     }
   ],
   "repository": {
+    "loop-declaration": {
+      "patterns": [
+        {
+          "match": "(?<![\\w$.])(?i:(for))\\s*(\\()\\s*(\\$?[A-Za-z_][A-Za-z0-9_]*)\\s*(,)\\s*(\\$?[A-Za-z_][A-Za-z0-9_]*)\\s*(\\))(?=\\s*(?i:in)\\b)",
+          "captures": {
+            "1": { "name": "keyword.control.sfml" },
+            "2": { "name": "punctuation.section.parens.begin.sfml" },
+            "3": { "name": "variable.other.readonly.sfml" },
+            "4": { "name": "punctuation.separator.sfml" },
+            "5": { "name": "variable.other.readonly.sfml" },
+            "6": { "name": "punctuation.section.parens.end.sfml" }
+          }
+        },
+        {
+          "name": "meta.for.header.sfml",
+          "begin": "(?<![\\w$.])(?i:(for))\\s*(\\()",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.sfml" },
+            "2": { "name": "punctuation.section.parens.begin.sfml" }
+          },
+          "end": "\\)",
+          "endCaptures": { "0": { "name": "punctuation.section.parens.end.sfml" } },
+          "patterns": [{ "include": "$self" }]
+        }
+      ]
+    },
     "comments": {
       "name": "comment.line.double-dash.sfml",
       "begin": "--",

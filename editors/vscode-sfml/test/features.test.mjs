@@ -150,6 +150,53 @@ test('struct values and collection-loop headers preserve enclosing bindings', ()
   assert.equal(hover(result, source.lastIndexOf('row') + 1), undefined);
 });
 
+test('Java-style loop initializer hovers are mutable and end with the loop scope', () => {
+  const source = 'every 20 ticks { let values = [1,2]; '
+    + 'for (let Index = 0; $Index < len(values); Index = Index + 1) { '
+    + 'let child = {n: Index}; print(Index, child.n); } print(Index, child, values); }';
+  const result = analyze(source);
+  const indices = result.variables.filter(token => token.text === 'Index' || token.text === '$Index');
+  assert.equal(indices.length, 6);
+  assert.ok(indices.every(token => token.binding === indices[0].binding));
+  assert.equal(indices[0].binding.readOnly, false);
+  assert.deepEqual(hover(result, source.indexOf('$Index') + 1).signatures, ['let Index']);
+  assert.match(hover(result, source.indexOf('$Index') + 1).description, /Mutable FOR initializer/);
+  assert.equal(hover(result, source.lastIndexOf('Index') + 1), undefined);
+  assert.equal(hover(result, source.lastIndexOf('child') + 1), undefined);
+  assert.deepEqual(hover(result, source.lastIndexOf('values') + 1).signatures, ['let values']);
+});
+
+test('indexed foreach declarations bind only the body and preserve source and outer bindings', () => {
+  const source = 'every 20 ticks do let Index = [1,2] '
+    + 'for (Index, $Value) in Index do print($Index, Value) end print(Index, Value) '
+    + 'for ($position, row) in [{n: Index}] do print(position, row.n) end print(position, row) end';
+  const result = analyze(source);
+  const indices = result.variables.filter(token => token.text === 'Index' || token.text === '$Index');
+  assert.equal(indices.length, 6);
+  assert.equal(indices[2].binding, indices[0].binding, 'source resolves the outer binding');
+  assert.equal(indices[3].binding, indices[1].binding, 'body resolves the index binding');
+  assert.equal(indices[4].binding, indices[0].binding, 'outer binding returns after the loop');
+  assert.equal(indices[1].binding.readOnly, true);
+  assert.deepEqual(hover(result, source.indexOf('print($Index') + 8).signatures, ['for Index: integer']);
+  assert.match(hover(result, source.indexOf('Value) end') + 1).description, /Read-only loop value/);
+  assert.equal(hover(result, source.lastIndexOf('Value') + 1), undefined);
+  assert.equal(hover(result, source.lastIndexOf('position') + 1), undefined);
+  assert.equal(hover(result, source.lastIndexOf('row') + 1), undefined);
+});
+
+test('nested new loop scopes, case sensitivity and partial headers remain bounded', () => {
+  const source = 'every 20 ticks { for (let Index = 0; Index < 2; Index = Index + 1) { '
+    + 'for (position, value) in [Index] { print(position, value, Index, index); } '
+    + 'print(position, value, Index); } print(Index); }';
+  const result = analyze(source);
+  assert.equal(hover(result, source.indexOf(', index') + 3), undefined);
+  assert.equal(hover(result, source.indexOf('print(position, value, Index);') + 7), undefined);
+  assert.equal(hover(result, source.lastIndexOf('Index') + 1), undefined);
+  for (const header of ['for (let index =', 'for (index,', 'for (' + '('.repeat(2000),
+    'for (let index = {n: 0}; index.n < 2; index.n = index.n + 1) { print(index); }'])
+    assert.doesNotThrow(() => analyze(header));
+});
+
 test('ref parameters retain signatures and distinguish writable references from value copies', () => {
   const source = 'void increment(ref integer value, integer amount) { value = value + amount; }\n'
     + 'function legacy(ref $value: integer) returns void do $value = $value + 1 end\n'
@@ -229,5 +276,18 @@ test('the Node client communicates with the actual Java compiler', {skip: !proce
       + 'extend(ref values, [3]); insert(ref values, 1, 9); let removed = removeAt(ref values, 0); '
       + 'print(peek(values), contains(values, 9), indexOf(values, 9), removed); clear(ref values); '
       + 'extend(ref values, array("integer")); let rows = array(label("source").contents()); }'), []);
+    assert.deepEqual(await compiler.check('a', 'every 20 ticks { let values = [1, 2]; '
+      + 'for (let index = 0; index < len(values); index = index + 1) { print(values[index]); } '
+      + 'for (index, value) in values { print(index, value); } }'), []);
+    assert.deepEqual(await compiler.check('a', 'integer sum(integer[2] values) { let total = 0; '
+      + 'for (index, value) in values { total = total + index + value; } return total; } '
+      + 'every 20 ticks do for (let index = 0; index < 2; index = index + 1) do print(sum([1,2])) end end'), []);
+    for (const source of [
+      'every 20 ticks { for (let index = 0; index < 2; index = index + 1) {} print(index); }',
+      'every 20 ticks { for (let index = 0; index < 2; child = child + 1) { let child = 0; } }',
+      'every 20 ticks { for (index, value) in [1,2] { index = 1; } }',
+      'every 20 ticks { for (index, value) in [1,2] { value = 1; } }',
+      'every 20 ticks { for (index, value) in value {} }'
+    ]) assert.ok((await compiler.check('a', source)).length > 0, source);
   } finally { compiler.dispose(); }
 });

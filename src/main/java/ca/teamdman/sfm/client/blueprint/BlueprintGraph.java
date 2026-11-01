@@ -56,7 +56,9 @@ public final class BlueprintGraph {
         LET("Local value", "LET $value = 0", 0x527b9d),
         SET("Set value", "SET $value = 1", 0x527b9d),
         GLOBAL_LET("Program value", "LET $global = 0", 0x527b9d),
-        STATE("Persistent state", "STATE $state = 0", 0x986f46);
+        STATE("Persistent state", "STATE $state = 0", 0x986f46),
+        JAVA_FOR("For loop", "FOR (LET $i = 0; $i < 3; $i = $i + 1)", 0x8b719d),
+        INDEXED_FOREACH("Indexed array loop", "FOR ($index, $value) IN [1, 2, 3]", 0x8b719d);
 
         public final String title;
         public final String defaultClause;
@@ -73,7 +75,7 @@ public final class BlueprintGraph {
         }
 
         public boolean isLoop() {
-            return this == FOR || this == FOREACH || this == WHILE;
+            return this == FOR || this == FOREACH || this == WHILE || this == JAVA_FOR || this == INDEXED_FOREACH;
         }
 
         public boolean isRoot() {

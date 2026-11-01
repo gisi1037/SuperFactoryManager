@@ -583,3 +583,10 @@ The Insert/API catalog describes all collection helpers. ARRAY and pure readers
 can appear in supported Visual expressions; mutation calls remain Code-only.
 See [dynamic arrays](SFML_GUIDE.md#dynamic-arrays-ram-only) for bounds, index-ref
 invalidation, O(n) replacement costs and RAM-only persistence rules.
+
+
+Visual also supports **For loop** (`for (init; test; update)`) and **Indexed array
+loop** (`for (index, value) in sequence`). Both use BODY/AFTER. The former has a
+whole-header field; the latter has separate index/value/source fields. Completion
+and syntax coloring respect mutable header LET scope versus read-only foreach
+binders. Mandatory header separators stay part of executable/layout identity.

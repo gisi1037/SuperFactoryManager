@@ -173,7 +173,11 @@ range           : number (DASH number)? ;
 ifStatement     : IF boolexpr THEN block (ELSE IF boolexpr THEN block)* (ELSE block)? END
                 | IF boolexpr LBRACE block RBRACE (ELSE IF boolexpr LBRACE block RBRACE)* (ELSE LBRACE block RBRACE)?;
 forStatement    : FOR variableName EQ_SYMBOL dataExpression TO dataExpression (STEP dataExpression)? (DO block END | LBRACE block RBRACE) #CountedFor
-                | FOR variableName IN dataExpression (DO block END | LBRACE block RBRACE) #ArrayFor;
+                | FOR variableName IN dataExpression (DO block END | LBRACE block RBRACE) #ArrayFor
+                | FOR LPAREN forInitializer? SEMICOLON dataExpression? SEMICOLON forUpdate? RPAREN (DO block END | LBRACE block RBRACE) #JavaFor
+                | FOR LPAREN variableName COMMA variableName RPAREN IN dataExpression (DO block END | LBRACE block RBRACE) #IndexedArrayFor;
+forInitializer : dataDeclaration | dataAssignment | functionCallStatement;
+forUpdate : dataAssignment | functionCallStatement;
 whileStatement  : WHILE boolexpr (DO block END | LBRACE block RBRACE);
 boolexpr        : TRUE                              #BooleanTrue
                 | FALSE                             #BooleanFalse

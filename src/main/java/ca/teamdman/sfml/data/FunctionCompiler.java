@@ -240,6 +240,9 @@ public final class FunctionCompiler {
         enterLoop(context);
         data.pushScope();
         try {
+            if (context instanceof SFMLParser.JavaForContext) return javaFor((SFMLParser.JavaForContext) context);
+            if (context instanceof SFMLParser.IndexedArrayForContext)
+                return indexedArrayFor((SFMLParser.IndexedArrayForContext) context);
             if (context instanceof SFMLParser.CountedForContext) {
                 SFMLParser.CountedForContext loop = (SFMLParser.CountedForContext) context;
                 DataExpression first = expression(loop.dataExpression(0));
@@ -300,6 +303,110 @@ public final class FunctionCompiler {
             data.popScope();
             loopDepth--;
         }
+    }
+
+    private Command javaFor(SFMLParser.JavaForContext loop) {
+        SFMLParser.ForInitializerContext initializer = loop.forInitializer();
+        Command first = initializer == null ? runtime -> null
+            : forClause(
+                initializer.dataDeclaration(),
+                initializer.dataAssignment(),
+                initializer.functionCallStatement());
+        DataExpression test = loop.dataExpression() == null ? data.compile(
+            "TRUE",
+            loop.getStart()
+                .getLine(),
+            loop.getStart()
+                .getCharPositionInLine())
+            : expression(loop.dataExpression());
+        require(test.getType(), DataType.BOOLEAN, loop);
+        Body body = block(loop.block());
+        // The body owns a child scope. Its declarations must not resolve from the update clause.
+        SFMLParser.ForUpdateContext update = loop.forUpdate();
+        Command step = update == null ? runtime -> null
+            : forClause(null, update.dataAssignment(), update.functionCallStatement());
+        return runtime -> {
+            if (runtime.isResumable()) return ResumableLoops.javaFor(
+                runtime,
+                loop,
+                initializer == null ? null : () -> first.execute(runtime),
+                () -> test.evaluate(runtime)
+                    .asBoolean(),
+                () -> body.execute(runtime),
+                update == null ? null : () -> step.execute(runtime));
+            first.execute(runtime);
+            while (true) {
+                runtime.loopStep();
+                if (!test.evaluate(runtime)
+                    .asBoolean()) return null;
+                DataValue value = body.execute(runtime);
+                if (value != null) return value;
+                step.execute(runtime);
+            }
+        };
+    }
+
+    private Command forClause(SFMLParser.DataDeclarationContext declaration,
+        SFMLParser.DataAssignmentContext assignment, SFMLParser.FunctionCallStatementContext call) {
+        if (declaration != null) {
+            DataExpression value = expression(declaration.dataExpression());
+            DataCompiler.Binding binding = data.declareLocal(variable(declaration.variableName()), value.getType());
+            return runtime -> {
+                binding.write(runtime, value.evaluate(runtime));
+                return null;
+            };
+        }
+        if (assignment != null) {
+            DataCompiler.Assignment compiled = data.assignment(
+                source(assignment.dataTarget()),
+                expression(assignment.dataExpression()),
+                assignment.getStart()
+                    .getLine(),
+                assignment.getStart()
+                    .getCharPositionInLine());
+            return runtime -> {
+                compiled.execute(runtime);
+                return null;
+            };
+        }
+        if (call != null) {
+            DataExpression invocation = data.compileCallStatement(
+                source(call),
+                call.getStart()
+                    .getLine(),
+                call.getStart()
+                    .getCharPositionInLine());
+            return runtime -> {
+                invocation.evaluate(runtime);
+                return null;
+            };
+        }
+        throw new IllegalArgumentException("Invalid FOR clause");
+    }
+
+    private Command indexedArrayFor(SFMLParser.IndexedArrayForContext loop) {
+        DataExpression array = expression(loop.dataExpression());
+        if (!array.getType()
+            .isSequence()) throw fail(loop, "FOR IN requires a sequence");
+        DataCompiler.Binding index = data.declareReadOnlyLocal(variable(loop.variableName(0)), DataType.INTEGER);
+        DataCompiler.Binding binder = data.declareReadOnlyLocal(
+            variable(loop.variableName(1)),
+            array.getType()
+                .getElementType());
+        Body body = block(loop.block());
+        return runtime -> {
+            if (runtime.isResumable())
+                return ResumableLoops.array(runtime, loop, index, binder, array, () -> body.execute(runtime));
+            DataValue snapshot = array.evaluate(runtime);
+            for (int i = 0; i < snapshot.size(); i++) {
+                runtime.loopStep();
+                index.write(runtime, DataValue.integer(i));
+                binder.write(runtime, snapshot.get(i));
+                DataValue value = body.execute(runtime);
+                if (value != null) return value;
+            }
+            return null;
+        };
     }
 
     private Command loopAuthority(Command loop) {

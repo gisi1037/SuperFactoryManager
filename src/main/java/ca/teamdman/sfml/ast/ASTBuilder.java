@@ -351,6 +351,48 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
     }
 
     @Override
+    public ASTNode visitIndexedArrayFor(SFMLParser.IndexedArrayForContext ctx) {
+        // Snapshot expressions resolve before either readonly binder enters the loop's scope.
+        DataExpression array = expression(ctx.dataExpression());
+        if (!array.getType()
+            .isSequence()) throw new IllegalArgumentException("FOR IN requires a sequence value");
+        beginLoop();
+        try {
+            DataCompiler.Binding index = data.declareReadOnlyLocal(variable(ctx.variableName(0)), DataType.INTEGER);
+            DataCompiler.Binding binding = data.declareReadOnlyLocal(
+                variable(ctx.variableName(1)),
+                array.getType()
+                    .getElementType());
+            return new ArrayForStatement(index, binding, array, visitBlock(ctx.block()));
+        } finally {
+            endLoop();
+        }
+    }
+
+    @Override
+    public ASTNode visitJavaFor(SFMLParser.JavaForContext ctx) {
+        beginLoop();
+        try {
+            Statement initializer = ctx.forInitializer() == null ? null
+                : (Statement) visit(
+                    ctx.forInitializer()
+                        .getChild(0));
+            DataExpression condition = ctx.dataExpression() == null ? null : expression(ctx.dataExpression());
+            if (condition != null && condition.getType() != DataType.BOOLEAN)
+                throw new IllegalArgumentException("FOR condition requires BOOLEAN");
+            Block body = visitBlock(ctx.block());
+            // visitBlock has closed its child scope: header updates cannot capture body-only locals.
+            Statement step = ctx.forUpdate() == null ? null
+                : (Statement) visit(
+                    ctx.forUpdate()
+                        .getChild(0));
+            return new JavaForStatement(initializer, condition, step, body);
+        } finally {
+            endLoop();
+        }
+    }
+
+    @Override
     public ASTNode visitWhileStatement(SFMLParser.WhileStatementContext ctx) {
         BoolExpr condition = (BoolExpr) visit(ctx.boolexpr());
         beginLoop();
