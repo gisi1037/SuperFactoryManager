@@ -24,6 +24,23 @@ Your first goal is small: **one chest supplies one item to another chest**.
 
 **Stuck? [Nothing moving?](troubleshooting.md)** checks the first route.
 
+## Two ways to write blocks
+
+SFML accepts both styles. They have the same behavior:
+
+| Block | Braces | Keywords |
+| --- | --- | --- |
+| Trigger or loop | `every 20 ticks { ... }` | `every 20 ticks do ... end` |
+| Condition | `if (condition) { ... }` | `if (condition) then ... end` |
+
+The dots stand for the statements inside the block. Close each block with its
+matching `}` or `end`. Indentation helps you read nesting; the delimiters decide
+where a block ends. Keywords can be lowercase or uppercase.
+
+**Semicolons are optional** after ordinary statements. The beginner examples
+omit them. A Java-style `for (start; condition; update)` loop still needs the two
+semicolons separating its header parts; that is covered in the Advanced guide.
+
 ## After it works
 
 - [Change your route](change-route.md): try a small batch, item filter or stock target.

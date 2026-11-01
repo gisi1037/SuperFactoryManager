@@ -38,10 +38,24 @@ Open the manager, choose **Program > Edit code**, and paste this complete progra
 ```sfml
 name "First transfer"
 every 20 ticks {
-  input from "source";
-  output retain 1 to "dest";
+  input from "source"
+  output retain 1 to "dest"
 }
 ```
+
+Semicolons are optional here. This example uses braces to enclose the trigger.
+You can instead use **do ... end**; this is the same program. Copy **one version**:
+
+```sfml
+name "First transfer (do/end)"
+every 20 ticks do
+  input from "source"
+  output retain 1 to "dest"
+end
+```
+
+For conditions, the alternatives are `if (condition) { ... }` and
+`if (condition) then ... end`. See [both block styles](index.md#two-ways-to-write-blocks).
 
 Choose **Save & Close**, wait for confirmation, then press **Start** if paused.
 

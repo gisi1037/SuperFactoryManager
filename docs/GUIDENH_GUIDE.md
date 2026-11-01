@@ -63,7 +63,7 @@ counts. This is headless inventory evidence, not full-pack qualification.
 
 `GuideNhBookTest` compiles every complete SFML example and checks page/parent
 reachability, local links, item IDs, item-shortcut uniqueness and explicit fence
-languages. The corpus contains 74 complete SFML programs and eight native Mermaid flowcharts. The book resource
+languages. The corpus contains 75 complete SFML programs and eight native Mermaid flowcharts. The book resource
 directory is an explicit test input, so edits invalidate cached corpus results.
 
 `GuideNhNativeParsingTest` is optional. Pass the exact installed GuideNH JAR and,

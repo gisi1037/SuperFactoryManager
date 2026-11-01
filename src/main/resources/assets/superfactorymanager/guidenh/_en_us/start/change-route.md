@@ -26,8 +26,8 @@ These timers run every **100 game ticks**, normally five seconds.
 ```sfml
 name "Two each run"
 every 100 ticks {
-  input 2 from "source";
-  output to "dest";
+  input 2 from "source"
+  output to "dest"
 }
 ```
 
@@ -46,8 +46,8 @@ More: [quantities and retention](/automation/quantities.md).
 ```sfml
 name "Iron only"
 every 100 ticks {
-  input item:minecraft:iron_ingot from "source";
-  output to "dest";
+  input item:minecraft:iron_ingot from "source"
+  output to "dest"
 }
 ```
 
@@ -64,8 +64,8 @@ More: [resource selectors](/automation/selectors.md).
 ```sfml
 name "Keep three ready"
 every 100 ticks {
-  input from "source";
-  output retain 3 to "dest";
+  input from "source"
+  output retain 3 to "dest"
 }
 ```
 
