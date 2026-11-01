@@ -31,6 +31,26 @@ class SfmlTimerOffsetTest {
     }
 
     @Test
+    void programWideRandomValuesInitializeBeforeMultipleTimerOffsets() throws Exception {
+        Run run = new Run(
+            build(
+                "let phase=random(7,7) state first=0 state extra=0 "
+                    + "every 10 plus (phase) ticks {first=first+1;phase=3;} "
+                    + "every 20 plus (random(3,3)) ticks {extra=extra+1;}"));
+        run.tick(0, 0);
+        run.tick(3, 3);
+        assertEquals(0, run.value(0));
+        assertEquals(1, run.value(1));
+        run.tick(7, 7);
+        run.tick(13, 13);
+        assertEquals(1, run.value(0));
+        run.tick(17, 17);
+        run.tick(23, 23);
+        assertEquals(2, run.value(0));
+        assertEquals(2, run.value(1));
+    }
+
+    @Test
     void sharedCompiledProgramsKeepIndependentManagerOffsetsAndResetExplicitly() throws Exception {
         Program program = build("state phase=3 state runs=0 every 10 + (phase) ticks {runs=runs+1;phase=7;}");
         Run first = new Run(program), second = new Run(program);
