@@ -183,3 +183,10 @@ Existing projects, current drafts and the station selection remain intact. Build
 permissions and runtime state do not transfer; library references need relinking.
 Import is sequential, keeps confirmed copies on interruption and never auto-retries.
 Native clipboard and two-world UI checks remain manual.
+
+## Selection scroll-coordinate fix
+
+Per-frame text selection now samples the editor viewport before its content
+scroll transform. Scrolling is applied once, preventing an interior drag from
+jumping to EOF when the last line is visible. Real MUI2 matrix tests cover scale
+and both axes; native pointer behavior remains a manual regression check.

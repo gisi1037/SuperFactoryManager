@@ -323,10 +323,15 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
 
     @Override
     public void preDraw(ModularGuiContext context, boolean transformed) {
+        if (!transformed) {
+            // Input callbacks and this phase use viewport coordinates. After transformChildren,
+            // getMouseY already includes scrollY; sampling there would count scrolling twice.
+            measure();
+            updateSelectionDrag();
+        }
         super.preDraw(context, transformed);
         if (!transformed) return;
         measure();
-        updateSelectionDrag();
         if (getScrollX() != completionScrollX || getScrollY() != completionScrollY) dismissCompletion();
         completionScrollX = getScrollX();
         completionScrollY = getScrollY();

@@ -454,3 +454,8 @@ existing operator recovery workflow; never erase recovery data to make a test pa
 - [ ] Confirm progress remains readable, clipboard paste is complete, closing the
   popup keeps transfer running, and closing the station prevents further requests.
   Station reopening must remember the originally selected project.
+
+- [ ] Selection regression: scroll a long program until its last line is visible.
+  Drag across two middle lines and release. The endpoint must follow the pointer,
+  without jumping to EOF or scrolling while the pointer is inside the code area.
+  Repeat with horizontal scroll, wrapping and independent Studio scales.
