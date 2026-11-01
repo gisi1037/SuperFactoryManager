@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import net.minecraft.item.ItemStack;
@@ -18,19 +19,22 @@ import net.minecraft.nbt.NBTBase;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 
+import ca.teamdman.sfm.common.item.ItemDisk;
+import ca.teamdman.sfm.common.util.ProgramRevision;
 import ca.teamdman.sfml.data.DataType;
 import ca.teamdman.sfml.data.DataValue;
 import ca.teamdman.sfml.data.ExpressionLimits;
 import ca.teamdman.sfml.data.ProgramStateSchema;
 import ca.teamdman.sfml.data.ProgramStateSchema.Declaration;
-import ca.teamdman.sfml.data.StateAccess;
+import ca.teamdman.sfml.data.StateTypeCodec;
+import ca.teamdman.sfml.data.VersionedStateAccess;
 
 /**
  * One disk's validated state. Activation/reset prepare a candidate; only flush publishes NBT.
  * Live values remain in heap; flush only at save/exposure/disk/source lifecycle boundaries.
  * Invocation cleanup should mark the manager dirty when this store is dirty, without encoding NBT.
  */
-public final class ProgramStateStore implements StateAccess {
+public final class ProgramStateStore implements VersionedStateAccess {
 
     public static final String NBT_KEY = "sfm:program_state";
     public static final int FORMAT_VERSION = 1;
@@ -48,6 +52,8 @@ public final class ProgramStateStore implements StateAccess {
     private final ItemStack disk;
     private final ProgramStateSchema schema;
     private final DataValue[] values;
+    private final Object identity;
+    private long[] generations;
     private final NBTTagCompound[] encodedEntries;
     private final boolean[] dirtySlots;
     private final List<String> names;
@@ -61,17 +67,31 @@ public final class ProgramStateStore implements StateAccess {
     private NBTTagCompound validatedDiskRoot;
     private String[] validatedDiskKeys;
     private NBTBase[] validatedDiskTags;
-    // Exact encoded sizes; only modified-UTF8 string payload lengths vary within a schema.
+    // Exact encoded sizes include dynamic shape changes without serializing values on hot writes.
     private int envelopeBytes;
     private int diskBytes;
     private int stringCharacters;
+    private int cells;
 
     private ProgramStateStore(ItemStack disk, ProgramStateSchema schema, boolean reset) {
+        this(disk, schema, reset, null);
+    }
+
+    private ProgramStateStore(ItemStack disk, ProgramStateSchema schema, boolean reset, ProgramStateStore liveState) {
         if (disk == null || schema == null) throw new IllegalArgumentException("Disk and state schema are required");
         this.disk = disk;
         this.schema = schema;
         observedRoot = disk.getTagCompound();
         observedEnvelope = observedRoot == null ? null : observedRoot.getTag(NBT_KEY);
+        if (liveState != null && (reset || schema != liveState.schema
+            || liveState.dirty
+            || !liveState.isCurrent(liveState.disk)
+            || !Objects.equals(observedEnvelope, liveState.observedEnvelope)
+            || !ProgramRevision
+                .sameExecutableTokens(ItemDisk.getProgramString(liveState.disk), ItemDisk.getProgramString(disk))))
+            throw invalid("Equivalent save requires the current executable, schema and flushed STATE values");
+        identity = liveState == null ? new Object() : liveState.identity;
+        if (liveState != null && liveState.generations != null) generations = liveState.generations.clone();
         observedRevisionTag = observedEnvelope instanceof NBTTagCompound
             ? ((NBTTagCompound) observedEnvelope).getTag("revision")
             : null;
@@ -84,14 +104,10 @@ public final class ProgramStateStore implements StateAccess {
         List<String> mutableNames = new ArrayList<>();
         List<String> removed = new ArrayList<>(old.keySet());
         if (schema.size() > MAX_DECLARATIONS) throw invalid("Too many STATE declarations");
-        int cells = 0;
         for (int slot = 0; slot < schema.size(); slot++) {
             Declaration declaration = schema.getDeclarations()
                 .get(slot);
             String name = declaration.getName();
-            cells += declaration.getType()
-                .getCellCount();
-            if (cells > MAX_CELLS) throw invalid("STATE exceeds " + MAX_CELLS + " cells");
             mutableNames.add(name);
             StoredEntry previous = old.get(name);
             if (previous != null && !previous.value.getType()
@@ -99,6 +115,8 @@ public final class ProgramStateStore implements StateAccess {
                 throw invalid("STATE $" + display(name) + " changed type or shape");
             }
             values[slot] = previous == null ? declaration.getDefaultValue() : previous.value;
+            cells = Math.addExact(cells, values[slot].getRetainedCellCount());
+            if (cells > MAX_CELLS) throw invalid("STATE exceeds " + MAX_CELLS + " cells");
             stringCharacters += values[slot].getStringCharacterCount();
             if (stringCharacters > ExpressionLimits.MAX_STATE_STRING_CHARACTERS)
                 throw invalid("STATE exceeds string character limit");
@@ -130,6 +148,13 @@ public final class ProgramStateStore implements StateAccess {
     /** Validates all saved entries, then reconciles by case-sensitive name and structural type. */
     public static ProgramStateStore activate(ItemStack disk, ProgramStateSchema schema) {
         return new ProgramStateStore(disk, schema, false);
+    }
+
+    /** A validated formatting-only disk copy keeps the executing heap's token and structural epochs. */
+    public static ProgramStateStore activateEquivalentSave(ItemStack disk, ProgramStateSchema schema,
+        ProgramStateStore previous) {
+        if (previous == null) throw invalid("Equivalent save requires an active STATE store");
+        return new ProgramStateStore(disk, schema, false, previous);
     }
 
     /** Explicit recovery route; corrupt old state is retained until this candidate's flush succeeds. */
@@ -176,6 +201,26 @@ public final class ProgramStateStore implements StateAccess {
 
     @Override
     public void write(int slot, DataValue value) {
+        write(
+            slot,
+            value,
+            value != null && value.getType()
+                .containsDynamicArray());
+    }
+
+    @Override
+    public Object identity() {
+        return identity;
+    }
+
+    @Override
+    public long generation(int slot) {
+        if (slot < 0 || slot >= values.length) throw new IllegalArgumentException("Invalid STATE slot");
+        return generations == null ? 0 : generations[slot];
+    }
+
+    @Override
+    public void write(int slot, DataValue value, boolean structural) {
         DataValue previous = values[slot];
         if (value == null || !value.getType()
             .isPersistable()
@@ -185,16 +230,21 @@ public final class ProgramStateStore implements StateAccess {
                 .equals(value.getType())) {
             throw invalid("Assignment to STATE $" + display(names.get(slot)) + " has an incompatible type or shape");
         }
-        if (previous == value) return;
-        if (value.getType()
-            .getKind() == DataType.Kind.INTEGER && previous.asLong() == value.asLong()) return;
-        if (value.getType()
-            .getKind() == DataType.Kind.BOOLEAN && previous.asBoolean() == value.asBoolean()) return;
+        boolean unchanged = previous == value || value.getType()
+            .getKind() == DataType.Kind.INTEGER && previous.asLong() == value.asLong()
+            || value.getType()
+                .getKind() == DataType.Kind.BOOLEAN && previous.asBoolean() == value.asBoolean();
+        if (unchanged && !structural) return;
+        long currentGeneration = generation(slot);
+        if (structural && currentGeneration == Long.MAX_VALUE) throw invalid("STATE structural generation exhausted");
+        long nextGeneration = structural ? currentGeneration + 1 : currentGeneration;
         // Reused immutable strings return above; avoid scanning text outside the expression work budget.
+        int nextCells = cells - previous.getRetainedCellCount() + value.getRetainedCellCount();
+        if (nextCells > MAX_CELLS) throw invalid("STATE exceeds " + MAX_CELLS + " cells");
         int nextCharacters = stringCharacters - previous.getStringCharacterCount() + value.getStringCharacterCount();
         if (nextCharacters > ExpressionLimits.MAX_STATE_STRING_CHARACTERS)
             throw invalid("STATE exceeds string character limit");
-        int delta = value.getStringNbtBytes() - previous.getStringNbtBytes();
+        int delta = value.getStatePayloadBytes() - previous.getStatePayloadBytes();
         int nextEnvelopeBytes = envelopeBytes + delta;
         if (nextEnvelopeBytes > MAX_PAYLOAD_BYTES) throw invalid("STATE exceeds 256 KiB payload limit");
         int nextDiskBytes;
@@ -206,9 +256,14 @@ public final class ProgramStateStore implements StateAccess {
             nextDiskBytes = validateDiskSnapshotSize(nextEnvelopeBytes);
             cacheDiskMetadata();
         }
+        long[] nextGenerations = structural && generations == null ? new long[values.length] : generations;
+        if (structural) nextGenerations[slot] = nextGeneration;
+        generations = nextGenerations;
         envelopeBytes = nextEnvelopeBytes;
         diskBytes = nextDiskBytes;
+        cells = nextCells;
         stringCharacters = nextCharacters;
+        if (unchanged) return; // Structural alias invalidation alone does not require an NBT rewrite.
         values[slot] = value;
         dirtySlots[slot] = true;
         dirty = true;
@@ -242,7 +297,7 @@ public final class ProgramStateStore implements StateAccess {
             if (dirtySlots[slot]) candidateEntries[slot] = encodeEntry(names.get(slot), values[slot]);
         }
         NBTTagCompound candidate = envelope(candidateEntries, revision + 1);
-        // Recheck actual bytes at publication; SET already bounded each variable string-size delta.
+        // Recheck actual bytes at publication; SET already bounded each cached value-payload delta.
         int candidateBytes = measureEnvelope(candidate);
         int candidateDiskBytes = validateDiskSnapshotSize(candidateBytes);
         NBTTagCompound root = observedRoot;
@@ -265,7 +320,7 @@ public final class ProgramStateStore implements StateAccess {
     /**
      * Bound the entire disk before publication/exposure. The shallow snapshot omits saved STATE;
      * the exact candidate envelope size includes all pending heap writes without encoding them.
-     * Fixed shapes keep NBT overhead constant; SET applies cached modified-UTF8 payload deltas.
+     * SET applies cached exact value-payload deltas, including dynamic shape overhead.
      * The 30,000-byte bound leaves room for gzip expansion below vanilla's signed-short ceiling.
      */
     private int validateDiskSnapshotSize(int candidateEnvelopeBytes) {
@@ -407,6 +462,17 @@ public final class ProgramStateStore implements StateAccess {
                 for (int i = 0; i < value.size(); i++) elements.appendTag(encodeValue(value.get(i)));
                 result.setTag("value", elements);
                 break;
+            case DYNAMIC_ARRAY:
+                result.setByte("kind", (byte) 6);
+                result.setString(
+                    "element",
+                    value.getType()
+                        .getElementType()
+                        .getSignature());
+                NBTTagList dynamic = new NBTTagList();
+                for (int i = 0; i < value.size(); i++) dynamic.appendTag(encodeValue(value.get(i)));
+                result.setTag("value", dynamic);
+                break;
             case STRUCT:
                 result.setByte("kind", (byte) 4);
                 NBTTagList fields = new NBTTagList();
@@ -451,7 +517,13 @@ public final class ProgramStateStore implements StateAccess {
             kind(entry, "value", 10);
             String name = entry.getString("name");
             identifier(name);
-            DataValue value = decodeValue(entry.getCompoundTag("value"), 1, budget);
+            DataValue value;
+            try {
+                DataType expected = StateTypeCodec.parse(entry.getString("type"));
+                value = decodeValue(entry.getCompoundTag("value"), expected, 1, budget);
+            } catch (IllegalArgumentException exception) {
+                throw invalid("Invalid STATE descriptor/value: " + exception.getMessage());
+            }
             if (!value.getType()
                 .getSignature()
                 .equals(entry.getString("type"))) {
@@ -462,10 +534,13 @@ public final class ProgramStateStore implements StateAccess {
         return result;
     }
 
-    private static DataValue decodeValue(NBTTagCompound value, int depth, DecodeBudget budget) {
+    private static DataValue decodeValue(NBTTagCompound value, DataType expected, int depth, DecodeBudget budget) {
         if (depth > MAX_DEPTH || ++budget.cells > MAX_CELLS) throw invalid("STATE value exceeds depth/cell limits");
-        keys(value, "kind", "value");
         kind(value, "kind", 1);
+        if (value.getByte("kind") != discriminator(expected))
+            throw invalid("STATE value kind does not match its descriptor");
+        if (value.getByte("kind") == 6) keys(value, "kind", "value", "element");
+        else keys(value, "kind", "value");
         switch (value.getByte("kind")) {
             case 1:
                 kind(value, "value", 4);
@@ -488,18 +563,19 @@ public final class ProgramStateStore implements StateAccess {
                 }
             case 3:
                 NBTTagList elements = compoundList(value, "value", MAX_WIDTH);
-                if (elements.tagCount() == 0) throw invalid("Empty STATE arrays have no inferred element type");
-                List<DataValue> array = new ArrayList<>();
+                if (elements.tagCount() != expected.getLength()) throw invalid("Fixed STATE array shape mismatch");
+                DataValue[] array = new DataValue[elements.tagCount()];
                 for (int i = 0; i < elements.tagCount(); i++) {
-                    array.add(decodeValue(elements.getCompoundTagAt(i), depth + 1, budget));
+                    array[i] = decodeValue(elements.getCompoundTagAt(i), expected.getElementType(), depth + 1, budget);
                 }
                 try {
-                    return DataValue.array(array);
+                    return DataValue.collection(expected, array);
                 } catch (IllegalArgumentException exception) {
                     throw invalid("Invalid STATE array: " + exception.getMessage());
                 }
             case 4:
                 NBTTagList fields = compoundList(value, "value", MAX_WIDTH);
+                if (fields.tagCount() != expected.getLength()) throw invalid("STATE struct shape mismatch");
                 Map<String, DataValue> struct = new HashMap<>();
                 for (int i = 0; i < fields.tagCount(); i++) {
                     NBTTagCompound field = fields.getCompoundTagAt(i);
@@ -509,11 +585,52 @@ public final class ProgramStateStore implements StateAccess {
                     String name = field.getString("name");
                     identifier(name);
                     if (struct.containsKey(name)) throw invalid("Duplicate STATE field " + display(name));
-                    struct.put(name, decodeValue(field.getCompoundTag("value"), depth + 1, budget));
+                    struct.put(
+                        name,
+                        decodeValue(
+                            field.getCompoundTag("value"),
+                            expected.getFieldType(expected.fieldIndex(name)),
+                            depth + 1,
+                            budget));
                 }
                 return DataValue.struct(struct);
+            case 6:
+                kind(value, "element", 8);
+                NBTTagList dynamic = compoundList(value, "value", MAX_WIDTH);
+                try {
+                    DataType element = StateTypeCodec.parse(value.getString("element"));
+                    if (!element.equals(expected.getElementType()))
+                        throw invalid("Dynamic STATE element descriptor mismatch");
+                    DataValue[] children = new DataValue[dynamic.tagCount()];
+                    for (int i = 0; i < children.length; i++) {
+                        children[i] = decodeValue(dynamic.getCompoundTagAt(i), element, depth + 1, budget);
+                        if (!element.equals(children[i].getType())) throw invalid("Heterogeneous dynamic STATE array");
+                    }
+                    return DataValue.dynamicArray(expected, children);
+                } catch (IllegalArgumentException exception) {
+                    throw invalid("Invalid dynamic STATE array: " + exception.getMessage());
+                }
             default:
                 throw invalid("Unsupported STATE value kind");
+        }
+    }
+
+    private static byte discriminator(DataType type) {
+        switch (type.getKind()) {
+            case INTEGER:
+                return 1;
+            case BOOLEAN:
+                return 2;
+            case ARRAY:
+                return 3;
+            case STRUCT:
+                return 4;
+            case STRING:
+                return 5;
+            case DYNAMIC_ARRAY:
+                return 6;
+            default:
+                throw invalid("Unsupported STATE type descriptor");
         }
     }
 

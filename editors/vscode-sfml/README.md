@@ -124,7 +124,11 @@ removes and returns the last element, and faults when empty. Both require an
 explicit writable reference to a dynamic array. The length is bounded to 256
 outer entries and the whole retained value to 4096 logical cells, including
 nested children; work, allocation and retained text/opaque payload budgets also
-apply. All values containing dynamic arrays are RAM-only and cannot be `state`.
+apply. Dynamic arrays can be `state` when every nested element is persistable
+(integer, boolean, string, or a collection of those). Handles and snapshots remain
+RAM-only. STATE enforces actual aggregate cell, string and complete-disk limits;
+failed growth does not replace the target. It stays in heap until a save/disk
+lifecycle boundary. Saved length survives changes to its default initializer.
 Arrays retain immutable value-copy semantics: mutations install an outer
 replacement, while ordinary copies retain their previous contents. Push/pop,
 extend, insert and removeAt walk the replacement's outer entries in O(n).

@@ -114,3 +114,14 @@ Studio supports Java-style three-clause FOR and zero-based index/value foreach,
 including BODY/AFTER graph pins and editable loop headers. WAIT resumes at the
 same loop phase without replaying completed effects. Loop-local completion,
 colors and compiler-backed VS Code snippets follow the same scope rules.
+
+## Persistent dynamic data
+
+Dynamic arrays of persistable data can live in STATE, including typed empty and
+nested collections. Actual retained cells and cached serialized sizes enforce
+bounds before heap replacement; saves remain lifecycle operations. Existing
+fixed-array disk encoding is retained. Formatting-only saves preserve sleeping
+references and their structural epochs; reload/reset creates a fresh lifetime.
+Label handles and query snapshots remain RAM-only. A synthetic collection
+characterization covers incremental and bulk growth, removal, live heap writes
+and separate persistence verification without timing-based pass/fail thresholds.

@@ -548,7 +548,7 @@ one replacement root. A failed assignment changes nothing in that binding.
 Assignments and transfers that completed before a later fault remain completed;
 the whole trigger is not a rollback transaction.
 
-### Dynamic arrays (RAM only)
+### Dynamic arrays
 
 `integer[]` is a growable integer array; `integer[3]` still means exactly three
 integers. Construct an empty array explicitly with `array("integer")`,
@@ -607,18 +607,36 @@ fault. Whole-array references remain usable; the successful indexed writer is
 refreshed, while forwarded aliases can become stale. Ordinary scalar element
 updates preserve other indexed references. FOREACH retains its original snapshot.
 
-Dynamic arrays are RAM-only in LET/parameters/returns, including nested arrays
-and structs; STATE rejects them until its variable-length codec/budgets exist.
+Dynamic arrays can also live in STATE when every nested element is an integer,
+boolean, string or a collection of those types. Handles and query snapshots
+remain RAM-only, even inside an empty typed array. STATE counts actual retained
+cells across all declarations (at most 4,096), plus its string and serialized disk
+limits. Growth that exceeds a bound leaves the target unchanged.
 Native mutation calls and wrappers with REF effects cannot run in STATE defaults,
 program-wide LET initializers or named-redstone subscriptions. Pure ARRAY
-construction is allowed in program-wide LET. Mutations belong in triggers or
+construction is allowed in LET and STATE initializers. Mutations belong in triggers or
 function execution. Disabled PRINT still skips argument evaluation, so perform
 required POP/remove operations in assignments before printing.
 
 Visual supports ARRAY and the pure readers in expressions; collection mutation
 calls currently require Code. Fixed arrays, ordinary Visual variables and loops
-retain their existing behavior. `reserve`/capacity and persistent dynamic arrays
-remain future work.
+retain their existing behavior. `reserve`/capacity remains future work.
+
+```sfml
+name "Saved queue"
+state pending = array("integer")
+every 20 ticks do
+  if (len(pending) < 8) then
+    push(ref pending, 1)
+  end
+end
+```
+
+STATE stays in heap while running and is encoded at save/disk lifecycle boundaries,
+not after every push. Saved length survives reload and default-only edits; changing
+the element type or switching fixed/dynamic types requires a state reset. Existing
+fixed-array disks retain their encoding. Structural epochs and sleeping calls are
+RAM-only; a reload does not restore a suspended WAIT or an old reference.
 
 ### Strings and item-stack records
 
@@ -907,7 +925,7 @@ every 20 ticks {
 This stores fifteen and prints it when capture is enabled. Signature types are
 `integer`, `boolean`, `string`, `label_ref`, `resource_selector`, `item_key`,
 `item_contents`, `item_locations`, `fluid_key`, `fluid_contents`, fixed arrays
-such as `integer[3]`, RAM-only dynamic arrays such as `integer[]`, and records such as `{count: integer, name: string}`.
+such as `integer[3]`, dynamic arrays such as `integer[]`, and records such as `{count: integer, name: string}`.
 Argument and return shapes must match exactly. `void` is a procedure return type,
 not a parameter, variable or collection type. Handles/snapshots cannot persist
 in STATE, even when a function returns them.
@@ -1087,7 +1105,7 @@ Redstone OUTPUT also accepts a parenthesized INTEGER expression, evaluated once
 before target selection or writes. Dynamic levels must be 0-15; an invalid value
 faults before that statement writes. Historic literal levels still clamp to 0-15.
 Functions and loops are described above. Dynamic trigger intervals, resource IDs,
-persistent dynamic arrays, recursion and runtime cadence setters remain future work.
+recursion and runtime cadence setters remain future work.
 
 ### STATE follows the program disk
 

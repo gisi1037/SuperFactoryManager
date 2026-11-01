@@ -157,14 +157,14 @@ class DynamicArrayValueTest {
     }
 
     @Test
-    void dynamicContainmentPreventsStatePersistenceEvenInsideEmptyFixedArraysAndStructs() {
+    void dynamicContainmentPersistsOnlyWhenEveryElementTypeIsPersistable() {
         for (DataType type : Arrays.asList(
             INTEGERS,
             DataType.array(INTEGERS, 0),
             DataType.struct(Collections.singletonMap("values", INTEGERS)),
             DataType.dynamicArray(DataType.array(DataType.INTEGER, 3)))) {
             assertTrue(type.containsDynamicArray());
-            assertFalse(type.isPersistable());
+            assertTrue(type.isPersistable());
         }
         assertFalse(
             DataType.array(DataType.INTEGER, 3)
@@ -175,12 +175,19 @@ class DynamicArrayValueTest {
         assertTrue(
             DataType.array(DataType.INTEGER, 3)
                 .isPersistable());
-        assertThrows(IllegalArgumentException.class, () -> new ProgramStateSchema.Declaration("values", integers(0)));
-        assertThrows(
-            IllegalArgumentException.class,
+        assertDoesNotThrow(() -> new ProgramStateSchema.Declaration("values", integers(0)));
+        assertDoesNotThrow(
             () -> new ProgramStateSchema.Declaration(
                 "values",
                 DataValue.struct(Collections.singletonMap("nested", integers(1)))));
+        for (DataType type : Arrays.asList(DataType.LABEL_REF, DataType.RESOURCE_SELECTOR, DataType.ITEM_KEY)) {
+            assertFalse(
+                DataType.dynamicArray(type)
+                    .isPersistable());
+            assertFalse(
+                DataType.struct(Collections.singletonMap("values", DataType.dynamicArray(type)))
+                    .isPersistable());
+        }
     }
 
     @Test
@@ -228,7 +235,7 @@ class DynamicArrayValueTest {
         assertEquals(DataType.array(DataType.array(DataType.INTEGER, 2), 3), DataTypeParser.parse("INTEGER[3][2]"));
         DataType struct = DataTypeParser.parse("{title: STRING, rows: {count: INTEGER, tags: STRING[]}[][2]}");
         assertTrue(struct.containsDynamicArray());
-        assertFalse(struct.isPersistable());
+        assertTrue(struct.isPersistable());
         assertEquals(
             DataType.Kind.DYNAMIC_ARRAY,
             struct.getFieldType(struct.fieldIndex("rows"))

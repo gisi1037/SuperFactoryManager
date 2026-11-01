@@ -10,6 +10,8 @@ import org.junit.jupiter.api.Test;
 
 import ca.teamdman.sfm.common.gui.ContainerManager;
 import ca.teamdman.sfm.common.item.ItemDisk;
+import ca.teamdman.sfm.common.network.CableNetwork;
+import ca.teamdman.sfm.common.program.ProgramContext;
 import ca.teamdman.sfm.common.program.ProgramDocument;
 import ca.teamdman.sfm.common.program.ProgramEditService;
 import ca.teamdman.sfm.common.program.ProgramEditSnapshot;
@@ -95,6 +97,88 @@ class ExecutableSaveReuseTest {
         Program shifted = fixture.manager.getCompiledProgram();
         assertNull(fixture.manager.trySaveProgram("-- inserted header\n  " + SOURCE));
         assertSame(shifted, fixture.manager.getCompiledProgram());
+    }
+
+    @Test
+    void formattingSavePreservesSleepingDynamicStateRefsAndDoesNotReviveStaleOnes() throws Exception {
+        for (boolean mutateWhileSleeping : new boolean[] { false, true }) {
+            String source = "STATE values = ARRAY([1,2]) STATE done = 0 "
+                + "void later(ref integer cell) { WAIT(2); cell = 9; } "
+                + "EVERY 10 TICKS { PUSH(ref values, 3); later(ref values[0]); done = 1; } "
+                + (mutateWhileSleeping ? "EVERY 1 TICKS { PUSH(ref values, 4); }" : "");
+            Fixture fixture = new Fixture(source);
+            Program program = fixture.manager.getCompiledProgram();
+            tick(fixture, 10);
+            assertEquals(
+                1,
+                fixture.manager.getProgramExecution(program)
+                    .sleepingCount());
+            Object identity = fixture.manager.getProgramState()
+                .identity();
+            long epoch = fixture.manager.getProgramState()
+                .generation(0);
+            assertNull(fixture.manager.trySaveProgram("-- formatting only\n" + source));
+            assertSame(program, fixture.manager.getCompiledProgram());
+            assertSame(
+                identity,
+                fixture.manager.getProgramState()
+                    .identity());
+            assertEquals(
+                epoch,
+                fixture.manager.getProgramState()
+                    .generation(0));
+            if (mutateWhileSleeping) {
+                IllegalArgumentException failure = assertThrows(
+                    IllegalArgumentException.class,
+                    () -> tick(fixture, 12));
+                assertTrue(
+                    failure.getMessage()
+                        .contains("invalidated"),
+                    failure.getMessage());
+                assertEquals(
+                    1,
+                    fixture.manager.getProgramState()
+                        .read(0)
+                        .get(0)
+                        .asLong());
+                assertEquals(
+                    0,
+                    fixture.manager.getProgramState()
+                        .read(1)
+                        .asLong());
+            } else {
+                tick(fixture, 12);
+                assertEquals(
+                    9,
+                    fixture.manager.getProgramState()
+                        .read(0)
+                        .get(0)
+                        .asLong());
+                assertEquals(
+                    1,
+                    fixture.manager.getProgramState()
+                        .read(1)
+                        .asLong());
+            }
+            assertEquals(
+                0,
+                fixture.manager.getProgramExecution(program)
+                    .sleepingCount());
+        }
+    }
+
+    private static void tick(Fixture fixture, long now) {
+        fixture.world.world.time = now;
+        ProgramContext context = new ProgramContext(
+            fixture.world.world,
+            fixture.manager,
+            new CableNetwork(fixture.world.world, AuditRegressionTest.MANAGER),
+            fixture.world.labels,
+            now,
+            false);
+        context.setStateAccess(fixture.manager.getProgramState());
+        fixture.manager.getCompiledProgram()
+            .tick(context);
     }
 
     @Test

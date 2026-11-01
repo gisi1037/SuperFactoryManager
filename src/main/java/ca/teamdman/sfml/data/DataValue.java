@@ -26,7 +26,7 @@ public final class DataValue {
     private final String text;
     private final Object opaque;
     private final int stringCharacterCount, stringNbtBytes;
-    private final int retainedCellCount, retainedCharacters, retainedOpaqueBytes;
+    private final int retainedCellCount, retainedCharacters, retainedOpaqueBytes, statePayloadBytes;
 
     private DataValue(DataType type, long scalar, DataValue[] children) {
         this(type, scalar, children, null, 0, 0);
@@ -39,6 +39,7 @@ public final class DataValue {
     private DataValue(DataType type, long scalar, DataValue[] children, String text, int characters, int nbtBytes,
         Object opaque) {
         int cells = 1, retained = characters, opaqueBytes = 0;
+        int payload = stateBasePayload(type, nbtBytes), childIndex = 0;
         if (type == DataType.LABEL_REF) retained = ((LabelReference) opaque).getName()
             .length();
         else if (type == DataType.RESOURCE_SELECTOR) retained = ((ResourceSelector) opaque).getId()
@@ -56,6 +57,17 @@ public final class DataValue {
             cells = Math.addExact(cells, child.retainedCellCount);
             retained = Math.addExact(retained, child.retainedCharacters);
             opaqueBytes = Math.addExact(opaqueBytes, child.retainedOpaqueBytes);
+            if (payload >= 0) {
+                payload = Math.addExact(payload, child.statePayloadBytes);
+                if (type.getKind() == DataType.Kind.STRUCT)
+                    // Field names and canonical type signatures contain validated ASCII characters only.
+                    payload = Math.addExact(
+                        payload,
+                        18 + type.getFieldNames()
+                            .get(childIndex)
+                            .length());
+            }
+            childIndex++;
         }
         validateDynamicBounds(type, cells, retained, opaqueBytes);
         this.type = type;
@@ -68,11 +80,12 @@ public final class DataValue {
         this.retainedCellCount = cells;
         this.retainedCharacters = retained;
         this.retainedOpaqueBytes = opaqueBytes;
+        this.statePayloadBytes = payload;
     }
 
     /** Ancestor copies already know every aggregate from the replaced child's cached delta. */
     private DataValue(DataType type, DataValue[] children, int characters, int nbtBytes, int cells, int retained,
-        int opaqueBytes) {
+        int opaqueBytes, int payload) {
         validateDynamicBounds(type, cells, retained, opaqueBytes);
         this.type = type;
         this.scalar = 0;
@@ -84,6 +97,7 @@ public final class DataValue {
         this.retainedCellCount = cells;
         this.retainedCharacters = retained;
         this.retainedOpaqueBytes = opaqueBytes;
+        this.statePayloadBytes = payload;
     }
 
     public static DataValue integer(long value) {
@@ -170,6 +184,37 @@ public final class DataValue {
     /** Aggregate modified UTF-8 payload, excluding NBT tag headers and length prefixes. */
     public int getStringNbtBytes() {
         return stringNbtBytes;
+    }
+
+    /**
+     * Exact STATE value-compound payload bytes, including TAG_End but excluding its outer tag ID/name.
+     * Returns -1 for nonpersistable values. Cached independently of string-only NBT payload accounting.
+     */
+    public int getStatePayloadBytes() {
+        return statePayloadBytes;
+    }
+
+    private static int stateBasePayload(DataType type, int stringBytes) {
+        if (!type.isPersistable()) return -1;
+        switch (type.getKind()) {
+            case INTEGER:
+                return 25;
+            case BOOLEAN:
+                return 18;
+            case STRING:
+                return Math.addExact(19, stringBytes);
+            case ARRAY:
+            case STRUCT:
+                return 22;
+            case DYNAMIC_ARRAY:
+                return Math.addExact(
+                    34,
+                    type.getElementType()
+                        .getSignature()
+                        .length());
+            default:
+                throw new IllegalArgumentException("Unsupported STATE value kind");
+        }
     }
 
     /** Actual logical cells, including native observation rows and repeated shared children. */
@@ -310,7 +355,9 @@ public final class DataValue {
             replaceCount(stringNbtBytes, old.stringNbtBytes, replacement.stringNbtBytes),
             replaceCount(retainedCellCount, old.retainedCellCount, replacement.retainedCellCount),
             replaceCount(retainedCharacters, old.retainedCharacters, replacement.retainedCharacters),
-            replaceCount(retainedOpaqueBytes, old.retainedOpaqueBytes, replacement.retainedOpaqueBytes));
+            replaceCount(retainedOpaqueBytes, old.retainedOpaqueBytes, replacement.retainedOpaqueBytes),
+            statePayloadBytes < 0 ? -1
+                : replaceCount(statePayloadBytes, old.statePayloadBytes, replacement.statePayloadBytes));
     }
 
     private static int replaceCount(int total, int old, int replacement) {

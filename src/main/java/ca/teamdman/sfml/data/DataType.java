@@ -132,6 +132,7 @@ public final class DataType {
                 .append(']');
         } else if (kind == Kind.DYNAMIC_ARRAY) {
             // Length belongs to a value. The type retains a handle-sized minimum and an exact element type.
+            persistent = element.persistable;
             nesting = element.depth + 1;
             out.append('[')
                 .append(element.signature)

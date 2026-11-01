@@ -1225,7 +1225,10 @@ public class TileEntityManager extends TileEntity implements IInventory {
                 .size() != 0 || candidateDisk.hasTagCompound()
                     && candidateDisk.getTagCompound()
                         .hasKey(ProgramStateStore.NBT_KEY)) {
-                candidateState = ProgramStateStore.activate(candidateDisk, candidateProgram.getStateSchema());
+                candidateState = reuseExecutable && programState != null
+                    ? ProgramStateStore
+                        .activateEquivalentSave(candidateDisk, candidateProgram.getStateSchema(), programState)
+                    : ProgramStateStore.activate(candidateDisk, candidateProgram.getStateSchema());
                 candidateState.flush();
             }
             ProgramStateStore.validateCompleteDisk(candidateDisk);

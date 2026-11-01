@@ -3,11 +3,12 @@ package ca.teamdman.sfml.data;
 import java.util.List;
 
 /** Bounded RAM-only values. Never serialize this store or attach it to a shared compiled plan. */
-public final class ProgramGlobals implements StateAccess {
+public final class ProgramGlobals implements VersionedStateAccess {
 
     public static final int MAX_GLOBALS = 256, MAX_CELLS = 4096, MAX_CHARACTERS = 16384, MAX_OPAQUE_BYTES = 262144;
     private final DataType[] types;
     private final DataValue[] values;
+    private final Object identity = new Object();
     private long[] generations;
     private int cells, characters, opaqueBytes;
     private boolean initialized;
@@ -47,11 +48,18 @@ public final class ProgramGlobals implements StateAccess {
                 .containsDynamicArray());
     }
 
+    @Override
+    public Object identity() {
+        return identity;
+    }
+
+    @Override
     public long generation(int slot) {
         if (slot < 0 || slot >= values.length) throw new IllegalArgumentException("Invalid program global slot");
         return generations == null ? 0 : generations[slot];
     }
 
+    @Override
     public void write(int slot, DataValue value, boolean structural) {
         if (value == null || !types[slot].equals(value.getType()))
             throw new IllegalArgumentException("Program global type/shape mismatch");

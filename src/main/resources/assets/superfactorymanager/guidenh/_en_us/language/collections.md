@@ -72,7 +72,7 @@ Typed query handles and snapshots are also immutable. They may be held in locals
 Next: [Strings](strings.md). Related: [Variables and state](variables.md), [Loops](loops.md) and [Typed queries](/automation/queries.md).
 
 
-## Dynamic arrays (RAM only)
+## Dynamic arrays
 
 `integer[]` is a growable integer array; `integer[3]` still means exactly three
 integers. Construct an empty array explicitly with `array("integer")`,
@@ -131,15 +131,32 @@ fault. Whole-array references remain usable; the successful indexed writer is
 refreshed, while forwarded aliases can become stale. Ordinary scalar element
 updates preserve other indexed references. FOREACH retains its original snapshot.
 
-Dynamic arrays are RAM-only in LET/parameters/returns, including nested arrays
-and structs; STATE rejects them until its variable-length codec/budgets exist.
+Dynamic arrays can also live in STATE if every nested element is an integer,
+boolean, string or collection of those types. Handles and query snapshots remain
+RAM-only, even inside an empty typed array. All STATE declarations together have
+a 4,096-cell limit based on actual contents, plus string and disk-size limits.
+Failed growth leaves the target unchanged.
 Native mutation calls and wrappers with REF effects cannot run in STATE defaults,
 program-wide LET initializers or named-redstone subscriptions. Pure ARRAY
-construction is allowed in program-wide LET. Mutations belong in triggers or
+construction is allowed in LET and STATE initializers. Mutations belong in triggers or
 function execution. Disabled PRINT still skips argument evaluation, so perform
 required POP/remove operations in assignments before printing.
 
 Visual supports ARRAY and the pure readers in expressions; collection mutation
 calls currently require Code. Fixed arrays, ordinary Visual variables and loops
-retain their existing behavior. `reserve`/capacity and persistent dynamic arrays
-remain future work.
+retain their existing behavior. `reserve`/capacity remains future work.
+
+```sfml
+name "Saved queue"
+state pending = array("integer")
+every 20 ticks do
+  if (len(pending) < 8) then
+    push(ref pending, 1)
+  end
+end
+```
+
+STATE lives in heap while running and is encoded at save/disk lifecycle boundaries,
+not after every push. Saved length survives default-only edits. Changing an element
+type or switching between fixed and dynamic requires a state reset. Epochs and
+sleeping calls remain RAM-only; reloading does not restore a WAIT or reference.

@@ -7,6 +7,7 @@ import java.util.function.Supplier;
 public final class DataRuntime {
 
     private StateAccess state;
+    private Object dynamicStateIdentity;
     private ProgramGlobals globals;
     private final DataValue[] locals;
     private long[] localGenerations;
@@ -86,6 +87,10 @@ public final class DataRuntime {
 
     /** Bind fresh invocation budgets/providers; sleeping frames retain only immutable values and cursors. */
     public void bind(DataRuntime live) {
+        // A detached continuation may borrow new budgets, never a replacement dynamic STATE heap.
+        if (dynamicStateIdentity != null && (!(live.state instanceof VersionedStateAccess)
+            || dynamicStateIdentity != ((VersionedStateAccess) live.state).identity()))
+            throw new IllegalArgumentException("Dynamic STATE store changed while execution was suspended");
         state = live.state;
         queries = live.queries;
         globals = live.globals;
@@ -108,6 +113,7 @@ public final class DataRuntime {
 
     public void retain(Continuation.Bounds bounds) {
         bounds.entry();
+        if (dynamicStateIdentity != null) bounds.opaque(16);
         if (localGenerations != null) bounds.opaque(16 + localGenerations.length * 8);
         for (DataValue value : locals) bounds.value(value);
         if (references != null)
@@ -261,6 +267,8 @@ public final class DataRuntime {
         if (!persistent && references != null && references[slot] != null) return references[slot].read(this);
         DataValue value = persistent ? requireState().read(slot) : locals[slot];
         if (value == null) throw new IllegalArgumentException("Uninitialized variable");
+        if (persistent && value.getType()
+            .containsDynamicArray()) requireVersionedState();
         return value;
     }
 
@@ -296,7 +304,13 @@ public final class DataRuntime {
 
     /** Ref parameters report the generation of their caller's root, not their local parameter slot. */
     public long generation(boolean persistent, int slot) {
-        if (persistent) return 0;
+        if (persistent) {
+            StateAccess store = requireState();
+            if (store.read(slot)
+                .getType()
+                .containsDynamicArray()) return requireVersionedState().generation(slot);
+            return store instanceof VersionedStateAccess ? ((VersionedStateAccess) store).generation(slot) : 0;
+        }
         if (references != null && references[slot] != null) return references[slot].generation(this);
         return localGenerations == null ? 0 : localGenerations[slot];
     }
@@ -324,7 +338,9 @@ public final class DataRuntime {
         if (persistent) {
             if (!value.getType()
                 .isPersistable()) throw new IllegalArgumentException("STATE cannot persist opaque handles");
-            requireState().write(slot, value);
+            if (value.getType()
+                .containsDynamicArray()) requireVersionedState().write(slot, value, structural);
+            else requireState().write(slot, value);
         } else if (references != null && references[slot] != null) references[slot].publish(this, value, structural);
         else {
             if (structural || value.getType()
@@ -376,6 +392,18 @@ public final class DataRuntime {
     private StateAccess requireState() {
         if (state == null) throw new IllegalStateException("Persistent STATE requires an active disk state store");
         return state;
+    }
+
+    private VersionedStateAccess requireVersionedState() {
+        StateAccess store = requireState();
+        if (!(store instanceof VersionedStateAccess))
+            throw new IllegalArgumentException("Dynamic STATE requires a versioned state store");
+        VersionedStateAccess versioned = (VersionedStateAccess) store;
+        Object identity = versioned.identity();
+        if (identity == null || dynamicStateIdentity != null && dynamicStateIdentity != identity)
+            throw new IllegalArgumentException("Dynamic STATE store identity changed");
+        dynamicStateIdentity = identity;
+        return versioned;
     }
 
     /** Check every bound before allocating a fresh, manager-independent call frame. */

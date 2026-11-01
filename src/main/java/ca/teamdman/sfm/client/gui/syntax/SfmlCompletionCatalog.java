@@ -661,7 +661,7 @@ public final class SfmlCompletionCatalog {
             "array",
             "array(\"type\" | sequence) -> T[]",
             "array(\"<type>\")",
-            "Create a typed empty dynamic array or explicitly convert an array. Homogeneous, RAM-only, at most 256 elements and 4096 retained cells.",
+            "Create a typed empty dynamic array or explicitly convert an array. Homogeneous, at most 256 elements and 4096 retained cells. STATE requires persistable elements.",
             "let values = array(\"integer\")",
             Kind.CONSTRUCTOR,
             Context.EXPRESSION);
@@ -670,7 +670,7 @@ public final class SfmlCompletionCatalog {
             "push",
             "push(ref values: T[], value: T) -> void",
             "push(ref <values>, <value>)",
-            "Append through an explicit writable reference. O(n) immutable replacement; structural changes invalidate captured indexed references. No persistent STATE arrays.",
+            "Append through an explicit writable reference. O(n) immutable replacement; structural changes invalidate captured indexed references. STATE bounds are checked before replacement.",
             "let values = array(\"integer\"); push(ref values, 1)",
             Kind.STATEMENT,
             Context.TRIGGER_STATEMENT);

@@ -19,10 +19,7 @@ public final class ProgramStateSchema {
         for (Declaration declaration : declarations) {
             if (!names.add(declaration.name))
                 throw new IllegalArgumentException("Duplicate STATE: $" + declaration.name);
-            cells = Math.addExact(
-                cells,
-                declaration.getType()
-                    .getCellCount());
+            cells = Math.addExact(cells, declaration.defaultValue.getRetainedCellCount());
             characters = Math.addExact(characters, declaration.defaultValue.getStringCharacterCount());
             if (characters > ExpressionLimits.MAX_STATE_STRING_CHARACTERS) throw new IllegalArgumentException(
                 "Persistent state string characters exceed " + ExpressionLimits.MAX_STATE_STRING_CHARACTERS);

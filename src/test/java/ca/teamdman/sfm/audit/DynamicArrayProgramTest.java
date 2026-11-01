@@ -18,7 +18,7 @@ import ca.teamdman.sfml.data.DataRuntime;
 import ca.teamdman.sfml.data.DataValue;
 import ca.teamdman.sfml.data.ProgramExecution;
 import ca.teamdman.sfml.data.ProgramGlobals;
-import ca.teamdman.sfml.data.StateAccess;
+import ca.teamdman.sfml.data.VersionedStateAccess;
 import ca.teamdman.sfml.program_builder.ProgramBuildResult;
 import ca.teamdman.sfml.program_builder.ProgramBuilder;
 
@@ -82,7 +82,7 @@ class DynamicArrayProgramTest {
     }
 
     @Test
-    void wrongTypesFixedArraysImplicitRefsUntypedEmptyAndNestedDynamicStateAreRejected() {
+    void wrongTypesFixedArraysImplicitRefsUntypedEmptyAndOpaqueDynamicStateAreRejected() {
         String[] invalid = { "EVERY 10 TICKS { LET values = ARRAY(\"integer\"); PUSH(ref values, TRUE); }",
             "EVERY 10 TICKS { LET values = [1,2]; PUSH(ref values, 3); }",
             "EVERY 10 TICKS { LET values = [1,2]; LET last = POP(ref values); }",
@@ -90,8 +90,9 @@ class DynamicArrayProgramTest {
             "EVERY 10 TICKS { LET values = ARRAY([1]); LET last = POP(values); }",
             "EVERY 10 TICKS { LET values = ARRAY([1]); LET result = PUSH(ref values, 2); }",
             "EVERY 10 TICKS { LET values = ARRAY([]); }", "EVERY 10 TICKS { LET values = ARRAY(); }",
-            "EVERY 10 TICKS { LET values = ARRAY(\"void\"); }", "STATE values = ARRAY(\"integer\") EVERY 10 TICKS {}",
-            "STATE values = {nested: ARRAY([1])} EVERY 10 TICKS {}", "STATE values = [ARRAY([1])] EVERY 10 TICKS {}",
+            "EVERY 10 TICKS { LET values = ARRAY(\"void\"); }", "STATE values = ARRAY(\"label_ref\") EVERY 10 TICKS {}",
+            "STATE values = {nested: ARRAY([LABEL(\"a\")])} EVERY 10 TICKS {}",
+            "STATE values = [ARRAY([ITEM(\"*\")])] EVERY 10 TICKS {}",
             "void fixed(ref integer[2] values) {} EVERY 10 TICKS { LET values = ARRAY([1,2]); fixed(ref values); }",
             "void dynamic(ref integer[] values) {} EVERY 10 TICKS { LET values = [1,2]; dynamic(ref values); }" };
         for (String source : invalid) assertFalse(
@@ -156,6 +157,49 @@ class DynamicArrayProgramTest {
             assertEquals(afterMutation, run.global(0), "A stale write must not reach the current array");
             assertEquals(0, run.number(0));
         }
+    }
+
+    @Test
+    void persistentDynamicRefsAndCapturedAssignmentsRejectStructuralChangesAcrossWait() throws Exception {
+        for (String target : new String[] { "later(ref values[0]);", "values[0] = numberLater();" }) {
+            for (String mutation : new String[] { "PUSH(ref values, 3);", "values = ARRAY([8,9]);",
+                "LET removed = POP(ref values); PUSH(ref values, removed);" }) {
+                Run run = new Run(
+                    "STATE done = 0 STATE values = ARRAY([1,2]) "
+                        + "void later(ref integer cell) { WAIT(2); cell = 99; } "
+                        + "integer numberLater() { WAIT(2); RETURN 99; } "
+                        + "EVERY 10 TICKS { "
+                        + target
+                        + " done = 1; } EVERY 1 TICKS { "
+                        + mutation
+                        + " }");
+                run.tick(10);
+                DataValue afterMutation = run.state.read(1);
+                IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> run.tick(12));
+                assertTrue(
+                    failure.getMessage()
+                        .contains("invalidated"),
+                    failure.getMessage());
+                assertSame(afterMutation, run.state.read(1));
+                assertEquals(0, run.number(0));
+            }
+        }
+    }
+
+    @Test
+    void persistentWholeArrayRefsResumeAgainstCurrentContentsAndDoNotReplayEarlierPop() throws Exception {
+        Run run = new Run(
+            "STATE changed = FALSE STATE answer = 0 STATE values = ARRAY([3,5,7]) "
+                + "integer later() { WAIT(2); RETURN 100; } "
+                + "EVERY 10 TICKS { answer = POP(ref values) + later(); PUSH(ref values, 9); } "
+                + "EVERY 1 TICKS { IF (!changed) THEN PUSH(ref values, 2); changed = TRUE; END }");
+        run.tick(10);
+        assertArray(run.state.read(2), 3, 5, 2);
+        run.tick(11);
+        assertArray(run.state.read(2), 3, 5, 2);
+        run.tick(12);
+        assertEquals(107, run.number(1));
+        assertArray(run.state.read(2), 3, 5, 2, 9);
     }
 
     @Test
@@ -362,13 +406,16 @@ class DynamicArrayProgramTest {
             "Element " + i);
     }
 
-    private static final class Memory implements StateAccess {
+    private static final class Memory implements VersionedStateAccess {
 
         final DataValue[] values;
+        final Object identity = new Object();
+        final long[] generations;
 
         Memory(Program program) {
             values = new DataValue[program.getStateSchema()
                 .size()];
+            generations = new long[values.length];
             for (int i = 0; i < values.length; i++) values[i] = program.getStateSchema()
                 .getDeclarations()
                 .get(i)
@@ -382,12 +429,33 @@ class DynamicArrayProgramTest {
 
         @Override
         public void write(int slot, DataValue value) {
+            write(
+                slot,
+                value,
+                value.getType()
+                    .containsDynamicArray());
+        }
+
+        @Override
+        public Object identity() {
+            return identity;
+        }
+
+        @Override
+        public long generation(int slot) {
+            return generations[slot];
+        }
+
+        @Override
+        public void write(int slot, DataValue value, boolean structural) {
             if (!values[slot].getType()
                 .equals(value.getType())
                 || !value.getType()
                     .isPersistable())
                 throw new IllegalArgumentException("STATE type/persistence contract");
+            long next = structural ? Math.addExact(generations[slot], 1) : generations[slot];
             values[slot] = value;
+            generations[slot] = next;
         }
     }
 

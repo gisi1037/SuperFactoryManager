@@ -23,6 +23,7 @@ import ca.teamdman.sfm.common.item.ItemDisk;
 import ca.teamdman.sfm.common.label.LabelPositionHolder;
 import ca.teamdman.sfm.common.network.CableNetwork;
 import ca.teamdman.sfm.common.program.ProgramContext;
+import ca.teamdman.sfm.common.program.ProgramStateStore;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 import ca.teamdman.sfm.common.util.BlockPos;
 import ca.teamdman.sfml.ast.Program;
@@ -42,6 +43,94 @@ class PerformanceCharacterizationTest {
         return MEMORY.getThreadAllocatedBytes(
             Thread.currentThread()
                 .getId());
+    }
+
+    @Test
+    void dynamicCollectionsWork() throws Exception {
+        for (boolean persistent : new boolean[] { false, true }) {
+            for (int length : new int[] { 16, 64 })
+                for (boolean batch : new boolean[] { false, true }) dynamicCollections(persistent, length, batch);
+        }
+    }
+
+    private void dynamicCollections(boolean persistent, int length, boolean batch) throws Exception {
+        final int collectionWarmup = 256;
+        StringBuilder entries = new StringBuilder();
+        for (int i = 0; i < length; i++) {
+            if (i != 0) entries.append(',');
+            entries.append(i);
+        }
+        String fill = batch ? "EXTEND(ref values, batch);"
+            : "FOR (LET i = 0; i < " + length + "; i = i + 1) { PUSH(ref values, i); }";
+        Program program = parse(
+            "STATE checksum = 0 " + (persistent ? "STATE" : "LET")
+                + " values = ARRAY(\"integer\") "
+                + (batch ? "LET batch = [" + entries + "] " : "")
+                + "EVERY 1 TICKS { "
+                + fill
+                + "FOR (LET i = 0; i < "
+                + length
+                + "; i = i + 1) { checksum = checksum + POP(ref values); } }");
+        Fixture fixture = new Fixture();
+        TileEntityManager manager = RecoveryFixtures.manager(fixture);
+        ItemStack disk = new ItemStack(new ItemDisk());
+        ProgramStateStore state = ProgramStateStore.activate(disk, program.getStateSchema());
+        state.flush();
+        Object originalNbt = disk.getTagCompound()
+            .getTag(ProgramStateStore.NBT_KEY);
+        CableNetwork network = new CableNetwork(fixture.world, MANAGER);
+        Metrics measurements = new Metrics();
+        for (int sample = -collectionWarmup; sample < SAMPLES; sample++) {
+            fixture.world.time++;
+            ProgramContext context = new ProgramContext(
+                fixture.world,
+                manager,
+                network,
+                fixture.labels,
+                fixture.world.time,
+                false);
+            context.setStateAccess(state);
+            long beforeBytes = allocated(), before = System.nanoTime();
+            program.tick(context);
+            long nanos = System.nanoTime() - before, bytes = allocated() - beforeBytes;
+            if (sample >= 0) measurements.add(sample, nanos, bytes, -1, -1, -1);
+            assertEquals(
+                (long) (sample + collectionWarmup + 1) * length * (length - 1) / 2,
+                state.read(0)
+                    .asLong());
+            assertEquals(
+                0,
+                persistent ? state.read(1)
+                    .size()
+                    : manager.getProgramGlobals(program)
+                        .read(0)
+                        .size());
+            assertSame(
+                originalNbt,
+                disk.getTagCompound()
+                    .getTag(ProgramStateStore.NBT_KEY),
+                "Running heap mutations must not publish NBT");
+        }
+        assertTrue(state.flush());
+        ProgramStateStore restored = ProgramStateStore.activate(disk, program.getStateSchema());
+        assertEquals(
+            state.read(0)
+                .asLong(),
+            restored.read(0)
+                .asLong());
+        if (persistent) assertEquals(
+            0,
+            restored.read(1)
+                .size());
+        measurements.print(
+            "collections storage=" + (persistent ? "state" : "global")
+                + " fill="
+                + (batch ? "extend" : "push")
+                + " length="
+                + length
+                + " pops="
+                + length
+                + " compileAndFlushExcluded=true");
     }
 
     @Test

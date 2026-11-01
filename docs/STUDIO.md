@@ -581,8 +581,8 @@ against a different draft; current syntax is rechecked first.
 Dynamic arrays use `array("type")` or `array(sequence)` with explicit REF mutation.
 The Insert/API catalog describes all collection helpers. ARRAY and pure readers
 can appear in supported Visual expressions; mutation calls remain Code-only.
-See [dynamic arrays](SFML_GUIDE.md#dynamic-arrays-ram-only) for bounds, index-ref
-invalidation, O(n) replacement costs and RAM-only persistence rules.
+See [dynamic arrays](SFML_GUIDE.md#dynamic-arrays) for bounds, index-ref
+invalidation, O(n) replacement costs and persistence restricted to plain data.
 
 
 Visual also supports **For loop** (`for (init; test; update)`) and **Indexed array
