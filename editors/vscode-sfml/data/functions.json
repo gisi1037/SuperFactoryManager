@@ -55,9 +55,10 @@
         "len(values: T[N]) -> integer",
         "len(text: string) -> integer",
         "len(contents: item_contents) -> integer",
-        "len(locations: item_locations) -> integer"
+        "len(locations: item_locations) -> integer",
+        "len(contents: fluid_contents) -> integer"
       ],
-      "description": "Return the outer entry count of a fixed array or a captured native ITEM_CONTENTS/ITEM_LOCATIONS sequence, including zero. For a string, return its Unicode code-point count rather than UTF-8 bytes or displayed grapheme clusters. Does not rescan inventories. The built-in name ignores case; an exact-name player function takes precedence.",
+      "description": "Return the outer entry count of a fixed array or a captured native ITEM_CONTENTS/ITEM_LOCATIONS/FLUID_CONTENTS sequence, including zero. For a string, return its Unicode code-point count rather than UTF-8 bytes or displayed grapheme clusters. Does not rescan inventories. The built-in name ignores case; an exact-name player function takes precedence.",
       "example": "let stock = label(\"inputs\").contents()\nif (len(stock) > 0) then\n  print(stock[0].total)\nend"
     },
     "total": {
@@ -89,7 +90,7 @@
         "transfer(source: label_ref, destination: label_ref, selection: resource_selector | item_key) [into $result]",
         "transfer(source: label_ref, destination: label_ref, selection: resource_selector | item_key, amount: integer) [into $result]"
       ],
-      "description": "The third argument may be an integer total item-count limit (all items), or an item key/selector (matching stock). Four arguments require an item key/selector followed by an integer amount. Use transferf for fluids, in millibuckets; this action stays item-only. An item-moving statement, not a value-returning function. Two arguments select all items; three select matching items; an omitted amount observes matching visible source stock. Four arguments provide one nonnegative aggregate cap across variants and containers. ITEM/ORE selectors are broad; an ITEM_KEY from contents() selects exact metadata/NBT. Optional INTO declares a fresh local record with integer requested/moved/remaining and string status (complete, partial, no_match, no_capacity or unavailable). Unavailable automatic preflight can report requested=0 without proving emptiness. Provider errors, exhausted work limits and recovery uncertainty fault; earlier confirmed transfers remain committed. Cannot appear inside a data expression or value-returning function; void procedures may use it. The statement name ignores case.",
+      "description": "The third argument may be an integer total item-count limit (all items), or an item key/selector (matching stock). Four arguments require an item key/selector followed by an integer amount. Use transferf for fluids, in millibuckets; this action stays item-only. An item-moving statement, not a value-returning function. Two arguments select all items; a third selector/key selects matching items, while a third integer caps all items; an omitted amount observes matching visible source stock. Four arguments provide one nonnegative aggregate cap across variants and containers. ITEM/ORE selectors are broad; an ITEM_KEY from contents() selects exact metadata/NBT. Optional INTO declares a fresh local record with integer requested/moved/remaining and string status (complete, partial, no_match, no_capacity or unavailable). Unavailable automatic preflight can report requested=0 without proving emptiness. Provider errors, exhausted work limits and recovery uncertainty fault; earlier confirmed transfers remain committed. Cannot appear inside a data expression or value-returning function; void procedures may use it. The statement name ignores case.",
       "example": "let source = label(\"inputs\")\nlet destination = label(\"assembly\")\ntransfer(source, destination, item(\"minecraft:iron_ingot\"), 16) into result\nprint(result.moved, result.remaining, result.status)"
     },
     "print": {
@@ -123,7 +124,7 @@
         "wait ticks"
       ],
       "description": "Statement: suspend the current trigger and active player-function stack for n game ticks. Does not block the server or other triggers. Locals, loop progress and completed expression operands survive; new firings of this busy trigger are not queued. Zero is a no-op; negatives/overflow fault. Resumes independently of original trigger interval. INPUT providers/retention refresh while prior quantity spending remains. Budgets refresh per invocation; retained memory is bounded. RAM-only continuation is cancelled on unload, reset, code/disk replacement or runtime fault. Allowed inside player-defined functions, but cannot return a value or initialize program-wide LET/STATE.",
-      "example": "function later(value: integer) returns integer do\n  wait(20)\n  return value + 1\nend\nevery 40 ticks do\n  let next = later(3)\n  print(next)\nend"
+      "example": "integer later(integer value) {\n  wait(20);\n  return value + 1;\n}\nevery 40 ticks {\n  let next = later(3);\n  print(next);\n}"
     },
     "setcircuit": {
       "signatures": [

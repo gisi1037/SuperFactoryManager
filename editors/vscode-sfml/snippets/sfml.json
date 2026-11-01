@@ -120,7 +120,7 @@
       "}",
       "$0"
     ],
-    "description": "Typed value function, declared before triggers. Reads STATE; effects and STATE writes belong in void procedures."
+    "description": "Typed value function. Reads STATE; effects and STATE writes belong in void procedures."
   },
   "Function return": {
     "prefix": "return",
@@ -135,7 +135,7 @@
   "Label handle": {
     "prefix": "label",
     "body": "label(\"${1:source}\")$0",
-    "description": "Construct a typed handle from an exact disk-label literal."
+    "description": "Construct an exact label-group handle from a string literal or computed string."
   },
   "Item selector": {
     "prefix": "item",
@@ -230,7 +230,7 @@
   "Set ghost circuit": {
     "prefix": "setcircuit",
     "body": "setcircuit(label(\"${1:machine}\"), ${2:5}) into ${3:configured}$0",
-    "description": "Select a compatible GregTech ghost circuit (1..24); 0 clears."
+    "description": "Select a compatible GregTech ghost circuit (1..24); 0/-1 clears."
   },
   "Numbered label": {
     "prefix": "labelnumber",
@@ -244,7 +244,7 @@
       "  $0",
       "}"
     ],
-    "description": "Effectful procedure, declared before triggers; may update STATE and return without a value."
+    "description": "Effectful procedure; may update STATE and return without a value."
   },
   "Legacy typed player function": {
     "prefix": "functionlegacy",
@@ -265,5 +265,65 @@
       "$0"
     ],
     "description": "A void procedure with a writable reference parameter; invoke with increment(ref target)."
+  },
+  "Fixed label-array return function": {
+    "prefix": "functionlabels",
+    "body": [
+      "label_ref[2] ${1:pedestals}() {",
+      "  return [label(\"${2:ped1}\"), label(\"${3:ped2}\")];",
+      "}",
+      "$0"
+    ],
+    "description": "Return exactly two label handles. Array lengths are part of the declared return type."
+  },
+  "Transfer any items with aggregate cap": {
+    "prefix": "transferamount",
+    "body": "transfer(${1:source}, ${2:destination}, ${3:16})$0",
+    "description": "Move up to this many items across all item types; the third integer is an aggregate cap."
+  },
+  "Fluid selector": {
+    "prefix": "fluid",
+    "body": "fluid(\"${1:water}\")$0",
+    "description": "Select a registered fluid name, or * for all fluids. Amounts use millibuckets (1000 mB = 1 bucket)."
+  },
+  "Transfer all visible fluids": {
+    "prefix": "transferf2",
+    "body": "transferf(${1:source}, ${2:destination})$0",
+    "description": "Move all visible source fluids into compatible tanks; optionally append into result."
+  },
+  "Transfer matching fluids": {
+    "prefix": "transferf3",
+    "body": "transferf(${1:source}, ${2:destination}, ${3:fluid(\"water\")})$0",
+    "description": "Move all matching fluid stock. A captured fluid key also matches exact NBT."
+  },
+  "Transfer matching fluids with aggregate cap": {
+    "prefix": "transferf4",
+    "body": "transferf(${1:source}, ${2:destination}, ${3:fluid(\"water\")}, ${4:1000})$0",
+    "description": "Move up to the specified matching-fluid amount in mB, across selected tanks."
+  },
+  "Transfer any fluids with aggregate cap": {
+    "prefix": "transferfamount",
+    "body": "transferf(${1:source}, ${2:destination}, ${3:1000})$0",
+    "description": "Move up to this many mB across all fluid types; 1000 mB is one bucket."
+  },
+  "Captured fluid contents": {
+    "prefix": "fcontents",
+    "body": "${1:source}.fcontents(${2:})$0",
+    "description": "Capture per-tank fluid rows with exact fluid keys and amounts in mB; optionally filter with fluid(...)."
+  },
+  "Visible fluid count": {
+    "prefix": "fcount",
+    "body": "${1:source}.fcount(${2:})$0",
+    "description": "Count matching millibuckets. With no argument, count all visible fluids."
+  },
+  "Empty fluid query": {
+    "prefix": "fempty",
+    "body": "${1:source}.fempty(${2:})$0",
+    "description": "True only for complete available tank access containing no matching fluid. Defaults to all fluids."
+  },
+  "Fluid availability query": {
+    "prefix": "favailable",
+    "body": "${1:source}.favailable(${2:})$0",
+    "description": "Check loaded compatible fluid-handler access, not stock or free capacity. Item slot restrictions are invalid."
   }
 }

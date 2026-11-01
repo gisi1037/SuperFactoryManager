@@ -2,7 +2,7 @@
   "name": "sfml-language",
   "displayName": "SFML for Super Factory Manager",
   "description": "SFML colors, function hovers, snippets and compiler-backed diagnostics for Super Factory Manager GTNH.",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "publisher": "gisi1037",
   "license": "MIT",
   "engines": {

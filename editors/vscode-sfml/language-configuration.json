@@ -70,13 +70,13 @@
   ],
   "wordPattern": "\\$[A-Za-z_][A-Za-z0-9_]*|[A-Za-z_*][A-Za-z0-9_*]*(?::[A-Za-z0-9_*]*)*|[0-9]+[gG]?",
   "indentationRules": {
-    "increaseIndentPattern": "^\\s*(?:(?:[Ee][Vv][Ee][Rr][Yy]|[Ff][Uu][Nn][Cc][Tt][Ii][Oo][Nn]|[Ff][Oo][Rr]|[Ww][Hh][Ii][Ll][Ee])\\b[^\\r\\n]*\\b[Dd][Oo]|[Ii][Ff]\\b[^\\r\\n]*\\b[Tt][Hh][Ee][Nn]|[Ee][Ll][Ss][Ee](?:\\s+[Ii][Ff]\\b[^\\r\\n]*\\b[Tt][Hh][Ee][Nn])?)\\s*(?:--.*)?$|^\\s*(?!--)(?:[^\"\\r\\n-]|-(?!-)|\"(?:[^\"\\\\]|\\\\.)*\")*\\{\\s*(?:--.*)?$",
+    "increaseIndentPattern": "^\\s*(?:(?:[Ee][Vv][Ee][Rr][Yy]|[Ff][Uu][Nn][Cc][Tt][Ii][Oo][Nn]|[Ff][Oo][Rr]|[Ww][Hh][Ii][Ll][Ee])\\b[^\\r\\n]*\\b[Dd][Oo]|[Ii][Ff]\\b[^\\r\\n]*\\b[Tt][Hh][Ee][Nn]|[Ee][Ll][Ss][Ee](?:\\s+[Ii][Ff]\\b[^\\r\\n]*\\b[Tt][Hh][Ee][Nn])?)\\s*(?:--.*)?$|^\\s*(?!--)(?:[^\"\\r\\n-]|-(?!-)|\"(?:[^\"\\\\]|\\\\.)*\")*\\{\\s*(?:--.*)?$|^\\s*(?:[Vv][Oo][Ii][Dd]|[Ii][Nn][Tt][Ee][Gg][Ee][Rr]|[Bb][Oo][Oo][Ll][Ee][Aa][Nn]|[Ss][Tt][Rr][Ii][Nn][Gg]|[Ll][Aa][Bb][Ee][Ll]_[Rr][Ee][Ff]|[Rr][Ee][Ss][Oo][Uu][Rr][Cc][Ee]_[Ss][Ee][Ll][Ee][Cc][Tt][Oo][Rr]|[Ii][Tt][Ee][Mm]_(?:[Kk][Ee][Yy]|[Cc][Oo][Nn][Tt][Ee][Nn][Tt][Ss]|[Ll][Oo][Cc][Aa][Tt][Ii][Oo][Nn][Ss])|[Ff][Ll][Uu][Ii][Dd]_(?:[Kk][Ee][Yy]|[Cc][Oo][Nn][Tt][Ee][Nn][Tt][Ss])|\\{[^\\r\\n]*\\})(?:\\s*\\[\\s*[0-9]+\\s*\\])*\\s+[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*\\s*\\([^\\r\\n]*\\)\\s+(?:[Dd][Oo]|[Tt][Hh][Ee][Nn])\\s*(?:--.*)?$",
     "decreaseIndentPattern": "^\\s*(?:[Ee][Nn][Dd]\\b|[Ee][Ll][Ss][Ee]\\b|[\\]})])"
   },
   "folding": {
     "offSide": false,
     "markers": {
-      "start": "^\\s*(?:(?:[Ee][Vv][Ee][Rr][Yy]|[Ff][Uu][Nn][Cc][Tt][Ii][Oo][Nn]|[Ff][Oo][Rr]|[Ww][Hh][Ii][Ll][Ee])\\b[^\\r\\n]*\\b[Dd][Oo]|[Ii][Ff]\\b[^\\r\\n]*\\b[Tt][Hh][Ee][Nn])\\s*(?:--.*)?$|^\\s*--\\s*#?[Rr][Ee][Gg][Ii][Oo][Nn]\\b|^\\s*(?!--)(?:[^\"\\r\\n-]|-(?!-)|\"(?:[^\"\\\\]|\\\\.)*\")*\\{\\s*(?:--.*)?$",
+      "start": "^\\s*(?:(?:[Ee][Vv][Ee][Rr][Yy]|[Ff][Uu][Nn][Cc][Tt][Ii][Oo][Nn]|[Ff][Oo][Rr]|[Ww][Hh][Ii][Ll][Ee])\\b[^\\r\\n]*\\b[Dd][Oo]|[Ii][Ff]\\b[^\\r\\n]*\\b[Tt][Hh][Ee][Nn])\\s*(?:--.*)?$|^\\s*--\\s*#?[Rr][Ee][Gg][Ii][Oo][Nn]\\b|^\\s*(?!--)(?:[^\"\\r\\n-]|-(?!-)|\"(?:[^\"\\\\]|\\\\.)*\")*\\{\\s*(?:--.*)?$|^\\s*(?:[Vv][Oo][Ii][Dd]|[Ii][Nn][Tt][Ee][Gg][Ee][Rr]|[Bb][Oo][Oo][Ll][Ee][Aa][Nn]|[Ss][Tt][Rr][Ii][Nn][Gg]|[Ll][Aa][Bb][Ee][Ll]_[Rr][Ee][Ff]|[Rr][Ee][Ss][Oo][Uu][Rr][Cc][Ee]_[Ss][Ee][Ll][Ee][Cc][Tt][Oo][Rr]|[Ii][Tt][Ee][Mm]_(?:[Kk][Ee][Yy]|[Cc][Oo][Nn][Tt][Ee][Nn][Tt][Ss]|[Ll][Oo][Cc][Aa][Tt][Ii][Oo][Nn][Ss])|[Ff][Ll][Uu][Ii][Dd]_(?:[Kk][Ee][Yy]|[Cc][Oo][Nn][Tt][Ee][Nn][Tt][Ss])|\\{[^\\r\\n]*\\})(?:\\s*\\[\\s*[0-9]+\\s*\\])*\\s+[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*\\s*\\([^\\r\\n]*\\)\\s+(?:[Dd][Oo]|[Tt][Hh][Ee][Nn])\\s*(?:--.*)?$",
       "end": "^\\s*(?:[Ee][Nn][Dd]\\b|\\}|--\\s*#?[Ee][Nn][Dd][Rr][Ee][Gg][Ii][Oo][Nn]\\b)"
     }
   }

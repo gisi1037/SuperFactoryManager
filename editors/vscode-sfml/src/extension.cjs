@@ -4,10 +4,10 @@ const { analyze, hover } = require('./language.cjs');
 const { Compiler } = require('./compiler.cjs');
 
 function activate(context) {
-  const cache = new WeakMap(), compilers = new Map(), pending = new Map();
+  const cache = new WeakMap(), compilers = new Map(), pending = new Map(), manifestWatchers = new Map();
   const diagnostics = vscode.languages.createDiagnosticCollection('sfml');
   const color = vscode.window.createTextEditorDecorationType({ color: new vscode.ThemeColor('sfml.variableForeground') });
-  let decorationTimer;
+  let decorationTimer, compilerRefreshTimer;
   const analysis = document => {
     let entry = cache.get(document);
     if (!entry || entry.version !== document.version) {
@@ -54,6 +54,20 @@ function activate(context) {
     }
     const version = document.version, generation = compilerGeneration;
     try {
+      if (!manifestWatchers.has(manifest)) {
+        // A backend can live outside this program's workspace. Watch only its manifest,
+        // which prepareSfmlCompiler writes after rebuilding the compiler classes.
+        const watcher = vscode.workspace.createFileSystemWatcher(
+          new vscode.RelativePattern(vscode.Uri.file(path.dirname(manifest)), path.basename(manifest)));
+        const refresh = () => {
+          clearTimeout(compilerRefreshTimer);
+          compilerRefreshTimer = setTimeout(() => resetCompilers(false), 150);
+        };
+        watcher.onDidCreate(refresh);
+        watcher.onDidChange(refresh);
+        watcher.onDidDelete(refresh);
+        manifestWatchers.set(manifest, watcher);
+      }
       let compiler = compilers.get(manifest);
       if (!compiler) { compiler = new Compiler(manifest); compilers.set(manifest, compiler); }
       const errors = await compiler.check(document.uri.toString(), document.getText());
@@ -80,10 +94,17 @@ function activate(context) {
     diagnostics.delete(document.uri);
     pending.set(key, setTimeout(() => { pending.delete(key); check(document); }, 400));
   };
-  const resetCompilers = () => {
+  const resetCompilers = (resetWatches = true) => {
+    clearTimeout(compilerRefreshTimer);
     compilerGeneration++;
     for (const compiler of compilers.values()) compiler.dispose();
     compilers.clear();
+    // Keep a live watch through rebuilds; re-registering it can miss a quick
+    // replacement while the filesystem subscription is still being established.
+    if (resetWatches) {
+      for (const watcher of manifestWatchers.values()) watcher.dispose();
+      manifestWatchers.clear();
+    }
     diagnostics.clear();
     for (const document of vscode.workspace.textDocuments) scheduleCheck(document);
   };
@@ -113,6 +134,8 @@ function activate(context) {
     vscode.window.onDidChangeVisibleTextEditors(scheduleColors),
     { dispose() {
       clearTimeout(decorationTimer);
+      clearTimeout(compilerRefreshTimer);
+      for (const watcher of manifestWatchers.values()) watcher.dispose();
       for (const timer of pending.values()) clearTimeout(timer);
       for (const compiler of compilers.values()) compiler.dispose();
     }});

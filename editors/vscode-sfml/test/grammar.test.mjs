@@ -77,6 +77,43 @@ test("variables, function definitions, methods and members have distinct scopes"
   expectScope("let $n = math.double(8)", "math.double", "entity.name.function.sfml");
 });
 
+test("fixed array and structural returns keep type, function and field scopes", () => {
+  const arrayHeader = "label_ref[2] routes.empty(ref integer index) {";
+  expectScope(arrayHeader, "label_ref", "storage.type.sfml");
+  expectScope(arrayHeader, "2", "constant.numeric.integer.sfml");
+  expectScope(arrayHeader, "routes.empty", "entity.name.function.sfml");
+  expectScope(arrayHeader, "ref", "keyword.control.sfml", arrayHeader.indexOf("("));
+  expectScope(arrayHeader, "index", "variable.other.readwrite.sfml");
+  const structHeader = "{ready: boolean, counts: integer[2]} status.empty() then";
+  expectScope(structHeader, "ready", "variable.other.property.sfml");
+  expectScope(structHeader, "boolean", "storage.type.sfml");
+  expectScope(structHeader, "counts", "variable.other.property.sfml");
+  expectScope(structHeader, "integer", "storage.type.sfml");
+  expectScope(structHeader, "2", "constant.numeric.integer.sfml");
+  expectScope(structHeader, "status.empty", "entity.name.function.sfml");
+});
+
+test("native method receivers stay variables instead of being swallowed as namespaced functions", () => {
+  for (const method of ["contents", "count", "empty", "available", "fcontents", "fcount", "fempty", "favailable", "side", "slots", "redstone", "powered", "redstoneAvailable"]) {
+    const line = `let result = source.${method}()`;
+    expectScope(line, "source", "variable.other.readwrite.sfml");
+    expectScope(line, method, "support.function.sfml");
+  }
+  expectScope('label("chest" + index).fempty()', "index", "variable.other.readwrite.sfml");
+  expectScope('label("chest" + index).fempty()', "fempty", "support.function.sfml");
+});
+
+test("current actions and quoted labels retain the expected token boundaries", () => {
+  for (const action of ["wait", "transfer", "transferf", "setcircuit"]) {
+    expectScope(`${action}(source, destination, 1000)`, action, "support.function.sfml");
+  }
+  expectScope('input from "chest"', '"chest"', "string.quoted.double.sfml");
+  expectScope('input from label("chest" + index).slots(0, 8)', "label", "support.function.sfml");
+  expectScope('input from label("chest" + index).slots(0, 8)', "slots", "support.function.sfml");
+  expectScope('transferf(source, destination, fluid("*"), 1000) into sent', "sent", "variable.other.readwrite.sfml");
+  expectScope("increment(ref count)", "ref", "keyword.control.sfml");
+});
+
 test("new boolean and bitwise operators retain their complete token spans", () => {
   for (const operator of ["!", "!=", "==", "&&", "||", "~", "&", "|", "^", "<<", ">>", ">>>", ">=", "<=", "%", "=", "+", "-", "*", "/"]) {
     const line = `$a ${operator} $b`;
@@ -130,7 +167,9 @@ test("indentation covers mixed case blocks and else without indenting comments",
   const decrease = new RegExp(configuration.indentationRules.decreaseIndentPattern);
   for (const line of ["every 20 ticks do", "EvErY REDSTONE PULSE DO", "if ($ready) then", "else if ($other) then",
     "else", "function f($n: integer) returns integer do", "for $i = 0 to 3 do", "while (false) do -- test",
-    "void reset() {", "integer f(integer n) { -- body", "every 20 ticks {", "} else {", "if (ready) {"]) {
+    "void reset() {", "integer f(integer n) { -- body", "every 20 ticks {", "} else {", "if (ready) {",
+    "label_ref[2] routes() do", "integer next(integer value) then -- body", "void reset(ref integer value) DO",
+    "{ready: boolean, count: integer} inspect() THEN"]) {
     assert.ok(increase.test(line), line);
   }
   for (const line of ["end", " END -- end block", "else", "Else If ($x) THEN"]) assert.ok(decrease.test(line), line);
@@ -143,7 +182,8 @@ test("indentation covers mixed case blocks and else without indenting comments",
 test("fold markers nest blocks, without treating else as another opening block", () => {
   const start = new RegExp(configuration.folding.markers.start);
   const end = new RegExp(configuration.folding.markers.end);
-  for (const line of ["every 20 ticks do", "if ($ready) then", "for $i in $items do", "-- region setup", "void f() {", "every 20 ticks {"]) assert.ok(start.test(line), line);
+  for (const line of ["every 20 ticks do", "if ($ready) then", "for $i in $items do", "-- region setup", "void f() {", "every 20 ticks {",
+    "label_ref[2] routes() do", "integer next(integer value) then", "{ready: boolean} inspect() do"]) assert.ok(start.test(line), line);
   for (const line of ["end", "END -- block", "-- endregion", "}", "} else {"]) assert.ok(end.test(line), line);
   assert.ok(!start.test("else if ($x) then"));
   assert.ok(!start.test("-- every 20 ticks do"));
@@ -166,7 +206,7 @@ test("every published example tokenizes with the real TextMate engine", async ()
 
 test("snippets preserve literal variable sigils and unique completion prefixes", async () => {
   const snippets = await readJson("snippets/sfml.json");
-  assert.equal(Object.keys(snippets).length, 41);
+  assert.equal(Object.keys(snippets).length, 52);
   const prefixes = new Set();
   for (const [name, snippet] of Object.entries(snippets)) {
     assert.ok(!prefixes.has(snippet.prefix), name);
@@ -184,4 +224,11 @@ test("snippets preserve literal variable sigils and unique completion prefixes",
   assert.ok(snippets["Redstone output"].body.includes('to "${2:signal}"'));
   assert.ok(snippets["One item per pedestal"].body[0].includes('from "${1:chestin}"'));
   assert.ok(snippets["One item per pedestal"].body[1].includes('to each "${4:ped}"'));
+  assert.match(snippets["Fixed label-array return function"].body[0], /^label_ref\[2\] /);
+  assert.match(snippets["Fixed label-array return function"].body[1], /return \[label\(/);
+  assert.equal(snippets["Transfer any items with aggregate cap"].body, 'transfer(${1:source}, ${2:destination}, ${3:16})$0');
+  assert.equal(snippets["Transfer all visible fluids"].body, 'transferf(${1:source}, ${2:destination})$0');
+  assert.equal(snippets["Transfer any fluids with aggregate cap"].body, 'transferf(${1:source}, ${2:destination}, ${3:1000})$0');
+  for (const name of ["Captured fluid contents", "Visible fluid count", "Empty fluid query", "Fluid availability query"])
+    assert.match(snippets[name].body, /^\$\{1:source\}\.f/);
 });

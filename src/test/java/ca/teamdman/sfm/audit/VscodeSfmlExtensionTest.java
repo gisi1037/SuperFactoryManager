@@ -34,7 +34,7 @@ class VscodeSfmlExtensionTest {
                 .getAsJsonObject();
         }
         assertEquals(
-            41,
+            52,
             snippets.entrySet()
                 .size(),
             "Update contexts deliberately when adding snippets");
@@ -84,6 +84,7 @@ class VscodeSfmlExtensionTest {
             case "void":
             case "voidref":
             case "functionlegacy":
+            case "functionlabels":
                 return fragment + "\nevery 20 ticks do end";
             case "every":
             case "everyglobal":
@@ -99,6 +100,7 @@ class VscodeSfmlExtensionTest {
             case "label":
             case "item":
             case "ore":
+            case "fluid":
             case "string":
             case "array":
             case "struct":
@@ -107,6 +109,10 @@ class VscodeSfmlExtensionTest {
             case "count":
             case "empty":
             case "available":
+            case "fcontents":
+            case "fcount":
+            case "fempty":
+            case "favailable":
                 return trigger("let $source = label(\"source\")\nlet $example = " + fragment);
             case "side":
             case "slots":
@@ -116,6 +122,11 @@ class VscodeSfmlExtensionTest {
             case "transfer2":
             case "transfer3":
             case "transfer4":
+            case "transferamount":
+            case "transferf2":
+            case "transferf3":
+            case "transferf4":
+            case "transferfamount":
                 return trigger(endpoints() + fragment);
             case "into":
                 return trigger(endpoints() + "transfer($source, $destination) " + fragment);

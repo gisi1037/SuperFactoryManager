@@ -101,15 +101,55 @@
       ]
     },
     "function-declaration": {
-      "match": "(?i:\\b(function))\\s+([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*)",
-      "captures": {
-        "1": {
-          "name": "storage.type.function.sfml"
+      "patterns": [
+        {
+          "match": "(?i:\\b(function))\\s+([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.function.sfml"
+            },
+            "2": {
+              "name": "entity.name.function.sfml"
+            }
+          }
         },
-        "2": {
-          "name": "entity.name.function.sfml"
+        {
+          "name": "meta.function.declaration.sfml",
+          "begin": "(?i:\\b(void|integer|boolean|string|label_ref|resource_selector|item_key|item_contents|item_locations|fluid_key|fluid_contents))(?=(?:\\s*\\[\\s*[0-9]+\\s*\\])*\\s+[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*\\s*\\()",
+          "beginCaptures": {
+            "1": {
+              "name": "storage.type.sfml"
+            }
+          },
+          "end": "(?=\\()",
+          "patterns": [
+            {
+              "include": "#arrays"
+            },
+            {
+              "name": "entity.name.function.sfml",
+              "match": "[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*(?=\\s*\\()"
+            }
+          ]
+        },
+        {
+          "name": "meta.function.declaration.sfml",
+          "begin": "(?=\\{[^\\r\\n]*\\}(?:\\s*\\[\\s*[0-9]+\\s*\\])*\\s+[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*\\s*\\()",
+          "end": "(?=\\()",
+          "patterns": [
+            {
+              "include": "#structures"
+            },
+            {
+              "include": "#arrays"
+            },
+            {
+              "name": "entity.name.function.sfml",
+              "match": "[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*(?=\\s*\\()"
+            }
+          ]
         }
-      }
+      ]
     },
     "variables": {
       "name": "variable.other.readwrite.sfml",
@@ -198,8 +238,26 @@
       ]
     },
     "methods": {
-      "name": "support.function.sfml",
-      "match": "(?<=\\.)(?i:contents|count|empty|available|fcontents|fcount|fempty|favailable|side|slots|redstoneAvailable|redstone|powered)\\b(?=\\s*\\()"
+      "patterns": [
+        {
+          "match": "(?<![\\w$.])([A-Za-z_][A-Za-z0-9_]*)(\\.)(?i:(contents|count|empty|available|fcontents|fcount|fempty|favailable|side|slots|redstoneAvailable|redstone|powered))\\b(?=\\s*\\()",
+          "captures": {
+            "1": {
+              "name": "variable.other.readwrite.sfml"
+            },
+            "2": {
+              "name": "punctuation.accessor.sfml"
+            },
+            "3": {
+              "name": "support.function.sfml"
+            }
+          }
+        },
+        {
+          "name": "support.function.sfml",
+          "match": "(?<=\\.)(?i:contents|count|empty|available|fcontents|fcount|fempty|favailable|side|slots|redstoneAvailable|redstone|powered)\\b(?=\\s*\\()"
+        }
+      ]
     },
     "properties": {
       "name": "variable.other.property.sfml",

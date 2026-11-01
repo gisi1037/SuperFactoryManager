@@ -22,7 +22,7 @@ Install the packaged extension from the repository's `editors/vscode-sfml`
 directory:
 
 ```sh
-code --install-extension dist/sfml-language-0.2.0.vsix
+code --install-extension dist/sfml-language-0.3.0.vsix
 ```
 
 You can also select **Extensions: Install from VSIX…** in the Command Palette and
@@ -34,7 +34,7 @@ choose that file. Reload VS Code if prompted.
   strings, comments, types, function calls and operators, including bitwise
   operators and `!=`.
 - Bracket and quote pairing, `--` line comments, indentation and block folding.
-- 41 lowercase snippets with editable tab stops. Type a prefix and select the
+- 52 lowercase snippets with editable tab stops. Type a prefix and select the
   snippet from completion, or use **Insert Snippet**. Tab moves between fields.
 - A dedicated variable color for plain names and optional `$names`, with dark/light/high-contrast defaults.
   Comments and string contents are excluded. Set `sfml.variableHighlighting.enabled`
@@ -49,15 +49,19 @@ choose that file. Reload VS Code if prompted.
 
 Useful prefixes include `every`, `everyglobal`, `pulse`, `redstonetrigger`,
 `redstoneout`, `let`, `globallet`, `state`, `assign`, `ifelse`, `for`, `forin`,
-`while`, `function`, `void`, `voidref`, `functionlegacy`, `print`, `label`, `item`, `ore`, `contents`, `count`, `empty`,
-`available`, `transfer2`, `transfer3`, `transfer4`, `into` and `pedestals`.
+`while`, `function`, `functionlabels`, `void`, `voidref`, `functionlegacy`, `print`,
+`label`, `item`, `ore`, `fluid`, `contents`, `count`, `empty`, `available`,
+`fcontents`, `fcount`, `fempty`, `favailable`, `transfer2`, `transfer3`,
+`transfer4`, `transferamount`, `transferf2`, `transferf3`, `transferf4`,
+`transferfamount`, `into` and `pedestals`.
 `side` and `slots` append restrictions to a typed label handle; `array`, `struct`
 and `string` insert data literals.
 
 Snippets are building blocks: insert declarations, expressions and statements in
 their appropriate contexts and replace example labels with labels from your
 disk. Place program-wide `let` and `state` declarations before functions and
-triggers, and functions before triggers. A program-wide `let` retains its value
+triggers. Functions can appear before or after triggers; keeping them together
+before triggers is a useful convention. A program-wide `let` retains its value
 in RAM between runs; `state` stores supported persistent data on the disk.
 Executable edits, unloads and reloads reset RAM bindings. Value-returning functions
 may read STATE. Use triggers or `void` procedures for transfers, prints and STATE
@@ -75,6 +79,29 @@ Void procedures can declare `ref integer value` parameters. Calls must also use
 struct field of exactly the declared type. Writes are immediate; ordinary
 parameters remain value copies.
 
+Function return types can also be fixed arrays or structs. For example,
+`label_ref[2]` means exactly two label handles:
+
+```sfml
+label_ref[2] pedestals() {
+  return [label("ped1"), label("ped2")];
+}
+
+every 20 ticks {
+  let targets = pedestals();
+  for target in targets {
+    print(target.empty());
+  }
+}
+```
+
+Use `functionlabels` to insert this function shape. A different returned array
+length is a type error; unsized `label_ref[]` is not a supported type. Struct
+returns declare their fields, such as
+`{ready: boolean, amount: integer} inspect() { return {ready: true, amount: 0}; }`.
+Captured `item_contents` and `fluid_contents` are native snapshot sequences,
+rather than fixed arrays; both support indexing, `len(...)` and `for ... in ...`.
+
 All keywords accept upper, lower or mixed case. Variables, field names, labels,
 item IDs and OreDictionary names retain their own case-sensitive identities.
 Exact item keys from `contents()` include metadata and NBT: `!=` detects an
@@ -82,10 +109,26 @@ NBT-only difference too. `item("namespace:name")` selects all metadata/NBT
 variants; it is not an exact key constructor. An inventory's `available()` query
 checks access, not matching stock or free space.
 
-Each `transfer2`, `transfer3` or `transfer4` snippet inserts a complete transfer
-statement. Append `into $result` (using the `into` snippet) to capture
+Each transfer snippet inserts a complete statement. `transfer(source, destination)`
+moves all visible item stock; a third selector/key filters it, while a third
+integer caps the total across all item types. Four arguments filter and cap.
+Append `into result` (using the `into` snippet) to capture
 `requested`, `moved`, `remaining` and `status`. The `pedestals` snippet uses legacy
 `input`/`output` with a one-item cap per labelled pedestal, followed by `forget`.
+
+`transferf` has the same four forms for fluids. All fluid amounts are in mB:
+`transferf(source, destination, 1000)` caps all fluids at one bucket, while
+`transferf(source, destination, fluid("water"), 1000)` caps matching water.
+`fluid("*")` selects every fluid. Use `.fcontents()`, `.fcount()`, `.fempty()` and
+`.favailable()` for tanks; their omitted selector means all fluids. Item queries
+remain separate. `.side(...)` can restrict fluid access; `.slots(...)` is invalid
+for fluid queries/transfers.
+
+`wait(20)` suspends the current trigger and active function calls for 20 game ticks,
+including inside a value-returning function. It does not pause the server or
+other triggers. `setcircuit(label("machine"), 5)` changes a compatible connected
+GregTech machine's ghost circuit; `0` or `-1` clears it. It is an explicit action
+for triggers or `void` procedures, not a value-returning function.
 
 ## Compiler diagnostics
 
@@ -114,8 +157,11 @@ arguments. Some semantic failures stop at the first error, as in the game.
 Locations without compiler source information appear at the document start.
 Unicode columns are converted to VS Code's UTF-16 positions.
 
-Re-run `prepareSfmlCompiler` after changing the mod/compiler, then use
-**SFML: Restart Compiler**. Set `sfml.compiler.enabled` to false to disable
+Re-run `prepareSfmlCompiler` after changing the mod/compiler. The extension watches
+the configured manifest, including an absolute manifest outside the program
+workspace, and restarts its backend when that file changes. **SFML: Restart
+Compiler** remains available if you need to force a restart. Set
+`sfml.compiler.enabled` to false to disable
 diagnostics. The extension does not launch Java in an untrusted workspace.
 Restricted Mode, missing configuration and unavailable backends appear as tooling
 warnings, rather than successful checks. In Restricted Mode, use VS Code's
@@ -144,7 +190,7 @@ npm test
 npm run package
 ```
 
-The package is written to `dist/sfml-language-0.2.1.vsix`. Open this extension
+The package is written to `dist/sfml-language-0.3.0.vsix`. Open this extension
 directory in VS Code and press **F5** to try it in an Extension Development Host.
 The runtime has no external JavaScript dependencies and performs no program
 execution or network requests.

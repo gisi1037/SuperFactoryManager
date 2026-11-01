@@ -6,7 +6,7 @@ import test from 'node:test';
 const require = createRequire(import.meta.url);
 
 function host(trusted = true, settings = {}) {
-  const listeners = {}, timers = new Map(), diagnostics = new Map(), requests = [], colors = [];
+  const listeners = {}, timers = new Map(), diagnostics = new Map(), requests = [], colors = [], watchers = [];
   const disposable = {dispose() {}};
   const doc = {languageId:'sfml', version:1, isClosed:false, text:'let $x = 1 every 20 ticks do print($x) end',
     uri:{toString:()=> 'file:///test.sfml',fsPath:'/test.sfml'}, getText() { return this.text; },
@@ -15,6 +15,8 @@ function host(trusted = true, settings = {}) {
   const event = name => callback => { listeners[name] = callback; return disposable; };
   class Range { constructor(...args) { this.args = args; } }
   const vscode = {
+    Uri:{file:fsPath=>({fsPath})},
+    RelativePattern:class {constructor(base,pattern){Object.assign(this,{base,pattern});}},
     ThemeColor: class {constructor(id){this.id=id;}}, Range,
     Diagnostic: class {constructor(range,message,severity){Object.assign(this,{range,message,severity});}},
     DiagnosticSeverity:{Error:0,Warning:1},
@@ -27,7 +29,12 @@ function host(trusted = true, settings = {}) {
     commands:{registerCommand:(_,callback)=>{listeners.restart=callback;return disposable;}},
     window:{visibleTextEditors:[{document:doc,setDecorations:(_,ranges)=>colors.push(ranges)}],
       createTextEditorDecorationType:()=>disposable,onDidChangeVisibleTextEditors:event('visible')},
-    workspace:{isTrusted:trusted,textDocuments:[doc],getConfiguration:()=>({get:(name,fallback)=>
+    workspace:{isTrusted:trusted,textDocuments:[doc],createFileSystemWatcher:pattern=>{
+      const watcher={pattern,disposed:false,dispose(){this.disposed=true;},
+        onDidChange(fn){this.change=fn;return disposable;},onDidCreate(fn){this.create=fn;return disposable;},
+        onDidDelete(fn){this.delete=fn;return disposable;}};
+      watchers.push(watcher);return watcher;
+    },getConfiguration:()=>({get:(name,fallback)=>
       Object.hasOwn(settings,name)?settings[name]:name==='compiler.manifestPath'?'/manifest.json':fallback}),
       getWorkspaceFolder:()=>undefined,onDidOpenTextDocument:event('open'),onDidChangeTextDocument:event('change'),
       onDidCloseTextDocument:event('close'),onDidChangeConfiguration:event('config'),onDidGrantWorkspaceTrust:event('trust')}
@@ -40,7 +47,7 @@ function host(trusted = true, settings = {}) {
     setTimeout:callback=>{const id={};timers.set(id,callback);return id;},clearTimeout:id=>timers.delete(id)
   });
   module.exports.activate(context);
-  return {doc,vscode,listeners,diagnostics,requests,colors,
+  return {doc,vscode,listeners,diagnostics,requests,colors,watchers,
     async flush(){for(const [id,fn] of [...timers]){timers.delete(id);fn();}await new Promise(setImmediate);},
     dispose(){context.subscriptions.forEach(value=>value.dispose());}};
 }
@@ -126,4 +133,32 @@ test('restarting the backend invalidates results from its previous generation', 
     h.requests[1].resolve([]);await new Promise(setImmediate);
     assert.deepEqual(h.diagnostics.get(h.doc.uri.toString()),[]);
   } finally {h.dispose();}
+});
+
+test('regenerating the configured manifest refreshes the compiler and rejects old results', async () => {
+  const h=host();
+  try {
+    await h.flush();
+    const watcher=h.watchers[0];
+    assert.equal(watcher.pattern.pattern,'manifest.json');
+    watcher.change(); watcher.create();
+    await h.flush();
+    assert.equal(watcher.disposed,false);
+    h.requests[0].resolve([{message:'old backend',line:0,column:0}]);
+    await new Promise(setImmediate);
+    assert.equal(h.diagnostics.size,0);
+    await h.flush();
+    assert.equal(h.requests.length,2);
+    h.requests[1].resolve([]); await new Promise(setImmediate);
+    assert.deepEqual(h.diagnostics.get(h.doc.uri.toString()),[]);
+    assert.equal(h.watchers.length,1);
+  } finally {h.dispose();}
+  assert.ok(h.watchers.every(watcher=>watcher.disposed));
+});
+
+test('restricted and disabled compiler checks create no manifest watchers', async () => {
+  for (const h of [host(false),host(true,{'compiler.enabled':false})]) {
+    try {await h.flush();assert.equal(h.watchers.length,0);}
+    finally {h.dispose();}
+  }
 });
