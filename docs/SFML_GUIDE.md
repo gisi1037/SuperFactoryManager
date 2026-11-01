@@ -212,7 +212,8 @@ points use MUI2.
 
 Choose **Visual** for the candidate node editor. The palette contains Timer,
 Pulse, Port edge, Input, Output, If, Forget, Signal (redstone output), Transfer
-and Print. IO nodes hold an
+and Print, plus program/local variables, assignments, persistent STATE and
+counted/array/while loops. IO nodes hold an
 ordinary SFML clause; specialized forms for every modifier are not present yet.
 
 - Select a node, edit the bottom field, then use **Enter** or **Apply**.
@@ -228,8 +229,11 @@ ordinary SFML clause; specialized forms for every modifier are not present yet.
 - **Preview** shows SFML. **Copy** exports SFML without layout metadata. **Undo**
   keeps bounded history. **Name** edits the header. **Cancel** leaves the installed program unchanged.
 
-Every node must connect to a trigger before save. Triggers cannot have incoming
-wires. Unconnected nodes cause errors instead of being silently ignored.
+Every executable node must connect to a trigger before save. Program-wide LET
+and STATE are separate declaration roots without wires. Loop nodes own BODY and
+AFTER outputs: the body repeats implicitly, then AFTER continues. Loops keep the
+normal compiler scopes and work limits; do not draw a back edge. Unconnected
+executable nodes cause errors instead of being silently ignored.
 
 Import compares grammar tokens and refuses unsupported or lossy programs.
 Direct ELSE IF import currently belongs in Text. Programs using LET, SET, STATE
@@ -744,7 +748,7 @@ reset it. Label round-robin cursors retain their existing lazy-discovery orderin
 Budget faults stop the invocation, retaining prior STATE writes and completed
 transfers. Loops never yield between extraction and insertion/recovery. These
 limits prevent endless loops; they do not guarantee a fixed tick time for a large
-legacy inventory scan or slow third-party callback. Loops currently require Text.
+legacy inventory scan or slow third-party callback. Counted, array and WHILE loops also have Visual nodes with BODY/AFTER pins.
 Iteration can build dynamic LABEL_REF values with `label("chest" + index)`
 and use them in queries and IO clauses. Resource selectors keep their own rules.
 
@@ -1904,7 +1908,7 @@ Syntax that compiles is not by itself a qualified pack feature.
 | First RetroSFM visual editor | Candidate port with generation, preview, undo, bounded layout and guarded saves. | Initial development-client edit/save/reopen smoke; not all RetroSFM features. |
 | Item recovery / operator commands | Implemented. | Known/uncertain ownership, partial claims and orderly reload exercised; no player GUI or crash-atomicity guarantee. |
 | Periodic discovery phases | Implemented without altering SFML due times. | Daily-803 comparison evidence; forced invalidations can spike, no full-pack budgets. |
-| Local/persistent variables, strings, fixed arrays/structs, checked arithmetic | Implemented in grammar, typed AST/runtime and bounded disk state store. | Headless coverage; Text only, broader pack qualification remains open. See [SFML_DATA_MODEL.md](SFML_DATA_MODEL.md). |
+| Local/persistent variables, strings, fixed arrays/structs, checked arithmetic | Implemented in grammar, typed AST/runtime and bounded disk state store. | Code/Visual support; broader pack qualification remains open. See [SFML_DATA_MODEL.md](SFML_DATA_MODEL.md). |
 | Integer bitwise operators and shifts | Implemented for signed 64-bit integers with checked 0–63 shift distances. | Text only; headless coverage, no new full-pack runtime qualification. |
 | Typed item count/empty/availability | LABEL/ITEM/ORE handles, side/slot modifiers and no-argument item predicates; bounded live reads, Text only. | Unit/world fixtures cover the item slice; fluid/proxy adapters and broader pack qualification remain open. |
 | PRINT and manager debug terminal | Opt-in bounded output, capture controls, status/STATE/saved-label/recent-log inspection and panel-local command recall. | Headless command/protocol/runtime coverage; exact client scope recorded separately. |

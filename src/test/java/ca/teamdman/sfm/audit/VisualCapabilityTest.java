@@ -38,29 +38,33 @@ class VisualCapabilityTest {
     }
 
     @Test
-    void reportsAllDataConstructsIncludingUnreachableNestedStatements() {
+    void scopedDataConstructsImportEvenInUnreachableNestedStatements() {
         String source = "STATE $count = 1\nEVERY 20 TICKS DO\n"
             + " LET $amount = 3\n IF FALSE THEN\n  SET $count = $count + 1\n"
             + "  INPUT ($amount) FROM \"source\"\n END\n IF ($count > 0) THEN FORGET END\nEND";
         BlueprintCompiler.ImportResult result = BlueprintCompiler.inspectText(source);
+        assertTrue(result.report.isAvailable(), result.report.getMessage());
+        assertNotNull(result.graph);
+        assertTrue(
+            new ProgramBuilder(BlueprintCompiler.generate(result.graph)).build()
+                .isSuccess());
+    }
+
+    @Test
+    void reportsEveryUnsupportedStatementIncludingUnreachableNestedStatements() {
+        String source = "EVERY 20 TICKS DO\n WAIT 1\n IF FALSE THEN\n SETCIRCUIT(LABEL(\"source\"), 1)\n END\nEND";
+        BlueprintCompiler.ImportResult result = BlueprintCompiler.inspectText(source);
         assertNull(result.graph);
+        assertEquals(Arrays.asList(Kind.WAIT_STATEMENT, Kind.CIRCUIT_STATEMENT), kinds(result.report));
         assertEquals(
-            Arrays.asList(
-                Kind.STATE_DECLARATION,
-                Kind.LOCAL_DECLARATION,
-                Kind.ASSIGNMENT,
-                Kind.DATA_EXPRESSION,
-                Kind.DATA_EXPRESSION),
-            kinds(result.report));
-        assertEquals(
-            Arrays.asList(1, 3, 5, 6, 8),
+            Arrays.asList(2, 4),
             result.report.getBlockers()
                 .stream()
                 .map(blocker -> blocker.line)
                 .collect(Collectors.toList()));
-        Blocker input = result.report.getBlockers()
-            .get(3);
-        assertEquals("$amount", codePointSlice(source, input));
+        Blocker circuit = result.report.getBlockers()
+            .get(1);
+        assertEquals("SETCIRCUIT(LABEL(\"source\"), 1)", codePointSlice(source, circuit));
         BlueprintCompiler.ImportException exception = assertThrows(
             BlueprintCompiler.ImportException.class,
             () -> BlueprintCompiler.importText(source));
@@ -117,9 +121,9 @@ class VisualCapabilityTest {
         assertTrue(ordinary.isSuccess());
         assertNull(ordinary.getSyntax());
         assertNull(ordinary.getTokens());
-        ProgramBuildResult parsed = new ProgramBuilder("EVERY 20 TICKS DO LET $n = 2 END").buildWithSyntax();
+        ProgramBuildResult parsed = new ProgramBuilder("EVERY 20 TICKS DO WAIT 1 END").buildWithSyntax();
         VisualCapabilityReport report = VisualCapabilityAnalyzer.analyze(parsed);
-        assertEquals(Arrays.asList(Kind.LOCAL_DECLARATION), kinds(report));
+        assertEquals(Arrays.asList(Kind.WAIT_STATEMENT), kinds(report));
         assertThrows(
             UnsupportedOperationException.class,
             () -> report.getBlockers()
@@ -134,7 +138,7 @@ class VisualCapabilityTest {
     }
 
     @Test
-    void graphLimitsStillBlockVisualAndDataCannotBeInjectedThroughAClause() {
+    void graphLimitsStillBlockVisualAndStatementsCannotBeInjectedThroughAClause() {
         StringBuilder source = new StringBuilder("EVERY 20 TICKS DO\n");
         for (int i = 0; i < 256; i++) source.append("FORGET\n");
         source.append("END");
@@ -149,18 +153,20 @@ class VisualCapabilityTest {
             result.report.getBlockers()
                 .get(0).line);
         assertThrows(
-            BlueprintCompiler.ImportException.class,
+            IllegalArgumentException.class,
+            () -> BlueprintCompiler.validateClause(BlueprintGraph.Type.INPUT, "INPUT (1 + 2) FROM \"source\" WAIT 1"));
+        assertDoesNotThrow(
             () -> BlueprintCompiler.validateClause(BlueprintGraph.Type.INPUT, "INPUT (1 + 2) FROM \"source\""));
     }
 
     @Test
     void locationsAccountForUnicodeBeforeTheUnsupportedConstruct() {
-        String source = "-- 😀 explanation\nEVERY 20 TICKS DO LET $n = 2 END";
+        String source = "-- 😀 explanation\nEVERY 20 TICKS DO WAIT 1 END";
         Blocker blocker = BlueprintCompiler.inspectText(source).report.getBlockers()
             .get(0);
         assertEquals(2, blocker.line);
         assertEquals(18, blocker.column);
-        assertEquals("LET $n = 2", codePointSlice(source, blocker));
+        assertEquals("WAIT 1", codePointSlice(source, blocker));
     }
 
     private static List<Kind> kinds(VisualCapabilityReport report) {

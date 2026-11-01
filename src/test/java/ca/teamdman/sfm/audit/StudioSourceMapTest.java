@@ -268,8 +268,9 @@ class StudioSourceMapTest {
 
     @Test
     void unsupportedInvalidStaleAndDisconnectedProgramsNeverGuessAPartialGraph() {
-        for (String source : new String[] { "EVERY bad", "LET $x = 1 " + program("PRINT($x)"),
-            program("PRINT(1) WHILE TRUE DO PRINT(2) END"), program("PRINT(LEN([1]))"),
+        for (String source : new String[] { "EVERY bad", "LET $x = 1 " + program("WAIT 1 PRINT($x)"),
+            program("PRINT(1) WHILE TRUE DO SETCIRCUIT(LABEL(\"source\"), 1) END"),
+            program("TRANSFER(LABEL(\"source\"),LABEL(\"dest\")) INTO $m PRINT($m.moved)"),
             program("IF TRUE THEN PRINT(1) ELSE IF FALSE THEN PRINT(2) END") }) {
             StudioDocument document = new StudioDocument();
             document.load(source);

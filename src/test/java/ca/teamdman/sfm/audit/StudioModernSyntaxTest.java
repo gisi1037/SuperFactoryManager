@@ -118,10 +118,14 @@ class StudioModernSyntaxTest {
     }
 
     @Test
-    void plainVariablePredicatesStayTextOnlyRatherThanExposingAnIncompleteGraph() {
+    void plainVariablePredicatesImportAndCompileThroughVisual() {
         String source = "let ready = true every 20 ticks { if(ready) { print(1); } }";
-        assertFalse(
+        assertTrue(
             VisualCapabilityAnalyzer.analyze(new ProgramBuilder(source).buildWithSyntax())
                 .isAvailable());
+        BlueprintGraph graph = BlueprintCompiler.importText(source);
+        assertTrue(
+            new ProgramBuilder(BlueprintCompiler.generate(graph)).build()
+                .isSuccess());
     }
 }

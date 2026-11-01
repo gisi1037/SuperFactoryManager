@@ -70,7 +70,7 @@ public final class Mui2BlueprintEditor implements ProgramEditSession.Receiver {
     private boolean opened, valid, dirty, editingName, showPreview;
     private boolean dragging, panning, dragCheckpoint;
     private double panX = 24, panY = 16, zoom = 1;
-    private int lastX, lastY, previewOffset;
+    private int lastX, lastY, previewOffset, nodePage;
 
     public Mui2BlueprintEditor(TileEntityManager manager, int windowId, Runnable closeAction, Runnable openText) {
         this(manager, windowId, closeAction, openText, null);
@@ -154,12 +154,17 @@ public final class Mui2BlueprintEditor implements ProgramEditSession.Receiver {
                 button(titles[i], 6 + (i % 5) * 58, 5 + (i / 5) * 23, 54, () -> action(action))
                     .overlay(IKey.dynamic(() -> (enabled(action) ? "" : "\u00a78") + titles[action])));
         }
-        for (int i = 0; i < Type.values().length; i++) {
-            final int action = 10 + i;
-            final String title = Type.values()[i].menuTitle();
+        panel.child(button("Nodes >", 238, 28, 54, () -> action(9)));
+        for (int i = 0; i < 8; i++) {
+            final int slot = i;
             panel.child(
-                button(title, 6 + (i % 5) * 58, 51 + (i / 5) * 23, 54, () -> action(action))
-                    .overlay(IKey.dynamic(() -> (editable() ? "" : "\u00a78") + title)));
+                button("", 6 + (i % 5) * 58, 51 + (i / 5) * 23, 54, () -> action(10 + nodePage * 8 + slot))
+                    .overlay(
+                        IKey.dynamic(
+                            () -> nodePage * 8 + slot < Type.values().length
+                                ? Type.values()[nodePage * 8 + slot].menuTitle()
+                                : ""))
+                    .setEnabledIf(widget -> editable() && nodePage * 8 + slot < Type.values().length));
         }
         canvas = new Canvas();
         panel.child(
@@ -498,6 +503,9 @@ public final class Mui2BlueprintEditor implements ProgramEditSession.Receiver {
                     property = graph.nameClause();
                     field.setText(property);
                     break;
+                case 9:
+                    nodePage = (nodePage + 1) % ((Type.values().length + 7) / 8);
+                    break;
                 case 8:
                     removeSelected();
                     break;
@@ -513,13 +521,15 @@ public final class Mui2BlueprintEditor implements ProgramEditSession.Receiver {
     private void add(Type type) {
         checkpoint();
         Node previous = graph.node(selected);
-        double x = previous != null && !type.isTrigger() ? previous.x() : worldX(canvas.getArea().width / 2);
-        double y = previous != null && !type.isTrigger() ? previous.y() + nodeHeight(previous) + 32
+        double x = previous != null && !type.isRoot() ? previous.x() : worldX(canvas.getArea().width / 2);
+        double y = previous != null && !type.isRoot() ? previous.y() + nodeHeight(previous) + 32
             : worldY(canvas.getArea().height / 2);
         while (occupied(x, y, type == Type.IF ? 88 : 48)) y += 120;
         Node node = new Node(type, Math.max(-999000, Math.min(999000, x)), Math.max(-999000, Math.min(999000, y)));
         graph.add(node);
-        if (previous != null && !type.isTrigger() && graph.next(previous.id, previous.type.continuation()) == null)
+        if (previous != null && !type.isRoot()
+            && previous.type.hasPin(previous.type.continuation())
+            && graph.next(previous.id, previous.type.continuation()) == null)
             graph.connect(previous.id, previous.type.continuation(), node.id);
         select(node);
         showPreview = false;
@@ -619,11 +629,12 @@ public final class Mui2BlueprintEditor implements ProgramEditSession.Receiver {
     }
 
     private int nodeHeight(Node node) {
-        return node.type == Type.IF ? 88 : 48;
+        return node.type == Type.IF ? 88 : node.type.isLoop() ? 72 : 48;
     }
 
     private int pinY(Node node, Pin pin) {
-        return node.type == Type.IF ? 28 + (pin.ordinal() - 1) * 24 : 28;
+        return node.type.isLoop() ? (pin == Pin.BODY ? 28 : 52)
+            : node.type == Type.IF ? 28 + (pin.ordinal() - 1) * 24 : 28;
     }
 
     private void fit() {
@@ -664,11 +675,11 @@ public final class Mui2BlueprintEditor implements ProgramEditSession.Receiver {
             x + 6,
             y + 24,
             0xffdddddd);
-        if (!node.type.isTrigger()) Gui.drawRect(x - 4, y + 24, x + 4, y + 32, 0xffc6c9ca);
+        if (!node.type.isRoot()) Gui.drawRect(x - 4, y + 24, x + 4, y + 32, 0xffc6c9ca);
         for (Pin pin : Pin.values()) if (node.type.hasPin(pin)) {
             int py = y + pinY(node, pin);
             Gui.drawRect(x + NODE_W - 4, py - 4, x + NODE_W + 4, py + 4, pin == Pin.FALSE ? 0xffb87d73 : 0xffa0bb91);
-            if (node.type == Type.IF)
+            if (node.type == Type.IF || node.type.isLoop())
                 Minecraft.getMinecraft().fontRenderer.drawString(pin.label(), x + NODE_W - 36, py - 3, 0xffdddddd);
         }
     }
@@ -779,7 +790,7 @@ public final class Mui2BlueprintEditor implements ProgramEditSession.Receiver {
                         }
                         return Result.SUCCESS;
                     }
-                if (!node.type.isTrigger() && Math.abs(wx - node.x()) <= 7 && Math.abs(wy - node.y() - 28) <= 7) {
+                if (!node.type.isRoot() && Math.abs(wx - node.x()) <= 7 && Math.abs(wy - node.y() - 28) <= 7) {
                     if (button == 1) {
                         checkpoint();
                         graph.disconnectInput(node.id);

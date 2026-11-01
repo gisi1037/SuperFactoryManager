@@ -101,15 +101,25 @@ public final class StudioSourceMap {
         if (!BlueprintCompiler.sameTokens(source, BlueprintCompiler.navigationProjection(graph)))
             throw new IllegalArgumentException("Source and graph structure differ. Reopen the current Visual draft.");
         StudioSourceMap result = new StudioSourceMap(project, source, display, graph);
-        List<SFMLParser.TriggerContext> triggers = built.getSyntax()
-            .trigger();
-        List<Node> roots = graph.triggers();
-        if (triggers.size() != roots.size()) throw mismatch();
+        List<org.antlr.v4.runtime.ParserRuleContext> rootsSyntax = new ArrayList<>();
+        for (org.antlr.v4.runtime.tree.ParseTree child : built.getSyntax().children)
+            if (child instanceof SFMLParser.TriggerContext || child instanceof SFMLParser.StateDeclarationContext
+                || child instanceof SFMLParser.DataDeclarationContext)
+                rootsSyntax.add((org.antlr.v4.runtime.ParserRuleContext) child);
+        List<Node> roots = graph.roots();
+        if (rootsSyntax.size() != roots.size()) throw mismatch();
         Set<UUID> visited = new HashSet<>();
         int[] offsets = displayOffsets(source);
-        for (int i = 0; i < triggers.size(); i++) {
-            SFMLParser.TriggerContext trigger = triggers.get(i);
+        for (int i = 0; i < rootsSyntax.size(); i++) {
             Node root = roots.get(i);
+            org.antlr.v4.runtime.ParserRuleContext syntax = rootsSyntax.get(i);
+            if (!(syntax instanceof SFMLParser.TriggerContext)) {
+                Type expected = syntax instanceof SFMLParser.StateDeclarationContext ? Type.STATE : Type.GLOBAL_LET;
+                if (root.type != expected) throw mismatch();
+                result.bind(root, syntax.getStart(), syntax.getStop(), built, offsets, visited);
+                continue;
+            }
+            SFMLParser.TriggerContext trigger = (SFMLParser.TriggerContext) syntax;
             if (root.type != BlueprintCompiler.triggerType(trigger)) throw mismatch();
             Token end = BlueprintCompiler.triggerDo(trigger);
             result.bind(root, trigger.getStart(), end, built, offsets, visited);
@@ -138,7 +148,7 @@ public final class StudioSourceMap {
         codePointOffsets[point] = source.length();
         for (Node node : graph.nodes()) identities.put(node.id, new Identity(node));
         edges.addAll(edgeKeys(graph));
-        for (Node trigger : graph.triggers()) triggers.add(trigger.id);
+        for (Node trigger : graph.roots()) triggers.add(trigger.id);
     }
 
     private void chain(SFMLParser.BlockContext block, Node node, ProgramBuildResult built, int[] offsets,
@@ -147,7 +157,16 @@ public final class StudioSourceMap {
         for (SFMLParser.StatementContext statement : block.statement()) {
             if (node == null || node.type != type(statement)) throw mismatch();
             SFMLParser.IfStatementContext branch = statement.ifStatement();
-            if (branch == null) bind(node, statement.getStart(), statement.getStop(), built, offsets, visited);
+            if (node.type.isLoop()) {
+                bind(node, statement.getStart(), BlueprintCompiler.loopDo(statement), built, offsets, visited);
+                chain(
+                    BlueprintCompiler.loopBlock(statement),
+                    owner.next(node.id, Pin.BODY),
+                    built,
+                    offsets,
+                    visited,
+                    depth + 1);
+            } else if (branch == null) bind(node, statement.getStart(), statement.getStop(), built, offsets, visited);
             else {
                 if (branch.boolexpr()
                     .size() != 1 || (node.hasElse || owner.next(node.id, Pin.FALSE) != null)
@@ -197,7 +216,7 @@ public final class StudioSourceMap {
                 .size() != identities.size()
             || !edges.equals(edgeKeys(current))) return false;
         List<UUID> orderedTriggers = new ArrayList<>();
-        for (Node trigger : current.triggers()) orderedTriggers.add(trigger.id);
+        for (Node trigger : current.roots()) orderedTriggers.add(trigger.id);
         if (!triggers.equals(orderedTriggers)) return false;
         for (Node node : current.nodes()) {
             Identity prior = identities.get(node.id);
@@ -242,14 +261,7 @@ public final class StudioSourceMap {
     }
 
     private static Type type(SFMLParser.StatementContext statement) {
-        if (statement.inputStatement() != null) return Type.INPUT;
-        if (statement.outputStatement() != null) return Type.OUTPUT;
-        if (statement.ifStatement() != null) return Type.IF;
-        if (statement.forgetStatement() != null) return Type.FORGET;
-        if (statement.redstoneOutputStatement() != null) return Type.REDSTONE;
-        if (statement.transferStatement() != null) return Type.TRANSFER;
-        if (statement.printStatement() != null) return Type.PRINT;
-        throw mismatch();
+        return BlueprintCompiler.typeOf(statement);
     }
 
     private static IllegalArgumentException mismatch() {

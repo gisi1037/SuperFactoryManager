@@ -189,8 +189,7 @@ class StudioPrintArgumentsTest {
             "1\0",
             "\"x\n\"",
             "1 + TRUE",
-            "unknown()",
-            "$unknown")) {
+            "unknown()")) {
             Node node = node("PRINT(1)");
             StudioFieldDraft draft = draft(node);
             UUID row = draft.printArgumentRows()
@@ -200,6 +199,24 @@ class StudioPrintArgumentsTest {
             assertEquals(invalid, draft.printArgumentValue(row));
             assertEquals("PRINT(1)", node.clause());
         }
+    }
+
+    @Test
+    void variableRowsUseWholeProgramScopeValidation() {
+        Node node = node("PRINT(1)");
+        StudioFieldDraft draft = draft(node);
+        UUID row = draft.printArgumentRows()
+            .get(0).id;
+        draft.setPrintArgument(row, "$unknown");
+        String clause = apply(draft, node);
+        assertEquals("PRINT($unknown)", clause);
+        assertFalse(
+            new ProgramBuilder(program(clause)).build()
+                .isSuccess());
+        assertTrue(
+            new ProgramBuilder(program("LET $unknown = 1 " + clause)).build()
+                .isSuccess());
+        assertEquals("PRINT(1)", node.clause());
     }
 
     @Test

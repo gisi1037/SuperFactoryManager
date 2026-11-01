@@ -255,7 +255,6 @@ class StudioTransferArgumentsTest {
             "1\r",
             "1\0",
             "unknown()",
-            "$unknown",
             "1+TRUE")) {
             Node node = node(TWO);
             StudioFieldDraft draft = draft(node);
@@ -276,6 +275,22 @@ class StudioTransferArgumentsTest {
         // With four arguments the third must still be a selector, not another amount.
         draft.addTransferArgument("2");
         assertThrows(IllegalArgumentException.class, () -> apply(draft, node));
+    }
+
+    @Test
+    void variableRowsUseWholeProgramScopeValidation() {
+        Node node = node(TWO);
+        StudioFieldDraft draft = draft(node);
+        UUID item = draft.addTransferArgument("$unknown");
+        String clause = apply(draft, node);
+        assertEquals("$unknown", draft.transferArgumentValue(item));
+        assertFalse(
+            new ProgramBuilder(program(clause)).build()
+                .isSuccess());
+        assertTrue(
+            new ProgramBuilder(program("LET $unknown = ITEM(\"*\") " + clause)).build()
+                .isSuccess());
+        assertEquals(TWO, node.clause());
     }
 
     @Test

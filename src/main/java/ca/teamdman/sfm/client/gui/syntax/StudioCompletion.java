@@ -13,7 +13,7 @@ import ca.teamdman.sfm.client.gui.syntax.SfmlCompletionCatalog.Entry;
 import ca.teamdman.sfm.client.gui.syntax.SfmlCompletionCatalog.Kind;
 import ca.teamdman.sfm.client.gui.syntax.SfmlCompletionCatalog.Snapshot;
 
-/** Explicit Ctrl+Space completion only. Compiler diagnostics remain authoritative for receiver types and scope. */
+/** Completion candidates. Compiler diagnostics remain authoritative for receiver types and scope. */
 public final class StudioCompletion {
 
     private static final int MAX_TOKENS = 16000;
@@ -191,7 +191,7 @@ public final class StudioCompletion {
     }
 
     /** Match the grammar's quoted strings, escapes and -- comments, including incomplete editing tokens. */
-    private static boolean insideText(String source, int caret) {
+    static boolean insideText(String source, int caret) {
         boolean quoted = false, comment = false;
         for (int i = 0; i < caret; i++) {
             char c = source.charAt(i);

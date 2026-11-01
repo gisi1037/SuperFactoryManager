@@ -124,13 +124,11 @@ add/remove optional filter/count suffixes. The third expression may be an item
 filter or an integer count; a fourth amount requires an item filter in the third
 position. Print has one field per expression,
 in source order (one to eight), with Add/Remove controls. Quote literal messages.
-Both nodes accept self-contained literals, arithmetic, `LABEL`/`ITEM`
-constructors and compiler-supported receiver methods such as `.slots()` and
-`.count()`. Other function calls, including built-ins such as `LEN` and `ORE`,
-still require Code. Declarations, assignments, result capture,
-loops, player functions and direct ELSE IF remain
-text-only. If predicates also support bounded self-contained expressions, described
-below. Data expressions in other statement positions keep their restrictions.
+Both nodes accept variables in scope, literals, arithmetic, constructors, known
+built-ins such as `LEN`/`ORE`, and receiver queries. Variables and current loops
+also have Visual nodes. Result capture (`INTO`), player functions, WAIT, ghost
+circuit actions and direct ELSE IF still require Code. Unsupported source is
+preserved by refusing a partial import.
 
 **Port edge** starts a block from named native Redstone Port input edges. It is
 distinct from **Pulse**, which keeps the existing manager pulse trigger. Basic
@@ -198,8 +196,8 @@ Self-contained typed **If** predicates use one **Condition** field. For example,
 Keep the parentheses around typed Boolean expressions and computed thresholds;
 leave out `IF`, `THEN` and `END`. No query runs in Fields: one Apply validates and
 commits the whole predicate, while Cancel and Undo retain their existing behavior.
-Only `LABEL`/`ITEM` constructors and existing receiver methods are eligible;
-scoped variables, other calls and unsupported body statements still require Code.
+Variables in scope, known built-ins and existing receiver methods are eligible.
+Player functions and unsupported body statements still require Code.
 New typed predicates have bounded depth/operator/postfix work. Legacy label-list
 commas do not reset the enclosing Boolean budget; real data-container siblings
 retain local budgets. Unsupported or over-budget source is retained intact.
@@ -549,3 +547,32 @@ Legacy source disks retain existing access. On a reference disk, only its verifi
 source author can inspect variable names/values; other execution-disk holders can
 still use numeric profiling and deliberate PRINT output. Local trigger variables
 are not available after their trigger completes.
+
+
+## Visual variables and loops
+
+Add **Program value** (program-wide LET) or **Persistent state** (STATE) as a
+standalone declaration card. These have no execution wires. They initialize
+before triggers; declaration order follows their creation/source order, not
+their screen positions. Use **Local value** after a trigger or inside a body,
+and **Set value** for reassignment. Fields expose the name/target and value.
+
+**Counted loop**, **Array loop** and **While loop** have **BODY** and **AFTER**
+outputs. Connect repeated steps to BODY and the following step to AFTER. Do not
+wire a body back into the loop: repetition is implicit. Loop Fields expose
+bounds, array or Boolean condition. Loop variables are read-only; body locals
+keep normal SFML scopes. Invalid scope/type edits retain the last complete code
+and report the issue instead of silently saving a partial program.
+
+## Inline suggestions and readable problems
+
+After a short typing pause, a gray inline suffix can suggest a variable, method,
+function or keyword at the end of a line. **Tab** accepts only a fully visible
+suggestion; **Esc** dismisses it. Otherwise Tab retains indentation/placeholder
+behavior. Suggestions never change code automatically. Scoped names require a
+parseable draft; **Ctrl+Space** retains the explicit completion menu.
+
+The **Problems** dock and window show bounded, wrapped issue cards with compiler
+locations, messages and source excerpts. Click an issue to jump to it, or focus
+the list and use Up/Down then Enter. Stale locations never overwrite or navigate
+against a different draft; current syntax is rechecked first.

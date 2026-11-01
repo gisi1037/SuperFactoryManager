@@ -36,7 +36,9 @@ public final class StudioNodeProperties {
         TRIGGER_HEADER,
         CONDITION,
         REDSTONE_EDGE,
-        PHYSICAL_SIDES
+        PHYSICAL_SIDES,
+        VARIABLE_NAME,
+        ASSIGNMENT_TARGET
     }
 
     public static final class Field {
@@ -98,6 +100,8 @@ public final class StudioNodeProperties {
             || clause.indexOf('\r') >= 0) return Collections.emptyList();
         try {
             BlueprintCompiler.validateClause(type, clause);
+            if (type.isLoop() || type == Type.LET || type == Type.SET || type == Type.GLOBAL_LET || type == Type.STATE)
+                return dataFields(type, clause);
             if (type == Type.NAMED_REDSTONE) {
                 SFMLParser.NamedRedstoneTriggerContext trigger = StudioNamedRedstoneHeader.parse(clause);
                 SFMLParser.LabelAccessContext labels = trigger.labelAccess();
@@ -168,7 +172,7 @@ public final class StudioNodeProperties {
                     new Field(
                         "condition",
                         "Condition",
-                        "One boolean predicate, including parenthesized read-only LABEL/ITEM queries or computed thresholds. Leave out IF/THEN/END. No scoped variables or player calls.",
+                        "One boolean predicate using variables in scope, queries or computed thresholds. Leave out IF/THEN/END. Player functions still require Code.",
                         FieldType.CONDITION,
                         condition,
                         clause));
@@ -823,11 +827,19 @@ public final class StudioNodeProperties {
                 if (!replacement.equalsIgnoreCase("RISING") && !replacement.equalsIgnoreCase("PULSE")
                     && !replacement.equalsIgnoreCase("FALLING"))
                     throw new IllegalArgumentException("Use RISING, PULSE, or FALLING");
+            } else if (selected.type == FieldType.VARIABLE_NAME) {
+                SFMLParser parser = parser(replacement);
+                parser.variableName();
+                requireEnd(parser);
+            } else if (selected.type == FieldType.ASSIGNMENT_TARGET) {
+                StudioExpressionSyntax.expression(replacement);
+                SFMLParser parser = parser(replacement);
+                parser.dataTarget();
+                requireEnd(parser);
             } else if (selected.type == FieldType.CONDITION) {
                 StudioConditionSyntax.parse(replacement);
             } else {
-                if (selected.type == FieldType.EXPRESSION && type == Type.PRINT)
-                    StudioExpressionSyntax.expression(replacement);
+                if (selected.type == FieldType.EXPRESSION) StudioExpressionSyntax.expression(replacement);
                 if (selected.type == FieldType.EXPRESSION && type == Type.TRANSFER)
                     StudioExpressionSyntax.transferExpression(replacement);
                 SFMLParser parser = parser(replacement);
@@ -938,6 +950,103 @@ public final class StudioNodeProperties {
         if (parser.getCurrentToken()
             .getType() != Token.EOF)
             throw new IllegalArgumentException("Enter only the selected property, without extra modifiers");
+    }
+
+    /** Parsed spans keep names and expressions independent; whole-program validation owns their scope/types. */
+    private static List<Field> dataFields(Type type, String clause) {
+        SFMLParser parser = parser(clause + (type.isLoop() ? " DO END" : ""));
+        List<Field> fields = new ArrayList<>();
+        if (type == Type.WHILE) {
+            fields.add(
+                new Field(
+                    "condition",
+                    "While condition",
+                    "Rechecked before each iteration; must be boolean.",
+                    FieldType.CONDITION,
+                    parser.whileStatement()
+                        .boolexpr(),
+                    clause));
+            return fields;
+        }
+        if (type == Type.FOR || type == Type.FOREACH) {
+            SFMLParser.ForStatementContext loop = parser.forStatement();
+            if (loop instanceof SFMLParser.CountedForContext) {
+                SFMLParser.CountedForContext counted = (SFMLParser.CountedForContext) loop;
+                fields.add(
+                    new Field(
+                        "name",
+                        "Loop variable",
+                        "Read-only inside the loop body.",
+                        FieldType.VARIABLE_NAME,
+                        counted.variableName(),
+                        clause));
+                String[] keys = { "start", "end", "step" };
+                String[] names = { "First value", "Last value (inclusive)", "Step" };
+                for (int i = 0; i < counted.dataExpression()
+                    .size(); i++)
+                    fields.add(
+                        new Field(
+                            keys[i],
+                            names[i],
+                            "Integer expression evaluated in the enclosing scope.",
+                            FieldType.EXPRESSION,
+                            counted.dataExpression(i),
+                            clause));
+            } else {
+                SFMLParser.ArrayForContext array = (SFMLParser.ArrayForContext) loop;
+                fields.add(
+                    new Field(
+                        "name",
+                        "Element variable",
+                        "Read-only element value inside the body.",
+                        FieldType.VARIABLE_NAME,
+                        array.variableName(),
+                        clause));
+                fields.add(
+                    new Field(
+                        "values",
+                        "Array or contents",
+                        "Iterate the captured sequence in order.",
+                        FieldType.EXPRESSION,
+                        array.dataExpression(),
+                        clause));
+            }
+        } else {
+            ParserRuleContext target;
+            SFMLParser.DataExpressionContext value;
+            if (type == Type.STATE) {
+                SFMLParser.StateDeclarationContext declaration = parser.stateDeclaration();
+                target = declaration.variableName();
+                value = declaration.dataExpression();
+            } else if (type == Type.SET) {
+                SFMLParser.DataAssignmentContext assignment = parser.dataAssignment();
+                target = assignment.dataTarget();
+                value = assignment.dataExpression();
+            } else {
+                SFMLParser.DataDeclarationContext declaration = parser.dataDeclaration();
+                target = declaration.variableName();
+                value = declaration.dataExpression();
+            }
+            fields.add(
+                new Field(
+                    "name",
+                    type == Type.SET ? "Target" : "Variable name",
+                    type == Type.SET ? "Writable variable, array element or struct field."
+                        : "Case-sensitive; the $ prefix is optional.",
+                    type == Type.SET ? FieldType.ASSIGNMENT_TARGET : FieldType.VARIABLE_NAME,
+                    target,
+                    clause));
+            fields.add(
+                new Field(
+                    "value",
+                    type == Type.SET ? "New value" : "Initial value",
+                    type == Type.STATE ? "Persistable constant default, used when state is first initialized."
+                        : "Expression using variables available at this point.",
+                    FieldType.EXPRESSION,
+                    value,
+                    clause));
+        }
+        return Collections.unmodifiableList(fields);
     }
 
     private static SFMLParser parser(String source) {

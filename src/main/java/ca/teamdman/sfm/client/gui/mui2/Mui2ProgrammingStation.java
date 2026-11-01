@@ -139,7 +139,9 @@ public final class Mui2ProgrammingStation {
     private StudioDividerWidget divider;
     private ParentWidget<?> outlinePane, inspectorPane, insertTray;
     private ParentWidget<?> dockPane, problemDock, terminalDock, watchDock, buildDock;
-    private StudioReadOnlyPane problemOutput;
+    private StudioProblemsPane problemOutput;
+    private List<String> draftErrors = Collections.emptyList();
+    private String diagnosticSource = "", lastProblemSource;
     private StudioDebugTerminal terminal;
     private StudioDividerWidget dockDivider, sidebarDivider, inspectorDivider;
     private StudioLayout.Workspace workspace;
@@ -671,6 +673,7 @@ public final class Mui2ProgrammingStation {
     }
 
     private void clearAuthorFocus() {
+        if (editor != null) editor.dismissCompletion();
         if (graphEditor != null) {
             graphEditor.finishInteraction();
             graphEditor.cancelWire();
@@ -1072,7 +1075,7 @@ public final class Mui2ProgrammingStation {
             .setEnabledIf(widget -> dock == Dock.PROBLEMS);
         problemDock.child(button("Go to error", 4, 3, 76, () -> true, this::jumpToError).height(18));
         problemDock.child(button("Check saved", 83, 3, 78, () -> !state.busy(), this::validate).height(18));
-        problemOutput = new StudioReadOnlyPane(this::authoringOnTop).left(4)
+        problemOutput = new StudioProblemsPane(this::authoringOnTop, this::jumpToProblem).left(4)
             .right(4)
             .top(26)
             .bottom(4);
@@ -1253,17 +1256,19 @@ public final class Mui2ProgrammingStation {
         if (problemOutput == null || draftDiagnostic.equals(lastProblemDiagnostic) && status.equals(lastProblemStatus)
             && lastProblemSaved == state.saved
             && lastProblemValidation == state.validation
-            && dirty == lastProblemDirty) return;
+            && dirty == lastProblemDirty
+            && diagnosticSource.equals(lastProblemSource)) return;
         lastProblemDiagnostic = draftDiagnostic;
         lastProblemStatus = status;
         lastProblemSaved = state.saved;
         lastProblemValidation = state.validation;
         lastProblemDirty = dirty;
+        lastProblemSource = diagnosticSource;
         List<String> lines = new ArrayList<>();
-        Collections.addAll(lines, draftDiagnostic.split("\\n"));
+        if (draftErrors.isEmpty()) Collections.addAll(lines, draftDiagnostic.split("\\n"));
         lines.add(state.revisionLine());
         Collections.addAll(lines, status.split("\\n"));
-        problemOutput.lines(lines);
+        problemOutput.snapshot(diagnosticSource, draftErrors, lines);
     }
 
     public void receiveStationDebugReply(PacketStationDebugReply reply) {
@@ -3062,18 +3067,21 @@ public final class Mui2ProgrammingStation {
             new TextWidget<>("Current draft / saved revision").color(0xffe7e8eb)
                 .pos(8, 8)
                 .size(296, 12));
-        ListWidget<IWidget, ?> list = new ListWidget<>().pos(8, 28)
+        StudioProblemsPane list = new StudioProblemsPane(() -> true, location -> {
+            problemsPanel.closePanel();
+            jumpToProblem(location);
+        }).pos(8, 28)
             .size(296, 140);
-        for (String message : new String[] { draftDiagnostic, state.revisionLine(), status }) {
-            for (String line : message.split("\n")) list.child(
-                new TextWidget<>(trimFor(line, 290)).color(0xffe7e8eb)
-                    .size(292, 12)
-                    .addTooltipLine(line));
-        }
+        List<String> summary = new ArrayList<>();
+        if (draftErrors.isEmpty()) Collections.addAll(summary, draftDiagnostic.split("\n"));
+        summary.add(state.revisionLine());
+        Collections.addAll(summary, status.split("\n"));
+        list.snapshot(diagnosticSource, draftErrors, summary);
         popup.child(list);
         popup.child(button("Go to error", 8, 188, 108, this::editable, () -> {
             problemsPanel.closePanel();
-            jumpToError();
+            if (list.selectedDiagnostic() != null) jumpToProblem(list.selectedDiagnostic());
+            else jumpToError();
         }));
         popup.child(button("Terminal", 120, 188, 94, () -> !state.busy(), () -> {
             problemsPanel.closePanel();
@@ -3266,7 +3274,24 @@ public final class Mui2ProgrammingStation {
             return false;
         }
         if (view == View.VISUAL) switchView(View.CODE);
+        if (problemOutput != null && problemOutput.selectedDiagnostic() != null) {
+            problemOutput.jumpSelected();
+            return true;
+        }
         return editor.jumpToDiagnostic(draftDiagnostic);
+    }
+
+    private void jumpToProblem(ca.teamdman.sfm.client.gui.EditorDiagnostic location) {
+        if (!editable() || pendingClause() || pendingFields() || document.incomplete()) return;
+        if (!StudioSourceMap.normalize(document.code())
+            .equals(StudioSourceMap.normalize(diagnosticSource))) {
+            diagnostics.schedule(0);
+            status = "Code changed; checking current problems before navigating.";
+            return;
+        }
+        if (view == View.VISUAL) switchView(View.CODE);
+        codeFocused = true;
+        editor.goTo(location.offset(editor.source()));
     }
 
     private void checkDraft() {
@@ -3275,7 +3300,12 @@ public final class Mui2ProgrammingStation {
         StudioDraftDiagnostics.Result checked = diagnostics.check(document, pendingClause() || pendingFields());
         draftDiagnostic = checked.message;
         ca.teamdman.sfml.program_builder.ProgramBuildResult result = checked.compiled;
-        if (result == null) return;
+        if (result == null) {
+            draftErrors = Collections.emptyList();
+            return;
+        }
+        diagnosticSource = document.code();
+        draftErrors = result.getErrors();
         editor.diagnostic(result.isSuccess() ? null : result.getErrorMessage());
         if (view == View.SPLIT && document.graph() == null) {
             try {

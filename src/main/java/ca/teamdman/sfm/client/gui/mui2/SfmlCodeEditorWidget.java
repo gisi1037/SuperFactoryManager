@@ -32,6 +32,7 @@ import ca.teamdman.sfm.client.gui.EditorDiagnostic;
 import ca.teamdman.sfm.client.gui.syntax.SfmlCompletionCatalog;
 import ca.teamdman.sfm.client.gui.syntax.SfmlHighlighter;
 import ca.teamdman.sfm.client.gui.syntax.SfmlSyntaxRenderer;
+import ca.teamdman.sfm.client.gui.syntax.StudioInlineCompletion;
 import ca.teamdman.sfm.client.gui.syntax.StudioSymbolHelp;
 import ca.teamdman.sfm.client.gui.syntax.SyntaxSnippet;
 import me.eigenraven.lwjgl3ify.api.InputEvents;
@@ -60,6 +61,9 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
     private int hoverOffset = -1, errorOffset = -1;
     private EditorDiagnostic diagnostic;
     private boolean hoveringError;
+    private final StudioInlineCompletion inlineCompletion = new StudioInlineCompletion();
+    private StudioInlineCompletion.Suggestion shownCompletion;
+    private int completionScrollX, completionScrollY;
 
     private static final class Row {
 
@@ -171,6 +175,7 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
     }
 
     public boolean jumpToDiagnostic(String message) {
+        dismissCompletion();
         ca.teamdman.sfm.client.gui.EditorDiagnostic location = ca.teamdman.sfm.client.gui.EditorDiagnostic
             .first(message);
         if (location == null) return false;
@@ -184,6 +189,7 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
     }
 
     public void goTo(int offset) {
+        dismissCompletion();
         buffer.move(offset, false);
         blink = 0;
         if (isValid()) {
@@ -194,6 +200,7 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
 
     /** Read-only navigation: preserve text and both history stacks, focus the first selected character. */
     public void revealRange(int start, int end) {
+        dismissCompletion();
         buffer.select(end, start);
         blink = 0;
         if (isValid()) {
@@ -237,6 +244,7 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
 
     @Override
     public void onRemoveFocus(ModularGuiContext context) {
+        dismissCompletion();
         if (ModularUI.Mods.LWJGL3IFY.isLoaded()) InputEvents.endTextInput();
     }
 
@@ -244,6 +252,14 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
     public void onUpdate() {
         super.onUpdate();
         blink++;
+        if (!isFocused() || !inputGate.getAsBoolean() || !editable.getAsBoolean()) dismissCompletion();
+        else inlineCompletion.update(source(), buffer.caret(), buffer.selected(), System.nanoTime());
+    }
+
+    /** Clear transient input assistance when changing view or opening another authoring surface. */
+    public void dismissCompletion() {
+        inlineCompletion.dismiss();
+        shownCompletion = null;
     }
 
     private FontRenderer font() {
@@ -253,6 +269,7 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
     private void measure() {
         int width = Math.max(32, getArea().w() - gutter - 12);
         if (cachedWidth == width && cachedHeight == getArea().h() && source().equals(cachedSource)) return;
+        if (cachedWidth != width || cachedHeight != getArea().h()) dismissCompletion();
         cachedSource = source();
         cachedWidth = width;
         cachedHeight = getArea().h();
@@ -292,6 +309,10 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
         super.preDraw(context, transformed);
         if (!transformed) return;
         measure();
+        if (getScrollX() != completionScrollX || getScrollY() != completionScrollY) dismissCompletion();
+        completionScrollX = getScrollX();
+        completionScrollY = getScrollY();
+        shownCompletion = null;
         int first = Math.max(0, getScrollY() / LINE_HEIGHT - 1);
         int last = Math.min(rows.size(), first + getArea().h() / LINE_HEIGHT + 3);
         for (int i = first; i < last; i++) {
@@ -314,6 +335,22 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
             if (isFocused() && blink % 20 < 10 && i == caretRow()) {
                 int x = gutter + 4 + font().getStringWidth(source().substring(row.offset, buffer.caret()));
                 Gui.drawRect(x, y - 1, x + 1, y + 9, 0xffeeeeee);
+            }
+            StudioInlineCompletion.Suggestion completion = inlineCompletion
+                .current(source(), buffer.caret(), buffer.selected());
+            if (completion != null && isFocused()
+                && inputGate.getAsBoolean()
+                && editable.getAsBoolean()
+                && i == caretRow()
+                && y >= getScrollY()
+                && y + 9 <= getScrollY() + getArea().h()) {
+                int x = gutter + 4 + font().getStringWidth(source().substring(row.offset, buffer.caret()));
+                // Only a fully rendered ghost is accepted by Tab; a clipped hint never edits unseen text.
+                if (x >= getScrollX() + gutter
+                    && x + font().getStringWidth(completion.suffix) <= getScrollX() + getArea().w() - 8) {
+                    font().drawString(completion.suffix, x, y, 0x727b87);
+                    shownCompletion = completion;
+                }
             }
         }
         // Compensate only for horizontal scrolling: the gutter follows vertical rows.
@@ -353,6 +390,7 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
     @Override
     public Result onMousePressed(int button) {
         if (!inputGate.getAsBoolean()) return Result.IGNORE;
+        dismissCompletion();
         if (getScrollArea().mouseClicked(getContext())) return Result.SUCCESS;
         if (!isHovering()) return Result.IGNORE;
         if (button == 0) {
@@ -364,6 +402,7 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
 
     @Override
     public void onMouseDrag(int button, long time) {
+        dismissCompletion();
         super.onMouseDrag(button, time);
         if (button == 0 && isFocused() && !getScrollArea().isDragging()) buffer.move(atMouse(), true);
     }
@@ -390,6 +429,25 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
     public Result onKeyPressed(char character, int key) {
         if (!isFocused() || !inputGate.getAsBoolean()) return Result.IGNORE;
         boolean ctrl = Interactable.hasControlDown(), shift = Interactable.hasShiftDown();
+        StudioInlineCompletion.Suggestion completion = inlineCompletion
+            .current(source(), buffer.caret(), buffer.selected());
+        if (key == Keyboard.KEY_ESCAPE && completion != null) {
+            dismissCompletion();
+            return Result.SUCCESS;
+        }
+        if (key == Keyboard.KEY_TAB && !ctrl
+            && !shift
+            && completion != null
+            && completion == shownCompletion
+            && editable.getAsBoolean()
+            && completionScrollX == getScrollX()
+            && completionScrollY == getScrollY()) {
+            dismissCompletion();
+            replaceRange(completion.end, completion.end, completion.suffix);
+            return Result.SUCCESS;
+        }
+        // The LWJGL3 text event follows the key event and schedules a fresh hint after inserting text.
+        if (key != Keyboard.KEY_LSHIFT && key != Keyboard.KEY_RSHIFT) dismissCompletion();
         if (ctrl && (key == Keyboard.KEY_F || key == Keyboard.KEY_H)) {
             find.run();
             return Result.SUCCESS;
@@ -450,7 +508,7 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
                 int x = font().getStringWidth(source().substring(rows.get(current).offset, buffer.caret()));
                 buffer.move(atX(rows.get(Math.max(0, Math.min(rows.size() - 1, current + delta))), x), shift);
             } else if (!ctrl && character >= 32 && character != 127 && !ModularUI.Mods.LWJGL3IFY.isLoaded()) {
-                insert(String.valueOf(character));
+                typeText(String.valueOf(character));
             }
         ensureVisible();
         return Result.SUCCESS;
@@ -464,7 +522,7 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
     @Override
     public boolean onTextInput(InputEvents.TextEvent event) {
         if (!isFocused() || !inputGate.getAsBoolean()) return false;
-        if (editable.getAsBoolean()) insert(event.text);
+        if (editable.getAsBoolean()) typeText(event.text);
         return true;
     }
 
@@ -479,7 +537,17 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
         }
     }
 
+    private void typeText(String text) {
+        boolean selected = buffer.selected();
+        if (insert(text)) {
+            completionScrollX = getScrollX();
+            completionScrollY = getScrollY();
+            inlineCompletion.typed(source(), buffer.caret(), selected, System.nanoTime());
+        }
+    }
+
     private void refresh() {
+        dismissCompletion();
         if (diagnostic != null && !source().equals(diagnosticSource)) diagnostic(null);
         if (!source().equals(highlightedSource)) {
             highlighted = SfmlHighlighter.highlight(source());

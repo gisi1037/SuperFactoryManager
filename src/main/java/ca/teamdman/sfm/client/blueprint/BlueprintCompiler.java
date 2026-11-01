@@ -14,9 +14,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import org.antlr.v4.runtime.BailErrorStrategy;
+import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.ParserRuleContext;
+import org.antlr.v4.runtime.RecognitionException;
+import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.Token;
 
 import ca.teamdman.langs.SFMLLexer;
@@ -53,16 +57,28 @@ public final class BlueprintCompiler {
                 .append('\n');
         if (!graph.nameClause()
             .isEmpty()) {
-            SFMLParser.ProgramContext name = validate ? parse(graph.nameClause()) : null;
+            SFMLParser.ProgramContext name = validate ? parseSyntax(graph.nameClause()) : null;
             if (validate && (name.name() == null || !name.trigger()
-                .isEmpty())) throw new IllegalArgumentException("Use NAME \"Program name\"");
+                .isEmpty()
+                || !name.dataDeclaration()
+                    .isEmpty()
+                || !name.stateDeclaration()
+                    .isEmpty()
+                || !name.functionDefinition()
+                    .isEmpty()))
+                throw new IllegalArgumentException("Use NAME \"Program name\"");
             text.append(graph.nameClause())
                 .append('\n');
         }
         Set<UUID> visited = new HashSet<>();
-        for (Node trigger : graph.triggers()) {
-            if (validate) validateClause(trigger.type, trigger.clause());
+        for (Node trigger : graph.roots()) {
+            if (validate) validateClause(trigger.type, trigger.clause(), false);
             visited.add(trigger.id);
+            if (!trigger.type.isTrigger()) {
+                text.append(trigger.clause())
+                    .append('\n');
+                continue;
+            }
             text.append(trigger.clause())
                 .append(" DO\n");
             emit(graph, graph.next(trigger.id, Pin.NEXT), 1, visited, text, validate);
@@ -81,7 +97,7 @@ public final class BlueprintCompiler {
         if (depth > BlueprintGraph.MAX_DEPTH) throw new IllegalArgumentException("Blueprint nesting exceeds 32");
         while (node != null) {
             if (!visited.add(node.id)) throw new IllegalArgumentException("Repeated node in control flow");
-            if (validate) validateClause(node.type, node.clause());
+            if (validate) validateClause(node.type, node.clause(), false);
             indent(text, depth);
             if (node.type == Type.IF) {
                 text.append("IF ")
@@ -95,6 +111,12 @@ public final class BlueprintCompiler {
                 }
                 indent(text, depth);
                 text.append("END\n");
+            } else if (node.type.isLoop()) {
+                text.append(node.clause())
+                    .append(" DO\n");
+                emit(graph, graph.next(node.id, Pin.BODY), depth + 1, visited, text, validate);
+                indent(text, depth);
+                text.append("END\n");
             } else text.append(node.clause())
                 .append('\n');
             node = graph.next(node.id, node.type.continuation());
@@ -106,17 +128,47 @@ public final class BlueprintCompiler {
     }
 
     public static void validateClause(Type type, String clause) {
+        validateClause(type, clause, true);
+    }
+
+    private static void validateClause(Type type, String clause, boolean checkLiterals) {
         if (type == Type.IF) StudioConditionSyntax.parse(clause);
         if (type == Type.PRINT) StudioExpressionSyntax.print(clause);
         if (type == Type.TRANSFER) StudioExpressionSyntax.transfer(clause);
         if (type == Type.NAMED_REDSTONE) StudioNamedRedstoneHeader.parse(clause);
         if (clause == null || clause.length() > BlueprintGraph.MAX_CLAUSE)
             throw new IllegalArgumentException("Node clause too long");
-        String source = type.isTrigger() ? clause + " DO\nEND"
-            : "EVERY 20 TICKS DO\n" + (type == Type.IF ? "IF " + clause + " THEN\nEND" : clause) + "\nEND";
-        SFMLParser.ProgramContext tree = parse(source);
+        for (Token token : tokens(clause).getTokens()) if (token.getType() == SFMLLexer.LINE_COMMENT)
+            throw new IllegalArgumentException("Use SFML clauses without inline comments");
+        boolean declaration = type.isRoot() && !type.isTrigger();
+        String source = declaration ? clause
+            : type.isTrigger() ? clause + " DO\nEND"
+                : "EVERY 20 TICKS DO\n"
+                    + (type == Type.IF ? "IF " + clause + " THEN\nEND" : type.isLoop() ? clause + " DO\nEND" : clause)
+                    + "\nEND";
+        SFMLParser.ProgramContext tree = parseSyntax(source);
+        if (declaration) {
+            if (tree.name() != null || !tree.trigger()
+                .isEmpty()
+                || !tree.functionDefinition()
+                    .isEmpty()
+                || tree.dataDeclaration()
+                    .size() != (type == Type.GLOBAL_LET ? 1 : 0)
+                || tree.stateDeclaration()
+                    .size() != (type == Type.STATE ? 1 : 0))
+                throw new IllegalArgumentException("Use one " + type.title + " declaration");
+            if (checkLiterals && !hasScopedReference(tree)) parse(source);
+            return;
+        }
         if (tree.name() != null || tree.trigger()
-            .size() != 1) throw new IllegalArgumentException("One clause per node");
+            .size() != 1
+            || !tree.dataDeclaration()
+                .isEmpty()
+            || !tree.stateDeclaration()
+                .isEmpty()
+            || !tree.functionDefinition()
+                .isEmpty())
+            throw new IllegalArgumentException("One clause per node");
         SFMLParser.TriggerContext trigger = tree.trigger(0);
         if (type.isTrigger()) {
             if (type != triggerType(trigger) || !triggerBlock(trigger).statement()
@@ -137,10 +189,31 @@ public final class BlueprintCompiler {
                         .isEmpty())
                     throw new IllegalArgumentException("Enter only the IF condition, without THEN or END");
             }
+            if (type.isLoop() && !loopBlock(statements.get(0)).statement()
+                .isEmpty()) throw new IllegalArgumentException("Enter only the loop header, without DO or END");
+            if (type == Type.WHILE) StudioConditionSyntax.parse(
+                fragment(
+                    tokens(source),
+                    statements.get(0)
+                        .whileStatement()
+                        .boolexpr()));
         }
-        CommonTokenStream tokens = tokens(clause);
-        for (Token token : tokens.getTokens()) if (token.getType() == SFMLLexer.LINE_COMMENT)
-            throw new IllegalArgumentException("Use SFML clauses without inline comments");
+        if (checkLiterals && !hasScopedReference(tree)) parse(source);
+    }
+
+    /** Bindings are declarations, while expression primaries, label variables and assignment targets need scope. */
+    private static boolean hasScopedReference(org.antlr.v4.runtime.tree.ParseTree tree) {
+        if (tree instanceof SFMLParser.RawLabelContext || tree instanceof SFMLParser.VariableLabelContext
+            || tree instanceof SFMLParser.DataTargetContext) return true;
+        if (tree instanceof SFMLParser.FunctionCallContext && !((SFMLParser.FunctionCallContext) tree).functionName()
+            .DOT()
+            .isEmpty()) return true;
+        if (tree instanceof SFMLParser.DataPrimaryContext) {
+            SFMLParser.DataPrimaryContext primary = (SFMLParser.DataPrimaryContext) tree;
+            if (primary.IDENTIFIER() != null || primary.VARIABLE() != null) return true;
+        }
+        for (int i = 0; i < tree.getChildCount(); i++) if (hasScopedReference(tree.getChild(i))) return true;
+        return false;
     }
 
     public static BlueprintGraph importText(String code) {
@@ -203,13 +276,31 @@ public final class BlueprintCompiler {
         int[] nodes, List<Blocker> blockers) {
         ParserRuleContext clause = null;
         if (tree instanceof SFMLParser.NameContext) clause = (ParserRuleContext) tree;
-        if (tree instanceof SFMLParser.TriggerContext || tree instanceof SFMLParser.StatementContext) {
+        boolean declaration = tree instanceof SFMLParser.StateDeclarationContext
+            || tree instanceof SFMLParser.DataDeclarationContext
+                && tree.getParent() instanceof SFMLParser.ProgramContext;
+        if (declaration) clause = (ParserRuleContext) tree;
+        if (tree instanceof SFMLParser.TriggerContext || tree instanceof SFMLParser.StatementContext || declaration) {
             ParserRuleContext context = (ParserRuleContext) tree;
             if (++nodes[0] == BlueprintGraph.MAX_NODES + 1)
                 blockers.add(VisualCapabilityAnalyzer.at(Kind.GRAPH_LIMIT, "Blueprint exceeds 256 nodes", context));
             if (tree instanceof SFMLParser.StatementContext) {
                 SFMLParser.IfStatementContext branch = ((SFMLParser.StatementContext) tree).ifStatement();
-                clause = branch == null ? context : branch.boolexpr(0);
+                SFMLParser.StatementContext statement = (SFMLParser.StatementContext) tree;
+                if (statement.forStatement() != null || statement.whileStatement() != null) {
+                    try {
+                        validateClause(
+                            typeOf(statement),
+                            fragment(
+                                tokens,
+                                context.getStart()
+                                    .getTokenIndex(),
+                                loopDo(statement).getTokenIndex() - 1),
+                            false);
+                    } catch (IllegalArgumentException unsafe) {
+                        blockers.add(VisualCapabilityAnalyzer.at(Kind.GRAPH_LIMIT, unsafe.getMessage(), context));
+                    }
+                } else clause = branch == null ? context : branch.boolexpr(0);
                 if (branch != null) for (SFMLParser.BoolexprContext predicate : branch.boolexpr()) {
                     try {
                         StudioConditionSyntax.parse(fragment(tokens, predicate));
@@ -217,7 +308,7 @@ public final class BlueprintCompiler {
                         blockers.add(VisualCapabilityAnalyzer.at(Kind.GRAPH_LIMIT, unsafe.getMessage(), predicate));
                     }
                 }
-            } else {
+            } else if (tree instanceof SFMLParser.TriggerContext) {
                 SFMLParser.TriggerContext trigger = (SFMLParser.TriggerContext) tree;
                 int end = triggerDo(trigger).getTokenIndex();
                 if (fragment(
@@ -231,8 +322,11 @@ public final class BlueprintCompiler {
         }
         if (clause != null && fragment(tokens, clause).length() > BlueprintGraph.MAX_CLAUSE)
             blockers.add(VisualCapabilityAnalyzer.at(Kind.GRAPH_LIMIT, "Node clause exceeds 4096 characters", clause));
-        if (tree instanceof SFMLParser.IfStatementContext && depth == BlueprintGraph.MAX_DEPTH) blockers.add(
-            VisualCapabilityAnalyzer.at(Kind.GRAPH_LIMIT, "Blueprint nesting exceeds 32", (ParserRuleContext) tree));
+        if ((tree instanceof SFMLParser.IfStatementContext || tree instanceof SFMLParser.ForStatementContext
+            || tree instanceof SFMLParser.WhileStatementContext) && depth == BlueprintGraph.MAX_DEPTH)
+            blockers.add(
+                VisualCapabilityAnalyzer
+                    .at(Kind.GRAPH_LIMIT, "Blueprint nesting exceeds 32", (ParserRuleContext) tree));
         if (tree instanceof SFMLParser.BlockContext) depth++;
         for (int i = 0; i < tree.getChildCount(); i++) inspectLimits(tree.getChild(i), tokens, depth, nodes, blockers);
     }
@@ -248,6 +342,16 @@ public final class BlueprintCompiler {
             comments.toString()
                 .trim());
         int columnX = 20;
+        // Program declaration accessors separate LET and STATE; children preserve their mixed source order.
+        for (int i = 0; i < tree.getChildCount(); i++) {
+            org.antlr.v4.runtime.tree.ParseTree child = tree.getChild(i);
+            Type type = child instanceof SFMLParser.DataDeclarationContext ? Type.GLOBAL_LET
+                : child instanceof SFMLParser.StateDeclarationContext ? Type.STATE : null;
+            if (type != null) {
+                graph.add(new Node(UUID.randomUUID(), type, columnX, 20, fragment(tokens, (ParserRuleContext) child)));
+                columnX += 210;
+            }
+        }
         for (SFMLParser.TriggerContext trigger : tree.trigger()) {
             Type type = triggerType(trigger);
             int end = triggerDo(trigger).getTokenIndex();
@@ -294,12 +398,18 @@ public final class BlueprintCompiler {
                     tokens,
                     statement.ifStatement()
                         .boolexpr(0));
+            } else if (type.isLoop()) {
+                clause = fragment(
+                    tokens,
+                    statement.getStart()
+                        .getTokenIndex(),
+                    loopDo(statement).getTokenIndex() - 1);
             }
             Node node = new Node(
                 UUID.randomUUID(),
                 type,
                 x,
-                previous.y() + (previous.type == Type.IF ? 120 : 80),
+                previous.y() + (previous.type == Type.IF || previous.type.isLoop() ? 120 : 80),
                 clause);
             graph.add(node);
             graph.connect(previous.id, pin, node.id);
@@ -309,7 +419,8 @@ public final class BlueprintCompiler {
                 node.hasElse = branch.block()
                     .size() == 2;
                 if (node.hasElse) importBlock(graph, tokens, branch.block(1), node, Pin.FALSE, x + 380, depth + 1);
-            }
+            } else
+                if (type.isLoop()) importBlock(graph, tokens, loopBlock(statement), node, Pin.BODY, x + 190, depth + 1);
             previous = node;
             pin = type.continuation();
         }
@@ -318,9 +429,10 @@ public final class BlueprintCompiler {
     /** Place complete branches in separate lanes, then their continuation below both branches. */
     private static void layout(BlueprintGraph graph) {
         double x = 20;
-        for (Node trigger : graph.triggers()) {
+        for (Node trigger : graph.roots()) {
             trigger.setPosition(x, 20);
-            double[] extent = layoutChain(graph, graph.next(trigger.id, Pin.NEXT), x, 100);
+            double[] extent = trigger.type.isTrigger() ? layoutChain(graph, graph.next(trigger.id, Pin.NEXT), x, 100)
+                : new double[] { x, 100 };
             x = Math.max(x + 210, extent[0] + 210);
         }
     }
@@ -329,12 +441,16 @@ public final class BlueprintCompiler {
         double maxX = x;
         while (node != null) {
             node.setPosition(x, y);
-            y += node.type == Type.IF ? 120 : 80;
+            y += node.type == Type.IF || node.type.isLoop() ? 120 : 80;
             if (node.type == Type.IF) {
                 double[] yes = layoutChain(graph, graph.next(node.id, Pin.TRUE), x + 190, y);
                 double[] no = layoutChain(graph, graph.next(node.id, Pin.FALSE), yes[0] + 190, y);
                 maxX = Math.max(maxX, Math.max(yes[0], no[0]));
                 y = Math.max(yes[1], no[1]) + 20;
+            } else if (node.type.isLoop()) {
+                double[] body = layoutChain(graph, graph.next(node.id, Pin.BODY), x + 190, y);
+                maxX = Math.max(maxX, body[0]);
+                y = body[1] + 20;
             }
             node = graph.next(node.id, node.type.continuation());
         }
@@ -374,7 +490,38 @@ public final class BlueprintCompiler {
         throw new IllegalArgumentException("Unsupported trigger type");
     }
 
-    private static Type typeOf(SFMLParser.StatementContext statement) {
+    public static Token loopDo(SFMLParser.StatementContext statement) {
+        if (statement.forStatement() instanceof SFMLParser.CountedForContext) {
+            SFMLParser.CountedForContext loop = (SFMLParser.CountedForContext) statement.forStatement();
+            return (loop.DO() != null ? loop.DO() : loop.LBRACE()).getSymbol();
+        }
+        if (statement.forStatement() instanceof SFMLParser.ArrayForContext) {
+            SFMLParser.ArrayForContext loop = (SFMLParser.ArrayForContext) statement.forStatement();
+            return (loop.DO() != null ? loop.DO() : loop.LBRACE()).getSymbol();
+        }
+        if (statement.whileStatement() != null) {
+            SFMLParser.WhileStatementContext loop = statement.whileStatement();
+            return (loop.DO() != null ? loop.DO() : loop.LBRACE()).getSymbol();
+        }
+        throw new IllegalArgumentException("Expected a loop statement");
+    }
+
+    public static SFMLParser.BlockContext loopBlock(SFMLParser.StatementContext statement) {
+        if (statement.forStatement() instanceof SFMLParser.CountedForContext)
+            return ((SFMLParser.CountedForContext) statement.forStatement()).block();
+        if (statement.forStatement() instanceof SFMLParser.ArrayForContext)
+            return ((SFMLParser.ArrayForContext) statement.forStatement()).block();
+        if (statement.whileStatement() != null) return statement.whileStatement()
+            .block();
+        throw new IllegalArgumentException("Expected a loop statement");
+    }
+
+    public static Type typeOf(SFMLParser.StatementContext statement) {
+        if (statement.forStatement() instanceof SFMLParser.CountedForContext) return Type.FOR;
+        if (statement.forStatement() instanceof SFMLParser.ArrayForContext) return Type.FOREACH;
+        if (statement.whileStatement() != null) return Type.WHILE;
+        if (statement.dataDeclaration() != null) return Type.LET;
+        if (statement.dataAssignment() != null) return Type.SET;
         if (statement.inputStatement() != null) return Type.INPUT;
         if (statement.outputStatement() != null) return Type.OUTPUT;
         if (statement.redstoneOutputStatement() != null) return Type.REDSTONE;
@@ -391,6 +538,61 @@ public final class BlueprintCompiler {
         VisualCapabilityReport report = VisualCapabilityAnalyzer.analyze(result);
         if (!report.isAvailable()) throw new ImportException(report);
         return result.getSyntax();
+    }
+
+    /** Clause edits have no symbol environment. Resolve names only in the final whole-program build. */
+    private static SFMLParser.ProgramContext parseSyntax(String code) {
+        BaseErrorListener errors = new BaseErrorListener() {
+
+            @Override
+            public void syntaxError(Recognizer<?, ?> recognizer, Object symbol, int line, int column, String message,
+                RecognitionException cause) {
+                throw new IllegalArgumentException("Line " + line + ", Col " + column + ": " + message);
+            }
+        };
+        SFMLLexer lexer = new SFMLLexer(CharStreams.fromString(code));
+        lexer.removeErrorListeners();
+        lexer.addErrorListener(errors);
+        CommonTokenStream stream = new CommonTokenStream(lexer);
+        stream.fill();
+        boolean hasData = false;
+        for (Token token : stream.getTokens())
+            if (token.getType() == SFMLLexer.VARIABLE || token.getType() == SFMLLexer.LBRACKET
+                || token.getType() == SFMLLexer.LBRACE) hasData = true;
+        int nesting = 0, unary = 0;
+        for (Token token : stream.getTokens()) {
+            if (token.getChannel() != Token.DEFAULT_CHANNEL) continue;
+            int kind = token.getType();
+            if (kind == SFMLLexer.LPAREN || kind == SFMLLexer.LBRACKET || kind == SFMLLexer.LBRACE) nesting++;
+            if (kind == SFMLLexer.RPAREN || kind == SFMLLexer.RBRACKET || kind == SFMLLexer.RBRACE) nesting--;
+            unary = kind == SFMLLexer.NOT || kind == SFMLLexer.PLUS
+                || kind == SFMLLexer.DASH
+                || kind == SFMLLexer.BIT_NOT ? unary + 1 : 0;
+            if (nesting > 128 || unary > 128) throw new IllegalArgumentException("Program nesting exceeds 128");
+            if (hasData && (nesting > StudioExpressionSyntax.MAX_DEPTH || unary > StudioExpressionSyntax.MAX_DEPTH))
+                throw new IllegalArgumentException("Data expression nesting exceeds 32");
+        }
+        SFMLParser parser = new SFMLParser(stream);
+        parser.removeErrorListeners();
+        parser.addErrorListener(errors);
+        parser.setErrorHandler(new BailErrorStrategy());
+        try {
+            SFMLParser.ProgramContext tree = parser.program();
+            validateExpressionSyntax(tree, stream);
+            return tree;
+        } catch (org.antlr.v4.runtime.misc.ParseCancellationException invalid) {
+            throw new IllegalArgumentException("Enter one complete SFML clause", invalid);
+        } catch (StackOverflowError invalid) {
+            throw new IllegalArgumentException("Clause is too complex; use Text", invalid);
+        }
+    }
+
+    private static void validateExpressionSyntax(org.antlr.v4.runtime.tree.ParseTree tree, CommonTokenStream stream) {
+        if (tree instanceof SFMLParser.DataExpressionContext) {
+            StudioExpressionSyntax.expression(fragment(stream, (ParserRuleContext) tree));
+            return;
+        }
+        for (int i = 0; i < tree.getChildCount(); i++) validateExpressionSyntax(tree.getChild(i), stream);
     }
 
     static CommonTokenStream tokens(String code) {
@@ -477,26 +679,41 @@ public final class BlueprintCompiler {
                         .getTokenIndex(),
                     SFMLLexer.END);
             }
-        } else if (tree instanceof SFMLParser.IfStatementContext) {
-            SFMLParser.IfStatementContext branch = (SFMLParser.IfStatementContext) tree;
-            if (!branch.LBRACE()
-                .isEmpty())
-                for (int i = 0; i < branch.block()
-                    .size(); i++) {
+        } else if (tree instanceof SFMLParser.StatementContext
+            && (((SFMLParser.StatementContext) tree).forStatement() != null
+                || ((SFMLParser.StatementContext) tree).whileStatement() != null)) {
+                    SFMLParser.StatementContext statement = (SFMLParser.StatementContext) tree;
+                    Token open = loopDo(statement);
+                    if (open.getType() == SFMLLexer.LBRACE) {
+                        replacements.put(open.getTokenIndex(), SFMLLexer.DO);
+                        ParserRuleContext loop = statement.forStatement() != null ? statement.forStatement()
+                            : statement.whileStatement();
                         replacements.put(
-                            branch.LBRACE(i)
-                                .getSymbol()
+                            loop.getStop()
                                 .getTokenIndex(),
-                            i < branch.boolexpr()
-                                .size() ? SFMLLexer.THEN : -2);
-                        replacements.put(
-                            branch.RBRACE(i)
-                                .getSymbol()
-                                .getTokenIndex(),
-                            i == branch.block()
-                                .size() - 1 ? SFMLLexer.END : -2);
+                            SFMLLexer.END);
                     }
-        }
+                } else
+            if (tree instanceof SFMLParser.IfStatementContext) {
+                SFMLParser.IfStatementContext branch = (SFMLParser.IfStatementContext) tree;
+                if (!branch.LBRACE()
+                    .isEmpty())
+                    for (int i = 0; i < branch.block()
+                        .size(); i++) {
+                            replacements.put(
+                                branch.LBRACE(i)
+                                    .getSymbol()
+                                    .getTokenIndex(),
+                                i < branch.boolexpr()
+                                    .size() ? SFMLLexer.THEN : -2);
+                            replacements.put(
+                                branch.RBRACE(i)
+                                    .getSymbol()
+                                    .getTokenIndex(),
+                                i == branch.block()
+                                    .size() - 1 ? SFMLLexer.END : -2);
+                        }
+            }
         for (int i = 0; i < tree.getChildCount(); i++) normalizeBlocks(tree.getChild(i), replacements);
     }
 }

@@ -147,11 +147,11 @@ class BlueprintActionNodesTest {
     }
 
     @Test
-    void fieldsRejectInjectionCommentsTypeErrorsOverflowAndUndefinedVariablesAtomically() {
+    void fieldsRejectInjectionCommentsLiteralTypeErrorsAndOverflowWhileProgramOwnsScope() {
         String transfer = "TRANSFER(LABEL(\"s\"), LABEL(\"d\"), ITEM(\"*\"), 1)";
         for (String bad : new String[] { "", "LABEL(\"s\"), LABEL(\"extra\")", "LABEL(\"s\")) PRINT(1)",
             "LABEL(\"s\") -- hide", "LABEL(\"s\")\nPRINT(1)", "LABEL(\"s\")\rPRINT(1)", "LABEL(\"s\")\0",
-            "LABEL(\"unterminated)", "1", "$undefined", "LABEL(\"s\") @" })
+            "LABEL(\"unterminated)", "1", "LABEL(\"s\") @" })
             assertThrows(
                 IllegalArgumentException.class,
                 () -> StudioNodeProperties.update(Type.TRANSFER, transfer, "source", bad),
@@ -165,11 +165,22 @@ class BlueprintActionNodesTest {
             IllegalArgumentException.class,
             () -> StudioNodeProperties.update(Type.TRANSFER, transfer, "resource", "LABEL(\"s\")"));
         String print = "PRINT(\"kept\", 1)";
-        for (String bad : new String[] { "1,2", "1) TRANSFER(LABEL(\"s\"),LABEL(\"d\")) PRINT(1", "1 -- hide", "$bad" })
+        for (String bad : new String[] { "1,2", "1) TRANSFER(LABEL(\"s\"),LABEL(\"d\")) PRINT(1", "1 -- hide" })
             assertThrows(
                 IllegalArgumentException.class,
                 () -> StudioNodeProperties.update(Type.PRINT, print, "expression0", bad),
                 bad);
+        String variableTransfer = StudioNodeProperties.update(Type.TRANSFER, transfer, "source", "$undefined");
+        String variablePrint = StudioNodeProperties.update(Type.PRINT, print, "expression0", "$bad");
+        for (String clause : new String[] { variableTransfer, variablePrint }) assertFalse(
+            new ProgramBuilder("EVERY 20 TICKS DO " + clause + " END").build()
+                .isSuccess(),
+            "Undefined variables must still fail the complete program: " + clause);
+        compiled(
+            "EVERY 20 TICKS DO LET $undefined = LABEL(\"s\") LET $bad = 1 " + variableTransfer
+                + " "
+                + variablePrint
+                + " END");
         StudioDocument document = new StudioDocument();
         document.load("EVERY 20 TICKS DO " + transfer + " END");
         document.openVisual();
@@ -200,22 +211,31 @@ class BlueprintActionNodesTest {
     }
 
     @Test
-    void unsupportedEnclosingAndSiblingConstructsKeepTheWholeOriginalSource() {
+    void scopedValuesLoopsAndBuiltinsRoundTripAroundActionNodes() {
         String transfer = "TRANSFER(LABEL(\"source\"), LABEL(\"dest\"))";
         String[] sources = { "STATE $x = 1 EVERY 20 TICKS DO " + transfer + " PRINT($x) END",
             "EVERY 20 TICKS DO " + transfer + " LET $x = 1 PRINT($x) END",
             "EVERY 20 TICKS DO FOR $x = 0 TO 2 DO " + transfer + " PRINT($x) END END",
             "EVERY 20 TICKS DO WHILE FALSE DO " + transfer + " PRINT(1) END END",
             "EVERY 20 TICKS DO " + transfer + " IF (1 > 0) THEN INPUT (1 + 2) FROM \"source\" END END",
-            "EVERY 20 TICKS DO IF TRUE THEN " + transfer + " ELSE IF FALSE THEN PRINT(1) END END",
-            "EVERY 20 TICKS DO " + transfer + " INTO $result PRINT($result.moved) END",
             "EVERY 20 TICKS DO " + transfer + " PRINT(LEN([1,2])) END",
-            "FUNCTION echo($n: INTEGER) RETURNS INTEGER DO RETURN $n END EVERY 20 TICKS DO " + transfer
-                + " PRINT(echo(1)) END",
-            // Slice21 supports the named wrapper; a local declaration must still block its whole import.
             "EVERY REDSTONE RISING FROM \"signal\" DO " + transfer + " LET $x = 1 PRINT($x) END",
             "STATE $x = 1 EVERY 20 TICKS DO " + transfer + " SET $x = 2 PRINT($x) END",
+            "LET $x = 1 EVERY 20 TICKS DO " + transfer + " PRINT($x) END",
             "EVERY 20 TICKS DO FOR $x IN [1,2] DO " + transfer + " PRINT($x) END END" };
+        for (String source : sources) supported(source);
+    }
+
+    @Test
+    void unsupportedEnclosingAndSiblingConstructsKeepTheWholeOriginalSource() {
+        String transfer = "TRANSFER(LABEL(\"source\"), LABEL(\"dest\"))";
+        String[] sources = { "STATE $x = 1 EVERY 20 TICKS DO " + transfer + " WAIT 1 PRINT($x) END",
+            "EVERY 20 TICKS DO " + transfer + " SETCIRCUIT(LABEL(\"source\"),1) END",
+            "EVERY 20 TICKS DO IF TRUE THEN " + transfer + " ELSE IF FALSE THEN PRINT(1) END END",
+            "EVERY 20 TICKS DO " + transfer + " INTO $result PRINT($result.moved) END",
+            "FUNCTION echo($n: INTEGER) RETURNS INTEGER DO RETURN $n END EVERY 20 TICKS DO " + transfer
+                + " PRINT(echo(1)) END",
+            "EVERY REDSTONE RISING FROM \"signal\" DO " + transfer + " LET $x = 1 WAIT 1 PRINT($x) END" };
         for (String source : sources) {
             compiled(source);
             BlueprintCompiler.ImportResult result = BlueprintCompiler.inspectText(source);
@@ -229,25 +249,25 @@ class BlueprintActionNodesTest {
             assertNull(document.graph());
         }
         assertTrue(
+            BlueprintCompiler.inspectText(sources[0]).report.getBlockers()
+                .stream()
+                .anyMatch(blocker -> blocker.kind == Kind.WAIT_STATEMENT));
+        assertTrue(
+            BlueprintCompiler.inspectText(sources[1]).report.getBlockers()
+                .stream()
+                .anyMatch(blocker -> blocker.kind == Kind.CIRCUIT_STATEMENT));
+        assertTrue(
             BlueprintCompiler.inspectText(sources[4]).report.getBlockers()
-                .stream()
-                .anyMatch(blocker -> blocker.kind == Kind.DATA_EXPRESSION));
-        assertTrue(
-            BlueprintCompiler.inspectText(sources[7]).report.getBlockers()
-                .stream()
-                .anyMatch(blocker -> blocker.kind == Kind.FUNCTION_CALL));
-        assertTrue(
-            BlueprintCompiler.inspectText(sources[8]).report.getBlockers()
                 .stream()
                 .anyMatch(blocker -> blocker.kind == Kind.FUNCTION_DEFINITION));
         assertTrue(
-            BlueprintCompiler.inspectText(sources[9]).report.getBlockers()
+            BlueprintCompiler.inspectText(sources[2]).report.getBlockers()
                 .stream()
-                .anyMatch(blocker -> blocker.kind == Kind.LOCAL_DECLARATION));
+                .anyMatch(blocker -> blocker.kind == Kind.ELSE_IF));
         assertTrue(
-            BlueprintCompiler.inspectText(sources[10]).report.getBlockers()
+            BlueprintCompiler.inspectText(sources[3]).report.getBlockers()
                 .stream()
-                .anyMatch(blocker -> blocker.kind == Kind.ASSIGNMENT));
+                .anyMatch(blocker -> blocker.kind == Kind.TRANSFER_STATEMENT));
     }
 
     @Test

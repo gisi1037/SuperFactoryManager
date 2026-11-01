@@ -197,11 +197,16 @@ class StudioNamedRedstoneTest {
 
     @Test
     void supportedWrapperDoesNotHideUnsupportedBodiesAndNeverExposesPartialGraphs() {
-        String[] bodies = { "LET $x = 1 PRINT($x)", "TRANSFER(LABEL(\"source\"),LABEL(\"dest\")) INTO $result",
-            "FOR $i = 1 TO 2 DO PRINT($i) END", "WHILE FALSE DO FORGET END",
-            "IF TRUE THEN FORGET ELSE IF FALSE THEN FORGET END", "PRINT(LEN([1,2]))" };
-        Kind[] kinds = { Kind.LOCAL_DECLARATION, Kind.TRANSFER_STATEMENT, Kind.LOOP_STATEMENT, Kind.LOOP_STATEMENT,
-            Kind.ELSE_IF, Kind.FUNCTION_CALL };
+        for (String supported : new String[] { "LET $x = 1 PRINT($x)", "FOR $i = 1 TO 2 DO PRINT($i) END",
+            "WHILE FALSE DO FORGET END", "PRINT(LEN([1,2]))" }) {
+            String source = body(HEADER, supported);
+            BlueprintGraph graph = BlueprintCompiler.importText(source);
+            build(BlueprintCompiler.generate(graph));
+        }
+        String[] bodies = { "LET $x = 1 WAIT 1 PRINT($x)", "TRANSFER(LABEL(\"source\"),LABEL(\"dest\")) INTO $result",
+            "FOR $i = 1 TO 2 DO SETCIRCUIT(LABEL(\"source\"),1) END",
+            "IF TRUE THEN FORGET ELSE IF FALSE THEN FORGET END" };
+        Kind[] kinds = { Kind.WAIT_STATEMENT, Kind.TRANSFER_STATEMENT, Kind.CIRCUIT_STATEMENT, Kind.ELSE_IF };
         for (int i = 0; i < bodies.length; i++) {
             String source = body(HEADER, bodies[i]);
             build(source);

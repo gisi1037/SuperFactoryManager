@@ -55,7 +55,7 @@ public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSe
     private SfmlHighlighter.Highlighted highlighted = SfmlHighlighter.highlight("");
     private boolean valid, showPreview, dirty, editingName, dragging, dragCheckpoint, panning;
     private double panX = 24, panY = 16, zoom = 1;
-    private int lastX, lastY, previewOffset;
+    private int lastX, lastY, previewOffset, nodePage;
     private boolean firstLayout = true;
 
     public GuiBlueprintEditor(TileEntityManager manager, GuiScreen parent) {
@@ -112,8 +112,8 @@ public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSe
         add(4, 214, 6, 34, "Fit");
         add(5, 250, 6, 32, "Undo");
         add(6, 284, 6, 30, "Copy");
-        for (int i = 0; i < Type.values().length; i++)
-            add(10 + i, 6 + (i % 5) * 61, 28 + (i / 5) * 21, 57, Type.values()[i].menuTitle());
+        nodeButtons();
+        add(9, 189, 49, 57, "Nodes >");
         add(7, 250, 49, 64, "Name");
         String old = field == null ? "" : field.getText();
         field = new GuiTextField(fontRendererObj, 8, height - 47, width - 89, 16);
@@ -125,6 +125,15 @@ public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSe
             firstLayout = false;
         }
         updateButtons();
+    }
+
+    private void nodeButtons() {
+        for (int i = buttonList.size() - 1; i >= 0; i--)
+            if (((GuiButton) buttonList.get(i)).id >= 10) buttonList.remove(i);
+        for (int i = 0; i < 8 && nodePage * 8 + i < Type.values().length; i++) {
+            int index = nodePage * 8 + i;
+            add(10 + index, 6 + (i % 5) * 61, 28 + (i / 5) * 21, 57, Type.values()[index].menuTitle());
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -244,6 +253,10 @@ public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSe
                     status = "Program header: NAME \"Program name\" (or leave empty)";
                     updateButtons();
                     break;
+                case 9:
+                    nodePage = (nodePage + 1) % ((Type.values().length + 7) / 8);
+                    nodeButtons();
+                    break;
                 case 8:
                     applyField();
                     break;
@@ -252,8 +265,8 @@ public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSe
                         checkpoint();
                         Type type = Type.values()[button.id - 10];
                         Node previous = graph.node(selected);
-                        double x = previous != null && !type.isTrigger() ? previous.x() : (width / 2.0 - panX) / zoom;
-                        double y = previous != null && !type.isTrigger() ? previous.y() + nodeHeight(previous) + 32
+                        double x = previous != null && !type.isRoot() ? previous.x() : (width / 2.0 - panX) / zoom;
+                        double y = previous != null && !type.isRoot() ? previous.y() + nodeHeight(previous) + 32
                             : ((bottom() - CANVAS_TOP) / 2.0 - panY) / zoom;
                         x = Math.max(-999000, Math.min(999000, x));
                         y = Math.max(-999000, Math.min(999000, y));
@@ -261,7 +274,8 @@ public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSe
                         Node node = new Node(type, x, y);
                         // Append to a selected continuation when it is empty; otherwise place an unwired node.
                         graph.add(node);
-                        if (previous != null && !type.isTrigger()
+                        if (previous != null && !type.isRoot()
+                            && previous.type.hasPin(previous.type.continuation())
                             && graph.next(previous.id, previous.type.continuation()) == null)
                             graph.connect(previous.id, previous.type.continuation(), node.id);
                         select(node);
@@ -384,11 +398,12 @@ public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSe
     }
 
     private int nodeHeight(Node node) {
-        return node.type == Type.IF ? 88 : 48;
+        return node.type == Type.IF ? 88 : node.type.isLoop() ? 72 : 48;
     }
 
     private int pinY(Node node, Pin pin) {
-        return node.type == Type.IF ? 28 + (pin.ordinal() - 1) * 24 : 28;
+        return node.type.isLoop() ? (pin == Pin.BODY ? 28 : 52)
+            : node.type == Type.IF ? 28 + (pin.ordinal() - 1) * 24 : 28;
     }
 
     @Override
@@ -425,7 +440,7 @@ public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSe
                     }
                     return;
                 }
-            if (!node.type.isTrigger() && Math.abs(wx - node.x()) <= 7 && Math.abs(wy - node.y() - 28) <= 7) {
+            if (!node.type.isRoot() && Math.abs(wx - node.x()) <= 7 && Math.abs(wy - node.y() - 28) <= 7) {
                 if (button == 1) {
                     checkpoint();
                     graph.disconnectInput(node.id);
@@ -609,11 +624,12 @@ public final class GuiBlueprintEditor extends GuiScreen implements ProgramEditSe
             x + 6,
             y + 24,
             0xffdddddd);
-        if (!node.type.isTrigger()) drawRect(x - 4, y + 24, x + 4, y + 32, 0xffc6c9ca);
+        if (!node.type.isRoot()) drawRect(x - 4, y + 24, x + 4, y + 32, 0xffc6c9ca);
         for (Pin pin : Pin.values()) if (node.type.hasPin(pin)) {
             int py = y + pinY(node, pin);
             drawRect(x + NODE_W - 4, py - 4, x + NODE_W + 4, py + 4, pin == Pin.FALSE ? 0xffb87d73 : 0xffa0bb91);
-            if (node.type == Type.IF) fontRendererObj.drawString(pin.label(), x + NODE_W - 36, py - 3, 0xffdddddd);
+            if (node.type == Type.IF || node.type.isLoop())
+                fontRendererObj.drawString(pin.label(), x + NODE_W - 36, py - 3, 0xffdddddd);
         }
     }
 

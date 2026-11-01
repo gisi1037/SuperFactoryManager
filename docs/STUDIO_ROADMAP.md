@@ -6,6 +6,16 @@ preserve their source and explain why they require Code.
 
 ## Available now
 
+- Visual supports program/local LET, STATE, assignment, counted FOR, array FOR
+  and WHILE, including scoped expressions and known built-ins. Loop BODY/AFTER
+  roles remain acyclic; declarations are separate ordered roots. Full source
+  compilation retains scope/type authority and invalid edits keep safe source.
+- Problems uses wrapped, selectable issue cards with locations and source
+  excerpts. Automatic inline suggestions are debounced, optional to accept with
+  Tab, and dismissible with Esc; explicit Ctrl+Space remains available.
+- Older graph palettes page their expanded node lists without overlapping the
+  canvas. Loop body and declaration identities participate in layout/navigation.
+
 - Published build source can be restored to the current local draft through
   Build revisions. Restoration preserves the saved project baseline, guards
   unsaved work and late replies, and creates one undoable text edit. Save/check/

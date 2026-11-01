@@ -35,7 +35,7 @@ public final class BlueprintLayoutMatcher {
     public static Result match(BlueprintGraph previous, BlueprintGraph current) {
         Snapshot old = new Snapshot(previous), next = new Snapshot(current);
         Matching matching = new Matching(old, next);
-        matching.sequence(previous.triggers(), current.triggers());
+        matching.sequence(previous.roots(), current.roots());
         return matching.rebuild();
     }
 
@@ -46,10 +46,10 @@ public final class BlueprintLayoutMatcher {
     public static Result matchExact(BlueprintGraph previous, BlueprintGraph current) {
         Snapshot old = new Snapshot(previous), next = new Snapshot(current);
         Matching matching = new Matching(old, next);
-        if (!matching.exactSequence(previous.triggers(), current.triggers())) {
+        if (!matching.exactSequence(previous.roots(), current.roots())) {
             matching.matches.clear();
             matching.usedOld.clear();
-            matching.sequence(previous.triggers(), current.triggers());
+            matching.sequence(previous.roots(), current.roots());
         }
         return matching.rebuild();
     }
@@ -91,7 +91,7 @@ public final class BlueprintLayoutMatcher {
             for (Token token : lexer.getAllTokens()) {
                 if (token.getChannel() != Token.DEFAULT_CHANNEL) continue;
                 int type = token.getType();
-                boolean atom = type == SFMLLexer.IDENTIFIER || type == SFMLLexer.STRING;
+                boolean atom = type == SFMLLexer.IDENTIFIER || type == SFMLLexer.VARIABLE || type == SFMLLexer.STRING;
                 boolean number = type == SFMLLexer.NUMBER || type == SFMLLexer.NUMBER_WITH_G_SUFFIX;
                 boolean bool = type == SFMLLexer.TRUE || type == SFMLLexer.FALSE;
                 exact.append('|')
@@ -123,7 +123,7 @@ public final class BlueprintLayoutMatcher {
                 throw new IllegalArgumentException("Missing or oversized layout graph");
             this.graph = graph;
             Set<UUID> seen = new HashSet<>();
-            for (Node trigger : graph.triggers()) {
+            for (Node trigger : graph.roots()) {
                 if (!seen.add(trigger.id)) throw new IllegalArgumentException("Repeated trigger");
                 validateChain(graph.next(trigger.id, Pin.NEXT), 1, seen);
             }
@@ -136,12 +136,13 @@ public final class BlueprintLayoutMatcher {
             if (first != null && depth > BlueprintGraph.MAX_DEPTH)
                 throw new IllegalArgumentException("Layout graph exceeds nesting limit");
             for (Node node = first; node != null; node = graph.next(node.id, node.type.continuation())) {
-                if (node.type.isTrigger() || !seen.add(node.id))
+                if (node.type.isRoot() || !seen.add(node.id))
                     throw new IllegalArgumentException("Invalid or repeated control-flow node");
                 if (node.type == BlueprintGraph.Type.IF) {
                     validateChain(graph.next(node.id, Pin.TRUE), depth + 1, seen);
                     validateChain(graph.next(node.id, Pin.FALSE), depth + 1, seen);
                 }
+                if (node.type.isLoop()) validateChain(graph.next(node.id, Pin.BODY), depth + 1, seen);
             }
         }
 
@@ -164,6 +165,10 @@ public final class BlueprintLayoutMatcher {
                     updateChain(digest, graph.next(node.id, Pin.TRUE));
                     update(digest, "false");
                     updateChain(digest, graph.next(node.id, Pin.FALSE));
+                }
+                if (node.type.isLoop()) {
+                    update(digest, "body");
+                    updateChain(digest, graph.next(node.id, Pin.BODY));
                 }
                 StringBuilder hex = new StringBuilder();
                 for (byte value : digest.digest()) hex.append(Character.forDigit((value >>> 4) & 15, 16))
@@ -210,6 +215,9 @@ public final class BlueprintLayoutMatcher {
                         old.chain(old.graph.next(previous.id, Pin.FALSE)),
                         next.chain(next.graph.next(current.id, Pin.FALSE)))) return false;
                 }
+                if (current.type.isLoop() && !exactSequence(
+                    old.chain(old.graph.next(previous.id, Pin.BODY)),
+                    next.chain(next.graph.next(current.id, Pin.BODY)))) return false;
             }
             return true;
         }
@@ -250,6 +258,9 @@ public final class BlueprintLayoutMatcher {
                         old.chain(old.graph.next(previous.id, Pin.FALSE)),
                         next.chain(next.graph.next(node.id, Pin.FALSE)));
                 }
+                if (node.type.isLoop()) sequence(
+                    old.chain(old.graph.next(previous.id, Pin.BODY)),
+                    next.chain(next.graph.next(node.id, Pin.BODY)));
             }
         }
 

@@ -45,7 +45,8 @@ an execution disk or digest alone does not grant access.
 ## Code, Visual and Split
 
 **Code** supports the complete current language. **Visual** edits the supported
-Timer, Pulse, Input, Output, If, Forget and Redstone output nodes. **Split** shows
+Timer, Pulse, Port edge, Input, Output, If, Forget, Redstone output, Transfer,
+Print, variable/state declarations, assignments and counted/array/while loops. **Split** shows
 both surfaces when the GUI has at least 640 logical pixels of width. Drag the
 divider to change their balance. The full-width **Insert** bar sits above the
 Projects column and the Visual/Split/Code buttons. It opens the searchable

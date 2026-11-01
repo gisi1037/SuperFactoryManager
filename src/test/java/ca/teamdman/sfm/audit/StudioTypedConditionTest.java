@@ -15,6 +15,7 @@ import ca.teamdman.sfm.client.blueprint.BlueprintCompiler;
 import ca.teamdman.sfm.client.blueprint.BlueprintDocument;
 import ca.teamdman.sfm.client.blueprint.BlueprintGraph;
 import ca.teamdman.sfm.client.blueprint.BlueprintGraph.Node;
+import ca.teamdman.sfm.client.blueprint.BlueprintGraph.Pin;
 import ca.teamdman.sfm.client.blueprint.BlueprintGraph.Type;
 import ca.teamdman.sfm.client.blueprint.StudioConditionSyntax;
 import ca.teamdman.sfm.client.blueprint.StudioDocument;
@@ -55,7 +56,7 @@ class StudioTypedConditionTest {
     }
 
     @Test
-    void allThreePredicateFormsImportWithoutNewTypesPinsOrLayoutFormat() {
+    void allThreePredicateFormsImportWithBranchPinsAndStableLayoutFormat() {
         for (String predicate : Arrays.asList(
             QUERY,
             "\"source\" HAS >= (2 + 3) item:minecraft:iron_ingot",
@@ -77,7 +78,15 @@ class StudioTypedConditionTest {
             assertTrue(restored.restoredLayout);
             assertEquals(conditions(graph).get(0).id, conditions(restored.graph).get(0).id);
         }
-        assertEquals(10, Type.values().length);
+        assertTrue(Type.IF.hasPin(Pin.TRUE));
+        assertTrue(Type.IF.hasPin(Pin.FALSE));
+        assertEquals(Pin.AFTER, Type.IF.continuation());
+        assertFalse(Type.IF.isLoop());
+        for (Type loop : Arrays.asList(Type.FOR, Type.FOREACH, Type.WHILE)) {
+            assertTrue(loop.isLoop());
+            assertTrue(loop.hasPin(Pin.BODY));
+            assertEquals(Pin.AFTER, loop.continuation());
+        }
     }
 
     @Test
@@ -146,22 +155,30 @@ class StudioTypedConditionTest {
             "(\"yes\")",
             "\"source\" HAS > (TRUE)",
             "REDSTONE > (\"1\")",
-            "(LEN([1]) = 1)",
             "(LABEL(\"source\").noSuchMethod())"))
             assertThrows(
                 IllegalArgumentException.class,
                 () -> BlueprintCompiler.validateClause(Type.IF, predicate),
                 predicate);
+        BlueprintCompiler.validateClause(Type.IF, "(LEN([1]) = 1)");
     }
 
     @Test
-    void newTypedPredicateDoesNotGrantDataCapabilityToBodiesOrOtherStatements() {
+    void typedPredicatesAndScopedDataBodiesImportWhileUnsupportedStatementsPreserveText() {
         for (String statement : Arrays.asList(
             "LET $x = 1",
             "INPUT (1+2) FROM \"source\"",
             "OUTPUT (1+2) TO \"dest\"",
             "FOR $x IN [1] DO PRINT($x) END",
-            "WHILE FALSE DO FORGET END",
+            "WHILE FALSE DO FORGET END")) {
+            String source = "EVERY 20 TICKS DO IF " + QUERY + " THEN " + statement + " END END";
+            compiled(source);
+            BlueprintGraph graph = BlueprintCompiler.importText(source);
+            compiled(BlueprintCompiler.generate(graph));
+        }
+        for (String statement : Arrays.asList(
+            "WAIT 1",
+            "SETCIRCUIT(LABEL(\"source\"),1)",
             "TRANSFER(LABEL(\"source\"),LABEL(\"dest\")) INTO $m")) {
             String source = "EVERY 20 TICKS DO IF " + QUERY + " THEN " + statement + " END END";
             compiled(source);
@@ -172,10 +189,7 @@ class StudioTypedConditionTest {
             assertNull(document.graph());
         }
         String scoped = "STATE $x = TRUE EVERY 20 TICKS DO IF ($x) THEN PRINT(1) END END";
-        assertTrue(
-            BlueprintCompiler.inspectText(scoped).report.getBlockers()
-                .stream()
-                .anyMatch(b -> b.kind == Kind.DATA_EXPRESSION));
+        compiled(BlueprintCompiler.generate(BlueprintCompiler.importText(scoped)));
         String player = "FUNCTION test() RETURNS BOOLEAN DO RETURN TRUE END EVERY 20 TICKS DO IF (test()) THEN END END";
         assertTrue(
             BlueprintCompiler.inspectText(player).report.getBlockers()

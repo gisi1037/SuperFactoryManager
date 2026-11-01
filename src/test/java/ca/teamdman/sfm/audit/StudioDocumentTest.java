@@ -25,7 +25,7 @@ class StudioDocumentTest {
     @Test
     void unsupportedValidAndInvalidCodeCannotBeReplacedWithAPartialVisualGraph() {
         for (String source : new String[] {
-            "let $counter = 0\nevery 20 ticks do $counter = $counter + 1 print($counter) end",
+            "let $counter = 0\nevery 20 ticks do $counter = $counter + 1 wait 1 print($counter) end",
             "every 20 ticks do input from" }) {
             StudioDocument document = new StudioDocument();
             document.load(source);

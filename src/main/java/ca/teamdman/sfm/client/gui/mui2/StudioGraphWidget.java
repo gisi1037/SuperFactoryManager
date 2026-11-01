@@ -136,13 +136,14 @@ public final class StudioGraphWidget extends Widget<StudioGraphWidget> implement
             Node previous = selected();
             double x = previous == null ? worldX(getArea().width / 2) - NODE_W / 2d : previous.x();
             double y = previous == null ? worldY(getArea().height / 2) - 24 : previous.y() + height(previous) + 40;
-            if (type.isTrigger() && previous != null) x += NODE_W + 48;
+            if (type.isRoot() && previous != null) x += NODE_W + 48;
             // Keep successive additions visible rather than stacking nodes at the same point.
             while (occupied(x, y)) y += 112;
             Node node = new Node(type, clamp(x), clamp(y));
             document.editGraph(graph -> {
                 graph.add(node);
-                if (previous != null && !type.isTrigger()
+                if (previous != null && !type.isRoot()
+                    && previous.type.hasPin(previous.type.continuation())
                     && graph.next(previous.id, previous.type.continuation()) == null)
                     graph.connect(previous.id, previous.type.continuation(), node.id);
             });
@@ -273,11 +274,11 @@ public final class StudioGraphWidget extends Widget<StudioGraphWidget> implement
             x + 6,
             y + 24,
             0xffdddddd);
-        if (!node.type.isTrigger()) pin(x, y + 28, 0xffc6c9ca);
+        if (!node.type.isRoot()) pin(x, y + 28, 0xffc6c9ca);
         for (Pin output : Pin.values()) if (node.type.hasPin(output)) {
             int py = y + pinY(node, output);
             pin(x + NODE_W, py, output == Pin.FALSE ? 0xffc4787d : 0xffa8bbb0);
-            if (node.type == Type.IF)
+            if (node.type == Type.IF || node.type.isLoop())
                 Minecraft.getMinecraft().fontRenderer.drawString(output.label(), x + NODE_W - 36, py - 3, 0xffdddddd);
         }
     }
@@ -311,11 +312,12 @@ public final class StudioGraphWidget extends Widget<StudioGraphWidget> implement
     }
 
     private static int height(Node node) {
-        return node.type == Type.IF ? 88 : 48;
+        return node.type == Type.IF ? 88 : node.type.isLoop() ? 72 : 48;
     }
 
     private static int pinY(Node node, Pin pin) {
-        return node.type == Type.IF ? 28 + (pin.ordinal() - 1) * 24 : 28;
+        return node.type.isLoop() ? (pin == Pin.BODY ? 28 : 52)
+            : node.type == Type.IF ? 28 + (pin.ordinal() - 1) * 24 : 28;
     }
 
     private double worldX(int x) {
@@ -363,7 +365,7 @@ public final class StudioGraphWidget extends Widget<StudioGraphWidget> implement
                         }
                         return Result.SUCCESS;
                     }
-                if (!node.type.isTrigger() && Math.abs(wx - node.x()) <= 8 && Math.abs(wy - node.y() - 28) <= 8) {
+                if (!node.type.isRoot() && Math.abs(wx - node.x()) <= 8 && Math.abs(wy - node.y() - 28) <= 8) {
                     if (button == 1) {
                         document.editGraph(graph -> graph.disconnectInput(node.id));
                         changed.run();

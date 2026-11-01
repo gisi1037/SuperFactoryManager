@@ -49,7 +49,8 @@ client-session memory, not a permanent source backup.
 ## Visual workflow
 
 The palette includes Timer, Pulse, Port edge, Input, Output, If, Forget, Signal,
-Transfer and Print. The Studio list scrolls above its fixed footer. IO node
+Transfer, Print, Program value, Persistent state, Local value, Set value,
+Counted loop, Array loop and While loop. The Studio list scrolls above its fixed footer. IO node
 fields contain ordinary SFML clauses; specialized forms for every modifier are
 not available.
 
@@ -303,3 +304,20 @@ Apply/Cancel pending fields or Apply/Reset a raw clause first. Incomplete graphs
 unsupported code, active gestures/wires and project requests refuse navigation.
 
 Next: [Programming Station projects](/start/station.md), or [program structure](/automation/scheduling.md).
+
+
+## Variables and loops
+
+Program value (LET) and Persistent state (STATE) are standalone roots without
+wires. Local value and Set value follow execution connections. Use Fields to
+edit names and expressions; the complete program checks their types and scope.
+
+Loop cards have BODY and AFTER pins. Put repeated steps on BODY, and subsequent
+steps on AFTER. Repetition is implicit; do not draw a back edge. Counted loops
+use inclusive bounds, array loops capture a sequence, and while loops recheck
+the condition. Normal runtime work limits and read-only loop variables apply.
+
+Studio's Problems list wraps each issue and shows its location and source
+excerpt. Click to jump, or focus the list and use arrows/Enter. Gray inline
+completions appear after a typing pause when possible; Tab accepts and Esc
+dismisses. Explicit Ctrl+Space remains available.

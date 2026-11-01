@@ -8,6 +8,7 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 
+import ca.teamdman.sfm.client.blueprint.BlueprintCompiler;
 import ca.teamdman.sfm.common.program.ProgramContext;
 import ca.teamdman.sfml.ast.Block;
 import ca.teamdman.sfml.ast.CountedForStatement;
@@ -253,7 +254,7 @@ class SfmlLoopTest {
     }
 
     @Test
-    void keywordsRemainLegacyIdentifiersAndLoopsRoundTripWithVisualBlocker() {
+    void keywordsRemainLegacyIdentifiersAndLoopsRoundTripThroughVisual() {
         Program legacy = program("EVERY 20 TICKS DO INPUT for FROM \"while\" OUTPUT step TO \"for\" END");
         assertFalse(legacy.hasDataFeatures());
         Program original = program(
@@ -266,11 +267,11 @@ class SfmlLoopTest {
         assertEquals(16, state.number(0));
         ProgramBuildResult result = new ProgramBuilder("EVERY 20 TICKS DO WHILE FALSE DO END END").buildWithSyntax();
         VisualCapabilityReport report = VisualCapabilityAnalyzer.analyze(result);
-        assertFalse(report.isAvailable());
-        assertEquals(
-            VisualCapabilityReport.Kind.LOOP_STATEMENT,
-            report.getBlockers()
-                .get(0).kind);
+        assertTrue(report.isAvailable(), report.getMessage());
+        Program visual = program(BlueprintCompiler.generate(BlueprintCompiler.importText(original.toString())));
+        MemoryState visualState = new MemoryState(visual.getStateSchema());
+        visual.tick(context(visualState));
+        assertEquals(16, visualState.number(0));
     }
 
     private static DataExpression recorded(List<String> calls, String name, long value) {

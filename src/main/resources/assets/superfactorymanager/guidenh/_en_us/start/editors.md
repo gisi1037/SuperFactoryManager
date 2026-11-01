@@ -26,11 +26,13 @@ Saving and pressing **Start** are separate steps.
 Open **Program > Visual**. Add a Timer, Input and Output, then connect their
 execution pins in that order. Edit each node's clause and apply it.
 
-A basic route is **Timer → Input → Output**. Every node must connect to a
-trigger before saving. The detailed [Visual instructions](/advanced/editors.md)
+A basic route is **Timer → Input → Output**. Every executable node must connect to a
+trigger before saving; program-wide declarations stand separately. The detailed [Visual instructions](/advanced/editors.md)
 explain pins, node fields and controls.
 
-Variables, loops and other advanced programs may require text.
+Visual also supports variable declarations, assignments and counted/array/while
+loops. Program-wide declarations have no wires; loop BODY repeats, then AFTER
+continues. Player functions, WAIT and other unsupported constructs require text.
 If Visual cannot represent the whole program, it keeps the source intact.
 Transfer and Print steps are also available for simple item routes and messages.
 See the advanced editor page for their supported expression subset.

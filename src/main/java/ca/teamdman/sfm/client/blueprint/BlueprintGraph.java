@@ -30,7 +30,8 @@ public final class BlueprintGraph {
         NEXT,
         TRUE,
         FALSE,
-        AFTER;
+        AFTER,
+        BODY;
 
         public String label() {
             return this == NEXT ? "Next" : name();
@@ -48,7 +49,14 @@ public final class BlueprintGraph {
         REDSTONE("Redstone output", "OUTPUT 15 REDSTONE LEVEL TO \"target\"", 0x9b5656),
         TRANSFER("Transfer", "TRANSFER(LABEL(\"source\"), LABEL(\"destination\"))", 0x568760),
         PRINT("Print", "PRINT(\"Message\")", 0x527b9d),
-        NAMED_REDSTONE("Port edge", "EVERY REDSTONE RISING FROM \"signal\"", 0x9b5656);
+        NAMED_REDSTONE("Port edge", "EVERY REDSTONE RISING FROM \"signal\"", 0x9b5656),
+        FOR("Counted loop", "FOR $i = 1 TO 3", 0x8b719d),
+        FOREACH("Array loop", "FOR $value IN [1, 2, 3]", 0x8b719d),
+        WHILE("While loop", "WHILE FALSE", 0x8b719d),
+        LET("Local value", "LET $value = 0", 0x527b9d),
+        SET("Set value", "SET $value = 1", 0x527b9d),
+        GLOBAL_LET("Program value", "LET $global = 0", 0x527b9d),
+        STATE("Persistent state", "STATE $state = 0", 0x986f46);
 
         public final String title;
         public final String defaultClause;
@@ -64,16 +72,26 @@ public final class BlueprintGraph {
             return this == TIMER || this == PULSE || this == NAMED_REDSTONE;
         }
 
+        public boolean isLoop() {
+            return this == FOR || this == FOREACH || this == WHILE;
+        }
+
+        public boolean isRoot() {
+            return isTrigger() || this == GLOBAL_LET || this == STATE;
+        }
+
         public String menuTitle() {
             return this == REDSTONE ? "Signal" : title;
         }
 
         public Pin continuation() {
-            return this == IF ? Pin.AFTER : Pin.NEXT;
+            return this == IF || isLoop() ? Pin.AFTER : Pin.NEXT;
         }
 
         public boolean hasPin(Pin pin) {
-            return this == IF ? pin != Pin.NEXT : pin == Pin.NEXT;
+            if (this == GLOBAL_LET || this == STATE) return false;
+            if (isLoop()) return pin == Pin.BODY || pin == Pin.AFTER;
+            return this == IF ? pin == Pin.TRUE || pin == Pin.FALSE || pin == Pin.AFTER : pin == Pin.NEXT;
         }
     }
 
@@ -199,8 +217,7 @@ public final class BlueprintGraph {
     public void connect(UUID from, Pin pin, UUID to) {
         Node source = node(from), target = node(to);
         if (source == null || target == null || pin == null) throw new IllegalArgumentException("Missing node or pin");
-        if (!source.type.hasPin(pin) || target.type.isTrigger())
-            throw new IllegalArgumentException("Invalid connection");
+        if (!source.type.hasPin(pin) || target.type.isRoot()) throw new IllegalArgumentException("Invalid connection");
         if (from.equals(to) || reaches(to, from)) throw new IllegalArgumentException("Connections cannot form a loop");
         // Replacement is intentional, but only after validation: a failed connection preserves the old wires.
         disconnect(from, pin);
@@ -235,6 +252,14 @@ public final class BlueprintGraph {
     public List<Node> triggers() {
         List<Node> result = new ArrayList<>();
         for (Node node : nodes.values()) if (node.type.isTrigger()) result.add(node);
+        return result;
+    }
+
+    /** Declarations keep source order and precede triggers even when inserted later in the editor. */
+    public List<Node> roots() {
+        List<Node> result = new ArrayList<>();
+        for (Node node : nodes.values()) if (node.type.isRoot() && !node.type.isTrigger()) result.add(node);
+        result.addAll(triggers());
         return result;
     }
 

@@ -9,9 +9,7 @@ import java.util.regex.Pattern;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
-import org.antlr.v4.runtime.tree.TerminalNode;
 
-import ca.teamdman.langs.SFMLLexer;
 import ca.teamdman.langs.SFMLParser;
 import ca.teamdman.sfml.program_builder.VisualCapabilityReport.Blocker;
 import ca.teamdman.sfml.program_builder.VisualCapabilityReport.Kind;
@@ -65,12 +63,6 @@ public final class VisualCapabilityAnalyzer {
                     (ParserRuleContext) tree));
             return;
         }
-        if (tree instanceof SFMLParser.ForStatementContext || tree instanceof SFMLParser.WhileStatementContext) {
-            blockers.add(
-                at(Kind.LOOP_STATEMENT, "Loop statement currently requires the text editor", (ParserRuleContext) tree));
-            inspectCalls(tree, blockers);
-            return;
-        }
         if (tree instanceof SFMLParser.WaitStatementContext || tree instanceof SFMLParser.CircuitStatementContext) {
             boolean wait = tree instanceof SFMLParser.WaitStatementContext;
             blockers.add(
@@ -82,8 +74,7 @@ public final class VisualCapabilityAnalyzer {
             return;
         }
         if (tree instanceof SFMLParser.TransferStatementContext) {
-            // Expressions belong to this complete action node. Result capture is a declaration,
-            // and stays text-only until scoped data nodes exist. Enclosing blockers still win.
+            // Result capture remains separate from ordinary scoped declaration and assignment nodes.
             if (((SFMLParser.TransferStatementContext) tree).INTO() != null) blockers.add(
                 at(
                     Kind.TRANSFER_STATEMENT,
@@ -93,21 +84,7 @@ public final class VisualCapabilityAnalyzer {
             return;
         }
         if (tree instanceof SFMLParser.PrintStatementContext) {
-            // Only these two complete statement nodes own data expressions. Other expression
-            // positions retain their precise DATA_EXPRESSION and function blockers below.
-            inspectCalls(tree, blockers);
-            return;
-        }
-        Kind dataKind = tree instanceof SFMLParser.StateDeclarationContext ? Kind.STATE_DECLARATION
-            : tree instanceof SFMLParser.DataDeclarationContext ? Kind.LOCAL_DECLARATION
-                : tree instanceof SFMLParser.DataAssignmentContext ? Kind.ASSIGNMENT
-                    : tree instanceof SFMLParser.DataExpressionContext ? Kind.DATA_EXPRESSION : null;
-        if (dataKind != null) {
-            String name = dataKind == Kind.STATE_DECLARATION ? "STATE declaration"
-                : dataKind == Kind.LOCAL_DECLARATION ? "LET declaration"
-                    : dataKind == Kind.ASSIGNMENT ? "SET assignment" : "Data expression";
-            blockers.add(at(dataKind, name + " currently requires the text editor", (ParserRuleContext) tree));
-            // Keep a precise function blocker even when its enclosing expression already blocks Visual.
+            // The action owns all of its expression islands; player calls remain text-only.
             inspectCalls(tree, blockers);
             return;
         }
@@ -129,40 +106,54 @@ public final class VisualCapabilityAnalyzer {
                         end.getStopIndex() + 1));
             }
             // Predicate expressions own only this IF's conditions. Bodies retain every general blocker.
-            for (SFMLParser.BoolexprContext predicate : branch.boolexpr()) inspectPredicate(predicate, blockers);
+            for (SFMLParser.BoolexprContext predicate : branch.boolexpr()) inspect(predicate, blockers);
             for (SFMLParser.BlockContext body : branch.block()) inspect(body, blockers);
             return;
         }
         for (int i = 0; i < tree.getChildCount(); i++) inspect(tree.getChild(i), blockers);
     }
 
-    private static void inspectPredicate(ParseTree tree, List<Blocker> blockers) {
-        if (tree instanceof SFMLParser.DataExpressionContext) {
-            if (usesVariable(tree)) blockers.add(
-                at(
-                    Kind.DATA_EXPRESSION,
-                    "Scoped condition variables currently require the text editor",
-                    (ParserRuleContext) tree));
-            inspectCalls(tree, blockers);
-            return;
-        }
-        for (int i = 0; i < tree.getChildCount(); i++) inspectPredicate(tree.getChild(i), blockers);
-    }
-
-    private static boolean usesVariable(ParseTree tree) {
-        if (tree instanceof SFMLParser.DataPrimaryContext
-            && ((SFMLParser.DataPrimaryContext) tree).IDENTIFIER() != null) return true;
-        if (tree instanceof SFMLParser.RawLabelContext || tree instanceof SFMLParser.VariableLabelContext) return true;
-        if (tree instanceof TerminalNode && ((TerminalNode) tree).getSymbol()
-            .getType() == SFMLLexer.VARIABLE) return true;
-        for (int i = 0; i < tree.getChildCount(); i++) if (usesVariable(tree.getChild(i))) return true;
-        return false;
-    }
-
     private static boolean playerCall(SFMLParser.FunctionCallContext context) {
         String name = context.functionName()
-            .getText();
-        return !name.equalsIgnoreCase("LABEL") && !name.equalsIgnoreCase("ITEM") && !name.equalsIgnoreCase("FLUID");
+            .getText()
+            .toUpperCase(java.util.Locale.ROOT);
+        int receiver = name.lastIndexOf('.');
+        if (receiver >= 0) {
+            // Successful whole-source compilation has resolved these as receiver queries.
+            // Any player definition still blocks the complete program independently.
+            switch (name.substring(receiver + 1)) {
+                case "SIDE":
+                case "SLOTS":
+                case "AVAILABLE":
+                case "COUNT":
+                case "EMPTY":
+                case "CONTENTS":
+                case "FAVAILABLE":
+                case "FCOUNT":
+                case "FEMPTY":
+                case "FCONTENTS":
+                    return false;
+                default:
+                    return true;
+            }
+        }
+        switch (name) {
+            case "LABEL":
+            case "ITEM":
+            case "ORE":
+            case "FLUID":
+            case "ABS":
+            case "LEN":
+            case "MIN":
+            case "MAX":
+            case "CLAMP":
+            case "TOTAL":
+            case "STOCK":
+            case "SHORTAGE":
+                return false;
+            default:
+                return true;
+        }
     }
 
     private static void inspectCalls(ParseTree tree, List<Blocker> blockers) {
