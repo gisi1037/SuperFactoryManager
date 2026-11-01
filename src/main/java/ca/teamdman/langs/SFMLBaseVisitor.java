@@ -76,6 +76,19 @@ public class SFMLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements S
      * </p>
      */
     @Override
+    public T visitVariableName(SFMLParser.VariableNameContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
     public T visitDataType(SFMLParser.DataTypeContext ctx) {
         return visitChildren(ctx);
     }
@@ -115,7 +128,33 @@ public class SFMLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements S
      * </p>
      */
     @Override
+    public T visitFunctionArgument(SFMLParser.FunctionArgumentContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
     public T visitReturnStatement(SFMLParser.ReturnStatementContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
+    public T visitFunctionCallStatement(SFMLParser.FunctionCallStatementContext ctx) {
         return visitChildren(ctx);
     }
 
@@ -882,6 +921,32 @@ public class SFMLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements S
      * </p>
      */
     @Override
+    public T visitVariableLabel(SFMLParser.VariableLabelContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
+    public T visitCallLabel(SFMLParser.CallLabelContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
     public T visitEmptyslots(SFMLParser.EmptyslotsContext ctx) {
         return visitChildren(ctx);
     }
@@ -935,6 +1000,32 @@ public class SFMLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements S
      */
     @Override
     public T visitDataAssignment(SFMLParser.DataAssignmentContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
+    public T visitCircuitStatement(SFMLParser.CircuitStatementContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
+    public T visitWaitStatement(SFMLParser.WaitStatementContext ctx) {
         return visitChildren(ctx);
     }
 
@@ -1156,6 +1247,19 @@ public class SFMLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements S
      */
     @Override
     public T visitDataPostfix(SFMLParser.DataPostfixContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
+    public T visitDataSuffix(SFMLParser.DataSuffixContext ctx) {
         return visitChildren(ctx);
     }
 

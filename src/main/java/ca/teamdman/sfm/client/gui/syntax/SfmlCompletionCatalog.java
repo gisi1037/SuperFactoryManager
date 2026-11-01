@@ -178,8 +178,9 @@ public final class SfmlCompletionCatalog {
         Set<String> names = new HashSet<>();
         for (int i = 0; i < tokens.size(); i++) {
             Token start = tokens.get(i);
-            if (start.getType() == SFMLLexer.FUNCTION) {
-                Entry entry = functionHeader(tokens, i);
+            if (start.getType() == SFMLLexer.FUNCTION || modernFunctionStart(start)) {
+                Entry entry = start.getType() == SFMLLexer.FUNCTION ? functionHeader(tokens, i)
+                    : modernHeader(tokens, i);
                 if (entry != null && names.add(entry.name)) {
                     if (players.size() < MAX_ENTRIES) players.add(entry);
                     else truncated = true;
@@ -193,10 +194,14 @@ public final class SfmlCompletionCatalog {
                     && tokens.get(end)
                         .getType() != SFMLLexer.DO
                     && tokens.get(end)
-                        .getType() != SFMLLexer.END)
+                        .getType() != SFMLLexer.END
+                    && tokens.get(end)
+                        .getType() != SFMLLexer.LBRACE)
                     end++;
                 if (end < tokens.size() && tokens.get(end)
-                    .getType() == SFMLLexer.DO) {
+                    .getType() == SFMLLexer.DO || end < tokens.size()
+                        && tokens.get(end)
+                            .getType() == SFMLLexer.LBRACE) {
                     if (outline.size() < MAX_ENTRIES)
                         outline.add(new OutlineEntry(join(tokens, i, end), start, OutlineKind.TRIGGER, bounded));
                     else truncated = true;
@@ -290,6 +295,93 @@ public final class SfmlCompletionCatalog {
             Context.EXPRESSION);
     }
 
+    private static boolean modernFunctionStart(Token token) {
+        String name = token.getText()
+            .toUpperCase(Locale.ROOT);
+        return token.getType() == SFMLLexer.LBRACE || name.equals("VOID")
+            || name.equals("INTEGER")
+            || name.equals("BOOLEAN")
+            || name.equals("STRING")
+            || name.equals("LABEL_REF")
+            || name.equals("RESOURCE_SELECTOR")
+            || name.equals("ITEM_KEY")
+            || name.equals("FLUID_KEY")
+            || name.equals("ITEM_CONTENTS")
+            || name.equals("ITEM_LOCATIONS")
+            || name.equals("FLUID_CONTENTS");
+    }
+
+    /** Inspect a bounded header only; incomplete bodies must not hide a function's signature. */
+    private static Entry modernHeader(List<Token> tokens, int start) {
+        int end = Math.min(tokens.size(), start + MAX_HEADER_TOKENS), name = start + 1;
+        if (tokens.get(start)
+            .getType() == SFMLLexer.LBRACE) {
+            int depth = 1;
+            while (name < end && depth != 0) {
+                int kind = tokens.get(name++)
+                    .getType();
+                if (kind == SFMLLexer.LBRACE) depth++;
+                if (kind == SFMLLexer.RBRACE) depth--;
+            }
+            if (depth != 0) return null;
+        }
+        while (name + 2 < end && tokens.get(name)
+            .getType() == SFMLLexer.LBRACKET
+            && tokens.get(name + 1)
+                .getType() == SFMLLexer.NUMBER
+            && tokens.get(name + 2)
+                .getType() == SFMLLexer.RBRACKET)
+            name += 3;
+        int open = name;
+        while (open < end && (tokens.get(open)
+            .getType() == SFMLLexer.IDENTIFIER
+            || tokens.get(open)
+                .getType() == SFMLLexer.DOT))
+            open++;
+        if (open == name || open >= end
+            || tokens.get(open)
+                .getType() != SFMLLexer.LPAREN)
+            return null;
+        String function = joinName(tokens, name, open);
+        if (!function.matches("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*")) return null;
+        int close = open + 1, depth = 0, argument = close;
+        List<String> arguments = new ArrayList<>();
+        while (close < end) {
+            int kind = tokens.get(close)
+                .getType();
+            if (kind == SFMLLexer.LBRACE || kind == SFMLLexer.LBRACKET) depth++;
+            if (kind == SFMLLexer.RBRACE || kind == SFMLLexer.RBRACKET) depth--;
+            if (depth < 0 || kind == SFMLLexer.LPAREN || kind == SFMLLexer.END || kind == SFMLLexer.EVERY) return null;
+            if (depth == 0 && (kind == SFMLLexer.COMMA || kind == SFMLLexer.RPAREN)) {
+                if (close > argument) {
+                    // Modern parameters end in their name; legacy colon parameters begin with it.
+                    int parameter = argument + 1 < close && tokens.get(argument + 1)
+                        .getType() == SFMLLexer.COLON ? argument : close - 1;
+                    String value = tokens.get(parameter)
+                        .getText();
+                    arguments.add("<" + (value.startsWith("$") ? value.substring(1) : value) + ">");
+                }
+                argument = close + 1;
+                if (kind == SFMLLexer.RPAREN) break;
+            }
+            close++;
+        }
+        if (close + 1 >= end) return null;
+        int body = tokens.get(close + 1)
+            .getType();
+        if (body != SFMLLexer.DO && body != SFMLLexer.THEN && body != SFMLLexer.LBRACE) return null;
+        String result = join(tokens, start, name);
+        return new Entry(
+            function,
+            function + "(" + join(tokens, open + 1, close) + ") -> " + result,
+            function + "(" + String.join(", ", arguments) + ")",
+            "Current-program " + (result.equalsIgnoreCase("void") ? "procedure. Invoke as a statement; it has no value."
+                : "function. Arguments and return value use its declared fixed types; check compiler diagnostics."),
+            "",
+            Kind.PLAYER_FUNCTION,
+            result.equalsIgnoreCase("void") ? Context.TRIGGER_STATEMENT : Context.EXPRESSION);
+    }
+
     private static String joinName(List<Token> tokens, int start, int end) {
         StringBuilder text = new StringBuilder();
         for (int i = start; i < end; i++) text.append(
@@ -323,9 +415,9 @@ public final class SfmlCompletionCatalog {
         add(
             entries,
             "label",
-            "label(\"name\") -> label_ref",
+            "label(name: string) -> label_ref",
             "label(\"<name>\")",
-            "Select an exact case-sensitive label group. Requires a nonempty quoted literal; computed strings are unsupported.",
+            "Select an exact case-sensitive label group from a nonempty string, including computed names such as label(\"chest\" + index). Bare unquoted inventory names must resolve to LABEL_REF variables.",
             "let $value = label(\"inputs\")",
             Kind.CONSTRUCTOR,
             Context.EXPRESSION);
@@ -474,6 +566,24 @@ public final class SfmlCompletionCatalog {
             "$<label>.fcontents()",
             "Immutable per-tank rows: fluid (exact NBT key), id, amount (mB), dimension, x/y/z, tank, sideMask. Not a reservation; unavailable groups fault.",
             "label(\"tank\").fcontents()");
+        add(
+            entries,
+            "wait",
+            "wait(ticks: integer)",
+            "wait(<ticks>)",
+            "Suspend the current trigger and its active function calls for game ticks. Preserves locals and loop progress, never sleeps the server thread. Zero is a no-op; negative values fault. Other triggers continue; no duplicate invocation is queued. RAM-only continuations are cancelled on unload/program replacement.",
+            "wait(20)",
+            Kind.STATEMENT,
+            Context.TRIGGER_STATEMENT);
+        add(
+            entries,
+            "setcircuit",
+            "setcircuit(machine: label_ref, configuration: integer) [into $result]",
+            "setcircuit(<machine>, <configuration>)",
+            "Set compatible connected GregTech ghost circuits to 1..24; 0/-1 clears. No physical circuit items move. Whole-machine labels only. Optional INTO provides matched/changed/status. Explicit trigger or void-procedure action; value functions remain read-only.",
+            "setcircuit(label(\"machine\"), 5) into $configured",
+            Kind.STATEMENT,
+            Context.TRIGGER_STATEMENT);
         add(
             entries,
             "print",

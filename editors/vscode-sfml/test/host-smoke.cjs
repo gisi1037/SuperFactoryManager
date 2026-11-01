@@ -19,8 +19,8 @@ exports.run = async () => {
     await config.update('compiler.manifestPath', path.resolve(__dirname, '../../../build/sfml-compiler.json'), vscode.ConfigurationTarget.Global);
     await config.update('compiler.enabled', true, vscode.ConfigurationTarget.Global);
     await vscode.extensions.getExtension('gisi1037.sfml-language').activate();
-    const source = 'function math.double($n: integer) returns integer do return $n * 2 end\n'
-      + 'every 20 ticks do\n  let $src = label("inputs")\n  print($src.contents())\n  let $n = math.double(2)\nend';
+    const source = 'integer math.double(integer n) { return n * 2; }\n'
+      + 'every 20 ticks {\n  let src = label("inputs");\n  print(src.contents());\n  let n = math.double(2);\n}';
     const doc = await vscode.workspace.openTextDocument({ language: 'sfml', content: source });
     await vscode.window.showTextDocument(doc);
     const hoverText = async word => {
@@ -30,6 +30,7 @@ exports.run = async () => {
     };
     assert.match(await hoverText('contents'), /item_contents/);
     assert.match(await hoverText('math.double'), /Player-defined/);
+    assert.match(await hoverText('src'), /let src/);
     assert.equal(vscode.workspace.getConfiguration('sfml', doc.uri).get('variableHighlighting.enabled'), true);
     const edit = new vscode.WorkspaceEdit();
     edit.insert(doc.uri, new vscode.Position(3, 0), '  $missing = 1\n');

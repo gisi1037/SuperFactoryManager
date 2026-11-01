@@ -71,6 +71,16 @@ public final class VisualCapabilityAnalyzer {
             inspectCalls(tree, blockers);
             return;
         }
+        if (tree instanceof SFMLParser.WaitStatementContext || tree instanceof SFMLParser.CircuitStatementContext) {
+            boolean wait = tree instanceof SFMLParser.WaitStatementContext;
+            blockers.add(
+                at(
+                    wait ? Kind.WAIT_STATEMENT : Kind.CIRCUIT_STATEMENT,
+                    (wait ? "WAIT" : "Ghost circuit action") + " currently requires the text editor",
+                    (ParserRuleContext) tree));
+            inspectCalls(tree, blockers);
+            return;
+        }
         if (tree instanceof SFMLParser.TransferStatementContext) {
             // Expressions belong to this complete action node. Result capture is a declaration,
             // and stays text-only until scoped data nodes exist. Enclosing blockers still win.
@@ -140,6 +150,9 @@ public final class VisualCapabilityAnalyzer {
     }
 
     private static boolean usesVariable(ParseTree tree) {
+        if (tree instanceof SFMLParser.DataPrimaryContext
+            && ((SFMLParser.DataPrimaryContext) tree).IDENTIFIER() != null) return true;
+        if (tree instanceof SFMLParser.RawLabelContext || tree instanceof SFMLParser.VariableLabelContext) return true;
         if (tree instanceof TerminalNode && ((TerminalNode) tree).getSymbol()
             .getType() == SFMLLexer.VARIABLE) return true;
         for (int i = 0; i < tree.getChildCount(); i++) if (usesVariable(tree.getChild(i))) return true;

@@ -12,7 +12,7 @@ public final class BoolParen implements BoolExpr {
 
     @Override
     public boolean evaluate(ProgramContext context) {
-        return inner.evaluate(context);
+        return context.evaluateCondition(inner);
     }
 
     @Override

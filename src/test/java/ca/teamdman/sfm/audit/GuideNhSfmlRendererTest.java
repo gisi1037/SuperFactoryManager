@@ -25,7 +25,7 @@ class GuideNhSfmlRendererTest {
     void pinnedGuideNhRendersSfmlWithoutOtherLanguageHeuristicsAndPreservesCopyText() throws Exception {
         String jar = System.getProperty("sfm.guideNhJar", "")
             .trim();
-        assumeTrue(!jar.isEmpty(), "Supply the pinned GuideNH jar to test its actual renderer API");
+        assumeTrue(!jar.isEmpty(), "Supply the pinned GuideNH jar to \"test\" its actual renderer API");
         List<URL> urls = new ArrayList<>();
         urls.add(
             Paths.get(jar)
@@ -46,8 +46,9 @@ class GuideNhSfmlRendererTest {
                 java.util.Collections.singleton("sfml"),
                 (Set<?>) api.getMethod("getFenceNames")
                     .invoke(renderer));
-            for (String source : new String[] { "every 20 ticks do\n input from source\n output to destination\nend\n",
-                "every 20 ticks do\n if reserve has < 16 item:* then\n input from source\n end\nend\n" }) {
+            for (String source : new String[] {
+                "every 20 ticks do\n input from \"source\"\n output to \"destination\"\nend\n",
+                "every 20 ticks do\n if \"reserve\" has < 16 item:* then\n input from \"source\"\n end\nend\n" }) {
                 Object block = api.getMethod("renderFence", compiler, String.class, String.class, String.class)
                     .invoke(renderer, null, "sfml", source, null);
                 assertEquals(

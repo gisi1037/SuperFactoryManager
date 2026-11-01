@@ -64,7 +64,7 @@ class StudioSourceMapTest {
     @Test
     void duplicateStatementsFollowTrueFalseAfterRolesAndMultipleTriggersRatherThanTextSearch() {
         String source = "NAME \"Duplicates\"\nevery 20 ticks do print(\"same\") "
-            + "if source HAS > 0 then print(\"same\") if true then print(\"same\") else print(\"same\") end "
+            + "if \"source\" HAS > 0 then print(\"same\") if true then print(\"same\") else print(\"same\") end "
             + "print(\"same\") else print(\"same\") end print(\"same\") end "
             + "EVERY REDSTONE PULSE DO print(\"same\") END";
         BlueprintGraph graph = BlueprintCompiler.importText(source);
@@ -89,7 +89,7 @@ class StudioSourceMapTest {
             identities.add(span.node);
         }
         assertEquals(8, identities.size());
-        assertEquals(outer.id, map.atCaret(source.indexOf("if source")).node);
+        assertEquals(outer.id, map.atCaret(source.indexOf("if \"source\"")).node);
         assertEquals(inner.id, map.atCaret(source.indexOf("if true")).node);
         assertEquals(
             graph.triggers()
@@ -229,7 +229,7 @@ class StudioSourceMapTest {
     @Test
     void pendingRequestsRawFieldsGesturesAndDisplayMismatchRefuseBeforeLazyImport() {
         StudioDocument document = new StudioDocument();
-        document.load(program("INPUT FROM source"));
+        document.load(program("INPUT FROM \"source\""));
         String source = document.source();
         assertThrows(
             IllegalArgumentException.class,
@@ -258,11 +258,11 @@ class StudioSourceMapTest {
             input,
             source,
             StudioNodeProperties.inspect(input.type, input.clause()));
-        fields.set("label", "pending");
+        fields.set("label", "\"pending\"");
         assertThrows(
             IllegalArgumentException.class,
             () -> StudioSourceMap.prepare(PROJECT, document, source, false, fields.dirty(), false));
-        assertEquals("pending", fields.value("label"));
+        assertEquals("\"pending\"", fields.value("label"));
         assertEquals(source, document.source());
     }
 

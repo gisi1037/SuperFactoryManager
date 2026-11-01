@@ -142,7 +142,7 @@ public final class ManagerMui2Screen extends ModularScreen implements ProgramEdi
                 break;
             case "example":
                 GuiScreen.setClipboardString(
-                    "NAME \"Transfer Iron\"\n\nEVERY 20 TICKS DO\n  INPUT FROM chest_in\n  OUTPUT TO chest_out\nEND\n");
+                    "NAME \"Transfer Iron\"\n\nEVERY 20 TICKS DO\n  INPUT FROM \"chest_in\"\n  OUTPUT TO \"chest_out\"\nEND\n");
                 message("Example program copied to clipboard.");
                 break;
             case "run":

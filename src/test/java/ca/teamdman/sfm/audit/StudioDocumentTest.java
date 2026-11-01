@@ -20,7 +20,7 @@ import ca.teamdman.sfm.common.program.ProgramDocument;
 class StudioDocumentTest {
 
     private static final String CODE = "-- Keep this exact comment.\nname \"Iron\"\n"
-        + "every 20 ticks do\n  input from Source -- keep casing too\n  output to Destination\nend\n";
+        + "every 20 ticks do\n  input from \"Source\" -- keep casing too\n  output to \"Destination\"\nend\n";
 
     @Test
     void unsupportedValidAndInvalidCodeCannotBeReplacedWithAPartialVisualGraph() {
@@ -77,11 +77,11 @@ class StudioDocumentTest {
         UUID output = find(document.graph(), Type.OUTPUT).id;
         document.editGraph(
             graph -> graph.node(output)
-                .setClause("OUTPUT 8 TO NewDestination"));
+                .setClause("OUTPUT 8 TO \"NewDestination\""));
         String changed = document.source();
         assertTrue(
             document.code()
-                .contains("OUTPUT 8 TO NewDestination"));
+                .contains("OUTPUT 8 TO \"NewDestination\""));
         assertFalse(document.incomplete());
         assertEquals(
             BlueprintCompiler.generate(document.graph()),
@@ -90,14 +90,14 @@ class StudioDocumentTest {
         assertEquals(CODE, document.code());
         assertEquals(CODE, document.source());
         assertEquals(
-            "output to Destination",
+            "output to \"Destination\"",
             document.graph()
                 .node(output)
                 .clause());
         assertTrue(document.redo());
         assertEquals(changed, document.source());
         assertEquals(
-            "OUTPUT 8 TO NewDestination",
+            "OUTPUT 8 TO \"NewDestination\"",
             document.graph()
                 .node(output)
                 .clause());
@@ -172,7 +172,7 @@ class StudioDocumentTest {
         original.editGraph(graph -> graph.add(loose));
         StudioDocument.Snapshot recovery = original.snapshot();
         assertTrue(original.incomplete());
-        loose.setClause("OUTPUT 99 TO changed_after_snapshot");
+        loose.setClause("OUTPUT 99 TO \"changed_after_snapshot\"");
 
         StudioDocument restored = new StudioDocument();
         restored.restore(recovery);
@@ -210,7 +210,7 @@ class StudioDocumentTest {
         document.editGraph(
             graph -> graph.node(output)
                 .setPosition(400, 500));
-        String next = "every 7 ticks do input from other output 1 to latest end";
+        String next = "every 7 ticks do input from \"other\" output 1 to \"latest\" end";
         document.editCode(next);
         assertEquals(next, document.code());
         assertNull(document.graph());
@@ -218,7 +218,7 @@ class StudioDocumentTest {
         assertFalse(document.redo());
         document.openVisual();
         assertEquals("every 7 ticks", find(document.graph(), Type.TIMER).clause());
-        assertEquals("output 1 to latest", find(document.graph(), Type.OUTPUT).clause());
+        assertEquals("output 1 to \"latest\"", find(document.graph(), Type.OUTPUT).clause());
         assertFalse(
             document.code()
                 .contains(BlueprintDocument.MARKER));
@@ -327,7 +327,7 @@ class StudioDocumentTest {
             graph -> graph.node(output)
                 .setPosition(99, 30));
         assertTrue(previous.undo());
-        StudioDocument next = opened("every 7 ticks do input from another end");
+        StudioDocument next = opened("every 7 ticks do input from \"another\" end");
         StudioDocument.Snapshot nextProject = next.snapshot();
         previous.restore(nextProject);
         assertEquals(next.code(), previous.code());
@@ -385,7 +385,7 @@ class StudioDocumentTest {
         document.editGraph(
             graph -> graph.node(firstOutput)
                 .setPosition(15, 25));
-        String nextCode = "-- another project\nevery 7 ticks do input from newest output to final end\n";
+        String nextCode = "-- another project\nevery 7 ticks do input from \"newest\" output to \"final\" end\n";
         StudioDocument pasted = opened(nextCode);
         UUID nextOutput = find(pasted.graph(), Type.OUTPUT).id;
         pasted.editGraph(

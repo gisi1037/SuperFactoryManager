@@ -55,7 +55,7 @@ public final class SfmlCompilerServer {
             + "every 20 ticks do\nlet $source = label(\"inputs\").side(\"up\").slots(0, 8)\n"
             + "let $dest = label(\"dest\")\nlet $stock = $source.contents(ore(\"ingotIron\"))\n"
             + "$phase = next($phase)\ntransfer($source, $dest, item(\"minecraft:iron_ingot\"), 1) into $result\n"
-            + "input 1 item:minecraft:iron_ingot from source\noutput to dest\nprint($result.moved)\nend";
+            + "input 1 item:minecraft:iron_ingot from \"source\"\noutput to \"dest\"\nprint($result.moved)\nend";
         ProgramBuildResult result = new ProgramBuilder(source).build();
         if (!result.isSuccess())
             throw new IllegalStateException("Compiler startup check failed: " + result.getErrorMessage());

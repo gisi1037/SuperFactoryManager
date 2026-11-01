@@ -33,8 +33,8 @@ EVERY 20 TICKS DO
   LET $batch = CLAMP($requested * 2, 0, 64)
   LET $ready = $batch > 0
   IF ($ready AND $batch <= 64) THEN
-    INPUT ($batch) item:minecraft:iron_ingot FROM source
-    OUTPUT TO dest
+    INPUT ($batch) item:minecraft:iron_ingot FROM "source"
+    OUTPUT TO "dest"
   END
 END
 ```
@@ -70,10 +70,10 @@ Wrap a computed quantity or threshold in parentheses at `INPUT`, `OUTPUT`, `RETA
 NAME "Input snapshot"
 EVERY 20 TICKS DO
   LET $n = 8
-  INPUT ($n) item:minecraft:iron_ingot FROM source
+  INPUT ($n) item:minecraft:iron_ingot FROM "source"
   SET $n = 32
-  OUTPUT 3 item:minecraft:iron_ingot TO dest
-  OUTPUT ($n) item:minecraft:iron_ingot TO dest
+  OUTPUT 3 item:minecraft:iron_ingot TO "dest"
+  OUTPUT ($n) item:minecraft:iron_ingot TO "dest"
 END
 ```
 

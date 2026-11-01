@@ -22,6 +22,8 @@ public final class DataCompiler {
     private static final Pattern FUNCTION_NAME = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*");
 
     private final Set<String> referencedLabels = new HashSet<>();
+    private final Set<CompiledFunction> dynamicLabelFunctions = new HashSet<>();
+    private boolean dynamicLabels;
     private final Set<String> stateBuiltinCalls = new HashSet<>();
     private final Map<String, Binding> state = new HashMap<>();
     private final Map<String, Binding> globals = new LinkedHashMap<>();
@@ -34,9 +36,27 @@ public final class DataCompiler {
     private final Set<CompiledFunction> rootCalls = new HashSet<>();
     private CompiledFunction currentFunction;
     private boolean usedBeforeFunction;
+    private boolean waitUsed, globalInitializer, instantExpression;
+
+    public void markWait() {
+        used = true;
+        if (currentFunction == null) waitUsed = true;
+        else currentFunction.markWait();
+    }
+
+    public boolean hasWait() {
+        if (waitUsed) return true;
+        for (CompiledFunction function : rootCalls) if (function.mayWait()) return true;
+        return false;
+    }
 
     public CompiledFunction declareFunction(String name, List<String> names, List<DataType> types, DataType result,
         String source) {
+        return declareFunction(name, names, types, Collections.nCopies(names.size(), false), result, source);
+    }
+
+    public CompiledFunction declareFunction(String name, List<String> names, List<DataType> types,
+        List<Boolean> referenceParameters, DataType result, String source) {
         if (stateBuiltinCalls.contains(name))
             throw new IllegalArgumentException("Function conflicts with a built-in used in STATE defaults: " + name);
         if (functions.size() >= 128) throw new IllegalArgumentException("Function definitions exceed 128");
@@ -52,11 +72,15 @@ public final class DataCompiler {
             || name.equalsIgnoreCase("ORE")
             || name.equalsIgnoreCase("FLUID")
             || name.equalsIgnoreCase("TRANSFER")
-            || name.equalsIgnoreCase("TRANSFERF"))
+            || name.equalsIgnoreCase("TRANSFERF")
+            || name.equalsIgnoreCase("WAIT")
+            || name.equalsIgnoreCase("SETCIRCUIT"))
             throw new IllegalArgumentException("Reserved built-in function: " + name);
         if (names.size() > 16) throw new IllegalArgumentException("Function parameters exceed 16");
         if (functions.containsKey(name)) throw new IllegalArgumentException("Duplicate function: " + name);
-        CompiledFunction function = new CompiledFunction(name, names, types, result, source);
+        if (result != DataType.VOID && referenceParameters.contains(true))
+            throw new IllegalArgumentException("Only VOID procedures can declare REF parameters");
+        CompiledFunction function = new CompiledFunction(name, names, types, referenceParameters, result, source);
         functions.put(name, function);
         return function;
     }
@@ -99,6 +123,7 @@ public final class DataCompiler {
         if (!visiting.add(function))
             throw new IllegalArgumentException("Recursive function call: " + function.getName());
         for (CompiledFunction called : function.getCalls()) validateFunction(called, complete, visiting);
+        function.inheritWait();
         visiting.remove(function);
         complete.add(function);
     }
@@ -110,10 +135,28 @@ public final class DataCompiler {
         return Collections.unmodifiableSet(reachableLabels);
     }
 
+    public boolean hasDynamicLabels() {
+        if (dynamicLabels) return true;
+        Set<CompiledFunction> visited = new HashSet<>();
+        for (CompiledFunction function : rootCalls) if (hasDynamicLabels(function, visited)) return true;
+        return false;
+    }
+
+    private boolean hasDynamicLabels(CompiledFunction function, Set<CompiledFunction> visited) {
+        if (!visited.add(function)) return false;
+        if (dynamicLabelFunctions.contains(function)) return true;
+        for (CompiledFunction called : function.getCalls()) if (hasDynamicLabels(called, visited)) return true;
+        return false;
+    }
+
     private void collectLabels(CompiledFunction function, Set<CompiledFunction> visited, Set<String> labels) {
         if (!visited.add(function)) return;
         labels.addAll(function.getReferencedLabels());
         for (CompiledFunction called : function.getCalls()) collectLabels(called, visited, labels);
+    }
+
+    public void recordLiteralLabel(String label) {
+        referenceLabel(label);
     }
 
     private void referenceLabel(String label) {
@@ -161,7 +204,13 @@ public final class DataCompiler {
         if (globals.size() >= ProgramGlobals.MAX_GLOBALS)
             throw error(line, column, "Program globals exceed " + ProgramGlobals.MAX_GLOBALS);
         // Resolve before publishing the name: self and forward global reads are rejected.
-        DataExpression initializer = compile(expression, line, column);
+        DataExpression initializer;
+        globalInitializer = true;
+        try {
+            initializer = compile(expression, line, column);
+        } finally {
+            globalInitializer = false;
+        }
         Binding binding = new Binding(name, initializer.getType(), globals.size(), BindingKind.GLOBAL, false);
         globals.put(name, binding);
         globalDeclarations.add(new GlobalDeclaration(binding, initializer));
@@ -202,13 +251,40 @@ public final class DataCompiler {
             Binding binding = scope.get(name);
             if (binding != null) return binding;
         }
-        if (currentFunction != null) return null;
+        // Persistent bindings belong to the calling manager, never to the shared compiled function.
+        if (currentFunction != null) return state.get(name);
         Binding global = globals.get(name);
         return global == null ? state.get(name) : global;
     }
 
     public DataExpression compile(String source, int line, int column) {
         return compile(source, line, column, false);
+    }
+
+    /** Trigger subscriptions must be observable immediately; they cannot suspend edge capture. */
+    public DataExpression compileInstant(String source, int line, int column) {
+        boolean previous = instantExpression;
+        instantExpression = true;
+        try {
+            return compile(source, line, column);
+        } finally {
+            instantExpression = previous;
+        }
+    }
+
+    /** Only an explicit call statement may discard a procedure's VOID result. */
+    public DataExpression compileCallStatement(String source, int line, int column) {
+        used = true;
+        try {
+            Parser parser = new Parser(source, false);
+            parser.callStatement = true;
+            Node node = parser.expression();
+            parser.end();
+            if (!parser.statementCall) throw new IllegalArgumentException("Expected a player function call statement");
+            return expressionPlan(node, source, line, column);
+        } catch (IllegalArgumentException ex) {
+            throw error(line, column, ex.getMessage());
+        }
     }
 
     private DataExpression compile(String source, int line, int column, boolean constantOnly) {
@@ -253,7 +329,8 @@ public final class DataCompiler {
             @Override
             public DataValue evaluate(DataRuntime runtime) {
                 try {
-                    return compiled.evaluate(runtime);
+                    return runtime.isResumable() ? runtime.evaluate(this, () -> compiled.evaluate(runtime))
+                        : compiled.evaluate(runtime);
                 } catch (ArithmeticException ex) {
                     throw error(line, column, "Arithmetic overflow or division by zero");
                 } catch (IllegalArgumentException ex) {
@@ -273,9 +350,13 @@ public final class DataCompiler {
         try {
             Parser parser = new Parser(target, false);
             String name = parser.take();
-            if (!name.startsWith("$")) throw new IllegalArgumentException("SET requires a variable path");
-            Binding binding = find(name.substring(1));
+            String identifier = name.startsWith("$") ? name.substring(1) : name;
+            if (!IDENTIFIER.matcher(identifier)
+                .matches()) throw new IllegalArgumentException("SET requires a variable path");
+            Binding binding = find(identifier);
             if (binding == null) throw new IllegalArgumentException("Unknown variable: " + name);
+            if (binding.persistent && currentFunction != null && currentFunction.getReturnType() != DataType.VOID)
+                throw new IllegalArgumentException("Value functions cannot modify STATE; use a VOID procedure");
             if (binding.readOnly) throw new IllegalArgumentException("Loop binding is read-only: " + name);
             DataType type = binding.type;
             List<Node> indices = new ArrayList<>();
@@ -380,6 +461,10 @@ public final class DataCompiler {
 
         public void execute(DataRuntime runtime) {
             try {
+                if (runtime.isResumable() && !indices.isEmpty()) {
+                    executeResumable(runtime);
+                    return;
+                }
                 if (indices.isEmpty()) {
                     binding.write(runtime, rhs.evaluate(runtime));
                     return;
@@ -415,6 +500,40 @@ public final class DataCompiler {
             }
         }
 
+        private void executeResumable(DataRuntime runtime) {
+            int[] offsets = runtime.evaluate(this, () -> {
+                runtime.allocate(indices.size() + 1);
+                int[] path = new int[indices.size()];
+                DataValue cursor = binding.read(runtime);
+                for (int i = 0; i < indices.size(); i++) {
+                    long index = indices.get(i)
+                        .evaluate(runtime)
+                        .asLong();
+                    runtime.work(1);
+                    if (index < 0 || index >= cursor.size())
+                        throw new IllegalArgumentException("Index out of range: " + index);
+                    path[i] = (int) index;
+                    cursor = cursor.get(path[i]);
+                }
+                return path;
+            });
+            DataValue replacement = rhs.evaluate(runtime);
+            // Commit into the current immutable root; other fields may have changed while this call waited.
+            DataValue cursor = binding.read(runtime);
+            DataValue[] parents = new DataValue[offsets.length];
+            int cells = 0;
+            runtime.allocate(parents.length);
+            for (int i = 0; i < offsets.length; i++) {
+                parents[i] = cursor;
+                cells = Math.addExact(cells, cursor.size());
+                cursor = cursor.get(offsets[i]);
+            }
+            runtime.allocate(cells);
+            runtime.work(1);
+            for (int i = parents.length - 1; i >= 0; i--) replacement = parents[i].with(offsets[i], replacement);
+            binding.publish(runtime, replacement);
+        }
+
         @Override
         public String toString() {
             return "SET " + target + " = " + rhs;
@@ -431,6 +550,13 @@ public final class DataCompiler {
     }
 
     private abstract static class Node implements DataExpression {
+
+        @Override
+        public final DataValue evaluate(DataRuntime runtime) {
+            return runtime.isResumable() ? runtime.node(this, () -> compute(runtime)) : compute(runtime);
+        }
+
+        protected abstract DataValue compute(DataRuntime runtime);
 
         final DataType type;
         final int depth;
@@ -449,11 +575,45 @@ public final class DataCompiler {
         }
     }
 
+    /** An explicit call argument is an address, never a first-class language value. */
+    private static final class ReferenceArgument extends Node {
+
+        final Binding binding;
+        final List<Node> path;
+
+        ReferenceArgument(Binding binding, List<Node> path, DataType selected, int depth) {
+            super(selected, depth, false);
+            this.binding = binding;
+            this.path = path;
+        }
+
+        @Override
+        protected DataValue compute(DataRuntime runtime) {
+            throw new IllegalArgumentException("REF is valid only for a procedure's REF argument");
+        }
+
+        DataReference resolve(DataRuntime runtime) {
+            return runtime.evaluate(this, () -> {
+                runtime.allocate(path.size() + 1);
+                int[] offsets = new int[path.size()];
+                for (int i = 0; i < offsets.length; i++) {
+                    long value = path.get(i)
+                        .evaluate(runtime)
+                        .asLong();
+                    if (value < 0 || value > Integer.MAX_VALUE)
+                        throw new IllegalArgumentException("REF index out of range");
+                    offsets[i] = (int) value;
+                }
+                return runtime.reference(binding, offsets);
+            });
+        }
+    }
+
     private static Node literal(DataValue value) {
         return new Node(value.getType(), 1, true) {
 
             @Override
-            public DataValue evaluate(DataRuntime runtime) {
+            protected DataValue compute(DataRuntime runtime) {
                 runtime.work(1);
                 return value;
             }
@@ -471,7 +631,7 @@ public final class DataCompiler {
         return new Node(binding.type, 1, false) {
 
             @Override
-            public DataValue evaluate(DataRuntime runtime) {
+            protected DataValue compute(DataRuntime runtime) {
                 return binding.read(runtime);
             }
         };
@@ -482,7 +642,7 @@ public final class DataCompiler {
         return new Node(value.type, value.depth + 1, value.constant) {
 
             @Override
-            public DataValue evaluate(DataRuntime runtime) {
+            protected DataValue compute(DataRuntime runtime) {
                 DataValue operand = value.evaluate(runtime);
                 runtime.work(1);
                 if (operator.equals("NOT")) return DataValue.bool(!operand.asBoolean());
@@ -494,7 +654,7 @@ public final class DataCompiler {
 
     private static Node binary(String operator, Node left, Node right) {
         boolean logic = operator.equals("AND") || operator.equals("OR");
-        boolean concatenate = operator.equals("+") && left.type == DataType.STRING;
+        boolean concatenate = operator.equals("+") && (left.type == DataType.STRING || right.type == DataType.STRING);
         boolean equality = operator.equals("=") || operator.equals("!=");
         boolean compare = equality || operator.equals("<")
             || operator.equals(">")
@@ -511,7 +671,9 @@ public final class DataCompiler {
                 && left.type != DataType.FLUID_KEY)
                 throw new IllegalArgumentException("Collection equality is not supported");
         } else if (concatenate) {
-            require(right.type, DataType.STRING);
+            if ((left.type != DataType.STRING && left.type != DataType.INTEGER)
+                || (right.type != DataType.STRING && right.type != DataType.INTEGER))
+                throw new IllegalArgumentException("String concatenation requires strings or integers");
         } else {
             require(left.type, DataType.INTEGER);
             require(right.type, DataType.INTEGER);
@@ -522,7 +684,7 @@ public final class DataCompiler {
             left.constant && right.constant) {
 
             @Override
-            public DataValue evaluate(DataRuntime runtime) {
+            protected DataValue compute(DataRuntime runtime) {
                 DataValue a = left.evaluate(runtime);
                 runtime.work(1);
                 if (operator.equals("AND") && !a.asBoolean()) return DataValue.bool(false);
@@ -541,16 +703,18 @@ public final class DataCompiler {
                     boolean same = runtime.sameFluid(a.asFluidIdentity(), b.asFluidIdentity());
                     return DataValue.bool(operator.equals("!=") ? !same : same);
                 }
+                if (concatenate) {
+                    String x = left.type == DataType.INTEGER ? Long.toString(a.asLong()) : a.asString();
+                    String y = right.type == DataType.INTEGER ? Long.toString(b.asLong()) : b.asString();
+                    int length = x.length() + y.length();
+                    if (length > ExpressionLimits.MAX_STRING_LENGTH) throw new IllegalArgumentException(
+                        "String length exceeds " + ExpressionLimits.MAX_STRING_LENGTH);
+                    runtime.work(length);
+                    runtime.allocateString(length);
+                    return DataValue.string(x + y);
+                }
                 if (left.type == DataType.STRING) {
                     String x = a.asString(), y = b.asString();
-                    if (concatenate) {
-                        int length = x.length() + y.length();
-                        if (length > ExpressionLimits.MAX_STRING_LENGTH) throw new IllegalArgumentException(
-                            "String length exceeds " + ExpressionLimits.MAX_STRING_LENGTH);
-                        runtime.work(length);
-                        runtime.allocateString(length);
-                        return DataValue.string(x + y);
-                    }
                     // String.equals scans at most the common length, and shared values compare in constant time.
                     runtime.work(x == y || x.length() != y.length() ? 1 : x.length());
                     boolean same = x.equals(y);
@@ -612,7 +776,7 @@ public final class DataCompiler {
         return new Node(type, 1 + Math.max(base.depth, index.depth), base.constant && index.constant) {
 
             @Override
-            public DataValue evaluate(DataRuntime runtime) {
+            protected DataValue compute(DataRuntime runtime) {
                 DataValue root = base.evaluate(runtime);
                 long offset = index.evaluate(runtime)
                     .asLong();
@@ -629,7 +793,7 @@ public final class DataCompiler {
         return new Node(DataType.LABEL_REF, receiver.depth + 1, receiver.constant) {
 
             @Override
-            public DataValue evaluate(DataRuntime runtime) {
+            protected DataValue compute(DataRuntime runtime) {
                 LabelReference label = receiver.evaluate(runtime)
                     .asLabel();
                 runtime.work(1);
@@ -649,7 +813,7 @@ public final class DataCompiler {
             receiver.constant && first.constant && last.constant) {
 
             @Override
-            public DataValue evaluate(DataRuntime runtime) {
+            protected DataValue compute(DataRuntime runtime) {
                 LabelReference label = receiver.evaluate(runtime)
                     .asLabel();
                 long start = first.evaluate(runtime)
@@ -672,7 +836,7 @@ public final class DataCompiler {
         return new Node(result, 1 + Math.max(receiver.depth, selector.depth), false) {
 
             @Override
-            public DataValue evaluate(DataRuntime runtime) {
+            protected DataValue compute(DataRuntime runtime) {
                 LabelReference label = receiver.evaluate(runtime)
                     .asLabel();
                 ResourceSelector resource = selector.evaluate(runtime)
@@ -695,7 +859,7 @@ public final class DataCompiler {
         return new Node(method.equals("REDSTONE") ? DataType.INTEGER : DataType.BOOLEAN, receiver.depth + 1, false) {
 
             @Override
-            public DataValue evaluate(DataRuntime runtime) {
+            protected DataValue compute(DataRuntime runtime) {
                 LabelReference label = receiver.evaluate(runtime)
                     .asLabel();
                 runtime.work(1);
@@ -718,7 +882,7 @@ public final class DataCompiler {
         return new Node(type, depth, constant) {
 
             @Override
-            public DataValue evaluate(DataRuntime runtime) {
+            protected DataValue compute(DataRuntime runtime) {
                 runtime.work(1);
                 runtime.allocate(nodes.size());
                 DataValue[] values = new DataValue[nodes.size()];
@@ -727,6 +891,10 @@ public final class DataCompiler {
                 return DataValue.ownedCollection(type, values);
             }
         };
+    }
+
+    public static String decodeStringLiteral(String token) {
+        return parseString(token).asString();
     }
 
     private static DataValue parseString(String token) {
@@ -777,10 +945,12 @@ public final class DataCompiler {
         return DataValue.string(out.toString());
     }
 
-    private Node functionCall(String name, List<Node> arguments, boolean constantOnly) {
+    private Node functionCall(String name, List<Node> arguments, boolean constantOnly, boolean statement) {
         // Preserve exact-name player functions; defaults fill only otherwise unresolved names.
         CompiledFunction function = functions.get(name);
         if (function == null) {
+            for (Node argument : arguments) if (argument instanceof ReferenceArgument)
+                throw new IllegalArgumentException("REF arguments require a declared player procedure");
             Node builtin = builtinCall(name, arguments);
             if (builtin != null) {
                 if (constantOnly) stateBuiltinCalls.add(name);
@@ -789,6 +959,16 @@ public final class DataCompiler {
             throw new IllegalArgumentException("Unknown function: " + name);
         }
         if (constantOnly) throw new IllegalArgumentException("STATE defaults cannot call player functions");
+        if (instantExpression && function.mayWait())
+            throw new IllegalArgumentException("Named redstone label expressions cannot call functions that WAIT");
+        if (function.getReturnType() == DataType.VOID) {
+            if (!statement) throw new IllegalArgumentException("VOID procedures require a standalone call statement");
+            if (globalInitializer || currentFunction != null && currentFunction.getReturnType() != DataType.VOID)
+                throw new IllegalArgumentException(
+                    "Value functions and global initializers cannot call VOID procedures");
+        }
+        if (globalInitializer && function.mayWait())
+            throw new IllegalArgumentException("Program-wide LET initializers cannot call functions that WAIT");
         if (arguments.size() != function.getParameterTypes()
             .size())
             throw new IllegalArgumentException(
@@ -799,6 +979,13 @@ public final class DataCompiler {
                     + " arguments");
         int depth = 1;
         for (int i = 0; i < arguments.size(); i++) {
+            if (function.isReferenceParameter(i) != (arguments.get(i) instanceof ReferenceArgument))
+                throw new IllegalArgumentException(
+                    "Function " + name
+                        + " argument "
+                        + (i + 1)
+                        + (function.isReferenceParameter(i) ? " requires REF and a writable variable path"
+                            : " is passed by value; remove REF"));
             DataType expected = function.getParameterTypes()
                 .get(i);
             if (!arguments.get(i).type.equals(expected)) throw new IllegalArgumentException(
@@ -853,7 +1040,7 @@ public final class DataCompiler {
         return new Node(DataType.INTEGER, depth, constant) {
 
             @Override
-            public DataValue evaluate(DataRuntime runtime) {
+            protected DataValue compute(DataRuntime runtime) {
                 runtime.work(1);
                 // Evaluate every argument once, left to right, even when an extremum is already known.
                 DataValue a = first.evaluate(runtime);
@@ -899,7 +1086,7 @@ public final class DataCompiler {
         return new Node(DataType.INTEGER, depth, constant) {
 
             @Override
-            public DataValue evaluate(DataRuntime runtime) {
+            protected DataValue compute(DataRuntime runtime) {
                 runtime.work(1);
                 DataValue a = first.evaluate(runtime);
                 if (method.equals("TOTAL")) return DataValue.integer(ItemStockFunctions.total(a, runtime));
@@ -915,13 +1102,20 @@ public final class DataCompiler {
         return new Node(function.getReturnType(), depth, false) {
 
             @Override
-            public DataValue evaluate(DataRuntime runtime) {
+            protected DataValue compute(DataRuntime runtime) {
                 runtime.work(1);
-                runtime.allocate(arguments.size());
+                runtime.allocate(arguments.size() * (function.hasReferenceParameters() ? 2 : 1));
                 DataValue[] values = new DataValue[arguments.size()];
-                for (int i = 0; i < values.length; i++) values[i] = arguments.get(i)
-                    .evaluate(runtime);
-                return function.invoke(runtime, values);
+                DataReference[] references = function.hasReferenceParameters() ? new DataReference[values.length]
+                    : null;
+                for (int i = 0; i < values.length; i++) {
+                    Node argument = arguments.get(i);
+                    if (argument instanceof ReferenceArgument)
+                        references[i] = ((ReferenceArgument) argument).resolve(runtime);
+                    else values[i] = argument.evaluate(runtime);
+                }
+                return references == null ? function.invoke(runtime, values, this)
+                    : function.invoke(runtime, values, references, this);
             }
         };
     }
@@ -931,6 +1125,7 @@ public final class DataCompiler {
         private final List<String> tokens = new ArrayList<>();
         private final boolean constantOnly;
         private int position, nesting;
+        private boolean callStatement, statementCall;
 
         Parser(String source, boolean constantOnly) {
             this.constantOnly = constantOnly;
@@ -1222,22 +1417,51 @@ public final class DataCompiler {
                 return collection(type, nodes, offsets);
             }
             String token = take();
+            // A bound plain identifier is a receiver/value, never a namespaced function name.
+            if (IDENTIFIER.matcher(token)
+                .matches() && find(token) != null
+                && !peek("(")) return variable(token, constantOnly);
             if (IDENTIFIER.matcher(token)
                 .matches()) {
                 while (accept(".")) token += "." + take();
             }
             if (accept("(")) {
                 String constructor = token.toUpperCase(Locale.ROOT);
-                if (!constructor.equals("LABEL") && !constructor.equals("ITEM")
-                    && !constructor.equals("ORE")
-                    && !constructor.equals("FLUID")) {
+                if (constructor.equals("LABEL")) {
+                    Node name = expression();
+                    require(name.type, DataType.STRING);
+                    expect(")");
+                    if (name.constant) {
+                        LabelReference reference = LabelReference.of(
+                            name.evaluate(new DataRuntime(null, 0))
+                                .asString());
+                        referenceLabel(reference.getName());
+                        return literal(DataValue.label(reference));
+                    }
+                    if (currentFunction == null) dynamicLabels = true;
+                    else dynamicLabelFunctions.add(currentFunction);
+                    return new Node(DataType.LABEL_REF, name.depth + 1, false) {
+
+                        @Override
+                        protected DataValue compute(DataRuntime runtime) {
+                            String value = name.evaluate(runtime)
+                                .asString();
+                            runtime.work(value.length() + 1);
+                            runtime.allocate(1);
+                            return DataValue.label(LabelReference.of(value));
+                        }
+                    };
+                }
+                if (!constructor.equals("ITEM") && !constructor.equals("ORE") && !constructor.equals("FLUID")) {
                     List<Node> arguments = new ArrayList<>();
                     if (!peek(")")) do {
-                        arguments.add(expression());
+                        arguments.add(accept("REF") ? referenceArgument() : expression());
                         if (arguments.size() > 16) throw new IllegalArgumentException("Function arguments exceed 16");
                     } while (accept(","));
                     expect(")");
-                    return functionCall(token, arguments, constantOnly);
+                    boolean statement = callStatement && nesting == 1 && peek("<EOF>");
+                    if (statement && functions.containsKey(token)) statementCall = true;
+                    return functionCall(token, arguments, constantOnly, statement);
                 }
                 String argument = take();
                 if (!argument.startsWith("\"")) throw new IllegalArgumentException(
@@ -1246,10 +1470,6 @@ public final class DataCompiler {
                 if (!peek(")")) throw new IllegalArgumentException(
                     constructor + " requires exactly one string literal; expressions are not supported");
                 expect(")");
-                if (constructor.equals("LABEL")) {
-                    referenceLabel(string.asString());
-                    return literal(DataValue.label(LabelReference.literal(string.asString())));
-                }
                 return literal(
                     DataValue.selector(
                         constructor.equals("ORE") ? ResourceSelector.ore(string.asString())
@@ -1257,6 +1477,8 @@ public final class DataCompiler {
                                 : ResourceSelector.item(string.asString())));
             }
             if (token.startsWith("$")) return variable(token.substring(1), constantOnly);
+            if (IDENTIFIER.matcher(token)
+                .matches()) return variable(token, constantOnly);
             if (token.startsWith("\"")) return literal(stringLiteral(token));
             try {
                 return literal(DataValue.integer(Long.parseLong(token)));
@@ -1273,6 +1495,36 @@ public final class DataCompiler {
                     "Constant pool exceeds " + ExpressionLimits.MAX_CONSTANT_STRING_CHARACTERS + " string characters");
             constantStringCharacters += characters;
             return value;
+        }
+
+        private Node referenceArgument() {
+            String token = take();
+            String name = token.startsWith("$") ? token.substring(1) : token;
+            Binding binding = find(name);
+            if (binding == null) throw new IllegalArgumentException("Unknown REF variable: " + token);
+            if (binding.readOnly)
+                throw new IllegalArgumentException("REF requires a writable variable; loop bindings are read-only");
+            List<Node> path = new ArrayList<>();
+            DataType selected = binding.type;
+            int depth = 1;
+            while (peek(".") || peek("[")) {
+                if (accept(".")) {
+                    int index = selected.fieldIndex(take());
+                    path.add(literal(DataValue.integer(index)));
+                    selected = selected.getFieldType(index);
+                } else {
+                    expect("[");
+                    if (selected.getKind() != DataType.Kind.ARRAY)
+                        throw new IllegalArgumentException("REF indexing requires an array");
+                    Node index = expression();
+                    require(index.type, DataType.INTEGER);
+                    expect("]");
+                    depth = Math.max(depth, index.depth + 1);
+                    path.add(index);
+                    selected = selected.getElementType();
+                }
+            }
+            return new ReferenceArgument(binding, path, selected, depth);
         }
     }
 }

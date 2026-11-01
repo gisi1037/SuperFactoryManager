@@ -25,12 +25,12 @@ class BlueprintLayoutMatcherTest {
     void ordinaryQuantityItemLabelAndConditionEditsKeepIdsAndPositionsWithoutChangingCurrentSource() {
         BlueprintGraph previous = graph(
             "NAME \"Before\" EVERY 20 TICKS DO "
-                + "IF source HAS >= 3 minecraft:stone THEN INPUT 64 minecraft:stone FROM source "
-                + "OUTPUT 8 TO dest ELSE FORGET source END OUTPUT 1 TO final END");
+                + "IF \"source\" HAS >= 3 minecraft:stone THEN INPUT 64 minecraft:stone FROM \"source\" "
+                + "OUTPUT 8 TO \"dest\" ELSE FORGET \"source\" END OUTPUT 1 TO \"final\" END");
         BlueprintGraph current = graph(
             "NAME \"After\" EVERY 40 TICKS DO "
                 + "IF \"Source B\" HAS >= 5 minecraft:iron_ingot THEN INPUT 32 minecraft:iron_ingot FROM \"Source B\" "
-                + "OUTPUT 16 TO \"Destination B\" ELSE FORGET \"Source B\" END OUTPUT 2 TO final END");
+                + "OUTPUT 16 TO \"Destination B\" ELSE FORGET \"Source B\" END OUTPUT 2 TO \"final\" END");
         place(previous);
         String originalCurrent = BlueprintCompiler.generate(current),
             originalPrevious = BlueprintCompiler.generate(previous);
@@ -49,10 +49,11 @@ class BlueprintLayoutMatcherTest {
 
     @Test
     void insertionAndDeletionKeepOnlyConfidentSurvivingNodes() {
-        BlueprintGraph previous = graph("EVERY 20 TICKS DO INPUT 3 FROM source OUTPUT 4 TO dest FORGET source END");
+        BlueprintGraph previous = graph(
+            "EVERY 20 TICKS DO INPUT 3 FROM \"source\" OUTPUT 4 TO \"dest\" FORGET \"source\" END");
         BlueprintGraph inserted = graph(
-            "EVERY 20 TICKS DO INPUT 3 FROM source OUTPUT 15 REDSTONE LEVEL TO signal "
-                + "OUTPUT 4 TO dest FORGET source END");
+            "EVERY 20 TICKS DO INPUT 3 FROM \"source\" OUTPUT 15 REDSTONE LEVEL TO \"signal\" "
+                + "OUTPUT 4 TO \"dest\" FORGET \"source\" END");
         place(previous);
         Result added = BlueprintLayoutMatcher.match(previous, inserted);
         assertEquals(4, added.reusedNodes);
@@ -63,7 +64,7 @@ class BlueprintLayoutMatcherTest {
         Node originalSignal = only(inserted, Type.REDSTONE);
         assertEquals(originalSignal.x(), signal.x());
         assertEquals(originalSignal.y(), signal.y());
-        BlueprintGraph deleted = graph("EVERY 20 TICKS DO INPUT 3 FROM source FORGET source END");
+        BlueprintGraph deleted = graph("EVERY 20 TICKS DO INPUT 3 FROM \"source\" FORGET \"source\" END");
         Result removed = BlueprintLayoutMatcher.match(previous, deleted);
         assertEquals(3, removed.reusedNodes);
         assertNull(removed.graph.node(only(previous, Type.OUTPUT).id));
@@ -72,8 +73,10 @@ class BlueprintLayoutMatcherTest {
 
     @Test
     void uniqueStatementReorderPreservesIdentityButUsesTheNewExecutionOrder() {
-        BlueprintGraph previous = graph("EVERY 20 TICKS DO INPUT 3 FROM source OUTPUT 4 TO dest FORGET source END");
-        BlueprintGraph current = graph("EVERY 20 TICKS DO FORGET source INPUT 3 FROM source OUTPUT 4 TO dest END");
+        BlueprintGraph previous = graph(
+            "EVERY 20 TICKS DO INPUT 3 FROM \"source\" OUTPUT 4 TO \"dest\" FORGET \"source\" END");
+        BlueprintGraph current = graph(
+            "EVERY 20 TICKS DO FORGET \"source\" INPUT 3 FROM \"source\" OUTPUT 4 TO \"dest\" END");
         place(previous);
         Result result = BlueprintLayoutMatcher.match(previous, current);
         assertEquals(4, result.reusedNodes);
@@ -89,7 +92,7 @@ class BlueprintLayoutMatcherTest {
 
     @Test
     void identicalBranchDuplicatesResetInsteadOfGuessingByPosition() {
-        String statements = "IF TRUE THEN INPUT FROM source END IF TRUE THEN INPUT FROM source END";
+        String statements = "IF TRUE THEN INPUT FROM \"source\" END IF TRUE THEN INPUT FROM \"source\" END";
         BlueprintGraph previous = graph("EVERY 20 TICKS DO " + statements + " END");
         BlueprintGraph current = graph("EVERY 40 TICKS DO " + statements + " END");
         place(previous);
@@ -103,8 +106,8 @@ class BlueprintLayoutMatcherTest {
 
     @Test
     void deletingOneOfTwoIdenticalStatementsCannotAttachTheDeletedStatementsLayout() {
-        BlueprintGraph previous = graph("EVERY 20 TICKS DO INPUT FROM source INPUT FROM source END");
-        BlueprintGraph current = graph("EVERY 20 TICKS DO INPUT FROM source END");
+        BlueprintGraph previous = graph("EVERY 20 TICKS DO INPUT FROM \"source\" INPUT FROM \"source\" END");
+        BlueprintGraph current = graph("EVERY 20 TICKS DO INPUT FROM \"source\" END");
         Result result = BlueprintLayoutMatcher.match(previous, current);
         assertEquals(1, result.reusedNodes);
         assertEquals(1, result.ambiguousNodes);
@@ -114,10 +117,15 @@ class BlueprintLayoutMatcherTest {
 
     @Test
     void matchingStaysWithinBranchRolesAndDoesNotReuseCrossBranchMoves() {
-        BlueprintGraph previous = graph("EVERY 20 TICKS DO IF TRUE THEN INPUT FROM source ELSE OUTPUT TO dest END END");
-        BlueprintGraph current = graph("EVERY 20 TICKS DO IF TRUE THEN OUTPUT TO dest ELSE INPUT FROM source END END");
+        BlueprintGraph previous = graph(
+            "EVERY 20 TICKS DO IF TRUE THEN INPUT FROM \"source\" ELSE OUTPUT TO \"dest\" END END");
+        BlueprintGraph current = graph(
+            "EVERY 20 TICKS DO IF TRUE THEN OUTPUT TO \"dest\" ELSE INPUT FROM \"source\" END END");
         Result result = BlueprintLayoutMatcher.matchExact(previous, current);
-        assertEquals(2, result.reusedNodes, "An incorrect exact-mode request must fall back to conservative matching");
+        assertEquals(
+            2,
+            result.reusedNodes,
+            "An incorrect exact-mode request must fall back to \"conservative\" matching");
         assertNull(result.graph.node(only(previous, Type.INPUT).id));
         assertNull(result.graph.node(only(previous, Type.OUTPUT).id));
         assertCurrent(current, result);
@@ -125,7 +133,7 @@ class BlueprintLayoutMatcherTest {
 
     @Test
     void exactModePreservesDuplicateNodesOnlyAfterCheckingCompleteOrderedStructure() {
-        String source = "EVERY 20 TICKS DO IF TRUE THEN INPUT FROM source END IF TRUE THEN INPUT FROM source END END";
+        String source = "EVERY 20 TICKS DO IF TRUE THEN INPUT FROM \"source\" END IF TRUE THEN INPUT FROM \"source\" END END";
         BlueprintGraph previous = graph(source), current = graph(source);
         place(previous);
         Result exact = BlueprintLayoutMatcher.matchExact(previous, current);
@@ -136,7 +144,7 @@ class BlueprintLayoutMatcherTest {
         assertEquals(0, exact.ambiguousNodes);
         assertPositions(previous, exact);
         assertCurrent(current, exact);
-        BlueprintGraph edited = graph(source.replace("INPUT FROM source", "INPUT 2 FROM source"));
+        BlueprintGraph edited = graph(source.replace("INPUT FROM \"source\"", "INPUT 2 FROM \"source\""));
         Result fallback = BlueprintLayoutMatcher.matchExact(previous, edited);
         assertEquals(1, fallback.reusedNodes);
         assertEquals(4, fallback.freshNodes);
@@ -145,8 +153,10 @@ class BlueprintLayoutMatcherTest {
 
     @Test
     void triggerReorderCanUseDistinctBodyEvidenceEvenWhenHeadersAreIdentical() {
-        BlueprintGraph previous = graph("EVERY 20 TICKS DO INPUT FROM source END EVERY 20 TICKS DO OUTPUT TO dest END");
-        BlueprintGraph current = graph("EVERY 20 TICKS DO OUTPUT TO dest END EVERY 20 TICKS DO INPUT FROM source END");
+        BlueprintGraph previous = graph(
+            "EVERY 20 TICKS DO INPUT FROM \"source\" END EVERY 20 TICKS DO OUTPUT TO \"dest\" END");
+        BlueprintGraph current = graph(
+            "EVERY 20 TICKS DO OUTPUT TO \"dest\" END EVERY 20 TICKS DO INPUT FROM \"source\" END");
         Result result = BlueprintLayoutMatcher.match(previous, current);
         assertEquals(4, result.reusedNodes);
         assertEquals(
@@ -159,8 +169,8 @@ class BlueprintLayoutMatcherTest {
 
     @Test
     void adversarialCurrentIdsCannotShadowReusedIdsAndFallbackIdsAreDeterministic() {
-        BlueprintGraph previous = graph("EVERY 20 TICKS DO INPUT FROM source END");
-        BlueprintGraph current = graph("EVERY 20 TICKS DO INPUT FROM source END");
+        BlueprintGraph previous = graph("EVERY 20 TICKS DO INPUT FROM \"source\" END");
+        BlueprintGraph current = graph("EVERY 20 TICKS DO INPUT FROM \"source\" END");
         Node forget = new Node(only(previous, Type.INPUT).id, Type.FORGET, 71, 93, "FORGET");
         current.add(forget);
         current.connect(only(current, Type.INPUT).id, Pin.NEXT, forget.id);
@@ -180,7 +190,7 @@ class BlueprintLayoutMatcherTest {
         StringBuilder source = new StringBuilder("EVERY 20 TICKS DO ");
         for (int i = 0; i < 255; i++) source.append("INPUT ")
             .append(i + 1)
-            .append(" FROM source ");
+            .append(" FROM \"source\" ");
         source.append("END");
         BlueprintGraph previous = graph(source.toString()), current = graph(source.toString());
         Result result = BlueprintLayoutMatcher.matchExact(previous, current);

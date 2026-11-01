@@ -70,7 +70,7 @@ class BlueprintPortTest {
     void branchContinuationRunsAfterTheChosenBranch() throws Exception {
         for (String condition : new String[] { "TRUE", "FALSE" }) {
             String source = "EVERY 20 TICKS DO IF " + condition
-                + " THEN INPUT 4 FROM source OUTPUT 2 TO dest ELSE INPUT 7 FROM source OUTPUT 3 TO dest END OUTPUT 1 TO dest END";
+                + " THEN INPUT 4 FROM \"source\" OUTPUT 2 TO \"dest\" ELSE INPUT 7 FROM \"source\" OUTPUT 3 TO \"dest\" END OUTPUT 1 TO \"dest\" END";
             String generated = BlueprintCompiler.generate(BlueprintCompiler.importText(source));
             assertArrayEquals(execute(source, "10", "0"), execute(generated, "10", "0"));
             assertArrayEquals(
@@ -82,9 +82,9 @@ class BlueprintPortTest {
     @Test
     void advancedClausesAndTriggerOrderSurviveImportAndMetadataReload() {
         String source = "NAME \"Keep Case\"\n-- retain this explanation\n" + "EVERY 20 GLOBAL PLUS 2 TICKS DO\n"
-            + " INPUT 64 EACH RETAIN 8 EACH minecraft:iron_ingot EXCEPT minecraft:stone FROM EACH \"Input A\", source ROUND ROBIN BY BLOCK TOP SIDE SLOTS 0-8\n"
-            + " IF NOT (SOME source HAS >= 3 minecraft:iron_ingot) THEN OUTPUT 4 EACH RETAIN 2 EACH TO EMPTY SLOTS IN EACH dest BOTTOM SIDE SLOT 1 ELSE FORGET source, dest END\n"
-            + " FORGET\nEND\nEVERY REDSTONE PULSE DO OUTPUT 15 REDSTONE LEVEL TO dest END";
+            + " INPUT 64 EACH RETAIN 8 EACH minecraft:iron_ingot EXCEPT minecraft:stone FROM EACH \"Input A\", \"source\" ROUND ROBIN BY BLOCK TOP SIDE SLOTS 0-8\n"
+            + " IF NOT (SOME \"source\" HAS >= 3 minecraft:iron_ingot) THEN OUTPUT 4 EACH RETAIN 2 EACH TO EMPTY SLOTS IN EACH \"dest\" BOTTOM SIDE SLOT 1 ELSE FORGET \"source\", \"dest\" END\n"
+            + " FORGET\nEND\nEVERY REDSTONE PULSE DO OUTPUT 15 REDSTONE LEVEL TO \"dest\" END";
         assertTrue(
             new ProgramBuilder(source).build()
                 .isSuccess());
@@ -113,7 +113,7 @@ class BlueprintPortTest {
 
     @Test
     void commentsAndUnicodeMarkersInsideLabelsAreNotMistakenForMetadata() {
-        String code = "-- first\nEVERY 20 TICKS DO INPUT FROM \"箱😀\n-- sfm:blueprint:v1 literal\" -- explain\nOUTPUT TO dest END";
+        String code = "-- first\nEVERY 20 TICKS DO INPUT FROM \"箱😀\n-- sfm:blueprint:v1 literal\" -- explain\nOUTPUT TO \"dest\" END";
         BlueprintDocument document = BlueprintDocument.open(code);
         String saved = BlueprintDocument.save(document.graph);
         assertTrue(BlueprintDocument.open(saved).restoredLayout);
@@ -128,7 +128,7 @@ class BlueprintPortTest {
     @Test
     void editedTextWinsOverSavedGraph() {
         String saved = BlueprintDocument
-            .save(BlueprintCompiler.importText("EVERY 20 TICKS DO INPUT FROM source OUTPUT 3 TO dest END"));
+            .save(BlueprintCompiler.importText("EVERY 20 TICKS DO INPUT FROM \"source\" OUTPUT 3 TO \"dest\" END"));
         BlueprintDocument changed = BlueprintDocument.open(saved.replace("OUTPUT 3", "OUTPUT 7"));
         assertFalse(changed.restoredLayout);
         assertTrue(
@@ -139,7 +139,7 @@ class BlueprintPortTest {
 
     @Test
     void malformedDuplicateAndOverexpandedLayoutsFallBackToCurrentText() throws Exception {
-        String code = "EVERY 20 TICKS DO INPUT FROM source END\n";
+        String code = "EVERY 20 TICKS DO INPUT FROM \"source\" END\n";
         for (String suffix : new String[] { "not-base64", Base64.getEncoder()
             .encodeToString(new byte[] { 1, 2, 3 }) }) {
             BlueprintDocument document = BlueprintDocument.open(code + BlueprintDocument.MARKER + suffix);
@@ -182,16 +182,16 @@ class BlueprintPortTest {
 
     @Test
     void aNodeCannotInjectAnotherStatementOrTrigger() {
-        for (String clause : new String[] { "INPUT FROM source OUTPUT TO dest",
-            "INPUT FROM source END EVERY 20 TICKS DO", "INPUT FROM source -- hidden" })
+        for (String clause : new String[] { "INPUT FROM \"source\" OUTPUT TO \"dest\"",
+            "INPUT FROM \"source\" END EVERY 20 TICKS DO", "INPUT FROM \"source\" -- hidden" })
             assertThrows(IllegalArgumentException.class, () -> BlueprintCompiler.validateClause(Type.INPUT, clause));
         assertThrows(
             IllegalArgumentException.class,
-            () -> BlueprintCompiler.validateClause(Type.IF, "TRUE THEN OUTPUT TO dest END IF FALSE"));
+            () -> BlueprintCompiler.validateClause(Type.IF, "TRUE THEN OUTPUT TO \"dest\" END IF FALSE"));
         assertThrows(
             IllegalArgumentException.class,
             () -> BlueprintCompiler
-                .validateClause(Type.TIMER, "EVERY 20 TICKS DO INPUT FROM source END EVERY 20 TICKS"));
+                .validateClause(Type.TIMER, "EVERY 20 TICKS DO INPUT FROM \"source\" END EVERY 20 TICKS"));
     }
 
     @Test
@@ -214,7 +214,7 @@ class BlueprintPortTest {
         assertDoesNotThrow(() -> BlueprintCompiler.generate(graph));
         BlueprintGraph copy = graph.copy();
         copy.node(b.id)
-            .setClause("OUTPUT 2 TO dest");
+            .setClause("OUTPUT 2 TO \"dest\"");
         assertNotEquals(
             copy.node(b.id)
                 .clause(),

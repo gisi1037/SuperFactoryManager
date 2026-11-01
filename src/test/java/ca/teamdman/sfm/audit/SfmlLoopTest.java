@@ -144,7 +144,7 @@ class SfmlLoopTest {
                 "STATE $n = 0",
                 "WHILE ($n < 5) DO SET $n = $n + 1 END " + "WHILE (FALSE AND 1 / 0 > 0) DO SET $n = 99 END "
                     + "WHILE FALSE AND REDSTONE DO SET $n = 99 END").number(0));
-        program("EVERY 20 TICKS DO WHILE source HAS > 3 minecraft:stone DO FORGET END END");
+        program("EVERY 20 TICKS DO WHILE \"source\" HAS > 3 minecraft:stone DO FORGET END END");
     }
 
     @Test
@@ -239,7 +239,8 @@ class SfmlLoopTest {
     @Test
     void repeatedLegacyStatementsAlsoConsumeTheSharedExpressionWorkAllowance() {
         StringBuilder body = new StringBuilder("STATE $n = 0 EVERY 20 TICKS DO FOR $i = 1 TO 1024 DO ");
-        for (int i = 0; i < 20; i++) body.append("FORGET ");
+        // Delimit the empty FORGET clause so the following SET cannot be a label expression.
+        for (int i = 0; i < 20; i++) body.append("FORGET; ");
         body.append("SET $n = $n + 1 END END");
         Program program = program(body.toString());
         MemoryState state = new MemoryState(program.getStateSchema());
@@ -253,7 +254,7 @@ class SfmlLoopTest {
 
     @Test
     void keywordsRemainLegacyIdentifiersAndLoopsRoundTripWithVisualBlocker() {
-        Program legacy = program("EVERY 20 TICKS DO INPUT for FROM while OUTPUT step TO for END");
+        Program legacy = program("EVERY 20 TICKS DO INPUT for FROM \"while\" OUTPUT step TO \"for\" END");
         assertFalse(legacy.hasDataFeatures());
         Program original = program(
             "STATE $sum = 0 EVERY 20 TICKS DO LET $fields = {for: 2, while: 3, step: 1} "

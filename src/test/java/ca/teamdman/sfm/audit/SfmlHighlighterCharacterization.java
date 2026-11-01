@@ -98,7 +98,7 @@ public final class SfmlHighlighterCharacterization {
         String[] cases = { "", "a.b()", "a.b", ".a.b()", "$x.a.b()", "a..b()", "a.b.()", "a.FUNCTION.b()",
             "a.RISING.FALLING()", "mod:a.b()", "FUNCTION a.b($x: INTEGER) RETURNS INTEGER DO RETURN $x END",
             "a -- hidden\n. -- hidden\nb -- hidden\n()", "a. -- hidden\n.b()", "a( b.c() ).d.e()",
-            "EVERY REDSTONE RISING FROM sensor DO END\nFOR $i = 1 TO 10 STEP 1 DO END",
+            "EVERY REDSTONE RISING FROM \"sensor\" DO END\nFOR $i = 1 TO 10 STEP 1 DO END",
             "NAME \"\uD83D\uDE00 a.b()\" -- a.b()\nLET $x = \uD83D\uDE00 a.b()" };
         for (String source : cases) verify(baseline, source);
         Random random = new Random(1037);

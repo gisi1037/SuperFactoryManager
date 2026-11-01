@@ -13,12 +13,12 @@ Quantities limit movement; they do not promise that a complete batch will fit. E
 
 | Fragment | Scope |
 | --- | --- |
-| `INPUT 8 FROM source` | Eight matching units shared across selected source blocks. |
-| `INPUT 8 FROM EACH source` | Eight per selected source block. |
-| `INPUT 8 EACH FROM source` | Eight per resource identity, shared across selected source blocks. |
-| `OUTPUT 8 TO dest` | Eight for this output as a whole. |
-| `OUTPUT 8 TO EACH dest` | Eight per selected destination block. |
-| `OUTPUT 8 EACH TO dest` | Eight per resource identity for this output. |
+| `INPUT 8 FROM "source"` | Eight matching units shared across selected source blocks. |
+| `INPUT 8 FROM EACH "source"` | Eight per selected source block. |
+| `INPUT 8 EACH FROM "source"` | Eight per resource identity, shared across selected source blocks. |
+| `OUTPUT 8 TO "dest"` | Eight for this output as a whole. |
+| `OUTPUT 8 TO EACH "dest"` | Eight per selected destination block. |
+| `OUTPUT 8 EACH TO "dest"` | Eight per resource identity for this output. |
 | `RETAIN 8 EACH` | A separate reserve or target cap for each resource identity. |
 
 You may combine quantity EACH and statement EACH. A block scope does not mean each slot, face or spelling of a label. Item quota identity is item plus metadata; different NBT variants share that allowance. Exact stack compatibility still matters when inserting or merging them. Exact keys from contents have a stricter identity than these quotas.
@@ -33,8 +33,8 @@ Without statement EACH, selected blocks share the reserve/cap. Without resource 
 ```sfml
 NAME "Reserve supply and stock machines"
 EVERY 20 TICKS DO
-  INPUT 64 RETAIN 16 item:minecraft:iron_ingot FROM supply
-  OUTPUT 8 RETAIN 16 item:minecraft:iron_ingot TO EACH machines
+  INPUT 64 RETAIN 16 item:minecraft:iron_ingot FROM "supply"
+  OUTPUT 8 RETAIN 16 item:minecraft:iron_ingot TO EACH "machines"
 END
 ```
 
@@ -43,8 +43,8 @@ This leaves sixteen ingots across the selected source scope. At most sixty-four 
 ```sfml
 NAME "Independent resources"
 EVERY 20 TICKS DO
-  INPUT 8 EACH RETAIN 4 EACH item:minecraft:iron_ingot OR item:minecraft:gold_ingot FROM supply
-  OUTPUT 8 EACH TO dest
+  INPUT 8 EACH RETAIN 4 EACH item:minecraft:iron_ingot OR item:minecraft:gold_ingot FROM "supply"
+  OUTPUT 8 EACH TO "dest"
 END
 ```
 
@@ -57,8 +57,8 @@ For fluids the same quantity syntax counts millibuckets:
 ```sfml
 NAME "Water buffer"
 EVERY 20 TICKS DO
-  INPUT 1000 fluid:water FROM water_source
-  OUTPUT RETAIN 4000 fluid:water TO water_buffer
+  INPUT 1000 fluid:water FROM "water_source"
+  OUTPUT RETAIN 4000 fluid:water TO "water_buffer"
 END
 ```
 

@@ -56,16 +56,16 @@ class ResourceLimitSerializationTest {
                         "EVERY 20 TICKS DO INPUT " + quantity
                             + " RETAIN "
                             + retention
-                            + " item:serialization_test:first OR item:serialization_test:second FROM EACH source "
+                            + " item:serialization_test:first OR item:serialization_test:second FROM EACH \"source\" "
                             + "OUTPUT "
                             + quantity
                             + " RETAIN "
                             + retention
-                            + " item:*:* TO EMPTY SLOTS IN EACH dest END"));
+                            + " item:*:* TO EMPTY SLOTS IN EACH \"dest\" END"));
             }
         }
-        assertEquivalent(roundTrip("EVERY 20 TICKS DO INPUT FROM source OUTPUT TO dest END"));
-        assertEquivalent(roundTrip("EVERY 20 TICKS DO INPUT * FROM source OUTPUT * TO dest END"));
+        assertEquivalent(roundTrip("EVERY 20 TICKS DO INPUT FROM \"source\" OUTPUT TO \"dest\" END"));
+        assertEquivalent(roundTrip("EVERY 20 TICKS DO INPUT * FROM \"source\" OUTPUT * TO \"dest\" END"));
     }
 
     @Test
@@ -74,8 +74,8 @@ class ResourceLimitSerializationTest {
             roundTrip(
                 "STATE $quantity = 7 STATE $reserve = 3 EVERY 20 TICKS DO "
                     + "INPUT ($quantity) EACH RETAIN ($reserve) EACH item:serialization_test:first "
-                    + "OR item:serialization_test:second WITHOUT TAG blocked* EXCEPT item:other:* FROM EACH source "
-                    + "OUTPUT ($quantity) EACH RETAIN (0) EACH fluid:*:water TO EMPTY SLOTS IN EACH dest END"));
+                    + "OR item:serialization_test:second WITHOUT TAG blocked* EXCEPT item:other:* FROM EACH \"source\" "
+                    + "OUTPUT ($quantity) EACH RETAIN (0) EACH fluid:*:water TO EMPTY SLOTS IN EACH \"dest\" END"));
     }
 
     @Test
@@ -85,7 +85,7 @@ class ResourceLimitSerializationTest {
                 "EVERY 20 TICKS DO INPUT 4 RETAIN 1 item:serialization_test:first "
                     + "OR item:serialization_test:second "
                     + predicate
-                    + " FROM source END");
+                    + " FROM \"source\" END");
             assertEquivalent(pair);
             ResourceLimit before = limits(statements(pair[0]).get(0)).getLimits()
                 .get(0);
@@ -119,7 +119,7 @@ class ResourceLimitSerializationTest {
     void oneDisjunctionKeepsOneSharedQuotaRatherThanBecomingTwoLimits() throws Exception {
         Program[] pair = roundTrip(
             "EVERY 20 TICKS DO INPUT 3 serialization_test:first OR serialization_test:second "
-                + "FROM source OUTPUT TO dest END");
+                + "FROM \"source\" OUTPUT TO \"dest\" END");
         assertEquivalent(pair);
         for (Program program : pair) {
             Fixture fixture = new Fixture();
@@ -134,8 +134,8 @@ class ResourceLimitSerializationTest {
     @Test
     void literalInputReserveAndOutputStockCapKeepTheirTransferSemantics() throws Exception {
         Program[] pair = roundTrip(
-            "EVERY 20 TICKS DO INPUT 7 RETAIN 3 serialization_test:first FROM source "
-                + "OUTPUT 5 RETAIN 6 serialization_test:first TO dest END");
+            "EVERY 20 TICKS DO INPUT 7 RETAIN 3 serialization_test:first FROM \"source\" "
+                + "OUTPUT 5 RETAIN 6 serialization_test:first TO \"dest\" END");
         assertEquivalent(pair);
         for (Program program : pair) {
             Fixture fixture = new Fixture();
@@ -149,7 +149,8 @@ class ResourceLimitSerializationTest {
 
     @Test
     void emptySlotOutputRetainsTheRestrictionAndActualDestinationSlotChoice() throws Exception {
-        Program[] pair = roundTrip("EVERY 20 TICKS DO INPUT FROM source " + "OUTPUT 2 TO EMPTY SLOTS IN dest END");
+        Program[] pair = roundTrip(
+            "EVERY 20 TICKS DO INPUT FROM \"source\" " + "OUTPUT 2 TO EMPTY SLOTS IN \"dest\" END");
         assertEquivalent(pair);
         for (Program program : pair) {
             Fixture fixture = new Fixture();
@@ -170,7 +171,7 @@ class ResourceLimitSerializationTest {
         assertTrue(encoded.contains("\\\""));
         assertTrue(encoded.contains("\\n"));
         assertTrue(encoded.contains("\\t"));
-        Program[] pair = roundTrip("EVERY 20 TICKS DO INPUT " + encoded + " FROM source END");
+        Program[] pair = roundTrip("EVERY 20 TICKS DO INPUT " + encoded + " FROM \"source\" END");
         ResourceIdentifier parsed = limits(statements(pair[1]).get(0)).getLimits()
             .get(0)
             .getResourceIds()
@@ -208,7 +209,7 @@ class ResourceLimitSerializationTest {
             if (original.getTag() == null) for (ItemStack sample : Arrays
                 .asList(new ItemStack(FIRST, 1, 7), new ItemStack(FIRST, 1, 8), new ItemStack(SECOND)))
                 assertEquals(original.matchesItem(sample), parsed.matchesItem(sample), raw);
-            assertEquivalent(roundTrip("EVERY 20 TICKS DO INPUT " + original + " FROM source END"));
+            assertEquivalent(roundTrip("EVERY 20 TICKS DO INPUT " + original + " FROM \"source\" END"));
         }
         assertEquals("\"*\"", ResourceIdentifier.MATCH_ALL.toString());
     }

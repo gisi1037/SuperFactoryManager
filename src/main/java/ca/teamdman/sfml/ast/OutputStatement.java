@@ -69,6 +69,8 @@ public final class OutputStatement implements Statement {
 
     public OutputStatement resolve(ProgramContext context) {
         ResourceLimits resolved = resourceLimits.resolve(context);
-        return resolved == resourceLimits ? this : new OutputStatement(labelAccess, resolved, each, emptySlotsOnly);
+        LabelAccess access = labelAccess.resolve(context);
+        return resolved == resourceLimits && access == labelAccess ? this
+            : new OutputStatement(access, resolved, each, emptySlotsOnly);
     }
 }

@@ -227,9 +227,9 @@ class SfmlBitwiseTest {
     @Test
     void legacyComparisonsBooleanWordsAndResourceWildcardsStillParse() {
         Program legacy = program(
-            "EVERY 20g+1 TICKS DO INPUT a*b FROM LET OUTPUT *3 TO STATE FORGET SET "
+            "EVERY 20g+1 TICKS DO INPUT a*b FROM \"LET\" OUTPUT *3 TO \"STATE\" FORGET \"SET\" "
                 + "IF TRUE AND NOT FALSE OR FALSE THEN END IF REDSTONE >= 0 THEN END "
-                + "IF source HAS >= 1 THEN END END");
+                + "IF \"source\" HAS >= 1 THEN END END");
         assertFalse(legacy.hasDataFeatures());
         assertEquals(
             7,

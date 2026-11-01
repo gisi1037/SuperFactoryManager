@@ -23,10 +23,15 @@ public final class LabelReference {
     }
 
     public static LabelReference literal(String name) {
+        return of(name);
+    }
+
+    /** Literal and computed names share the exact same validation; no trimming or case folding. */
+    public static LabelReference of(String name) {
         if (name == null || name.isEmpty() || name.length() > 256 || !name.equals(name.trim()))
             throw new IllegalArgumentException(
                 "LABEL needs an exact nonempty name of at most 256 characters without surrounding whitespace");
-        DataValue.string(name); // Validate Unicode once, while compiling the literal.
+        DataValue.string(name);
         return new LabelReference(name);
     }
 

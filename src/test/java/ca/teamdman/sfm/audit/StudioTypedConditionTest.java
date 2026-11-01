@@ -58,10 +58,10 @@ class StudioTypedConditionTest {
     void allThreePredicateFormsImportWithoutNewTypesPinsOrLayoutFormat() {
         for (String predicate : Arrays.asList(
             QUERY,
-            "source HAS >= (2 + 3) item:minecraft:iron_ingot",
+            "\"source\" HAS >= (2 + 3) item:minecraft:iron_ingot",
             "REDSTONE >= (2 + 3)",
             "(1 + 2 = 3)",
-            "source HAS > 0 AND " + QUERY,
+            "\"source\" HAS > 0 AND " + QUERY,
             "NOT " + QUERY,
             "({end:TRUE}.end)",
             "(LABEL(\"source\").count(ITEM(\"*\")) = 0)")) {
@@ -106,11 +106,11 @@ class StudioTypedConditionTest {
             StudioNodeProperties.update(Type.IF, clause, "condition", " (LABEL(\"other\").empty()) "));
         assertEquals(
             4,
-            StudioNodeProperties.inspect(Type.IF, "source HAS >= 3")
+            StudioNodeProperties.inspect(Type.IF, "\"source\" HAS >= 3")
                 .size());
         assertThrows(
             IllegalArgumentException.class,
-            () -> StudioNodeProperties.update(Type.IF, clause, "label", "other"));
+            () -> StudioNodeProperties.update(Type.IF, clause, "label", "\"other\""));
     }
 
     @Test
@@ -144,7 +144,7 @@ class StudioTypedConditionTest {
         for (String predicate : Arrays.asList(
             "(1)",
             "(\"yes\")",
-            "source HAS > (TRUE)",
+            "\"source\" HAS > (TRUE)",
             "REDSTONE > (\"1\")",
             "(LEN([1]) = 1)",
             "(LABEL(\"source\").noSuchMethod())"))
@@ -158,8 +158,8 @@ class StudioTypedConditionTest {
     void newTypedPredicateDoesNotGrantDataCapabilityToBodiesOrOtherStatements() {
         for (String statement : Arrays.asList(
             "LET $x = 1",
-            "INPUT (1+2) FROM source",
-            "OUTPUT (1+2) TO dest",
+            "INPUT (1+2) FROM \"source\"",
+            "OUTPUT (1+2) TO \"dest\"",
             "FOR $x IN [1] DO PRINT($x) END",
             "WHILE FALSE DO FORGET END",
             "TRANSFER(LABEL(\"source\"),LABEL(\"dest\")) INTO $m")) {
@@ -193,7 +193,7 @@ class StudioTypedConditionTest {
         assertThrows(IllegalArgumentException.class, () -> StudioConditionSyntax.parse(chain));
         String combined = "(1" + repeat("+1", 32) + " > 0) AND (1" + repeat("+1", 32) + " > 0)";
         assertThrows(IllegalArgumentException.class, () -> StudioConditionSyntax.parse(combined));
-        String labels = "source,dest HAS >= 0 AND ";
+        String labels = "\"source\",\"dest\" HAS >= 0 AND ";
         StudioConditionSyntax.parse(repeat(labels, 10) + "(1 = 1)");
         String legacy = repeat(labels, 80) + "TRUE";
         compiled(body(legacy));
@@ -339,11 +339,11 @@ class StudioTypedConditionTest {
     @Test
     void legacyParenthesesNegationResourcesAndPhysicalSidesKeepOldAcceptance() {
         for (String legacy : Arrays.asList(
-            repeat("(", 80) + "source HAS > 0" + repeat(")", 80),
-            repeat("NOT ", 80) + "source,dest HAS >= 0",
+            repeat("(", 80) + "\"source\" HAS > 0" + repeat(")", 80),
+            repeat("NOT ", 80) + "\"source\",\"dest\" HAS >= 0",
             repeat("(", 80) + "\"source\" NORTH,SOUTH,EAST,WEST SIDE SLOTS 0-2 HAS >= 0 \"item:minecraft:stone\""
                 + repeat(")", 80),
-            repeat("(", 80) + "source HAS >= 0 \"item:a\" OR \"item:b\"" + repeat(")", 80))) {
+            repeat("(", 80) + "\"source\" HAS >= 0 \"item:a\" OR \"item:b\"" + repeat(")", 80))) {
             compiled(body(legacy));
             StudioConditionSyntax.parse(legacy);
             BlueprintCompiler.importText(body(legacy));
@@ -400,10 +400,10 @@ class StudioTypedConditionTest {
 
     @Test
     void actualProgramTickComputedThresholdAndQueriesSeeEarlierEffectsInOrder() throws Exception {
-        String source = "EVERY 20 TICKS DO IF source HAS >= (2 + 3) THEN INPUT 2 FROM source OUTPUT TO dest END "
+        String source = "EVERY 20 TICKS DO IF \"source\" HAS >= (2 + 3) THEN INPUT 2 FROM \"source\" OUTPUT TO \"dest\" END "
             + "IF (LABEL(\"source\").side(\"north\").slots(0,0).count(ITEM(\"*\")) = 5) THEN "
-            + "INPUT 1 FROM source OUTPUT TO dest END IF REDSTONE = (2 - 2) THEN "
-            + "INPUT 1 FROM source OUTPUT TO dest END END";
+            + "INPUT 1 FROM \"source\" OUTPUT TO \"dest\" END IF REDSTONE = (2 - 2) THEN "
+            + "INPUT 1 FROM \"source\" OUTPUT TO \"dest\" END END";
         for (String candidate : Arrays
             .asList(source, BlueprintCompiler.generate(BlueprintCompiler.importText(source)))) {
             AuditRegressionTest.Fixture fixture = new AuditRegressionTest.Fixture();
@@ -416,7 +416,7 @@ class StudioTypedConditionTest {
 
     @Test
     void actualPendingConditionApplyUndoRedoChangesOnlyChosenBranchEffects() throws Exception {
-        String source = "EVERY 20 TICKS DO IF (LABEL(\"source\").available()) THEN INPUT 2 FROM source OUTPUT TO dest END END";
+        String source = "EVERY 20 TICKS DO IF (LABEL(\"source\").available()) THEN INPUT 2 FROM \"source\" OUTPUT TO \"dest\" END END";
         StudioDocument document = new StudioDocument();
         document.load(source);
         document.openVisual();

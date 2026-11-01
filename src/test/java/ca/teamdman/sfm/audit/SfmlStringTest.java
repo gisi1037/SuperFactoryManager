@@ -81,8 +81,8 @@ class SfmlStringTest {
 
     @Test
     void stringsHaveFixedScalarTypesWithoutCoercionOrderingOrIndexing() {
-        String[] invalid = { "\"1\" + 1", "1 + \"1\"", "\"a\" - \"b\"", "\"a\" * \"b\"", "\"a\" < \"b\"",
-            "\"a\" = TRUE", "\"a\" AND TRUE", "-\"a\"", "\"a\"[0]", "\"a\".length", "[\"a\", 1]", "[\"a\"] = [\"a\"]" };
+        String[] invalid = { "\"a\" - \"b\"", "\"a\" * \"b\"", "\"a\" < \"b\"", "\"a\" = TRUE", "\"a\" AND TRUE",
+            "-\"a\"", "\"a\"[0]", "\"a\".length", "[\"a\", 1]", "[\"a\"] = [\"a\"]" };
         for (String source : invalid) assertThrows(IllegalArgumentException.class, () -> evaluate(source), source);
         assertSame(DataType.STRING, evaluate("\"a\" + \"bc\"").getType());
         assertTrue(evaluate("\"a\" EQ \"a\"").asBoolean());

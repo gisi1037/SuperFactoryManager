@@ -49,3 +49,23 @@ Event-assisted availability remains a later adapter-specific experiment.
 
 See [Studio usage](STUDIO.md), the [SFML guide](SFML_GUIDE.md), and
 [program performance](PROGRAM_PERFORMANCE.md) for details.
+
+## Modern SFML authoring
+
+Studio and the compiler support plain or `$` variables, mandatory quoted literal
+labels or LABEL_REF expressions, computed LABEL names, braces or DO/THEN/END,
+type-first function declarations and space-separated typed parameters. Legacy
+FUNCTION/RETURNS declarations remain aliases. Unquoted literal label names must
+be converted explicitly; old disks do not receive an implicit fallback.
+
+Value functions may read the calling manager's STATE; VOID procedures can update
+it and perform explicit actions. REF parameters and arguments are explicit at
+both ends, preserve aliases and frozen member/index paths, and can survive WAIT.
+WAIT pauses a bounded RAM call stack on game ticks without blocking the server.
+SETCIRCUIT configures supported native GT ghost selectors. These advanced forms
+remain in Text when the visual graph cannot preserve them; Studio and VS Code
+help, diagnostics and snippets follow the actual compiler.
+
+Qualification covers 1,726 headless tests (1,710 pass, 16 optional skips), compiler
+checked guides/snippets, formatting, Checkstyle and assembly. Native machine and
+cover compatibility remains a separate in-game qualification step.

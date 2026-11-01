@@ -131,7 +131,7 @@ public class AuditRegressionTest {
         Fixture f = new Fixture();
         f.stock(0, 64);
         f.stock(1, 64);
-        f.run("INPUT FROM source OUTPUT 1 TO dest");
+        f.run("INPUT FROM \"source\" OUTPUT 1 TO \"dest\"");
         assertEquals(1, count(f.dest));
         assertEquals(127, count(f.source));
     }
@@ -142,7 +142,7 @@ public class AuditRegressionTest {
         f.stock(0, 64);
         InventoryTile d2 = new InventoryTile(2);
         f.add("dest", EXTRA, d2);
-        f.run("INPUT FROM source OUTPUT 5 TO EACH dest");
+        f.run("INPUT FROM \"source\" OUTPUT 5 TO EACH \"dest\"");
         assertEquals(5, count(f.dest));
         assertEquals(5, count(d2));
     }
@@ -153,7 +153,7 @@ public class AuditRegressionTest {
         f.stock(0, 64);
         InventoryTile d2 = new InventoryTile(2);
         f.add("dest", EXTRA, d2);
-        f.run("INPUT FROM source OUTPUT 5 TO dest");
+        f.run("INPUT FROM \"source\" OUTPUT 5 TO \"dest\"");
         assertEquals(5, count(f.dest) + count(d2));
     }
 
@@ -164,7 +164,7 @@ public class AuditRegressionTest {
         InventoryTile s2 = new InventoryTile(2);
         s2.setInventorySlotContents(0, new ItemStack(ITEM, 64));
         f.add("source", EXTRA, s2);
-        f.run("INPUT 3 FROM EACH source OUTPUT TO dest");
+        f.run("INPUT 3 FROM EACH \"source\" OUTPUT TO \"dest\"");
         assertEquals(6, count(f.dest));
     }
 
@@ -173,7 +173,7 @@ public class AuditRegressionTest {
         Fixture f = new Fixture();
         f.stock(0, 20);
         f.stock(1, 20);
-        f.run("INPUT RETAIN 25 FROM source OUTPUT TO dest");
+        f.run("INPUT RETAIN 25 FROM \"source\" OUTPUT TO \"dest\"");
         assertEquals(25, count(f.source));
         assertEquals(15, count(f.dest));
     }
@@ -183,7 +183,7 @@ public class AuditRegressionTest {
         Fixture f = new Fixture();
         f.stock(0, 64);
         f.dest.setInventorySlotContents(0, new ItemStack(ITEM, 7));
-        f.run("INPUT FROM source OUTPUT RETAIN 10 TO dest");
+        f.run("INPUT FROM \"source\" OUTPUT RETAIN 10 TO \"dest\"");
         assertEquals(10, count(f.dest));
         assertEquals(61, count(f.source));
     }
@@ -192,7 +192,7 @@ public class AuditRegressionTest {
     void explicitZeroOutputRetentionTransfersNothing() throws Exception {
         Fixture f = new Fixture();
         f.stock(0, 64);
-        f.run("INPUT FROM source OUTPUT RETAIN 0 TO dest");
+        f.run("INPUT FROM \"source\" OUTPUT RETAIN 0 TO \"dest\"");
         assertEquals(0, count(f.dest));
     }
 
@@ -201,7 +201,7 @@ public class AuditRegressionTest {
         Fixture f = new Fixture();
         f.stock(0, 20);
         f.source.setInventorySlotContents(1, new ItemStack(OTHER, 20));
-        f.run("INPUT FROM source OUTPUT 3 EACH TO dest");
+        f.run("INPUT FROM \"source\" OUTPUT 3 EACH TO \"dest\"");
         assertEquals(6, count(f.dest));
     }
 
@@ -209,7 +209,7 @@ public class AuditRegressionTest {
     void inputQuotaPersistsAcrossOutputs() throws Exception {
         Fixture f = new Fixture();
         f.stock(0, 64);
-        f.run("INPUT 5 FROM source OUTPUT 2 TO dest OUTPUT TO dest");
+        f.run("INPUT 5 FROM \"source\" OUTPUT 2 TO \"dest\" OUTPUT TO \"dest\"");
         assertEquals(5, count(f.dest));
     }
 
@@ -217,7 +217,7 @@ public class AuditRegressionTest {
     void unconsumedInputsRemainForLaterOutput() throws Exception {
         Fixture f = new Fixture();
         f.stock(0, 64);
-        f.run("INPUT FROM source OUTPUT 1 TO dest OUTPUT 2 TO dest");
+        f.run("INPUT FROM \"source\" OUTPUT 1 TO \"dest\" OUTPUT 2 TO \"dest\"");
         assertEquals(3, count(f.dest));
     }
 
@@ -225,7 +225,7 @@ public class AuditRegressionTest {
     void triggersDoNotShareInputs() throws Exception {
         Fixture f = new Fixture();
         f.stock(0, 64);
-        f.runProgram("EVERY 20 TICKS DO INPUT FROM source END EVERY 20 TICKS DO OUTPUT TO dest END");
+        f.runProgram("EVERY 20 TICKS DO INPUT FROM \"source\" END EVERY 20 TICKS DO OUTPUT TO \"dest\" END");
         assertEquals(0, count(f.dest));
     }
 
@@ -233,7 +233,7 @@ public class AuditRegressionTest {
     void forgetPreventsLaterTransfer() throws Exception {
         Fixture f = new Fixture();
         f.stock(0, 64);
-        f.run("INPUT FROM source FORGET source OUTPUT TO dest");
+        f.run("INPUT FROM \"source\" FORGET \"source\" OUTPUT TO \"dest\"");
         assertEquals(0, count(f.dest));
     }
 
@@ -243,7 +243,7 @@ public class AuditRegressionTest {
         f.stock(0, 60);
         f.labels.addPosition("both", SRC);
         f.labels.addPosition("both", DST);
-        f.run("INPUT FROM source SLOTS 0 OUTPUT 5 TO both SLOTS 0");
+        f.run("INPUT FROM \"source\" SLOTS 0 OUTPUT 5 TO \"both\" SLOTS 0");
         assertEquals(5, count(f.dest));
         assertEquals(55, count(f.source));
     }
@@ -253,7 +253,7 @@ public class AuditRegressionTest {
         Fixture f = new Fixture();
         f.stock(0, 64);
         f.labels.addPosition("alias", SRC);
-        f.run("INPUT 5 FROM EACH source, alias OUTPUT TO dest");
+        f.run("INPUT 5 FROM EACH \"source\", \"alias\" OUTPUT TO \"dest\"");
         assertEquals(5, count(f.dest));
     }
 
@@ -283,7 +283,7 @@ public class AuditRegressionTest {
         };
         partial.setInventorySlotContents(0, new ItemStack(ITEM, 20));
         f.world.tiles.put(SRC, partial);
-        f.run("INPUT FROM source OUTPUT 8 TO dest");
+        f.run("INPUT FROM \"source\" OUTPUT 8 TO \"dest\"");
         assertEquals(20, count(partial) + count(f.dest));
         assertTrue(count(f.dest) <= 8);
     }
@@ -302,7 +302,7 @@ public class AuditRegressionTest {
             }
         };
         f.world.tiles.put(DST, rejecting);
-        f.run("INPUT FROM source OUTPUT 10 TO dest");
+        f.run("INPUT FROM \"source\" OUTPUT 10 TO \"dest\"");
         assertEquals(20, count(f.source));
         assertEquals(0, count(rejecting));
     }
@@ -322,7 +322,7 @@ public class AuditRegressionTest {
         SidedTile inv = new SidedTile();
         inv.setInventorySlotContents(0, new ItemStack(ITEM, 40));
         f.world.tiles.put(SRC, inv);
-        f.run("INPUT RETAIN 10 FROM source OUTPUT TO dest");
+        f.run("INPUT RETAIN 10 FROM \"source\" OUTPUT TO \"dest\"");
         assertEquals(30, count(f.dest));
         assertEquals(10, count(inv));
     }
@@ -330,7 +330,7 @@ public class AuditRegressionTest {
     @Test
     void unsupportedSidesFailClosed() {
         for (String side : Arrays.asList("LEFT", "RIGHT", "FRONT", "BACK")) assertFalse(
-            new ProgramBuilder("EVERY 20 TICKS DO INPUT FROM source " + side + " SIDE END").build()
+            new ProgramBuilder("EVERY 20 TICKS DO INPUT FROM \"source\" " + side + " SIDE END").build()
                 .isSuccess());
         assertEquals(Collections.singletonList(ForgeDirection.UNKNOWN), SideQualifier.NULL.resolveDirections());
     }
@@ -338,7 +338,7 @@ public class AuditRegressionTest {
     @Test
     void unsupportedWithExpressionFailsClosed() {
         assertFalse(
-            new ProgramBuilder("EVERY 20 TICKS DO INPUT WITH (TAG iron AND TAG gold) FROM source END").build()
+            new ProgramBuilder("EVERY 20 TICKS DO INPUT WITH (TAG iron AND TAG gold) FROM \"source\" END").build()
                 .isSuccess());
     }
 
@@ -366,7 +366,7 @@ public class AuditRegressionTest {
         Fixture f = new Fixture();
         f.stock(0, 20);
         f.world.unloaded.add(SRC);
-        f.run("INPUT FROM source OUTPUT TO dest");
+        f.run("INPUT FROM \"source\" OUTPUT TO \"dest\"");
         assertEquals(0, count(f.dest));
     }
 
@@ -392,7 +392,7 @@ public class AuditRegressionTest {
         InventoryTile inv = new InventoryTile(1);
         inv.setInventorySlotContents(0, new ItemStack(ITEM, 64));
         f.add("remote", remote, inv);
-        f.run("INPUT FROM source IF remote HAS > 0 THEN OUTPUT TO dest END");
+        f.run("INPUT FROM \"source\" IF \"remote\" HAS > 0 THEN OUTPUT TO \"dest\" END");
         assertEquals(0, count(f.dest));
     }
 
@@ -444,7 +444,7 @@ public class AuditRegressionTest {
         InventoryTile src = new InventoryTile(10000);
         for (int i = 0; i < 10000; i++) src.setInventorySlotContents(i, new ItemStack(ITEM, 64));
         f.world.tiles.put(SRC, src);
-        f.run("INPUT FROM source OUTPUT 100 TO dest");
+        f.run("INPUT FROM \"source\" OUTPUT 100 TO \"dest\"");
         assertEquals(100, count(f.dest));
         assertEquals(640000, count(src) + count(f.dest));
     }
@@ -485,10 +485,10 @@ public class AuditRegressionTest {
         TankTile src = new TankTile(5000), dst = new TankTile(0);
         f.world.tiles.put(SRC, src);
         f.world.tiles.put(DST, dst);
-        f.run("INPUT fluid:water FROM source OUTPUT 1000 fluid:water TO dest");
+        f.run("INPUT fluid:water FROM \"source\" OUTPUT 1000 fluid:water TO \"dest\"");
         assertEquals(1000, dst.amount);
         assertEquals(4000, src.amount);
-        f.run("INPUT fluid:water FROM source OUTPUT RETAIN 1200 fluid:water TO dest");
+        f.run("INPUT fluid:water FROM \"source\" OUTPUT RETAIN 1200 fluid:water TO \"dest\"");
         assertEquals(1200, dst.amount);
         assertEquals(3800, src.amount);
     }
@@ -507,7 +507,7 @@ public class AuditRegressionTest {
         };
         f.world.tiles.put(SRC, src);
         f.world.tiles.put(DST, dst);
-        f.run("INPUT fluid:water FROM source OUTPUT 100 fluid:water TO dest");
+        f.run("INPUT fluid:water FROM \"source\" OUTPUT 100 fluid:water TO \"dest\"");
         assertEquals(5000, src.amount + dst.amount);
         assertTrue(dst.amount <= 100);
     }
@@ -533,7 +533,7 @@ public class AuditRegressionTest {
         InventoryTile s2 = new InventoryTile(1);
         s2.setInventorySlotContents(0, new ItemStack(ITEM, 20));
         f.add("second", EXTRA, s2);
-        f.run("INPUT 5 FROM source, second OUTPUT 2 TO dest FORGET source OUTPUT TO dest");
+        f.run("INPUT 5 FROM \"source\", \"second\" OUTPUT 2 TO \"dest\" FORGET \"source\" OUTPUT TO \"dest\"");
         assertEquals(5, count(f.dest));
         assertEquals(17, count(s2));
     }
@@ -565,7 +565,7 @@ public class AuditRegressionTest {
             }
         };
         f.source.setInventorySlotContents(0, new ItemStack(item, 20));
-        f.run("INPUT FROM source OUTPUT 1 TO dest");
+        f.run("INPUT FROM \"source\" OUTPUT 1 TO \"dest\"");
         assertEquals(0, names[0]);
     }
 
@@ -608,7 +608,8 @@ public class AuditRegressionTest {
         manager.zCoord = 0;
         ItemStack disk = new ItemStack(new ItemDisk());
         manager.setInventorySlotContents(0, disk);
-        Program program = parse("EVERY 20 TICKS DO INPUT fluid:water FROM source OUTPUT 100 fluid:water TO dest END");
+        Program program = parse(
+            "EVERY 20 TICKS DO INPUT fluid:water FROM \"source\" OUTPUT 100 fluid:water TO \"dest\" END");
         assertThrows(
             IllegalStateException.class,
             () -> program
@@ -674,11 +675,11 @@ public class AuditRegressionTest {
                 "INPUT " + inQuota
                     + " RETAIN "
                     + retain
-                    + " FROM source OUTPUT "
+                    + " FROM \"source\" OUTPUT "
                     + outQuota
                     + " RETAIN "
                     + cap
-                    + " TO dest");
+                    + " TO \"dest\"");
             int expected = Math
                 .min(Math.min(inQuota, outQuota), Math.min(Math.max(0, total - retain), Math.max(0, cap - existing)));
             assertEquals(existing + expected, count(f.dest), "trial " + trial);

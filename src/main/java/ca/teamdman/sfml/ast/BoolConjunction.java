@@ -14,7 +14,7 @@ public final class BoolConjunction implements BoolExpr {
 
     @Override
     public boolean evaluate(ProgramContext context) {
-        return left.evaluate(context) && right.evaluate(context);
+        return context.evaluateCondition(left) && context.evaluateCondition(right);
     }
 
     public BoolExpr getLeft() {

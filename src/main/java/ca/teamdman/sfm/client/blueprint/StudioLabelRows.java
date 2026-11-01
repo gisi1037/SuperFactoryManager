@@ -17,7 +17,7 @@ import org.antlr.v4.runtime.misc.ParseCancellationException;
 import ca.teamdman.langs.SFMLLexer;
 import ca.teamdman.langs.SFMLParser;
 
-/** Pending ordered legacy label lexemes. Row IDs and structural revisions never leave client memory. */
+/** Pending ordered quoted label lexemes. Row IDs and structural revisions never leave client memory. */
 public final class StudioLabelRows {
 
     public static final int MAX_ROWS = 32;
@@ -168,6 +168,14 @@ public final class StudioLabelRows {
                 || labels.sidequalifier() != null
                 || labels.slotqualifier() != null)
                 throw new IllegalArgumentException("Use 1–32 literal labels without modifiers in the label rows");
+            for (SFMLParser.LabelContext label : labels.label()) {
+                if (!(label instanceof SFMLParser.StringLabelContext)) throw new IllegalArgumentException(
+                    "Literal label names must be quoted; use the code editor for label variables");
+                String name = new ca.teamdman.sfml.data.DataCompiler().compile(label.getText(), 1, 0)
+                    .evaluate(new ca.teamdman.sfml.data.DataRuntime(null, 0))
+                    .asString();
+                ca.teamdman.sfml.data.LabelReference.of(name);
+            }
             return labels;
         } catch (ParseCancellationException invalid) {
             throw new IllegalArgumentException("Invalid literal label list", invalid);

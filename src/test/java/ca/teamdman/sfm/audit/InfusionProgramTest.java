@@ -102,7 +102,7 @@ class InfusionProgramTest {
         assertSame(INGREDIENT, center.getItem());
         assertEquals(7, center.getItemDamage());
         infusion.tick();
-        assertEquals(3, infusion.phase(), "NBT-only changes should advance to collection automatically");
+        assertEquals(3, infusion.phase(), "NBT-only changes should advance to \"collection\" automatically");
         assertSame(center, infusion.center.getStackInSlot(0));
         assertEquals(1, count(infusion.center));
         assertEquals(64, count(infusion.output));
@@ -195,7 +195,7 @@ class InfusionProgramTest {
                     return globals.read(i)
                         .asLong();
             }
-            throw new AssertionError("Example has no global phase declaration");
+            throw new AssertionError("\"Example\" has no global phase declaration");
         }
     }
 

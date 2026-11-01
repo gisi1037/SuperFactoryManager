@@ -204,9 +204,9 @@ class SfmlSnippetMenuTest {
         else if (snippet.getCategory() == SnippetCategory.LABEL && !fragment.startsWith("LET "))
             fragment = "INPUT FROM " + fragment;
         else if (snippet.getCategory() == SnippetCategory.MODIFIER) {
-            if (id.startsWith("mod_slot")) fragment = "INPUT FROM source " + fragment;
-            else if (id.startsWith("mod_round")) fragment = "OUTPUT TO dest " + fragment;
-            else fragment = "INPUT " + fragment + " FROM source";
+            if (id.startsWith("mod_slot")) fragment = "INPUT FROM \"source\" " + fragment;
+            else if (id.startsWith("mod_round")) fragment = "OUTPUT TO \"dest\" " + fragment;
+            else fragment = "INPUT " + fragment + " FROM \"source\"";
         }
         if (id.equals("data_set")) fragment = "LET $value = 0\n" + fragment;
         return "EVERY 20 TICKS DO\n" + fragment + "\nEND";
@@ -237,6 +237,9 @@ class SfmlSnippetMenuTest {
         replacements.put("<sensor>", "sensor");
         replacements.put("<quantity>", "8");
         replacements.put("<amount>", "4");
+        replacements.put("<ticks>", "2");
+        replacements.put("<machine>", "machine");
+        replacements.put("<configuration>", "1");
         replacements.put("<minimum>", "0");
         replacements.put("<maximum>", "8");
         replacements.put("<level>", "1");

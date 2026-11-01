@@ -131,7 +131,7 @@ class StudioOreFilterTest {
                 "16 EACH item:minecraft:iron_ingot", "WITH #ingotIron", "WITHOUT TAG ingotIron" }) {
                     String action = (type == Type.INPUT ? "INPUT" : "OUTPUT") + (rest.isEmpty() ? "" : " " + rest)
                         + " EXCEPT item:minecraft:dirt";
-                    String access = type == Type.INPUT ? "FROM EACH source" : "TO EMPTY SLOTS IN EACH dest";
+                    String access = type == Type.INPUT ? "FROM EACH \"source\"" : "TO EMPTY SLOTS IN EACH \"dest\"";
                     String clause = accessFirst ? access + " " + action : action + " " + access;
                     String changed = edit(type, clause, "WITHOUT #ingot*");
                     String removed = edit(type, changed, "");
@@ -178,7 +178,7 @@ class StudioOreFilterTest {
         for (Type type : new Type[] { Type.INPUT, Type.OUTPUT }) for (String rest : new String[] { "16 item:a,2 item:b",
             "16 item:a OR WITH #oreName", "16 item:a,", "WITH #oreName,", "16," }) {
                 String clause = (type == Type.INPUT ? "INPUT " : "OUTPUT ") + rest
-                    + (type == Type.INPUT ? " FROM first,second" : " TO first,second");
+                    + (type == Type.INPUT ? " FROM \"first\",\"second\"" : " TO \"first\",\"second\"");
                 limit(clause);
                 assertNull(filter(type, clause), clause);
                 assertFalse(
@@ -188,10 +188,10 @@ class StudioOreFilterTest {
             }
         for (String value : new String[] { "WITH (#a)", "WITH NOT #a", "WITH #a AND #b", "WITH #a OR #b" }) {
             assertThrows(IllegalArgumentException.class, () -> new StudioOreFilter(value));
-            assertNull(filter(Type.INPUT, "INPUT " + value + " FROM source"));
+            assertNull(filter(Type.INPUT, "INPUT " + value + " FROM \"source\""));
         }
         String labels = IntStream.range(0, 32)
-            .mapToObj(i -> "label_" + i)
+            .mapToObj(i -> "\"label_" + i + "\"")
             .collect(Collectors.joining(","));
         assertNotNull(filter(Type.INPUT, "INPUT FROM " + labels));
         assertNull(filter(Type.INPUT, "INPUT FROM " + labels + ",last_label"));
@@ -199,10 +199,10 @@ class StudioOreFilterTest {
 
     @Test
     void enabledBlankInvalidOrInjectedPatternRefusesWhileOffRetainsInvalidPendingText() {
-        String clause = "INPUT 16 FROM source", source = program(clause);
+        String clause = "INPUT 16 FROM \"source\"", source = program(clause);
         Node node = new Node(UUID.randomUUID(), Type.INPUT, 0, 0, clause);
         for (String pattern : new String[] { "", " ", "ingot?", "ingot.*", "#ingotIron", "ingotIron OR #dustIron",
-            "a -- comment", "a\nb", "a\rb", "a\0b", "a FROM dest", "\"ingotIron\"", "a\\b", "😀" }) {
+            "a -- comment", "a\nb", "a\rb", "a\0b", "a FROM \"dest\"", "\"ingotIron\"", "a\\b", "😀" }) {
             StudioFieldDraft draft = draft(node, source);
             draft.setOrePattern(pattern);
             draft.setOreMode(Mode.WITH);
@@ -218,7 +218,7 @@ class StudioOreFilterTest {
 
     @Test
     void offPatternControlStateCopiesAndRevertsIndependentlyOfSerializedText() {
-        String clause = "OUTPUT TO dest", source = program(clause);
+        String clause = "OUTPUT TO \"dest\"", source = program(clause);
         Node node = new Node(UUID.randomUUID(), Type.OUTPUT, 0, 0, clause);
         StudioFieldDraft draft = draft(node, source);
         assertEquals("", draft.value("oreFilter"));
@@ -240,7 +240,7 @@ class StudioOreFilterTest {
 
     @Test
     void returningToOriginalControlsRestoresExactIntroducerWithoutFalseDirty() {
-        String clause = "INPUT wItHoUt TaG#ingotIron FROM source", source = program(clause);
+        String clause = "INPUT wItHoUt TaG#ingotIron FROM \"source\"", source = program(clause);
         Node node = new Node(UUID.randomUUID(), Type.INPUT, 0, 0, clause);
         StudioFieldDraft draft = draft(node, source);
         draft.setOreMode(Mode.OFF);
@@ -257,14 +257,14 @@ class StudioOreFilterTest {
         for (Type type : new Type[] { Type.INPUT, Type.OUTPUT })
             for (String initial : new String[] { "", "WITH #ingotIron", "item:a", "item:a WITHOUT #dust*" }) {
                 String clause = (type == Type.INPUT ? "INPUT " : "OUTPUT ") + initial
-                    + (type == Type.INPUT ? " FROM a,b" : " TO a,b");
+                    + (type == Type.INPUT ? " FROM \"a\",\"b\"" : " TO \"a\",\"b\"");
                 String source = program(clause);
                 Node node = new Node(UUID.randomUUID(), type, 0, 0, clause);
                 StudioFieldDraft draft = draft(node, source);
                 UUID first = draft.labelRows()
                     .get(0).id;
                 UUID revision = draft.labelRevision();
-                draft.setLabel(first, "edited");
+                draft.setLabel(first, "\"edited\"");
                 draft.set("resource", "item:minecraft:gold_ingot");
                 draft.setOreMode(Mode.WITHOUT);
                 draft.setOrePattern("");
@@ -278,7 +278,7 @@ class StudioOreFilterTest {
                 assertEquals(revision, retained.labelRevision());
                 retained.setOrePattern("ingot*");
                 String changed = retained.appliedClause(PROJECT, node, source);
-                assertTrue(changed.contains("edited,b"));
+                assertTrue(changed.contains("\"edited\",\"b\""));
                 assertTrue(changed.contains("item:minecraft:gold_ingot"));
                 assertTrue(
                     limit(changed).getWith()
@@ -305,7 +305,7 @@ class StudioOreFilterTest {
 
     @Test
     void staleOwnerSourceAndNodeCannotApplyCopiedFilterControls() {
-        String clause = "INPUT FROM source", source = program(clause);
+        String clause = "INPUT FROM \"source\"", source = program(clause);
         Node node = new Node(UUID.randomUUID(), Type.INPUT, 0, 0, clause);
         StudioFieldDraft draft = draft(node, source);
         draft.setOreMode(Mode.WITH);
@@ -315,14 +315,14 @@ class StudioOreFilterTest {
         assertThrows(
             IllegalArgumentException.class,
             () -> draft.appliedClause(PROJECT, new Node(UUID.randomUUID(), Type.INPUT, 0, 0, clause), source));
-        node.setClause("INPUT FROM other");
+        node.setClause("INPUT FROM \"other\"");
         assertThrows(IllegalArgumentException.class, () -> draft.appliedClause(PROJECT, node, source));
         assertEquals("ingot*", draft.orePattern());
     }
 
     @Test
     void atomicApplyKeepsUuidSourceNavigationAndSingleUndoWithPendingDiagnostics() {
-        String source = "-- 🏭\r\n" + program("INPUT 16 RETAIN 2 FROM a,b OUTPUT TO dest");
+        String source = "-- 🏭\r\n" + program("INPUT 16 RETAIN 2 FROM \"a\",\"b\" OUTPUT TO \"dest\"");
         StudioDocument document = new StudioDocument();
         document.load(source);
         document.openVisual();

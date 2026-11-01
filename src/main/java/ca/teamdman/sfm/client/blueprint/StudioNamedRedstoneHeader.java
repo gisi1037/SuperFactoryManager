@@ -154,7 +154,12 @@ public final class StudioNamedRedstoneHeader {
                 .getType() != Token.EOF)
                 throw new IllegalArgumentException(
                     "Use EVERY REDSTONE RISING, PULSE or FALLING FROM labels [physical SIDE]");
-            return (SFMLParser.NamedRedstoneTriggerContext) trigger;
+            SFMLParser.NamedRedstoneTriggerContext named = (SFMLParser.NamedRedstoneTriggerContext) trigger;
+            for (SFMLParser.LabelContext label : named.labelAccess()
+                .label())
+                if (!(label instanceof SFMLParser.StringLabelContext)) throw new IllegalArgumentException(
+                    "Quote literal Port labels; use the code editor for label variables");
+            return named;
         } catch (ParseCancellationException invalid) {
             throw new IllegalArgumentException("Use one complete named redstone header, without DO or END", invalid);
         }

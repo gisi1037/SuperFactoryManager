@@ -23,9 +23,17 @@ public final class ForgetStatement implements Statement {
         if (labels.isEmpty()) {
             context.clearAllInputs();
         } else {
-            for (Label label : labels) {
-                context.clearInputsForLabel(label.getName());
+            // Evaluate the complete list before changing any registered input.
+            java.util.List<Label> resolved = new java.util.ArrayList<>(labels.size());
+            for (Label label : labels) resolved.add(label.resolve(context));
+            for (Label label : resolved) {
+                if (label.getReference()
+                    .getSideMask() != 63 || label.getReference()
+                        .hasSlotSelection())
+                    throw new IllegalArgumentException(
+                        "FORGET accepts label names only, without side or slot restrictions");
             }
+            for (Label label : resolved) context.clearInputsForLabel(label.getName());
         }
     }
 
@@ -35,9 +43,7 @@ public final class ForgetStatement implements Statement {
         StringBuilder sb = new StringBuilder("FORGET ");
         for (int i = 0; i < labels.size(); i++) {
             if (i > 0) sb.append(", ");
-            sb.append(
-                labels.get(i)
-                    .getName());
+            sb.append(labels.get(i));
         }
         return sb.toString();
     }

@@ -94,8 +94,8 @@ class LoadedInventoryBoundaryTest {
         Fixture fixture = new Fixture();
         SafeChest source = chest(fixture.world, SRC, 10);
         fixture.world.unloaded.add(SRC.offset(ForgeDirection.EAST));
-        fixture.run("INPUT FROM source OUTPUT TO dest");
-        fixture.run("IF source HAS >= 1 THEN INPUT FROM source OUTPUT TO dest END");
+        fixture.run("INPUT FROM \"source\" OUTPUT TO \"dest\"");
+        fixture.run("IF \"source\" HAS >= 1 THEN INPUT FROM \"source\" OUTPUT TO \"dest\" END");
         assertEquals(0, count(fixture.dest));
         assertEquals(10, source.getStackInSlot(0).stackSize);
     }
@@ -134,7 +134,7 @@ class LoadedInventoryBoundaryTest {
             fixture.labels.removePosition("source", SRC);
             fixture.labels.addPosition("source", reverse ? secondPos : firstPos);
             fixture.labels.addPosition("alias", reverse ? firstPos : secondPos);
-            fixture.run("INPUT 1 FROM source SLOTS 0 OUTPUT 1 TO alias SLOTS 0 OUTPUT TO dest");
+            fixture.run("INPUT 1 FROM \"source\" SLOTS 0 OUTPUT 1 TO \"alias\" SLOTS 0 OUTPUT TO \"dest\"");
             assertEquals(1, count(fixture.dest));
             assertEquals(9, first.getStackInSlot(0).stackSize);
         }

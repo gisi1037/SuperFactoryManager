@@ -98,7 +98,7 @@ public final class ResourceSelectorOreFixture {
     }
 
     public static void studioLegacyOreFiltersKeepRealMembershipCaseUnknownAndFluidSemantics() {
-        String clause = "INPUT FROM source";
+        String clause = "INPUT FROM \"source\"";
         String with = StudioNodeProperties.update(Type.INPUT, clause, "oreFilter", "WITH #sfmoreselectormet*");
         String without = StudioNodeProperties.update(Type.INPUT, with, "oreFilter", "WITHOUT #sfmoreselectormet*");
         ResourceLimit included = legacyLimit(with), excluded = legacyLimit(without);
@@ -110,19 +110,19 @@ public final class ResourceSelectorOreFixture {
         assertTrue(excluded.matchesItem(new ItemStack(unrelated, 1, 0)));
         String unknown = "sfmStudioNeverRegistered";
         String[] names = OreDictionary.getOreNames();
-        assertFalse(legacyLimit("INPUT WITH #" + unknown + " FROM source").matchesItem(new ItemStack(wildcard)));
-        assertTrue(legacyLimit("INPUT WITHOUT #" + unknown + " FROM source").matchesItem(new ItemStack(wildcard)));
+        assertFalse(legacyLimit("INPUT WITH #" + unknown + " FROM \"source\"").matchesItem(new ItemStack(wildcard)));
+        assertTrue(legacyLimit("INPUT WITHOUT #" + unknown + " FROM \"source\"").matchesItem(new ItemStack(wildcard)));
         assertFalse(OreDictionary.doesOreNameExist(unknown));
         assertArrayEquals(names, OreDictionary.getOreNames());
         // A namespace-looking pattern is literal, not a mapping to a modern tag collection.
-        assertFalse(legacyLimit("INPUT WITH #forge:ingots FROM source").matchesItem(new ItemStack(wildcard)));
+        assertFalse(legacyLimit("INPUT WITH #forge:ingots FROM \"source\"").matchesItem(new ItemStack(wildcard)));
         Fluid fluid = new Fluid("sfm_studio_filter_fluid");
         assertTrue(FluidRegistry.registerFluid(fluid));
         FluidStack stack = new FluidStack(fluid, 1000);
         assertTrue(included.matchesFluid(stack));
         assertTrue(excluded.matchesFluid(stack));
         assertTrue(legacyLimit(clause).matchesFluid(stack));
-        assertTrue(legacyLimit("INPUT WITH #" + unknown + " FROM source").matchesFluid(stack));
+        assertTrue(legacyLimit("INPUT WITH #" + unknown + " FROM \"source\"").matchesFluid(stack));
     }
 
     private static ResourceLimit legacyLimit(String clause) {
@@ -131,7 +131,7 @@ public final class ResourceSelectorOreFixture {
     }
 
     public static void studioGlobalExclusionsKeepRealItemMetadataAndFluidSemantics() {
-        String clause = "INPUT FROM source";
+        String clause = "INPUT FROM \"source\"";
         String excluded = StudioNodeProperties
             .update(Type.INPUT, clause, "exclusion", "\"item:minecraft:sfm_ore_selector_test_metadata:4\"");
         ResourceLimits filtered = legacyLimits(excluded);
@@ -167,7 +167,7 @@ public final class ResourceSelectorOreFixture {
     public static void studioExclusionRowsRetainRealMetadataAndMixedItemFluidMatching() {
         Fluid fluid = new Fluid("sfm_studio_exclusion_rows_fluid");
         assertTrue(FluidRegistry.registerFluid(fluid));
-        String clause = "INPUT FROM source";
+        String clause = "INPUT FROM \"source\"";
         String metadataSelector = "\"item:minecraft:sfm_ore_selector_test_metadata:4\"";
         String both = StudioNodeProperties.updateExclusions(
             Type.INPUT,
@@ -203,12 +203,12 @@ public final class ResourceSelectorOreFixture {
         String selector = "item:minecraft:sfm_ore_selector_test_wildcard OR \"item:minecraft:sfm_ore_selector_test_metadata:4\"";
         for (int i = 0; i < operators.length; i++) {
             String clause = "(" + operators[i]
-                + " source HAS >= 8 "
+                + " \"source\" HAS >= 8 "
                 + selector
                 + " WITH #"
                 + METAL
                 + " EXCEPT item:minecraft:sfm_ore_selector_test_unrelated)";
-            String grouped = StudioNodeProperties.update(Type.IF, clause, "label", "source,dest,source");
+            String grouped = StudioNodeProperties.update(Type.IF, clause, "label", "\"source\",\"dest\",\"source\"");
             grouped = StudioNodeProperties.updateResourceAlternatives(Type.IF, grouped, selector + " OR " + selector);
             BoolHas has = legacyHas(grouped);
             assertEquals(expected[i], has.evaluate(context), grouped);
@@ -232,11 +232,11 @@ public final class ResourceSelectorOreFixture {
             assertTrue(
                 legacyHas(StudioNodeProperties.updateResourceAlternatives(Type.IF, overall, "")).evaluate(context));
         }
-        String slot = "OVERALL source,dest SLOTS 0 HAS = 5 " + selector;
+        String slot = "OVERALL \"source\",\"dest\" SLOTS 0 HAS = 5 " + selector;
         assertTrue(legacyHas(slot).evaluate(context));
         assertFalse(legacyHas(StudioNodeProperties.update(Type.IF, slot, "amount", "10")).evaluate(context));
         for (String set : operators) {
-            String clause = set + " missing HAS = 0";
+            String clause = set + " \"missing\" HAS = 0";
             String same = StudioNodeProperties.updateResourceAlternatives(Type.IF, clause, "item:*");
             assertEquals(legacyHas(clause).evaluate(context), legacyHas(same).evaluate(context));
         }
@@ -273,11 +273,11 @@ public final class ResourceSelectorOreFixture {
         String unrelatedSelector = "item:minecraft:sfm_ore_selector_test_unrelated";
         String input = StudioNodeProperties.updateIndependentLimits(
             Type.INPUT,
-            "INPUT item:a,item:b FROM source",
+            "INPUT item:a,item:b FROM \"source\"",
             "4 RETAIN 1 EACH " + union + " WITH #" + METAL + ",3 " + unrelatedSelector);
         String output = StudioNodeProperties.updateIndependentLimits(
             Type.OUTPUT,
-            "OUTPUT item:a,item:b TO dest",
+            "OUTPUT item:a,item:b TO \"dest\"",
             "2 EACH RETAIN 5 EACH " + union + ",2 RETAIN 4 " + unrelatedSelector);
         ProgramContext context = transferContext(fixture);
         parse("every 20 ticks do " + input + " " + output + " end").tick(context);
@@ -293,8 +293,8 @@ public final class ResourceSelectorOreFixture {
             String precise = "9 item:minecraft:sfm_ore_selector_test_wildcard";
             String rows = broadFirst ? "2 item:*," + precise : precise + ",2 item:*";
             String edited = StudioNodeProperties
-                .updateIndependentLimits(Type.INPUT, "INPUT item:a,item:b FROM source", rows);
-            parse("every 20 ticks do " + edited + " OUTPUT TO dest end").tick(transferContext(overlap));
+                .updateIndependentLimits(Type.INPUT, "INPUT item:a,item:b FROM \"source\"", rows);
+            parse("every 20 ticks do " + edited + " OUTPUT TO \"dest\" end").tick(transferContext(overlap));
             assertEquals(broadFirst ? 2 : 9, count(overlap.dest));
             assertEquals(10, count(overlap.source) + count(overlap.dest));
         }
@@ -313,10 +313,10 @@ public final class ResourceSelectorOreFixture {
             String rows = mode == 1 ? "50 fluid:*,200 RETAIN 100 " + selector
                 : "200 RETAIN 100 " + selector + " WITH #sfmUnknown,50 fluid:*";
             String input = StudioNodeProperties
-                .updateIndependentLimits(Type.INPUT, "INPUT fluid:a,fluid:b FROM source", rows);
+                .updateIndependentLimits(Type.INPUT, "INPUT fluid:a,fluid:b FROM \"source\"", rows);
             if (mode == 2) input = StudioNodeProperties.updateIndependentLimits(Type.INPUT, input, "50 fluid:*");
             assertTrue(legacyLimits(input).matchesFluid(new FluidStack(fluid, 1)));
-            parse("every 20 ticks do " + input + " OUTPUT 150 " + selector + " TO dest end")
+            parse("every 20 ticks do " + input + " OUTPUT 150 " + selector + " TO \"dest\" end")
                 .tick(transferContext(fixture));
             assertEquals(mode == 0 ? 150 : 50, dest.tank.getFluidAmount());
             assertEquals(1000, source.tank.getFluidAmount() + dest.tank.getFluidAmount());
@@ -332,13 +332,13 @@ public final class ResourceSelectorOreFixture {
         String other = "item:minecraft:sfm_ore_selector_test_unrelated";
         String input = promotedClause(
             Type.INPUT,
-            "INPUT 9 RETAIN 1 EACH " + union + " WITH #" + METAL + " FROM source",
+            "INPUT 9 RETAIN 1 EACH " + union + " WITH #" + METAL + " FROM \"source\"",
             "4",
             "3 " + other,
             false);
         String output = promotedClause(
             Type.OUTPUT,
-            "OUTPUT 8 EACH RETAIN 5 EACH " + union + " TO dest",
+            "OUTPUT 8 EACH RETAIN 5 EACH " + union + " TO \"dest\"",
             "2",
             "2 RETAIN 4 " + other,
             false);
@@ -355,8 +355,8 @@ public final class ResourceSelectorOreFixture {
             String precise = "9 item:minecraft:sfm_ore_selector_test_wildcard";
             String first = broadFirst ? "2 item:*" : precise;
             String second = broadFirst ? precise : "2 item:*";
-            String edited = promotedClause(Type.INPUT, "INPUT " + first + " FROM source", null, second, false);
-            parse("every 20 ticks do " + edited + " OUTPUT TO dest end").tick(transferContext(overlap));
+            String edited = promotedClause(Type.INPUT, "INPUT " + first + " FROM \"source\"", null, second, false);
+            parse("every 20 ticks do " + edited + " OUTPUT TO \"dest\" end").tick(transferContext(overlap));
             assertEquals(broadFirst ? 2 : 9, count(overlap.dest));
             assertEquals(10, count(overlap.source) + count(overlap.dest));
         }
@@ -373,12 +373,12 @@ public final class ResourceSelectorOreFixture {
             fixture.world.tiles.put(DST, dest);
             String input = promotedClause(
                 Type.INPUT,
-                "INPUT " + (mode == 1 ? "50 fluid:*" : specific) + " FROM source",
+                "INPUT " + (mode == 1 ? "50 fluid:*" : specific) + " FROM \"source\"",
                 null,
                 mode == 1 ? specific : "50 fluid:*",
                 mode == 2);
             assertTrue(legacyLimits(input).matchesFluid(new FluidStack(fluid, 1)));
-            parse("every 20 ticks do " + input + " OUTPUT 150 fluid:sfm_studio_promoted_fluid TO dest end")
+            parse("every 20 ticks do " + input + " OUTPUT 150 fluid:sfm_studio_promoted_fluid TO \"dest\" end")
                 .tick(transferContext(fixture));
             assertEquals(mode == 0 ? 150 : 50, dest.tank.getFluidAmount());
             assertEquals(1000, source.tank.getFluidAmount() + dest.tank.getFluidAmount());
@@ -416,14 +416,14 @@ public final class ResourceSelectorOreFixture {
             if (stocked > 0) fixture.dest.setInventorySlotContents(0, new ItemStack(wildcard, stocked, 7));
             String input = optionalClause(
                 Type.INPUT,
-                "INPUT " + selector + " FROM source",
+                "INPUT " + selector + " FROM \"source\"",
                 mode == 0 || mode == 1 ? "8" : mode == 2 ? "0" : null,
                 false,
                 mode == 0 ? "15" : null,
                 false);
             String output = optionalClause(
                 Type.OUTPUT,
-                "OUTPUT " + selector + " TO dest",
+                "OUTPUT " + selector + " TO \"dest\"",
                 mode == 5 ? "3" : null,
                 false,
                 mode == 3 || mode == 5 ? "10" : mode == 4 ? "0" : null,
@@ -437,8 +437,14 @@ public final class ResourceSelectorOreFixture {
             Fixture fixture = new Fixture();
             fixture.source.setInventorySlotContents(0, new ItemStack(wildcard, 4, 7));
             fixture.source.setInventorySlotContents(1, new ItemStack(metadata, 4, 4));
-            String input = optionalClause(Type.INPUT, "INPUT " + union + " FROM source", "3", true, "3", retainEach);
-            parse("every 20 ticks do " + input + " OUTPUT TO dest end").tick(transferContext(fixture));
+            String input = optionalClause(
+                Type.INPUT,
+                "INPUT " + union + " FROM \"source\"",
+                "3",
+                true,
+                "3",
+                retainEach);
+            parse("every 20 ticks do " + input + " OUTPUT TO \"dest\" end").tick(transferContext(fixture));
             assertEquals(retainEach ? 2 : 4, count(fixture.dest));
             assertEquals(8, count(fixture.source) + count(fixture.dest));
         }
@@ -456,14 +462,14 @@ public final class ResourceSelectorOreFixture {
             fixture.world.tiles.put(DST, dest);
             String input = optionalClause(
                 Type.INPUT,
-                "INPUT " + selector + " FROM source",
+                "INPUT " + selector + " FROM \"source\"",
                 mode == 0 ? "800" : mode == 4 ? "0" : null,
                 false,
                 mode == 0 ? "2300" : null,
                 false);
             String output = optionalClause(
                 Type.OUTPUT,
-                "OUTPUT " + selector + " TO dest",
+                "OUTPUT " + selector + " TO \"dest\"",
                 mode == 2 ? "200" : null,
                 false,
                 mode == 1 ? "1000" : mode == 3 ? "0" : null,
@@ -483,14 +489,14 @@ public final class ResourceSelectorOreFixture {
             if (stocked > 0) fixture.dest.setInventorySlotContents(0, new ItemStack(wildcard, stocked, 7));
             String input = optionalClause(
                 Type.INPUT,
-                "FROM source INPUT",
+                "FROM \"source\" INPUT",
                 mode <= 1 ? "8" : mode == 2 ? "0" : null,
                 false,
                 mode == 0 ? "15" : null,
                 false);
             String output = optionalClause(
                 Type.OUTPUT,
-                "OUTPUT TO dest",
+                "OUTPUT TO \"dest\"",
                 mode == 5 ? "3" : null,
                 false,
                 mode == 3 || mode == 5 ? "10" : mode == 4 ? "0" : null,
@@ -512,14 +518,14 @@ public final class ResourceSelectorOreFixture {
             fixture.world.tiles.put(DST, dest);
             String input = optionalClause(
                 Type.INPUT,
-                "INPUT FROM source",
+                "INPUT FROM \"source\"",
                 mode == 0 ? "800" : mode == 4 ? "0" : null,
                 false,
                 mode == 0 ? "2300" : null,
                 false);
             String output = optionalClause(
                 Type.OUTPUT,
-                "TO dest OUTPUT",
+                "TO \"dest\" OUTPUT",
                 mode == 2 ? "200" : null,
                 false,
                 mode == 1 ? "1000" : mode == 3 ? "0" : null,
@@ -609,7 +615,7 @@ public final class ResourceSelectorOreFixture {
     public static void studioResourceAlternativesShareOneLimitAndKeepMixedUnionAndExclusions() {
         Fluid fluid = new Fluid("sfm_studio_alternative_fluid");
         assertTrue(FluidRegistry.registerFluid(fluid));
-        String clause = "INPUT 16 EACH RETAIN 2 EACH EXCEPT item:minecraft:sfm_ore_selector_test_unrelated FROM source";
+        String clause = "INPUT 16 EACH RETAIN 2 EACH EXCEPT item:minecraft:sfm_ore_selector_test_unrelated FROM \"source\"";
         String metadataSelector = "\"item:minecraft:sfm_ore_selector_test_metadata:4\"";
         String selected = StudioNodeProperties.updateResourceAlternatives(
             Type.INPUT,

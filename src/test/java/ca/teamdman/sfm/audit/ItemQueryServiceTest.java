@@ -202,7 +202,8 @@ class ItemQueryServiceTest {
         ProgramContext context = context(fixture);
         ItemQueryService service = new ItemQueryService(context);
         assertEquals(12, service.count(SOURCE, ALL, new QueryBudget()));
-        parse("EVERY 20 TICKS DO IF source HAS >= 10 THEN INPUT 5 FROM source OUTPUT TO dest END END").tick(context);
+        parse("EVERY 20 TICKS DO IF \"source\" HAS >= 10 THEN INPUT 5 FROM \"source\" OUTPUT TO \"dest\" END END")
+            .tick(context);
         assertEquals(5, AuditRegressionTest.count(fixture.dest));
         assertEquals(7, AuditRegressionTest.count(fixture.source));
         assertEquals(7, service.count(SOURCE, ALL, new QueryBudget()));

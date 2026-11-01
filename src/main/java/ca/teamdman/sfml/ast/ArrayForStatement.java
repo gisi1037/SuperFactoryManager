@@ -22,6 +22,18 @@ public final class ArrayForStatement implements Statement {
     @Override
     public void tick(ProgramContext context) {
         DataRuntime runtime = context.getDataRuntime();
+        if (context.isResumable()) {
+            context.enterLoop();
+            try {
+                ca.teamdman.sfml.data.ResumableLoops.array(runtime, this, binding, array, () -> {
+                    body.tick(context);
+                    return null;
+                });
+            } finally {
+                context.exitLoop();
+            }
+            return;
+        }
         DataValue snapshot = array.evaluate(runtime);
         context.enterLoop();
         try {

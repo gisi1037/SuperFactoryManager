@@ -21,6 +21,24 @@ final class TransferQuota {
         this.limit = limit;
     }
 
+    /** Re-observe retention after a pause, but never mint a fresh quantity allowance. */
+    TransferQuota resumed(ca.teamdman.sfml.data.Continuation.Bounds bounds) {
+        bounds.entry();
+        if (movedByResource.size() > 1024) throw new IllegalArgumentException("WAIT retained quota budget exceeded");
+        TransferQuota copy = new TransferQuota(limit);
+        copy.moved = moved;
+        for (Map.Entry<Object, Long> entry : movedByResource.entrySet()) {
+            bounds.entry();
+            copy.movedByResource.put(entry.getKey(), entry.getValue());
+        }
+        return copy;
+    }
+
+    void retain(ca.teamdman.sfml.data.Continuation.Bounds bounds) {
+        bounds.entry();
+        for (int i = 0; i < movedByResource.size(); i++) bounds.entry();
+    }
+
     static Object key(ItemStack stack) {
         return new ItemKey(stack);
     }

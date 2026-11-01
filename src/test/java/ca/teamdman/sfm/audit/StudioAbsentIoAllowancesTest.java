@@ -68,7 +68,7 @@ class StudioAbsentIoAllowancesTest {
             Node node = node(
                 type,
                 type == Type.INPUT ? "FROM\"\u7bb1 \ud83c\udfed\" InPuT EXCEPT item:dirt"
-                    : "TO EMPTY SLOTS IN EACH\"\u7bb1 \ud83c\udfed\" OuTpUt EXCEPT item:dirt");
+                    : "TO EMPTY SLOTS IN EACH\"箱 🏭\" OuTpUt EXCEPT item:dirt");
             StudioFieldDraft draft = draft(node);
             assertTrue(draft.hasIoAllowances());
             assertFalse(draft.canAddIndependentLimit());
@@ -101,7 +101,7 @@ class StudioAbsentIoAllowancesTest {
             for (int enabled = 0; enabled < 4; enabled++) for (int each = 0; each < 4; each++) {
                 String keyword = type == Type.INPUT ? "InPuT" : "OuTpUt";
                 String access = (type == Type.INPUT ? "FROM" : "TO EMPTY SLOTS IN")
-                    + " EACH \"\u7bb1 \ud83c\udfed, OR\",other ROUND ROBIN BY BLOCK North,Top SIDE SLOTS 0,2-8";
+                    + " EACH \"\u7bb1 \ud83c\udfed, OR\",\"other\" ROUND ROBIN BY BLOCK North,Top SIDE SLOTS 0,2-8";
                 String action = keyword + " eXcEpT item:dirt,fluid:lava";
                 String clause = first ? access + "\t" + action : action + "\t" + access;
                 Node node = node(type, clause);
@@ -143,7 +143,7 @@ class StudioAbsentIoAllowancesTest {
     void explicitZeroAndMaxStayDistinctFromOmission() {
         for (Type type : new Type[] { Type.INPUT, Type.OUTPUT })
             for (String value : new String[] { "0", "9223372036854775807" }) {
-                Node node = node(type, type == Type.INPUT ? "INPUT FROM source" : "TO dest OUTPUT");
+                Node node = node(type, type == Type.INPUT ? "INPUT FROM \"source\"" : "TO \"dest\" OUTPUT");
                 StudioFieldDraft draft = draft(node);
                 for (Part part : Part.values()) {
                     draft.setAllowanceEnabled(part, true);
@@ -168,21 +168,21 @@ class StudioAbsentIoAllowancesTest {
         for (Part part : Part.values())
             for (String bad : new String[] { "", "-1", "+1", "9223372036854775808", "1 EACH", "1,2", "1 -- comment",
                 "\n5", "5\r", "\0" + "5", String.join("", Collections.nCopies(1500, "(")) + "1" }) {
-                    Node node = node(Type.INPUT, "INPUT EXCEPT item:dirt FROM source");
+                    Node node = node(Type.INPUT, "INPUT EXCEPT item:dirt FROM \"source\"");
                     StudioFieldDraft draft = draft(node);
                     draft.setAllowanceEnabled(part, true);
                     draft.setAllowanceText(part, bad);
                     draft.setLabel(
                         draft.labelRows()
                             .get(0).id,
-                        "renamed");
+                        "\"renamed\"");
                     StudioFieldDraft copy = new StudioFieldDraft(draft);
                     UUID revision = copy.labelRevision();
                     assertThrows(IllegalArgumentException.class, () -> apply(copy, node), bad);
                     assertEquals(bad, copy.allowanceText(part));
                     assertEquals(revision, copy.labelRevision());
                     assertEquals(
-                        "renamed",
+                        "\"renamed\"",
                         copy.labelRows()
                             .get(0).text);
                     assertEquals(node.clause(), draft.original);
@@ -198,7 +198,7 @@ class StudioAbsentIoAllowancesTest {
             Node node = node(
                 type,
                 (type == Type.INPUT ? "FROM" : "TO EMPTY SLOTS IN")
-                    + " EACH \"source \ud83c\udfed\",spare ROUND ROBIN BY BLOCK North SIDE SLOTS 0-8 "
+                    + " EACH \"source \ud83c\udfed\",\"spare\" ROUND ROBIN BY BLOCK North SIDE SLOTS 0-8 "
                     + (type == Type.INPUT ? "INPUT" : "OUTPUT"));
             StudioFieldDraft draft = draft(node);
             draft.setAllowanceEnabled(Part.AMOUNT, true);
@@ -222,7 +222,7 @@ class StudioAbsentIoAllowancesTest {
             String changed = apply(draft, node);
             assertTrue(changed.contains("8 RETAIN 2 item:a OR fluid:water WITHOUT #dust*  EXCEPT item:dirt"), changed);
             assertTrue(
-                changed.contains("\"renamed \ud83c\udfed\",spare ROUND ROBIN BY LABEL SOUTH SIDE SLOTS 1-3"),
+                changed.contains("\"renamed \ud83c\udfed\",\"spare\" ROUND ROBIN BY LABEL SOUTH SIDE SLOTS 1-3"),
                 changed);
             assertEquals(
                 8,
@@ -237,7 +237,7 @@ class StudioAbsentIoAllowancesTest {
     @Test
     void allDisabledNumbersComposeWithResourceAndOreOnlyEditsWithoutInventedDefaults() {
         for (String selector : new String[] { "", "item:a" }) for (boolean filter : new boolean[] { false, true }) {
-            Node node = node(Type.INPUT, "INPUT FROM source");
+            Node node = node(Type.INPUT, "INPUT FROM \"source\"");
             StudioFieldDraft draft = draft(node);
             if (!selector.isEmpty()) draft.addResource(selector);
             if (filter) {
@@ -267,14 +267,14 @@ class StudioAbsentIoAllowancesTest {
         values.setLiteral(Part.AMOUNT, "8");
         assertThrows(
             IllegalArgumentException.class,
-            () -> StudioNodeProperties.updateSingleAllowances(Type.INPUT, "INPUT FROM source", values));
+            () -> StudioNodeProperties.updateSingleAllowances(Type.INPUT, "INPUT FROM \"source\"", values));
         assertThrows(
             IllegalArgumentException.class,
-            () -> StudioNodeProperties.updateAbsentAllowances(Type.INPUT, "INPUT item:a FROM source", values));
+            () -> StudioNodeProperties.updateAbsentAllowances(Type.INPUT, "INPUT item:a FROM \"source\"", values));
         assertThrows(
             IllegalArgumentException.class,
-            () -> StudioNodeProperties.updateAbsentAllowances(Type.IF, "source HAS > 0", values));
-        Node node = node(Type.INPUT, "INPUT FROM source");
+            () -> StudioNodeProperties.updateAbsentAllowances(Type.IF, "\"source\" HAS > 0", values));
+        Node node = node(Type.INPUT, "INPUT FROM \"source\"");
         StudioFieldDraft draft = draft(node);
         draft.setAllowanceEnabled(Part.AMOUNT, true);
         draft.setAllowanceText(Part.AMOUNT, "8");
@@ -288,7 +288,7 @@ class StudioAbsentIoAllowancesTest {
 
     @Test
     void resourcePickerAndOriginalOwnerFencesRemainValidWithNewNumberModes() {
-        Node node = node(Type.INPUT, "INPUT FROM source");
+        Node node = node(Type.INPUT, "INPUT FROM \"source\"");
         StudioFieldDraft draft = draft(node);
         UUID resource = draft.addResource("item:a");
         StudioFieldPicker.Target target = StudioFieldPicker.resourceRowTarget(draft, resource);
@@ -311,7 +311,7 @@ class StudioAbsentIoAllowancesTest {
     @Test
     void sourceHistoryIsOneAtomicEditWithStableNodeAndEdgeIdentity() {
         StudioDocument document = new StudioDocument();
-        String source = "-- \ud83c\udfed\r\nevery 20 ticks do INPUT FROM source OUTPUT TO dest end";
+        String source = "-- 🏭\r\nevery 20 ticks do INPUT FROM \"source\" OUTPUT TO \"dest\" end";
         document.load(source);
         document.openVisual();
         Node node = document.graph()
@@ -337,7 +337,7 @@ class StudioAbsentIoAllowancesTest {
         draft.setLabel(
             draft.labelRows()
                 .get(0).id,
-            "renamed");
+            "\"renamed\"");
         assertEquals(source, document.source());
         assertFalse(document.undo());
         String clause = draft.appliedClause(PROJECT, node, document.code());
@@ -367,7 +367,7 @@ class StudioAbsentIoAllowancesTest {
 
     @Test
     void oversizedAggregateAndManualFormsRemainBoundedAndAtomic() {
-        Node node = node(Type.INPUT, "INPUT FROM source");
+        Node node = node(Type.INPUT, "INPUT FROM \"source\"");
         StudioFieldDraft draft = draft(node);
         String zeros = String.join("", Collections.nCopies(3000, "0"));
         for (Part part : Part.values()) {
@@ -377,9 +377,9 @@ class StudioAbsentIoAllowancesTest {
         assertThrows(IllegalArgumentException.class, () -> apply(draft, node));
         assertEquals(zeros, draft.allowanceText(Part.AMOUNT));
         assertEquals(node.clause(), draft.original);
-        for (String clause : new String[] { "INPUT 4 item:a, FROM source", "INPUT item:a,item:b FROM source",
-            "INPUT (1+2) item:a FROM source",
-            "INPUT " + String.join(" OR ", Collections.nCopies(33, "item:a")) + " FROM source" }) {
+        for (String clause : new String[] { "INPUT 4 item:a, FROM \"source\"", "INPUT item:a,item:b FROM \"source\"",
+            "INPUT (1+2) item:a FROM \"source\"",
+            "INPUT " + String.join(" OR ", Collections.nCopies(33, "item:a")) + " FROM \"source\"" }) {
             StudioFieldDraft manual = draft(node(Type.INPUT, clause));
             assertFalse(manual.hasIoAllowances());
             assertThrows(IllegalArgumentException.class, () -> manual.setAllowanceEnabled(Part.AMOUNT, true));

@@ -63,9 +63,8 @@ class SfmlTypedDataTest {
     }
 
     @Test
-    void constructorsRejectDynamicStringsUnsupportedSelectorsAndCoercion() {
+    void constructorsRejectUnsupportedSelectorsAndCoercion() {
         for (String source : Arrays.asList(
-            "LABEL(\"a\" + \"b\")",
             "LABEL(1)",
             "LABEL()",
             "LABEL(\"a\", \"b\")",
@@ -85,7 +84,10 @@ class SfmlTypedDataTest {
         compiler.beginTrigger();
         compiler.pushScope();
         compiler.declareLocal("name", DataType.STRING);
-        assertThrows(IllegalArgumentException.class, () -> compiler.compile("LABEL($name)", 1, 0));
+        assertEquals(
+            DataType.LABEL_REF,
+            compiler.compile("LABEL($name)", 1, 0)
+                .getType());
         assertThrows(IllegalArgumentException.class, () -> compiler.compile("ITEM($name)", 1, 0));
         assertThrows(IllegalArgumentException.class, () -> compiler.compile("ORE($name)", 1, 0));
         assertThrows(IllegalArgumentException.class, () -> compiler.compile("FLUID($name)", 1, 0));
@@ -200,7 +202,9 @@ class SfmlTypedDataTest {
         DataType safe = DataType.struct(fields);
         fields.put("field255", DataType.array(DataType.RESOURCE_SELECTOR, 1));
         DataType opaque = DataType.struct(fields);
-        assertTrue(safe.isPersistable(), "Later changes to a constructor map cannot change an immutable cached type");
+        assertTrue(
+            safe.isPersistable(),
+            "Later changes to \"a\" constructor map cannot change an immutable cached type");
         assertFalse(opaque.isPersistable());
         DataCompiler compiler = new DataCompiler();
         assertFalse(

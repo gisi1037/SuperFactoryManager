@@ -169,12 +169,12 @@ class SfmlLogicAliasTest {
         Fixture fixture = new Fixture();
         fixture.source.setInventorySlotContents(0, new ItemStack(ITEM, 7));
         Program program = program(
-            "STATE $r = 0 EVERY 20 TICKS DO " + "IF source HAS != 7 THEN SET $r = 99 END "
-                + "IF source HAS != 6 THEN SET $r = $r + 1 END "
+            "STATE $r = 0 EVERY 20 TICKS DO " + "IF \"source\" HAS != 7 THEN SET $r = 99 END "
+                + "IF \"source\" HAS != 6 THEN SET $r = $r + 1 END "
                 + "IF REDSTONE != 0 THEN SET $r = 99 END "
                 + "IF REDSTONE != 1 THEN SET $r = $r + 2 END "
-                + "IF !(source HAS != 7) && REDSTONE == 0 THEN SET $r = $r + 4 END "
-                + "IF FALSE || source HAS == 7 THEN SET $r = $r + 8 END END");
+                + "IF !(\"source\" HAS != 7) && REDSTONE == 0 THEN SET $r = $r + 4 END "
+                + "IF FALSE || \"source\" HAS == 7 THEN SET $r = $r + 8 END END");
         Memory memory = new Memory(program);
         ProgramContext context = new ProgramContext(
             fixture.world,
@@ -198,7 +198,7 @@ class SfmlLogicAliasTest {
         assertTrue(ComparisonOperator.NOT_EQUALS.test(Long.MIN_VALUE, Long.MAX_VALUE));
         assertFalse(ComparisonOperator.NOT_EQUALS.test(Long.MIN_VALUE, Long.MIN_VALUE));
         Program program = program(
-            "EVERY 20 TICKS DO IF !(source HAS != 7) && REDSTONE == 0 || REDSTONE != 1 THEN END END");
+            "EVERY 20 TICKS DO IF !(\"source\" HAS != 7) && REDSTONE == 0 || REDSTONE != 1 THEN END END");
         String serialized = program.toString();
         assertTrue(serialized.contains("HAS !="));
         assertTrue(serialized.contains("REDSTONE !="));

@@ -19,14 +19,16 @@ import ca.teamdman.sfm.client.blueprint.BlueprintCompiler;
 import ca.teamdman.sfm.client.blueprint.BlueprintDocument;
 import ca.teamdman.sfm.client.blueprint.BlueprintGraph;
 import ca.teamdman.sfm.client.blueprint.BlueprintGraph.Node;
+import ca.teamdman.sfm.client.blueprint.BlueprintGraph.Pin;
 import ca.teamdman.sfm.client.blueprint.BlueprintGraph.Type;
 
 class BlueprintRoundTripIdentityTest {
 
     // Pinned v1 DataOutputStream fixture: TIMER UUID(0,1), INPUT UUID(0,2), NEXT edge.
-    private static final String LEGACY = "EVERY 20 TICKS DO\n  INPUT FROM source\nEND\n"
+    // Its clause/digest were re-encoded for mandatory quoted labels; the v1 wire format is unchanged.
+    private static final String LEGACY = "EVERY 20 TICKS DO\n  INPUT FROM \"source\"\nEND\n"
         + BlueprintDocument.LEGACY_MARKER
-        + "H4sIAAAAAAACCmNgYGB8WN2qIOzXfn/StLMtM0q1cpa/2MXXHin1aNY+Z+7Ve5REGCCAiQEVMDKwhnj6ugY5uEL4DqFQCT7XMNegSAUjA4UQT2fvYDRtQHNYPf0CQkPg+lIaIAxBsLCCW5C/r0JxfmlRcirEGnRrWfxcI0LQDQUAUT+1UckAAAA=";
+        + "H4sIAAAAAAACCmNgYGD8tz9A/pjFnZnuPUnqNzKi1k37s0RDsC3FrP2mwJJ1i5S8GSCAiQEVMDKwhnj6ugY5uEL4DqFQCT7XMNegSAUjA4UQT2fvYDRtQHNYPf0CQkPg+lIaIAxhsLCCW5C/r4JScX5pUXKqEsQidItZ/FwjQtCNBQCe4BEMywAAAA==";
 
     private static Node first(BlueprintGraph graph, Type type) {
         return graph.nodes()
@@ -39,7 +41,7 @@ class BlueprintRoundTripIdentityTest {
     @Test
     void literalQuantityAndItemEditsPreserveConfidentIdentityButCurrentClausesWin() {
         BlueprintGraph graph = BlueprintCompiler
-            .importText("EVERY 20 TICKS DO INPUT 4 minecraft:iron_ingot FROM source OUTPUT 2 TO dest END");
+            .importText("EVERY 20 TICKS DO INPUT 4 minecraft:iron_ingot FROM \"source\" OUTPUT 2 TO \"dest\" END");
         Node input = first(graph, Type.INPUT);
         input.setPosition(-141.5, 287.25);
         String saved = BlueprintDocument.save(graph);
@@ -61,7 +63,7 @@ class BlueprintRoundTripIdentityTest {
     @Test
     void exactDuplicateStatementsRestoreTheirDistinctOrderedIdsAndPositions() {
         BlueprintGraph graph = BlueprintCompiler
-            .importText("EVERY 20 TICKS DO INPUT FROM source INPUT FROM source END");
+            .importText("EVERY 20 TICKS DO INPUT FROM \"source\" INPUT FROM \"source\" END");
         int i = 0;
         for (Node node : graph.nodes()) node.setPosition(100 + i++, 200 + i);
         BlueprintDocument restored = BlueprintDocument.open(BlueprintDocument.save(graph));
@@ -86,7 +88,7 @@ class BlueprintRoundTripIdentityTest {
     @Test
     void formattingOnlyEditsKeepOrderedIdentityForOtherwiseIndistinguishableStatements() {
         BlueprintGraph graph = BlueprintCompiler
-            .importText("EVERY 20 TICKS DO INPUT FROM source INPUT FROM source END");
+            .importText("EVERY 20 TICKS DO INPUT FROM \"source\" INPUT FROM \"source\" END");
         int offset = 0;
         for (Node node : graph.nodes()) node.setPosition(30 + offset++, 90 + offset);
         String saved = BlueprintDocument.save(graph);
@@ -130,11 +132,11 @@ class BlueprintRoundTripIdentityTest {
 
     @Test
     void prepareTextSaveCarriesOldLayoutWithoutRewritingDraftAndDropsItWhenNearTheByteCap() {
-        BlueprintGraph graph = BlueprintCompiler.importText("EVERY 20 TICKS DO INPUT 1 FROM source END");
+        BlueprintGraph graph = BlueprintCompiler.importText("EVERY 20 TICKS DO INPUT 1 FROM \"source\" END");
         Node input = first(graph, Type.INPUT);
         input.setPosition(75, 123);
         String authoritative = BlueprintDocument.save(graph);
-        String draft = "-- my spacing\nEVERY 20 TICKS DO\n   INPUT 3 FROM source\nEND\n";
+        String draft = "-- my spacing\nEVERY 20 TICKS DO\n   INPUT 3 FROM \"source\"\nEND\n";
         assertTrue(authoritative.contains("INPUT 1"));
         assertTrue(draft.contains("INPUT 3"));
         assertNotEquals(BlueprintDocument.withoutMetadata(authoritative), draft);
@@ -154,12 +156,20 @@ class BlueprintRoundTripIdentityTest {
     }
 
     @Test
-    void pinnedLegacyLayoutStillOpensAndMigratesToV2WithoutChangingItsProgram() {
+    void pinnedLegacyLayoutStillOpensAndMigratesToV2WithoutChangingItsProgram() throws Exception {
+        assertEquals(
+            1,
+            java.nio.ByteBuffer.wrap(inflate(LEGACY))
+                .getInt(),
+            "Keep exercising the legacy wire format");
         BlueprintDocument legacy = BlueprintDocument.open(LEGACY);
         assertTrue(legacy.restoredLayout);
         assertEquals(new UUID(0, 1), first(legacy.graph, Type.TIMER).id);
         assertEquals(new UUID(0, 2), first(legacy.graph, Type.INPUT).id);
         assertEquals(42, first(legacy.graph, Type.INPUT).x());
+        assertEquals(164, first(legacy.graph, Type.INPUT).y());
+        assertEquals("INPUT FROM \"source\"", first(legacy.graph, Type.INPUT).clause());
+        assertEquals(new UUID(0, 2), legacy.graph.next(new UUID(0, 1), Pin.NEXT).id);
         String migrated = legacy.saveEdited(legacy.graph);
         assertTrue(migrated.contains(BlueprintDocument.MARKER));
         assertEquals(BlueprintDocument.withoutMetadata(LEGACY), BlueprintDocument.withoutMetadata(migrated));
@@ -167,7 +177,7 @@ class BlueprintRoundTripIdentityTest {
 
     @Test
     void malformedSidecarsNeverReviveOldInstructions() throws Exception {
-        BlueprintGraph graph = BlueprintCompiler.importText("EVERY 20 TICKS DO INPUT 4 FROM source END");
+        BlueprintGraph graph = BlueprintCompiler.importText("EVERY 20 TICKS DO INPUT 4 FROM \"source\" END");
         String saved = BlueprintDocument.save(graph);
         byte[] raw = inflate(saved);
         List<String> broken = new ArrayList<>();
@@ -194,7 +204,7 @@ class BlueprintRoundTripIdentityTest {
                 + saved.substring(saved.indexOf(BlueprintDocument.MARKER)));
         for (String metadata : broken) {
             BlueprintDocument current = BlueprintDocument
-                .open("EVERY 20 TICKS DO INPUT 9 FROM source END\n" + metadata);
+                .open("EVERY 20 TICKS DO INPUT 9 FROM \"source\" END\n" + metadata);
             assertFalse(current.restoredLayout);
             assertEquals(0, current.matchedNodes);
             assertTrue(
@@ -208,7 +218,7 @@ class BlueprintRoundTripIdentityTest {
 
     @Test
     void nonConditionalElseFlagIsRejectedEvenWhenSourceAndGeneratedGraphHashesStillMatch() throws Exception {
-        BlueprintGraph graph = BlueprintCompiler.importText("EVERY 20 TICKS DO INPUT 4 FROM source END");
+        BlueprintGraph graph = BlueprintCompiler.importText("EVERY 20 TICKS DO INPUT 4 FROM \"source\" END");
         String saved = BlueprintDocument.save(graph);
         byte[] original = inflate(saved), malformed = original.clone();
         Node timer = first(graph, Type.TIMER), input = first(graph, Type.INPUT);
@@ -231,8 +241,10 @@ class BlueprintRoundTripIdentityTest {
     }
 
     private static byte[] inflate(String source) throws Exception {
+        String marker = source.contains(BlueprintDocument.MARKER) ? BlueprintDocument.MARKER
+            : BlueprintDocument.LEGACY_MARKER;
         byte[] compressed = Base64.getDecoder()
-            .decode(source.substring(source.indexOf(BlueprintDocument.MARKER) + BlueprintDocument.MARKER.length()));
+            .decode(source.substring(source.indexOf(marker) + marker.length()));
         ByteArrayOutputStream raw = new ByteArrayOutputStream();
         try (GZIPInputStream zip = new GZIPInputStream(new ByteArrayInputStream(compressed))) {
             byte[] buffer = new byte[4096];

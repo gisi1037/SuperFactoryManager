@@ -63,7 +63,7 @@ class StudioNamedRedstoneTest {
     }
 
     private static String manualHeader() {
-        return "eVeRy ReDsToNe PuLsE FROM " + String.join(", ", Collections.nCopies(33, "signal")) + " North SIDE";
+        return "eVeRy ReDsToNe PuLsE FROM " + String.join(", ", Collections.nCopies(33, "\"signal\"")) + " North SIDE";
     }
 
     private static Node node(String header) {
@@ -127,7 +127,7 @@ class StudioNamedRedstoneTest {
     void namedHeadersImportGenerateAndValidateOnlyTheirOwnTriggerKind() {
         for (String edge : Arrays.asList("PULSE", "RISING", "FALLING"))
             for (String sides : Arrays.asList("", " North, East SIDE", " EACH SIDE", " TOP, BOTTOM SIDE")) {
-                String header = "every redstone " + edge + " from \"port, " + UNICODE + "\",spare" + sides;
+                String header = "every redstone " + edge + " from \"port, " + UNICODE + "\",\"spare\"" + sides;
                 BlueprintCompiler.validateClause(Type.NAMED_REDSTONE, header);
                 String source = body(header, "PRINT(\"ok\")");
                 BlueprintGraph graph = BlueprintCompiler.importText(source);
@@ -182,7 +182,7 @@ class StudioNamedRedstoneTest {
     void compilerStillRejectsRoundRobinSlotsAndRelativeOrUnknownSides() {
         for (String suffix : Arrays
             .asList(" ROUND ROBIN BY LABEL", " SLOTS 0-1", " FRONT SIDE", " LEFT SIDE", " NULL SIDE")) {
-            String header = "EVERY REDSTONE RISING FROM signal" + suffix;
+            String header = "EVERY REDSTONE RISING FROM \"signal\"" + suffix;
             assertThrows(
                 IllegalArgumentException.class,
                 () -> BlueprintCompiler.validateClause(Type.NAMED_REDSTONE, header));
@@ -302,7 +302,7 @@ class StudioNamedRedstoneTest {
             document.code(),
             StudioNodeProperties.inspect(root.type, root.clause()));
         draft.set("edge", "FALLING");
-        draft.set("label", "spare");
+        draft.set("label", "\"spare\"");
         assertFalse(document.undo());
         String clause = draft.appliedClause(PROJECT, root, document.code());
         document.editGraph(
@@ -346,7 +346,7 @@ class StudioNamedRedstoneTest {
         assertTrue(map.matches(PROJECT, source, display, graph));
         assertFalse(map.matches(UUID.randomUUID(), source, display, graph));
         graph.node(first.id)
-            .setClause("EVERY REDSTONE FALLING FROM changed");
+            .setClause("EVERY REDSTONE FALLING FROM \"changed\"");
         assertFalse(map.matches(PROJECT, source, display, graph));
     }
 
@@ -445,7 +445,7 @@ class StudioNamedRedstoneTest {
         assertThrows(IllegalArgumentException.class, () -> graph.connect(root.id, Pin.TRUE, print.id));
         assertTrue(
             BlueprintCompiler.generate(graph)
-                .contains("EVERY REDSTONE RISING FROM signal"));
+                .contains("EVERY REDSTONE RISING FROM \"signal\""));
         StudioLayout.NodePalette small = new StudioLayout.NodePalette(320, 240),
             independent = new StudioLayout.NodePalette(1280, 960);
         for (StudioLayout.NodePalette layout : Arrays.asList(small, independent)) {
@@ -539,8 +539,8 @@ class StudioNamedRedstoneTest {
 
     @Test
     void actualTickTracePreservesBaselineRisingAliasFallingAndShortPulsesAfterRoundTrip() throws Exception {
-        String source = body("EVERY REDSTONE PULSE FROM signal NORTH SIDE", "PRINT(\"up\")") + " "
-            + body("EVERY REDSTONE FALLING FROM signal NORTH SIDE", "PRINT(\"down\")");
+        String source = body("EVERY REDSTONE PULSE FROM \"signal\" NORTH SIDE", "PRINT(\"up\")") + " "
+            + body("EVERY REDSTONE FALLING FROM \"signal\" NORTH SIDE", "PRINT(\"down\")");
         for (String candidate : Arrays
             .asList(source, BlueprintCompiler.generate(BlueprintCompiler.importText(source)))) {
             Rig rig = new Rig(candidate);
@@ -560,7 +560,9 @@ class StudioNamedRedstoneTest {
 
     @Test
     void actualGroupedPortsCoalesceEdgesOnceAndOnlySelectedFacesCount() throws Exception {
-        String source = body("EVERY REDSTONE RISING FROM signal,signal,spare NORTH SIDE", "PRINT(\"group\")");
+        String source = body(
+            "EVERY REDSTONE RISING FROM \"signal\",\"signal\",\"spare\" NORTH SIDE",
+            "PRINT(\"group\")");
         for (String candidate : Arrays
             .asList(source, BlueprintCompiler.generate(BlueprintCompiler.importText(source)))) {
             Rig rig = new Rig(candidate);
@@ -582,9 +584,9 @@ class StudioNamedRedstoneTest {
 
     @Test
     void actualMixedTriggerOrderAndOldManagerPulseRemainDistinct() throws Exception {
-        String source = body("EVERY REDSTONE RISING FROM signal NORTH SIDE", "PRINT(\"r\")")
+        String source = body("EVERY REDSTONE RISING FROM \"signal\" NORTH SIDE", "PRINT(\"r\")")
             + " EVERY 20 TICKS DO PRINT(\"timer\") END EVERY REDSTONE PULSE DO PRINT(\"manager\") END "
-            + body("EVERY REDSTONE FALLING FROM signal NORTH SIDE", "PRINT(\"f\")");
+            + body("EVERY REDSTONE FALLING FROM \"signal\" NORTH SIDE", "PRINT(\"f\")");
         for (String candidate : Arrays
             .asList(source, BlueprintCompiler.generate(BlueprintCompiler.importText(source)))) {
             Rig rig = new Rig(candidate);
@@ -598,8 +600,8 @@ class StudioNamedRedstoneTest {
 
     @Test
     void actualEligibilitySnapshotPrecedesBodiesIncludingSignalOutputs() throws Exception {
-        String source = "EVERY 20 TICKS DO OUTPUT 15 REDSTONE LEVEL TO signal NORTH SIDE END "
-            + body("EVERY REDSTONE RISING FROM signal NORTH SIDE", "PRINT(\"next\")");
+        String source = "EVERY 20 TICKS DO OUTPUT 15 REDSTONE LEVEL TO \"signal\" NORTH SIDE END "
+            + body("EVERY REDSTONE RISING FROM \"signal\" NORTH SIDE", "PRINT(\"next\")");
         for (String candidate : Arrays
             .asList(source, BlueprintCompiler.generate(BlueprintCompiler.importText(source)))) {
             Rig rig = new Rig(candidate);
@@ -616,7 +618,7 @@ class StudioNamedRedstoneTest {
     @Test
     void pendingHeaderAndUndoRedoProduceOnlyTheirCurrentActualRuntimeTrace() throws Exception {
         StudioDocument document = new StudioDocument();
-        String source = body("EVERY REDSTONE RISING FROM signal NORTH SIDE", "PRINT(\"edge\")");
+        String source = body("EVERY REDSTONE RISING FROM \"signal\" NORTH SIDE", "PRINT(\"edge\")");
         document.load(source);
         document.openVisual();
         Node root = document.graph()
@@ -664,7 +666,7 @@ class StudioNamedRedstoneTest {
             String header = "  eVeRy\tReDsToNe " + edge
                 + " FrOm \"Room "
                 + UNICODE
-                + ", A\" ,\tspare,spare  NoRtH , EaSt SiDe  ";
+                + ", A\" ,\t\"spare\",\"spare\"  NoRtH , EaSt SiDe  ";
             Node node = node(header);
             StudioFieldDraft fields = draft(node);
             assertEquals(
@@ -682,7 +684,7 @@ class StudioNamedRedstoneTest {
                         .get(1).id,
                     "\"changed\""));
             assertEquals(
-                header.replace("spare,spare", "\"changed\",spare"),
+                header.replace("\"spare\",\"spare\"", "\"changed\",\"spare\""),
                 fields.appliedClause(PROJECT, node, fields.source));
             assertTrue(fields.set("edge", "FALLING"));
             assertTrue(
@@ -694,18 +696,18 @@ class StudioNamedRedstoneTest {
 
     @Test
     void rowCapsUseCompleteManualFallbackAndNoConflictingHeaderOwner() {
-        String atCap = "EVERY REDSTONE PULSE FROM " + String.join(",", Collections.nCopies(32, "signal"));
+        String atCap = "EVERY REDSTONE PULSE FROM " + String.join(",", Collections.nCopies(32, "\"signal\""));
         StudioFieldDraft fields = draft(node(atCap));
         assertEquals(32, fields.labelCount());
-        assertThrows(IllegalArgumentException.class, () -> fields.addLabel("spare"));
+        assertThrows(IllegalArgumentException.class, () -> fields.addLabel("\"spare\""));
         fields.setLabel(
             fields.labelRows()
                 .get(0).id,
-            "spare");
+            "\"spare\"");
         assertThrows(IllegalArgumentException.class, () -> fields.set("header", HEADER));
         assertThrows(IllegalArgumentException.class, () -> fields.value("header"));
         assertEquals(
-            "spare",
+            "\"spare\"",
             fields.labelRows()
                 .get(0).text);
         StudioFieldDraft manual = draft(node(manualHeader()));
@@ -722,7 +724,7 @@ class StudioNamedRedstoneTest {
     @Test
     void rawHeaderStatelessCompatibilityKeepsItsGuardAndTrailingGap() {
         assertEquals(HEADER, StudioNodeProperties.update(Type.NAMED_REDSTONE, HEADER, "header", HEADER));
-        String replacement = "every redstone falling from spare south side";
+        String replacement = "every redstone falling from \"spare\" south side";
         assertEquals(
             replacement + "  ",
             StudioNodeProperties.update(Type.NAMED_REDSTONE, HEADER + "  ", "header", replacement));
@@ -731,7 +733,7 @@ class StudioNamedRedstoneTest {
             "every 20 ticks",
             HEADER + " DO END",
             HEADER + " -- comment",
-            "EVERY REDSTONE PULSE FROM signal FRONT SIDE"))
+            "EVERY REDSTONE PULSE FROM \"signal\" FRONT SIDE"))
             assertThrows(
                 IllegalArgumentException.class,
                 () -> StudioNodeProperties.update(Type.NAMED_REDSTONE, HEADER, "header", invalid));
@@ -739,7 +741,7 @@ class StudioNamedRedstoneTest {
 
     @Test
     void invalidRowsOrModeBlockTheWholeTransactionAndCopyRetainsIndependentRows() {
-        Node node = node("EVERY REDSTONE PULSE FROM signal,spare NORTH SIDE");
+        Node node = node("EVERY REDSTONE PULSE FROM \"signal\",\"spare\" NORTH SIDE");
         for (String invalid : Arrays.asList("", "\"unfinished", "a,b", "x -- comment", "x\n", "x\0")) {
             StudioFieldDraft fields = draft(node);
             fields.set("edge", "FALLING");
@@ -754,21 +756,21 @@ class StudioNamedRedstoneTest {
             assertEquals(fields.labelRevision(), copy.labelRevision());
             assertThrows(IllegalArgumentException.class, () -> fields.appliedClause(PROJECT, node, fields.source));
             assertThrows(IllegalArgumentException.class, () -> copy.appliedClause(PROJECT, node, copy.source));
-            copy.setLabel(first, "signal");
+            copy.setLabel(first, "\"signal\"");
             assertEquals(
-                "EVERY REDSTONE FALLING FROM signal,spare NORTH SIDE",
+                "EVERY REDSTONE FALLING FROM \"signal\",\"spare\" NORTH SIDE",
                 copy.appliedClause(PROJECT, node, copy.source));
             assertEquals(invalid, fields.labelValue(first));
         }
-        for (String invalid : Arrays.asList("", "TRUE", "RISING FROM spare", "FALLING DO END", "PULSE -- x")) {
+        for (String invalid : Arrays.asList("", "TRUE", "RISING FROM \"spare\"", "FALLING DO END", "PULSE -- x")) {
             StudioFieldDraft fields = draft(node);
             fields.set("edge", invalid);
             fields.setLabel(
                 fields.labelRows()
                     .get(0).id,
-                "spare");
+                "\"spare\"");
             assertThrows(IllegalArgumentException.class, () -> fields.appliedClause(PROJECT, node, fields.source));
-            assertEquals("EVERY REDSTONE PULSE FROM signal,spare NORTH SIDE", node.clause());
+            assertEquals("EVERY REDSTONE PULSE FROM \"signal\",\"spare\" NORTH SIDE", node.clause());
         }
     }
 
@@ -778,16 +780,16 @@ class StudioNamedRedstoneTest {
             String original = "every redstone pulse from\"signal\"" + suffix;
             Node node = node(original);
             StudioFieldDraft fields = draft(node);
-            fields.set("label", "spare");
+            fields.set("label", "\"spare\"");
             String changed = fields.appliedClause(PROJECT, node, fields.source);
             assertTrue(changed.endsWith(suffix));
-            assertEquals("every redstone pulse from spare" + suffix, changed);
+            assertEquals("every redstone pulse from\"spare\"" + suffix, changed);
             BlueprintCompiler.validateClause(Type.NAMED_REDSTONE, changed);
         }
         String original = "every redstone pulse from\"signal\"NORTH SIDE";
         assertEquals(
-            "every redstone pulse from spare NORTH SIDE",
-            StudioNodeProperties.update(Type.NAMED_REDSTONE, original, "label", "spare"));
+            "every redstone pulse from\"spare\"NORTH SIDE",
+            StudioNodeProperties.update(Type.NAMED_REDSTONE, original, "label", "\"spare\""));
     }
 
     private static StudioFieldPicker.Session labelPicker(StudioFieldDraft fields, UUID row) {
@@ -805,7 +807,7 @@ class StudioNamedRedstoneTest {
 
     @Test
     void existingBoundedPickerRepairsRowsAndFencesCopiesOwnersAndStructuralAba() {
-        Node node = node("EVERY REDSTONE PULSE FROM signal,spare NORTH SIDE");
+        Node node = node("EVERY REDSTONE PULSE FROM \"signal\",\"spare\" NORTH SIDE");
         StudioFieldDraft fields = draft(node);
         UUID row = fields.labelRows()
             .get(0).id;
@@ -821,7 +823,7 @@ class StudioNamedRedstoneTest {
         assertTrue(repair.choose(fields, PROJECT, node, fields.source));
         assertEquals("\"spare\"", fields.labelValue(row));
         StudioFieldPicker.Session stale = labelPicker(fields, row);
-        UUID added = fields.addLabel("signal");
+        UUID added = fields.addLabel("\"signal\"");
         fields.removeLabel(added);
         assertThrows(IllegalArgumentException.class, () -> stale.choose(fields, PROJECT, node, fields.source));
         assertFalse(fields.setLabel(row, "\"spare\""));
@@ -863,7 +865,7 @@ class StudioNamedRedstoneTest {
         assertThrows(IllegalArgumentException.class, () -> manual.value("sides"));
         assertThrows(IllegalArgumentException.class, () -> manual.set("sides", "SOUTH"));
         StudioFieldDraft cap = draft(
-            node("EVERY REDSTONE PULSE FROM " + String.join(",", Collections.nCopies(32, "signal"))));
+            node("EVERY REDSTONE PULSE FROM " + String.join(",", Collections.nCopies(32, "\"signal\""))));
         assertEquals("", cap.value("sides"));
         cap.set("sides", "EACH");
         assertTrue(
@@ -873,7 +875,7 @@ class StudioNamedRedstoneTest {
 
     @Test
     void physicalSideEditsOwnOnlyValueOrWholeQualifierAndPreserveBoundaryGaps() {
-        String prefix = "  eVeRy ReDsToNe PuLsE FrOm \"" + UNICODE + ", room\",spare,spare";
+        String prefix = "  eVeRy ReDsToNe PuLsE FrOm \"" + UNICODE + ", room\",\"spare\",\"spare\"";
         String header = prefix + "\t NoRtH , EaSt \tSiDe  \t";
         assertEquals("NoRtH , EaSt", StudioNamedRedstoneHeader.physicalSideValue(header));
         assertEquals(header, StudioNodeProperties.update(Type.NAMED_REDSTONE, header, "sides", "north , east"));
@@ -958,7 +960,7 @@ class StudioNamedRedstoneTest {
 
     @Test
     void invalidSideBlocksCombinedFieldsAndCopiedRepairRetainsOwnershipAndPickerFences() {
-        Node node = node("EVERY REDSTONE PULSE FROM signal,spare NORTH SIDE");
+        Node node = node("EVERY REDSTONE PULSE FROM \"signal\",\"spare\" NORTH SIDE");
         StudioFieldDraft fields = draft(node);
         fields.set("edge", "FALLING");
         fields.setLabel(
@@ -970,10 +972,10 @@ class StudioNamedRedstoneTest {
         assertThrows(IllegalArgumentException.class, () -> fields.appliedClause(PROJECT, node, fields.source));
         assertThrows(IllegalArgumentException.class, () -> copy.appliedClause(PROJECT, node, copy.source));
         copy.set("sides", "SOUTH, BOTTOM");
-        String expected = "EVERY REDSTONE FALLING FROM \"" + UNICODE + "\",spare SOUTH, BOTTOM SIDE";
+        String expected = "EVERY REDSTONE FALLING FROM \"" + UNICODE + "\",\"spare\" SOUTH, BOTTOM SIDE";
         assertEquals(expected, copy.appliedClause(PROJECT, node, copy.source));
         assertEquals("FRONT", fields.value("sides"));
-        assertEquals("EVERY REDSTONE PULSE FROM signal,spare NORTH SIDE", node.clause());
+        assertEquals("EVERY REDSTONE PULSE FROM \"signal\",\"spare\" NORTH SIDE", node.clause());
         assertThrows(IllegalArgumentException.class, () -> copy.appliedClause(UUID.randomUUID(), node, copy.source));
         assertThrows(IllegalArgumentException.class, () -> copy.appliedClause(PROJECT, node, copy.source + " "));
         assertThrows(
@@ -982,14 +984,14 @@ class StudioNamedRedstoneTest {
         UUID row = fields.labelRows()
             .get(0).id;
         StudioFieldPicker.Session stale = labelPicker(fields, row);
-        UUID added = fields.addLabel("signal");
+        UUID added = fields.addLabel("\"signal\"");
         fields.removeLabel(added);
         assertThrows(IllegalArgumentException.class, () -> stale.choose(fields, PROJECT, node, fields.source));
     }
 
     @Test
     void clearedAbsentSideAndRestoredExistingSideDoNotLeaveFalsePendingChanges() {
-        StudioFieldDraft absent = draft(node("EVERY REDSTONE PULSE FROM signal"));
+        StudioFieldDraft absent = draft(node("EVERY REDSTONE PULSE FROM \"signal\""));
         assertFalse(absent.set("sides", ""));
         absent.set("sides", "EACH");
         assertTrue(absent.dirty());
@@ -1029,7 +1031,7 @@ class StudioNamedRedstoneTest {
             document.code(),
             StudioNodeProperties.inspect(root.type, root.clause()));
         fields.set("edge", "FALLING");
-        fields.set("label", "spare");
+        fields.set("label", "\"spare\"");
         fields.set("sides", "SOUTH");
         String changed = fields.appliedClause(PROJECT, root, document.code());
         assertEquals(source, document.source());
@@ -1062,12 +1064,12 @@ class StudioNamedRedstoneTest {
         String[] values = { "BOTTOM", "TOP", "NORTH", "SOUTH", "WEST", "EAST", "EACH", "", "NORTH,NORTH,TOP" };
         int[] masks = { 1, 2, 4, 8, 16, 32, 63, 63, 6 };
         for (String edge : Arrays.asList("PULSE", "RISING", "FALLING")) for (int i = 0; i < values.length; i++) {
-            StudioFieldDraft fields = draft(node("EVERY REDSTONE PULSE FROM signal NORTH SIDE"));
+            StudioFieldDraft fields = draft(node("EVERY REDSTONE PULSE FROM \"signal\" NORTH SIDE"));
             fields.set("edge", edge);
             fields.set("sides", values[i]);
             String edited = fields.appliedClause(PROJECT, nodeFor(fields), fields.source);
             String fixed = "EVERY REDSTONE " + edge
-                + " FROM signal"
+                + " FROM \"signal\""
                 + (values[i].isEmpty() ? "" : " " + values[i] + " SIDE");
             for (String header : Arrays.asList(edited, fixed)) {
                 Rig rig = new Rig(body(header, "PRINT(\"edge\")"));
@@ -1105,11 +1107,11 @@ class StudioNamedRedstoneTest {
     @Test
     void actualStructuredFieldsKeepAliasGroupAndPhysicalSideTickOutcomes() throws Exception {
         for (String edge : Arrays.asList("PULSE", "RISING", "FALLING")) {
-            Node node = node("EVERY REDSTONE PULSE FROM signal NORTH SIDE");
+            Node node = node("EVERY REDSTONE PULSE FROM \"signal\" NORTH SIDE");
             StudioFieldDraft fields = draft(node);
             fields.set("edge", edge);
-            fields.addLabel("spare");
-            fields.addLabel("signal");
+            fields.addLabel("\"spare\"");
+            fields.addLabel("\"signal\"");
             String changed = fields.appliedClause(PROJECT, node, fields.source);
             for (String candidate : Arrays.asList(
                 body(changed, "PRINT(\"edge\")"),

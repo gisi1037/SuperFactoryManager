@@ -21,7 +21,7 @@ import ca.teamdman.sfm.client.blueprint.StudioOreFilter;
 class StudioFieldFeedbackTest {
 
     private static final UUID PROJECT = new UUID(18, 1037);
-    private static final String IO = "OUTPUT 16 RETAIN 2 item:a OR item:b WITH #ingot* EXCEPT item:dirt,fluid:lava TO source,spare";
+    private static final String IO = "OUTPUT 16 RETAIN 2 item:a OR item:b WITH #ingot* EXCEPT item:dirt,fluid:lava TO \"source\",\"spare\"";
 
     private static Node node(Type type, String clause) {
         return new Node(UUID.randomUUID(), type, 0, 0, clause);
@@ -105,7 +105,7 @@ class StudioFieldFeedbackTest {
                     .get(0).id,
                 ""));
         mutationInvalidates(Type.OUTPUT, IO, draft -> {
-            draft.addLabel("new_label");
+            draft.addLabel("\"new_label\"");
             return true;
         });
         mutationInvalidates(Type.OUTPUT, IO, draft -> {
@@ -148,7 +148,7 @@ class StudioFieldFeedbackTest {
                     .get(0).id);
             return true;
         });
-        String multiple = "OUTPUT 4 item:a,8 item:b TO source";
+        String multiple = "OUTPUT 4 item:a,8 item:b TO \"source\"";
         mutationInvalidates(
             Type.OUTPUT,
             multiple,
@@ -256,7 +256,7 @@ class StudioFieldFeedbackTest {
 
     @Test
     void acceptedInvalidTextClearsLastAttemptButNextApplyCanReportItAgain() {
-        Node node = node(Type.INPUT, "INPUT FROM source");
+        Node node = node(Type.INPUT, "INPUT FROM \"source\"");
         StudioFieldDraft draft = draft(node);
         StudioFieldFeedback feedback = opened(draft);
         draft.setAllowanceEnabled(Part.AMOUNT, true);
@@ -271,12 +271,12 @@ class StudioFieldFeedbackTest {
             IllegalArgumentException.class,
             () -> draft.appliedClause(PROJECT, node, draft.source));
         assertEquals("Fields kept: " + next.getMessage(), feedback.failedApply(draft, next.getMessage(), "initial"));
-        assertEquals("INPUT FROM source", node.clause());
+        assertEquals("INPUT FROM \"source\"", node.clause());
     }
 
     @Test
     void pickerChooseAndNoOpChooseFollowTheSameMutationContract() {
-        Node node = node(Type.INPUT, "INPUT item:a FROM source");
+        Node node = node(Type.INPUT, "INPUT item:a FROM \"source\"");
         StudioFieldDraft draft = draft(node);
         StudioFieldFeedback feedback = opened(draft);
         String footer = feedback.failedApply(draft, "last error", "initial");
@@ -305,7 +305,7 @@ class StudioFieldFeedbackTest {
 
     @Test
     void promotionAndRecoveryReplaceOwnersWithoutRestoringOldDetails() {
-        Node node = node(Type.INPUT, "INPUT 8 item:a FROM source");
+        Node node = node(Type.INPUT, "INPUT 8 item:a FROM \"source\"");
         StudioFieldDraft draft = draft(node);
         StudioFieldFeedback feedback = opened(draft);
         String footer = feedback.failedApply(draft, "last failure", "initial");
@@ -324,7 +324,7 @@ class StudioFieldFeedbackTest {
             "",
             recovered.limitRows()
                 .get(1).text);
-        assertEquals("INPUT 8 item:a FROM source", node.clause());
+        assertEquals("INPUT 8 item:a FROM \"source\"", node.clause());
     }
 
     @Test

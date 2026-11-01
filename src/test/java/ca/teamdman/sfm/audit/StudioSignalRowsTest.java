@@ -26,7 +26,7 @@ class StudioSignalRowsTest {
     private static final UUID PROJECT = new UUID(13, 1037);
 
     private static String program(String clause) {
-        return "every 20 ticks do " + clause + " input from spare end";
+        return "every 20 ticks do " + clause + " input from \"spare\" end";
     }
 
     private static Node node(String clause) {
@@ -52,7 +52,7 @@ class StudioSignalRowsTest {
         StudioFieldPicker.Target target = StudioFieldPicker.labelRowTarget(draft, row);
         assertNotNull(target);
         StudioFieldPicker.Snapshot snapshot = StudioFieldPicker
-            .labels(program("OUTPUT REDSTONE LEVEL TO spare"), target);
+            .labels(program("OUTPUT REDSTONE LEVEL TO \"spare\""), target);
         StudioFieldPicker.Session session = new StudioFieldPicker.Session(draft, target, snapshot);
         session.select(snapshot.search("spare").entries.get(0));
         return session;
@@ -60,7 +60,7 @@ class StudioSignalRowsTest {
 
     @Test
     void bothOrdersQuantityPositionsAndEachSpellingsPreserveAllOutsideSpans() {
-        String labels = "\"Signal 🏭\" ,\tb,\"Signal 🏭\"";
+        String labels = "\"Signal 🏭\" ,\t\"b\",\"Signal 🏭\"";
         for (String each : new String[] { "", "EACH " })
             for (String quantity : new String[] { "00027", "00027 EACH" }) {
                 String access = each + labels + " ROUND ROBIN BY LABEL North,Top SIDE SLOTS 0,2-8";
@@ -85,7 +85,7 @@ class StudioSignalRowsTest {
                     draft.set("level", "00028");
                     String changed = draft.appliedClause(PROJECT, node, program(clause));
                     assertEquals(
-                        clause.replace(",\tb,", ",\t\"Other Room\",")
+                        clause.replace(",\t\"b\",", ",\t\"Other Room\",")
                             .replace("00027", "00028"),
                         changed);
                     RedstoneOutputStatement original = output(clause), edited = output(changed);
@@ -116,15 +116,15 @@ class StudioSignalRowsTest {
 
     @Test
     void omittedAndExtremeStaticLevelsKeepDefaultClampLexemesAndSingleLabelSetter() {
-        for (String clause : new String[] { "OUTPUT REDSTONE LEVEL TO first,second",
-            "TO first,second OUTPUT REDSTONE LEVELS" }) {
+        for (String clause : new String[] { "OUTPUT REDSTONE LEVEL TO \"first\",\"second\"",
+            "TO \"first\",\"second\" OUTPUT REDSTONE LEVELS" }) {
             Node node = node(clause);
             StudioFieldDraft draft = draft(node, program(clause));
             assertEquals("15", draft.value("level"));
             draft.setLabel(
                 draft.labelRows()
                     .get(0).id,
-                "renamed");
+                "\"renamed\"");
             String renamed = draft.appliedClause(PROJECT, node, program(clause));
             assertEquals(clause.replace("first", "renamed"), renamed);
             assertEquals(15, output(renamed).getLevel());
@@ -140,13 +140,13 @@ class StudioSignalRowsTest {
             }
         }
         assertEquals(
-            "OUTPUT 3 REDSTONE LEVEL TO other",
-            StudioNodeProperties.update(Type.REDSTONE, "OUTPUT 3 REDSTONE LEVEL TO single", "label", "other"));
+            "OUTPUT 3 REDSTONE LEVEL TO \"other\"",
+            StudioNodeProperties.update(Type.REDSTONE, "OUTPUT 3 REDSTONE LEVEL TO \"single\"", "label", "\"other\""));
     }
 
     @Test
     void invalidCellsAndLevelRefuseWholeApplyAndSurviveIndependentRecoveryCopies() {
-        String clause = "OUTPUT 3 REDSTONE LEVEL TO first,second", source = program(clause);
+        String clause = "OUTPUT 3 REDSTONE LEVEL TO \"first\",\"second\"", source = program(clause);
         Node node = node(clause);
         for (String invalid : new String[] { "", " ", "a,b", "a NORTH SIDE", "a -- hide", "\"unfinished", "a?", "a\nb",
             "a\0b" }) {
@@ -161,7 +161,7 @@ class StudioSignalRowsTest {
             assertThrows(IllegalArgumentException.class, () -> copy.appliedClause(PROJECT, node, source), invalid);
             assertEquals("7", copy.value("level"));
             assertEquals(clause, node.clause());
-            copy.setLabel(row, "fixed");
+            copy.setLabel(row, "\"fixed\"");
             assertEquals(invalid, draft.labelValue(row));
             assertTrue(
                 copy.appliedClause(PROJECT, node, source)
@@ -169,7 +169,7 @@ class StudioSignalRowsTest {
         }
         for (String invalid : new String[] { "-1", "1g", "9223372036854775808", "(1 + 2)", "1 EACH", "1 -- hide" }) {
             StudioFieldDraft draft = draft(node, source);
-            draft.addLabel("third");
+            draft.addLabel("\"third\"");
             draft.set("level", invalid);
             assertThrows(IllegalArgumentException.class, () -> draft.appliedClause(PROJECT, node, source));
             assertEquals(3, draft.labelCount());
@@ -179,7 +179,7 @@ class StudioSignalRowsTest {
 
     @Test
     void malformedPartitionsCannotLookCleanAndLastLabelCannotBeRemoved() {
-        String clause = "OUTPUT REDSTONE LEVEL TO \"a,b\",c", source = program(clause);
+        String clause = "OUTPUT REDSTONE LEVEL TO \"a,b\",\"c\"", source = program(clause);
         Node node = node(clause);
         StudioFieldDraft draft = draft(node, source);
         String original = draft.value("label");
@@ -190,7 +190,7 @@ class StudioSignalRowsTest {
         draft.setLabel(
             draft.labelRows()
                 .get(1).id,
-            "b\",c");
+            "b\",\"c\"");
         assertEquals(original, draft.value("label"));
         assertTrue(draft.dirty());
         StudioFieldDraft copy = new StudioFieldDraft(draft);
@@ -198,7 +198,7 @@ class StudioSignalRowsTest {
         assertThrows(IllegalArgumentException.class, () -> copy.appliedClause(PROJECT, node, source));
         copy.set("label", original);
         assertFalse(copy.dirty());
-        Node single = node("OUTPUT REDSTONE LEVEL TO a");
+        Node single = node("OUTPUT REDSTONE LEVEL TO \"a\"");
         StudioFieldDraft one = draft(single, program(single.clause()));
         UUID row = one.labelRows()
             .get(0).id, revision = one.labelRevision();
@@ -213,7 +213,7 @@ class StudioSignalRowsTest {
 
     @Test
     void rowPickerRepairsOnlyItsCellAndOtherPendingLevelEditsDoNotOverFence() {
-        String clause = "TO first,second OUTPUT 3 REDSTONE LEVEL", source = program(clause);
+        String clause = "TO \"first\",\"second\" OUTPUT 3 REDSTONE LEVEL", source = program(clause);
         Node node = node(clause);
         StudioFieldDraft draft = draft(node, source);
         UUID row = draft.labelRows()
@@ -234,7 +234,7 @@ class StudioSignalRowsTest {
 
     @Test
     void stalePickerFencesRemovedShiftedAbaOwnersProjectsNodesSourcesAndChangedFields() {
-        String clause = "OUTPUT 3 REDSTONE LEVEL TO a,a,a", source = program(clause);
+        String clause = "OUTPUT 3 REDSTONE LEVEL TO \"a\",\"a\",\"a\"", source = program(clause);
         Node node = node(clause);
         for (boolean aba : new boolean[] { true, false }) {
             StudioFieldDraft draft = draft(node, source);
@@ -245,7 +245,7 @@ class StudioSignalRowsTest {
                 aba ? row
                     : draft.labelRows()
                         .get(0).id);
-            if (aba) draft.addLabel("a");
+            if (aba) draft.addLabel("\"a\"");
             assertThrows(IllegalArgumentException.class, () -> session.choose(draft, PROJECT, node, source));
         }
         StudioFieldDraft draft = draft(node, source);
@@ -258,22 +258,22 @@ class StudioSignalRowsTest {
         assertThrows(IllegalArgumentException.class, () -> session.choose(draft, UUID.randomUUID(), node, source));
         assertThrows(IllegalArgumentException.class, () -> session.choose(draft, PROJECT, node(clause), source));
         assertThrows(IllegalArgumentException.class, () -> session.choose(draft, PROJECT, node, source + " "));
-        draft.setLabel(row, "other");
+        draft.setLabel(row, "\"other\"");
         assertThrows(IllegalArgumentException.class, () -> session.choose(draft, PROJECT, node, source));
     }
 
     @Test
     void capTwoQuantitiesDynamicAndMalformedFormsStayManualWithoutTruncation() {
-        String group = String.join(",", Collections.nCopies(32, "signal"));
+        String group = String.join(",", Collections.nCopies(32, "\"signal\""));
         String clause = "OUTPUT 3 REDSTONE LEVEL TO " + group;
         StudioFieldDraft draft = draft(node(clause), program(clause));
         assertEquals(32, draft.labelCount());
         UUID revision = draft.labelRevision();
-        assertThrows(IllegalArgumentException.class, () -> draft.addLabel("extra"));
+        assertThrows(IllegalArgumentException.class, () -> draft.addLabel("\"extra\""));
         assertEquals(revision, draft.labelRevision());
-        for (String manual : new String[] { clause + ",extra", "OUTPUT 1 REDSTONE LEVEL 15 TO a,b",
-            "TO a,b OUTPUT 1 REDSTONE LEVEL 15", "OUTPUT (2+3) REDSTONE LEVEL TO a,b", "OUTPUT REDSTONE LEVEL TO a,",
-            "OUTPUT 3 REDSTONE LEVEL TO", "OUTPUT 3 REDSTONE LEVEL TO a?" }) {
+        for (String manual : new String[] { clause + ",extra", "OUTPUT 1 REDSTONE LEVEL 15 TO \"a\",\"b\"",
+            "TO \"a\",\"b\" OUTPUT 1 REDSTONE LEVEL 15", "OUTPUT (2+3) REDSTONE LEVEL TO \"a\",\"b\"",
+            "OUTPUT REDSTONE LEVEL TO a,", "OUTPUT 3 REDSTONE LEVEL TO", "OUTPUT 3 REDSTONE LEVEL TO \"a\"?" }) {
             assertTrue(
                 StudioNodeProperties.inspect(Type.REDSTONE, manual)
                     .isEmpty(),
@@ -288,8 +288,8 @@ class StudioSignalRowsTest {
     void compactQuotedBoundariesAndCombinedEditPreserveExactSourceHistoryAndAllBranchIdentities() {
         for (String compact : new String[] { "TO\"a\",\"b\"OUTPUT REDSTONE LEVEL",
             "OUTPUT REDSTONE LEVEL TO\"a\",\"b\"" }) {
-            String changed = StudioNodeProperties.update(Type.REDSTONE, compact, "label", "c,d");
-            assertTrue(changed.contains("c,d"));
+            String changed = StudioNodeProperties.update(Type.REDSTONE, compact, "label", "\"c\",\"d\"");
+            assertTrue(changed.contains("\"c\",\"d\""));
             assertEquals(
                 2,
                 output(changed).getLabelAccess()
@@ -297,7 +297,7 @@ class StudioSignalRowsTest {
                     .size());
             assertEquals(15, output(changed).getLevel());
         }
-        String source = "-- 🏭\r\nevery 20 ticks do if source HAS > 0 then TO EACH \"a\",b OUTPUT 3 EACH REDSTONE LEVEL else PRINT(\"skip\") end end";
+        String source = "-- 🏭\r\nevery 20 ticks do if \"source\" HAS > 0 then TO EACH \"a\",\"b\" OUTPUT 3 EACH REDSTONE LEVEL else PRINT(\"skip\") end end";
         StudioDocument document = new StudioDocument();
         document.load(source);
         document.openVisual();

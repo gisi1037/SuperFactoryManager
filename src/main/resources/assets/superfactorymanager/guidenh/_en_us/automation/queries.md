@@ -5,7 +5,7 @@ navigation:
   position: 70
   keywords: ["sfm", "label", "item", "ore", "count", "available", "empty"]
 categories: ["sfm", "automation"]
-updated: "2026-10-30"
+updated: "2026-10-31"
 ---
 # Typed item queries
 
@@ -17,13 +17,13 @@ EVERY 20 TICKS DO
   LET $src = LABEL("chest_in")
   LET $iron = ITEM("minecraft:iron_ingot")
   IF ($src.available($iron) AND $src.count($iron) >= 8) THEN
-    INPUT 8 item:minecraft:iron_ingot FROM chest_in
-    OUTPUT TO chest_out
+    INPUT 8 item:minecraft:iron_ingot FROM "chest_in"
+    OUTPUT TO "chest_out"
   END
 END
 ```
 
-Constructors require one quoted source literal. Computed strings and string variables are not accepted. LABEL names must be nonempty, have no surrounding whitespace and fit within 256 characters. ITEM accepts `"*"` or an exact `namespace:name` up to 256 characters. It includes every metadata/NBT variant of that item. ITEM does not support the `item:` prefix, metadata suffixes, glob patterns, NBT filters or fluids. A valid unknown item ID matches nothing.
+LABEL accepts a STRING expression, including a variable or `"chest" + index`. ITEM, ORE and FLUID still require quoted source literals. LABEL names must be nonempty, have no surrounding whitespace and fit within 256 characters. ITEM accepts `"*"` or an exact `namespace:name` up to 256 characters. It includes every metadata/NBT variant of that item. ITEM does not support the `item:` prefix, metadata suffixes, glob patterns, NBT filters or fluids. A valid unknown item ID matches nothing.
 
 ORE accepts an exact case-sensitive OreDictionary name of 1–256 ASCII letters, digits or underscores, for example `ORE("ingotIron")`. No `ore:` prefix, wildcard or computed name is accepted. Forge wildcard-metadata ore registrations work. An unknown name matches nothing and does not create a registry entry.
 
@@ -55,7 +55,7 @@ END
 
 These methods affect this handle only. They do not alter an ordinary INPUT/OUTPUT statement naming chest_in. [Sides and slots](/automation/sides-slots.md) explains literal side names, inclusive bounds, replacement behavior and combined chest ordering.
 
-Each query resolves current loaded providers and membership afresh, so it can see an earlier transfer in the same trigger. Available is one observation; a subsequent count can still fault if the provider changes. Arguments evaluate once, receiver first. Short-circuiting can avoid a count when availability is false, but does not reserve access for later.
+Queries use the invocation's bounded label membership snapshot and resolve loaded providers when executed, so later observations can see earlier transfers in the same trigger. A resumed WAIT invocation obtains current label membership/providers. Available is one observation; a subsequent count can still fault if the provider changes. Arguments evaluate once, receiver first. Short-circuiting can avoid a count when availability is false, but does not reserve access for later.
 
 Direct IInventory tiles and canonical vanilla chest pairs are supported. Repeated direct provider objects and labelled chest halves are counted once. Uncertain unloaded chest adjacency makes access unavailable without loading chunks. Proxy/cluster adapters and distinct proxy tiles hiding shared storage need separate support; do not assume their combined counts represent unique physical stock.
 
@@ -64,3 +64,24 @@ LABEL_REF and RESOURCE_SELECTOR values may live in locals, arrays and structs an
 Queries, contents, transfers and typed redstone share per-manager-invocation limits across all due triggers: 1,024 label-position visits, 8,192 provider calls, 16,384 slot-work units and 16,384 collection/allocation reservations. Returned sided indices and deduplication also cost work. Provider exceptions, invalid stacks, overflow and exhausted budgets fault instead of appearing empty or unavailable. These limits cannot interrupt one external callback and do not guarantee a fixed tick duration. Ordinary HAS/INPUT/OUTPUT retain their own behavior.
 
 Typed queries usually use Text. Self-contained receiver queries such as LABEL("chest").count(ITEM("*")) can also appear in Visual's Print expressions; variables, other function calls and data expressions in conditions still require Text. See [editor limits](/advanced/editors.md) and [PRINT and debugging](/reference/debugging.md).
+
+## Numbered labels
+
+Label groups named `chest1`, `chest2` and `chest3` can be selected by computed
+strings. The variable after FROM below is a LABEL_REF, while `"dest"` is a literal:
+
+```sfml
+every 20 ticks {
+  for index = 1 to 3 {
+    let source = label("chest" + index);
+    if (source.available()) {
+      input 8 item:* from source;
+      output item:* to "dest";
+      forget;
+    }
+  }
+}
+```
+
+Computed names must satisfy the same exact spelling, length and whitespace rules
+as literal names. Computation does not create label groups or load chunks.

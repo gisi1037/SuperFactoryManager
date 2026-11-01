@@ -82,9 +82,10 @@ public final class StudioCompletion {
                 .toLowerCase(Locale.ROOT);
             List<Candidate> variables = new ArrayList<>();
             for (Entry entry : StudioVariables.visible(source, start, end)) {
-                if (entry.getName()
-                    .toLowerCase(Locale.ROOT)
-                    .startsWith(prefix)) variables.add(new Candidate(entry, start, end, entry.getName()));
+                String name = entry.getName()
+                    .startsWith("$") ? entry.getName() : "$" + entry.getName();
+                if (name.toLowerCase(Locale.ROOT)
+                    .startsWith(prefix)) variables.add(new Candidate(entry, start, end, name));
                 if (variables.size() >= Math.min(limit, SfmlCompletionCatalog.MAX_ENTRIES)) break;
             }
             return Collections.unmodifiableList(variables);
@@ -99,6 +100,34 @@ public final class StudioCompletion {
         if (dot >= 0 && source.charAt(dot) == '.') {
             int token = tokenAt(tokens, offsets, dot);
             method = token >= 0 && receiver(tokens, token - 1, 0);
+            if (method && token > 0
+                && tokens.get(token - 1)
+                    .getType() == SFMLLexer.IDENTIFIER) {
+                int root = dot;
+                while (root > 0 && identifier(source.charAt(root - 1))) root--;
+                String qualifier = source.substring(root, dot);
+                String qualifiedPrefix = source.substring(root, caret)
+                    .toLowerCase(Locale.ROOT);
+                boolean namespace = false;
+                for (Entry entry : catalog.entries()) if (entry.getKind() == Kind.PLAYER_FUNCTION && entry.getName()
+                    .toLowerCase(Locale.ROOT)
+                    .startsWith(qualifiedPrefix)) {
+                        namespace = true;
+                        break;
+                    }
+                if (namespace) {
+                    boolean bound = false;
+                    for (Entry entry : StudioVariables.visible(source, root, dot)) {
+                        String name = entry.getName();
+                        if (name.startsWith("$")) name = name.substring(1);
+                        if (name.equals(qualifier)) {
+                            bound = true;
+                            break;
+                        }
+                    }
+                    if (!bound) method = false;
+                }
+            }
         }
         if (!method) {
             if (dot >= 0 && source.charAt(dot) == '.' && dot != start - 1) return Collections.emptyList(); // Spaced,
@@ -121,6 +150,17 @@ public final class StudioCompletion {
         boolean hasParenthesis = next < source.length() && source.charAt(next) == '(';
         List<Candidate> result = new ArrayList<>();
         int boundedLimit = Math.min(limit, SfmlCompletionCatalog.MAX_ENTRIES);
+        if (!method && source.substring(start, end)
+            .indexOf('.') < 0) {
+            for (Entry entry : StudioVariables.visible(source, start, end)) {
+                String name = entry.getName();
+                if (name.startsWith("$")) name = name.substring(1);
+                if (!name.toLowerCase(Locale.ROOT)
+                    .startsWith(prefix)) continue;
+                result.add(new Candidate(entry, start, end, name));
+                if (result.size() >= boundedLimit) return Collections.unmodifiableList(result);
+            }
+        }
         for (Entry entry : catalog.entries()) {
             if ((entry.getKind() == Kind.METHOD) != method || !entry.getName()
                 .toLowerCase(Locale.ROOT)
@@ -210,8 +250,9 @@ public final class StudioCompletion {
     private static boolean receiver(List<Token> tokens, int end, int depth) {
         if (end < 0 || depth > 16) return false;
         Token last = tokens.get(end);
-        if (last.getType() == SFMLLexer.VARIABLE) return end == 0 || tokens.get(end - 1)
-            .getType() != SFMLLexer.DOT;
+        if (last.getType() == SFMLLexer.VARIABLE || last.getType() == SFMLLexer.IDENTIFIER)
+            return end == 0 || tokens.get(end - 1)
+                .getType() != SFMLLexer.DOT;
         if (last.getType() != SFMLLexer.RPAREN) return false;
         int nesting = 1, open = end - 1;
         while (open >= 0) {
@@ -225,10 +266,8 @@ public final class StudioCompletion {
         String method = tokens.get(open - 1)
             .getText();
         if (method.equalsIgnoreCase("label")) {
-            return end == open + 2 && tokens.get(open + 1)
-                .getType() == SFMLLexer.STRING
-                && (open < 2 || tokens.get(open - 2)
-                    .getType() != SFMLLexer.DOT);
+            return end > open + 1 && (open < 2 || tokens.get(open - 2)
+                .getType() != SFMLLexer.DOT);
         }
         if (!method.equalsIgnoreCase("side") && !method.equalsIgnoreCase("slots")) return false;
         return open >= 3 && tokens.get(open - 2)

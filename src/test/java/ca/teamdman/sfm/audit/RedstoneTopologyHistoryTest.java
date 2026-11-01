@@ -212,9 +212,10 @@ class RedstoneTopologyHistoryTest {
         final CableNetwork network;
         final RedstoneTriggerTracker tracker = new RedstoneTriggerTracker();
         final List<NamedRedstoneTrigger> triggers = Arrays.asList(
-            (NamedRedstoneTrigger) parse("EVERY REDSTONE PULSE FROM signal NORTH SIDE DO FORGET END").getTriggers()
+            (NamedRedstoneTrigger) parse("EVERY REDSTONE PULSE FROM \"signal\" NORTH SIDE DO FORGET END").getTriggers()
                 .get(0),
-            (NamedRedstoneTrigger) parse("EVERY REDSTONE FALLING FROM signal NORTH SIDE DO FORGET END").getTriggers()
+            (NamedRedstoneTrigger) parse("EVERY REDSTONE FALLING FROM \"signal\" NORTH SIDE DO FORGET END")
+                .getTriggers()
                 .get(0));
         CounterPort port = new CounterPort();
 

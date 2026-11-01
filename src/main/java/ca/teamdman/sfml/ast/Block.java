@@ -19,6 +19,22 @@ public final class Block implements ASTNode {
     }
 
     public void tick(ProgramContext context) {
+        if (context.isResumable()) {
+            ca.teamdman.sfml.data.DataRuntime runtime = context.getDataRuntime();
+            ca.teamdman.sfml.data.Continuation flow = runtime.continuation();
+            ca.teamdman.sfml.data.Continuation.Progress cursor = flow.progress(this);
+            while (cursor.index < statements.size()) {
+                Statement statement = statements.get(cursor.index);
+                if (context.isInLoop()) runtime.work(1);
+                flow.command(statement, () -> {
+                    statement.tick(context);
+                    return null;
+                });
+                cursor.index++;
+            }
+            flow.finish(this);
+            return;
+        }
         ca.teamdman.sfml.data.DataRuntime loopRuntime = context.isInLoop() ? context.getDataRuntime() : null;
         for (Statement stmt : statements) {
             // Bound repeated legacy statements too, without imposing new work cutoffs outside loops.

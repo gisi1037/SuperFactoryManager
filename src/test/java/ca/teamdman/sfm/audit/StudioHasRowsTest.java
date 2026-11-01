@@ -22,7 +22,7 @@ class StudioHasRowsTest {
     private static final UUID PROJECT = new UUID(12, 1037);
 
     private static String program(String clause) {
-        return "every 20 ticks do if " + clause + " then input from spare output to dest else forget end end";
+        return "every 20 ticks do if " + clause + " then input from \"spare\" output to \"dest\" else forget end end";
     }
 
     private static StudioFieldDraft draft(Node node, String source) {
@@ -37,7 +37,7 @@ class StudioHasRowsTest {
         StudioFieldPicker.Target target = label ? StudioFieldPicker.labelRowTarget(draft, row)
             : StudioFieldPicker.resourceRowTarget(draft, row);
         assertNotNull(target);
-        StudioFieldPicker.Snapshot snapshot = label ? StudioFieldPicker.labels(program("spare HAS > 0"), target)
+        StudioFieldPicker.Snapshot snapshot = label ? StudioFieldPicker.labels(program("\"spare\" HAS > 0"), target)
             : StudioFieldPicker.items(Arrays.asList("minecraft:gold_ingot"), target);
         StudioFieldPicker.Session session = new StudioFieldPicker.Session(draft, target, snapshot);
         session.select(snapshot.search(label ? "spare" : "gold").entries.get(0));
@@ -46,7 +46,7 @@ class StudioHasRowsTest {
 
     @Test
     void groupedHasEditsOnlyChosenSpansAndPreservesEverySetOperatorAndAccessModifier() {
-        String labels = "\"Room 🏭\" ,\tb,\"Room 🏭\"", resources = "item : a\toR\t\"fluid:Water\" Or item : a";
+        String labels = "\"Room 🏭\" ,\t\"b\",\"Room 🏭\"", resources = "item : a\toR\t\"fluid:Water\" Or item : a";
         for (String set : new String[] { "", "OVERALL ", "SOME ", "EVERY ", "EACH ", "ONE ", "LONE " }) {
             String clause = "((" + set
                 + labels
@@ -74,7 +74,7 @@ class StudioHasRowsTest {
             draft.set("comparator", "!=");
             draft.set("amount", "00010");
             assertEquals(
-                clause.replace(",\tb,", ",\t\"New 🏭\",")
+                clause.replace(",\t\"b\",", ",\t\"New 🏭\",")
                     .replace("\"fluid:Water\"", "fluid:lava")
                     .replace("HAS gE 00009", "HAS != 00010"),
                 draft.appliedClause(PROJECT, node, program(clause)));
@@ -84,8 +84,8 @@ class StudioHasRowsTest {
 
     @Test
     void explicitRemovalRestoresDefaultAndCompactQuotedBoundariesRemainTokenSafe() {
-        for (String clause : new String[] { "a HAS=0", "(a HAS=0)", "((\"src😀\"HAS=0))",
-            "(a HAS=0 WITH #ingotIron EXCEPT item:dirt)", "(\"src😀\"HAS=0\"item:a\"oR\"item:b\")" }) {
+        for (String clause : new String[] { "\"a\" HAS=0", "(\"a\" HAS=0)", "((\"src😀\"HAS=0))",
+            "(\"a\" HAS=0 WITH #ingotIron EXCEPT item:dirt)", "(\"src😀\"HAS=0\"item:a\"oR\"item:b\")" }) {
             Node node = node(clause);
             StudioFieldDraft draft = draft(node, program(clause));
             draft.addResource("fluid:water");
@@ -98,12 +98,14 @@ class StudioHasRowsTest {
             assertEquals(0, draft(node(removed), program(removed)).resourceCount());
             if (!clause.contains("item:a")) assertEquals(clause, removed);
         }
-        assertEquals("(source HAS=0)", StudioNodeProperties.update(Type.IF, "(\"src😀\"HAS=0)", "label", "source"));
+        assertEquals(
+            "(\"source\"HAS=0)",
+            StudioNodeProperties.update(Type.IF, "(\"src😀\"HAS=0)", "label", "\"source\""));
     }
 
     @Test
     void blankOrInvalidCellsRefuseTheWholeDraftAndSurviveCopies() {
-        String clause = "a,b HAS > 0 item:a OR item:b", source = program(clause);
+        String clause = "\"a\",\"b\" HAS > 0 item:a OR item:b", source = program(clause);
         Node node = node(clause);
         for (boolean label : new boolean[] { true, false }) for (String invalid : new String[] { "", " ", "a,b",
             "item:a OR item:b", "a -- hide", "\"unfinished", "x?", "a\nb", "a\0b" }) {
@@ -122,7 +124,7 @@ class StudioHasRowsTest {
                 assertEquals(clause, node.clause());
                 assertEquals("32", copy.value("amount"));
             }
-        StudioFieldDraft single = draft(node("a HAS = 0"), program("a HAS = 0"));
+        StudioFieldDraft single = draft(node("\"a\" HAS = 0"), program("\"a\" HAS = 0"));
         assertThrows(
             IllegalArgumentException.class,
             () -> single.removeLabel(
@@ -132,14 +134,14 @@ class StudioHasRowsTest {
         assertTrue(single.dirty());
         assertThrows(
             IllegalArgumentException.class,
-            () -> single.appliedClause(PROJECT, node("a HAS = 0"), program("a HAS = 0")));
+            () -> single.appliedClause(PROJECT, node("\"a\" HAS = 0"), program("\"a\" HAS = 0")));
         single.removeResource(blank);
         assertFalse(single.dirty());
     }
 
     @Test
     void joinedTextCannotHideInvalidRowPartitionsAcrossRecoveryCopies() {
-        String clause = "\"a,b\",c HAS > 0 \"item:a OR b\" OR item:c", source = program(clause);
+        String clause = "\"a,b\",\"c\" HAS > 0 \"item:a OR b\" OR item:c", source = program(clause);
         Node node = node(clause);
         for (boolean label : new boolean[] { true, false }) {
             StudioFieldDraft draft = draft(node, source);
@@ -152,7 +154,7 @@ class StudioHasRowsTest {
                 draft.setLabel(
                     draft.labelRows()
                         .get(1).id,
-                    "b\",c");
+                    "b\",\"c\"");
             } else {
                 draft.setResource(
                     draft.resourceRows()
@@ -175,7 +177,7 @@ class StudioHasRowsTest {
 
     @Test
     void bothPickersRepairTheirOwnRowAndUnrelatedPartitionsDoNotOverFence() {
-        String clause = "a,b HAS > 0 item:a OR item:b", source = program(clause);
+        String clause = "\"a\",\"b\" HAS > 0 item:a OR item:b", source = program(clause);
         Node node = node(clause);
         for (boolean label : new boolean[] { true, false }) {
             StudioFieldDraft draft = draft(node, source);
@@ -185,7 +187,7 @@ class StudioHasRowsTest {
                     .get(0).id;
             StudioFieldPicker.Session session = picker(draft, row, label);
             if (label) draft.addResource("fluid:water");
-            else draft.addLabel("third");
+            else draft.addLabel("\"third\"");
             draft.set("amount", "9");
             assertTrue(session.choose(draft, PROJECT, node, source));
             assertEquals(
@@ -199,7 +201,7 @@ class StudioHasRowsTest {
 
     @Test
     void stalePickersRefuseRemovedShiftedAbaAndWrongOwnersForBothKinds() {
-        String clause = "a,a,a HAS > 0 item:a OR item:a OR item:a", source = program(clause);
+        String clause = "\"a\",\"a\",\"a\" HAS > 0 item:a OR item:a OR item:a", source = program(clause);
         Node node = node(clause);
         for (boolean label : new boolean[] { true, false }) for (boolean aba : new boolean[] { true, false }) {
             StudioFieldDraft draft = draft(node, source);
@@ -213,7 +215,7 @@ class StudioHasRowsTest {
                     aba ? target
                         : draft.labelRows()
                             .get(0).id);
-                if (aba) draft.addLabel("a");
+                if (aba) draft.addLabel("\"a\"");
             } else {
                 draft.removeResource(
                     aba ? target
@@ -236,7 +238,7 @@ class StudioHasRowsTest {
             assertThrows(IllegalArgumentException.class, () -> session.choose(draft, UUID.randomUUID(), node, source));
             assertThrows(IllegalArgumentException.class, () -> session.choose(draft, PROJECT, node, source + " "));
             assertThrows(IllegalArgumentException.class, () -> session.choose(draft, PROJECT, node(clause), source));
-            if (label) draft.setLabel(target, "changed");
+            if (label) draft.setLabel(target, "\"changed\"");
             else draft.setResource(target, "item:changed");
             assertThrows(IllegalArgumentException.class, () -> session.choose(draft, PROJECT, node, source));
         }
@@ -244,17 +246,17 @@ class StudioHasRowsTest {
 
     @Test
     void capsAreExplicitAndUnsupportedConditionsStayFullyManualWithoutTruncation() {
-        String labels = String.join(",", Collections.nCopies(32, "a")),
+        String labels = String.join(",", Collections.nCopies(32, "\"a\"")),
             resources = String.join(" OR ", Collections.nCopies(32, "item:a"));
         String clause = labels + " HAS > 0 " + resources;
         StudioFieldDraft draft = draft(node(clause), program(clause));
         assertEquals(32, draft.labelCount());
         assertEquals(32, draft.resourceCount());
-        assertThrows(IllegalArgumentException.class, () -> draft.addLabel("a"));
+        assertThrows(IllegalArgumentException.class, () -> draft.addLabel("\"a\""));
         assertThrows(IllegalArgumentException.class, () -> draft.addResource("item:a"));
-        for (String manual : new String[] { labels + ",a HAS > 0", "a HAS > 0 " + resources + " OR item:a",
-            "a HAS > 0 item:a OR", "NOT a,b HAS > 0", "a HAS > 0 AND b HAS > 0", "a HAS > 0 OR b HAS > 0", "TRUE",
-            "REDSTONE" }) {
+        for (String manual : new String[] { labels + ",a HAS > 0", "\"a\" HAS > 0 " + resources + " OR item:a",
+            "\"a\" HAS > 0 item:a OR", "NOT \"a\",\"b\" HAS > 0", "\"a\" HAS > 0 AND \"b\" HAS > 0",
+            "\"a\" HAS > 0 OR \"b\" HAS > 0", "TRUE", "REDSTONE" }) {
             assertTrue(
                 StudioNodeProperties.inspect(Type.IF, manual)
                     .isEmpty(),
@@ -267,7 +269,7 @@ class StudioHasRowsTest {
 
     @Test
     void oneCombinedApplyKeepsNodeBranchIdentitiesAndExactUndoRedo() {
-        String clause = "(SOME a,b HAS > 0 item:a OR item:b)", source = program(clause);
+        String clause = "(SOME \"a\",\"b\" HAS > 0 item:a OR item:b)", source = program(clause);
         StudioDocument document = new StudioDocument();
         document.load(source);
         document.openVisual();
@@ -282,7 +284,7 @@ class StudioHasRowsTest {
         for (Node n : document.graph()
             .nodes()) ids.add(n.id);
         StudioFieldDraft draft = draft(node, document.code());
-        draft.addLabel("third");
+        draft.addLabel("\"third\"");
         draft.addResource("fluid:water");
         draft.set("comparator", "!=");
         draft.set("amount", "2");

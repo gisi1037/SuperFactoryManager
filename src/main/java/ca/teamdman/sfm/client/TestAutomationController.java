@@ -965,7 +965,7 @@ public class TestAutomationController {
                 ItemStack disk = new ItemStack(ModItems.disk);
                 ItemDisk.setProgramString(
                     disk,
-                    "NAME \"Visual test\"\nEVERY 20 TICKS DO INPUT 8 RETAIN 2 FROM source IF dest HAS < 32 THEN OUTPUT 4 TO dest ELSE FORGET END OUTPUT 1 TO dest END");
+                    "NAME \"Visual test\"\nEVERY 20 TICKS DO INPUT 8 RETAIN 2 FROM \"source\" IF \"dest\" HAS < 32 THEN OUTPUT 4 TO \"dest\" ELSE FORGET END OUTPUT 1 TO \"dest\" END");
                 manager.setInventorySlotContents(0, disk);
                 manager.setRunning(false);
                 blueprintFixture = new BlockPos(x, y, z);
@@ -1684,12 +1684,12 @@ public class TestAutomationController {
                     if (scen == 1) {
                         if (cIn != null)
                             cIn.setInventorySlotContents(0, new ItemStack(net.minecraft.init.Items.apple, 64));
-                        pCode = "NAME \"Test 1\"\nEVERY 20 TICKS DO\n  INPUT FROM a\n  OUTPUT TO b\nEND\n";
+                        pCode = "NAME \"Test 1\"\nEVERY 20 TICKS DO\n  INPUT FROM \"a\"\n  OUTPUT TO \"b\"\nEND\n";
                         pLvl = LogLevel.TRACE;
                     } else if (scen == 2) {
                         if (cIn != null)
                             cIn.setInventorySlotContents(0, new ItemStack(net.minecraft.init.Items.apple, 64));
-                        pCode = "NAME \"Test 2\"\nEVERY 20 TICKS DO\n  IF a HAS >= 1 THEN\n    INPUT FROM a\n    OUTPUT TO b\n  END\nEND\n";
+                        pCode = "NAME \"Test 2\"\nEVERY 20 TICKS DO\n  IF \"a\" HAS >= 1 THEN\n    INPUT FROM \"a\"\n    OUTPUT TO \"b\"\n  END\nEND\n";
                         pLvl = LogLevel.DEBUG;
                     } else if (scen == 4) {
                         if (cIn != null)
@@ -1697,11 +1697,11 @@ public class TestAutomationController {
                         pCode = "NAME \"Manual data demo\"\nSTATE $stats = { runs: 0 }\nEVERY 20 TICKS DO\n"
                             + "  LET $amounts = [1, 2, 4]\n  LET $config = { reserve: 8, target: 16 }\n"
                             + "  SET $stats.runs = $stats.runs + 1\n"
-                            + "  INPUT ($amounts[2]) RETAIN ($config.reserve) FROM a\n"
+                            + "  INPUT ($amounts[2]) RETAIN ($config.reserve) FROM \"a\"\n"
                             + "  OUTPUT RETAIN ($config.target) TO b\nEND";
                         pLvl = LogLevel.OFF;
                     } else {
-                        pCode = "NAME \"Test 3\"\nEVERY 20 TICKS DO\n  INPUT FROM a\n  OUTPUT TO b\nEND\n";
+                        pCode = "NAME \"Test 3\"\nEVERY 20 TICKS DO\n  INPUT FROM \"a\"\n  OUTPUT TO \"b\"\nEND\n";
                         pLvl = LogLevel.DEBUG;
                     }
 
@@ -1971,8 +1971,8 @@ public class TestAutomationController {
         LabelPositionHolder labels = new LabelPositionHolder();
         labels.addPosition("history_signal", new ca.teamdman.sfm.common.util.BlockPos(x + 2, y, z));
         ca.teamdman.sfml.program_builder.ProgramBuildResult built = new ca.teamdman.sfml.program_builder.ProgramBuilder(
-            "EVERY REDSTONE PULSE FROM history_signal NORTH SIDE DO FORGET END "
-                + "EVERY REDSTONE FALLING FROM history_signal NORTH SIDE DO FORGET END").build();
+            "EVERY REDSTONE PULSE FROM \"history_signal\" NORTH SIDE DO FORGET END "
+                + "EVERY REDSTONE FALLING FROM \"history_signal\" NORTH SIDE DO FORGET END").build();
         if (!built.isSuccess()) return "ERROR: Native-history fixture could not compile";
         java.util.List<ca.teamdman.sfml.ast.NamedRedstoneTrigger> triggers = java.util.Arrays.asList(
             (ca.teamdman.sfml.ast.NamedRedstoneTrigger) built.getProgram()

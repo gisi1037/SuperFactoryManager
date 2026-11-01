@@ -6,7 +6,7 @@ navigation:
   parent: /advanced/index.md
   keywords: ["programming station", "project", "draft", "private", "save"]
 categories: ["sfm"]
-updated: "2026-10-30"
+updated: "2026-10-31"
 ---
 
 # Studio and published builds
@@ -56,7 +56,7 @@ fields in temporary client recovery.
 
 ## Completion and diagnostics
 
-**Ctrl+Space** completes function, method or `$variable` names at the caret,
+**Ctrl+Space** completes function, method or variable names (with optional `$`) at the caret,
 preserving the receiver and exact variable spelling. Up/Down and Page keys choose
 a result; Enter inserts it and Escape cancels. Variable suggestions use earlier
 declarations in the current scope of a parseable draft, excluding closed blocks

@@ -43,16 +43,16 @@ class NamedRedstoneTriggerTest {
         }
         for (String qualifier : new String[] { "ROUND ROBIN", "SLOTS 0-2147483647", "NULL SIDE", "FRONT SIDE" }) {
             assertFalse(
-                new ProgramBuilder("EVERY REDSTONE PULSE FROM signal " + qualifier + " DO END").build()
+                new ProgramBuilder("EVERY REDSTONE PULSE FROM \"signal\" " + qualifier + " DO END").build()
                     .isSuccess(),
                 qualifier);
         }
-        parse("EVERY 20 TICKS DO INPUT rising:falling FROM rising OUTPUT TO falling END");
+        parse("EVERY 20 TICKS DO INPUT rising:falling FROM \"rising\" OUTPUT TO \"falling\" END");
     }
 
     @Test
     void namedTriggersNowHaveVisualRootsWithoutLosingSource() {
-        String source = "EVERY REDSTONE FALLING FROM sensor NORTH SIDE DO FORGET END";
+        String source = "EVERY REDSTONE FALLING FROM \"sensor\" NORTH SIDE DO FORGET END";
         BlueprintCompiler.ImportResult result = BlueprintCompiler.inspectText(source);
         // Slice21 intentionally enables this wrapper; unsupported body statements still retain their blockers.
         assertTrue(result.report.isAvailable());
@@ -69,8 +69,9 @@ class NamedRedstoneTriggerTest {
     @Test
     void initialHighIsOnlyBaselineAndShortPulsesDeliverBothEdgesOnce() throws Exception {
         Rig rig = new Rig(
-            "STATE $up = 0 STATE $down = 0 " + "EVERY REDSTONE PULSE FROM signal NORTH SIDE DO SET $up = $up + 1 END "
-                + "EVERY REDSTONE FALLING FROM signal NORTH SIDE DO SET $down = $down + 1 END");
+            "STATE $up = 0 STATE $down = 0 "
+                + "EVERY REDSTONE PULSE FROM \"signal\" NORTH SIDE DO SET $up = $up + 1 END "
+                + "EVERY REDSTONE FALLING FROM \"signal\" NORTH SIDE DO SET $down = $down + 1 END");
         CounterPort port = rig.port(SRC);
         port.rising[2] = 8;
         rig.tick();
@@ -125,7 +126,7 @@ class NamedRedstoneTriggerTest {
     @Test
     void allNamedEligibilityIsFrozenBeforeTimerOutputsButQueriesSeeTheNewValue() throws Exception {
         Rig rig = new Rig(
-            "STATE $hits = 0 STATE $level = 0 " + "EVERY 20 TICKS DO OUTPUT 7 REDSTONE LEVEL TO signal NORTH SIDE "
+            "STATE $hits = 0 STATE $level = 0 " + "EVERY 20 TICKS DO OUTPUT 7 REDSTONE LEVEL TO \"signal\" NORTH SIDE "
                 + "SET $level = LABEL(\"signal\").side(\"north\").redstone() END "
                 + risingBody());
         CounterPort port = rig.port(SRC);
@@ -242,8 +243,8 @@ class NamedRedstoneTriggerTest {
     void refreshedMissedEdgeValidatesEveryMemberOfOverlappingGroupsBeforeDelivery() throws Exception {
         Rig rig = new Rig(
             "STATE $north = 0 STATE $south = 0 "
-                + "EVERY REDSTONE PULSE FROM edge_a NORTH SIDE DO SET $north = $north + 1 END "
-                + "EVERY REDSTONE PULSE FROM edge_b SOUTH SIDE DO SET $south = $south + 1 END");
+                + "EVERY REDSTONE PULSE FROM \"edge_a\" NORTH SIDE DO SET $north = $north + 1 END "
+                + "EVERY REDSTONE PULSE FROM \"edge_b\" SOUTH SIDE DO SET $south = $south + 1 END");
         CounterPort first = rig.port(SRC), second = rig.port(DST);
         rig.fixture.labels.addPosition("edge_a", SRC);
         rig.fixture.labels.addPosition("edge_b", SRC);
@@ -293,7 +294,7 @@ class NamedRedstoneTriggerTest {
     }
 
     private static String risingBody() {
-        return "EVERY REDSTONE PULSE FROM signal NORTH SIDE DO SET $hits = $hits + 1 END ";
+        return "EVERY REDSTONE PULSE FROM \"signal\" NORTH SIDE DO SET $hits = $hits + 1 END ";
     }
 
     private static final class Rig {

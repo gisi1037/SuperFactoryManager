@@ -56,6 +56,21 @@ test('the editor adapter colors variables and supplies untrusted, non-HTML funct
   } finally {h.dispose();}
 });
 
+test('editing to plain variables refreshes decorations and declaration hovers', async () => {
+  const h = host();
+  try {
+    h.doc.text = 'state progress = 0; every 20 ticks { progress = progress + 1; }';
+    h.doc.version++;
+    h.listeners.change({document:h.doc});
+    await h.flush();
+    assert.equal(h.colors.at(-1).length, 3);
+    const result = h.listeners.hover.provideHover(h.doc, {character:h.doc.text.lastIndexOf('progress') + 1});
+    assert.match(result.contents.value, /state progress/);
+    assert.match(result.contents.value, /Persistent disk STATE/);
+    assert.equal(result.contents.isTrusted, false);
+  } finally { h.dispose(); }
+});
+
 test('untrusted workspaces explain Restricted Mode without submitting compiler requests', async () => {
   const h=host(false);
   try {

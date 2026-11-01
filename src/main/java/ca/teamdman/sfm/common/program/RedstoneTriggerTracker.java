@@ -17,6 +17,7 @@ import ca.teamdman.sfm.common.network.CableNetwork;
 import ca.teamdman.sfm.common.tileentity.TileEntityRedstonePort;
 import ca.teamdman.sfm.common.util.BlockPos;
 import ca.teamdman.sfml.ast.Label;
+import ca.teamdman.sfml.ast.LabelAccess;
 import ca.teamdman.sfml.ast.NamedRedstoneTrigger;
 import ca.teamdman.sfml.data.QueryBudget;
 
@@ -24,6 +25,7 @@ import ca.teamdman.sfml.data.QueryBudget;
 public final class RedstoneTriggerTracker {
 
     private Map<BlockPos, Observation> previous = Collections.emptyMap();
+    private Map<NamedRedstoneTrigger, Map<BlockPos, Integer>> previousSelections = Collections.emptyMap();
     private World world;
     private CableNetwork network;
     private long topology;
@@ -31,7 +33,9 @@ public final class RedstoneTriggerTracker {
     private static final class Selection {
 
         final Set<BlockPos> positions = new LinkedHashSet<>();
+        final Map<BlockPos, Integer> masks = new LinkedHashMap<>();
         boolean complete = true;
+        boolean stable;
     }
 
     private static final class Observation {
@@ -60,6 +64,7 @@ public final class RedstoneTriggerTracker {
 
     public void reset() {
         previous = Collections.emptyMap();
+        previousSelections = Collections.emptyMap();
         world = null;
         network = null;
     }
@@ -84,19 +89,28 @@ public final class RedstoneTriggerTracker {
         for (NamedRedstoneTrigger trigger : triggers) {
             budget.chargeAllocation(1);
             Selection selection = new Selection();
-            for (Label label : trigger.getSource()
-                .getLabels()) {
+            LabelAccess access = trigger.resolveSource(context);
+            for (Label label : access.getLabels()) {
+                int labelMask = label.getReference()
+                    .getSideMask() & trigger.getSideMask();
+                if (labelMask == 0) {
+                    selection.complete = false;
+                    continue;
+                }
                 Set<BlockPos> positions = context.getLabelPositionHolder()
                     .getPositions(label.getName());
                 if (positions.isEmpty()) selection.complete = false;
                 for (BlockPos pos : positions) {
                     budget.chargePosition();
                     if (selection.positions.add(pos)) budget.chargeAllocation(1);
+                    Integer selectedMask = selection.masks.get(pos);
+                    selection.masks.put(pos, (selectedMask == null ? 0 : selectedMask) | labelMask);
                     Integer mask = requested.get(pos);
                     if (mask == null) budget.chargeAllocation(1);
-                    requested.put(pos, (mask == null ? 0 : mask) | trigger.getSideMask());
+                    requested.put(pos, (mask == null ? 0 : mask) | labelMask);
                 }
             }
+            selection.stable = !rebase && selection.masks.equals(previousSelections.get(trigger));
             selections.put(trigger, selection);
         }
 
@@ -125,10 +139,10 @@ public final class RedstoneTriggerTracker {
         ArrayDeque<BlockPos> verify = new ArrayDeque<>();
         for (NamedRedstoneTrigger trigger : triggers) {
             Selection selection = selections.get(trigger);
-            if (!selection.complete) continue;
+            if (!selection.complete || !selection.stable) continue;
             boolean edge = false;
             for (BlockPos pos : selection.positions)
-                edge |= changed(old.get(pos), sampled.get(pos), trigger.getSideMask(), trigger.isFalling());
+                edge |= changed(old.get(pos), sampled.get(pos), selection.masks.get(pos), trigger.isFalling());
             if (edge) for (BlockPos pos : selection.positions) if (verified.add(pos)) {
                 budget.chargeAllocation(1);
                 verify.addLast(pos);
@@ -153,8 +167,10 @@ public final class RedstoneTriggerTracker {
             // overlapping groups before publishing any new eligibility.
             for (NamedRedstoneTrigger trigger : triggers) {
                 Selection selection = selections.get(trigger);
-                if (!selection.complete || !selection.positions.contains(pos)
-                    || !changed(old.get(pos), sampled.get(pos), trigger.getSideMask(), trigger.isFalling())) continue;
+                if (!selection.complete || !selection.stable
+                    || !selection.positions.contains(pos)
+                    || !changed(old.get(pos), sampled.get(pos), selection.masks.get(pos), trigger.isFalling()))
+                    continue;
                 for (BlockPos member : selection.positions) if (verified.add(member)) {
                     budget.chargeAllocation(1);
                     verify.addLast(member);
@@ -166,11 +182,12 @@ public final class RedstoneTriggerTracker {
         // across such a gap; retain the starting generation so the next capture rebases.
         boolean stableTopology = generation == currentNetwork.getTopologyGeneration();
         Map<NamedRedstoneTrigger, Boolean> eligible = new IdentityHashMap<>();
+        Map<NamedRedstoneTrigger, Map<BlockPos, Integer>> nextSelections = new IdentityHashMap<>();
         for (NamedRedstoneTrigger trigger : triggers) {
             Selection selection = selections.get(trigger);
-            boolean complete = selection.complete && !selection.positions.isEmpty(), edge = false;
-            int mask = trigger.getSideMask();
+            boolean complete = selection.complete && selection.stable && !selection.positions.isEmpty(), edge = false;
             for (BlockPos pos : selection.positions) {
+                int mask = selection.masks.get(pos);
                 Observation now = sampled.get(pos), before = old.get(pos);
                 if (now == null || (now.available & mask) != mask) {
                     complete = false;
@@ -179,8 +196,10 @@ public final class RedstoneTriggerTracker {
                 edge |= changed(before, now, mask, trigger.isFalling());
             }
             eligible.put(trigger, stableTopology && complete && edge);
+            nextSelections.put(trigger, selection.masks);
         }
         previous = sampled;
+        previousSelections = nextSelections;
         world = currentWorld;
         network = currentNetwork;
         topology = generation;

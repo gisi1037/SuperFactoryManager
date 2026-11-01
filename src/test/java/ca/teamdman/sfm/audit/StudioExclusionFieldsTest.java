@@ -131,7 +131,7 @@ class StudioExclusionFieldsTest {
         for (Type type : new Type[] { Type.INPUT, Type.OUTPUT }) for (String inclusion : new String[] {
             "16 item:a,2 item:b", "item:a OR item:b", "item:a OR", "16 item:a,", "WITH #ingotIron," }) {
                 String clause = (type == Type.INPUT ? "INPUT " : "OUTPUT ") + inclusion
-                    + (type == Type.INPUT ? " FROM source" : " TO dest");
+                    + (type == Type.INPUT ? " FROM \"source\"" : " TO \"dest\"");
                 assertNotNull(field(type, clause));
                 String added = edit(type, clause, "item:c");
                 assertEquals(
@@ -154,7 +154,7 @@ class StudioExclusionFieldsTest {
         for (Type type : new Type[] { Type.INPUT, Type.OUTPUT })
             for (String excluded : new String[] { "item:a,", "item:a,item:b," }) {
                 String clause = (type == Type.INPUT ? "INPUT 16 EXCEPT " : "OUTPUT 16 EXCEPT ") + excluded
-                    + (type == Type.INPUT ? " FROM source" : " TO dest");
+                    + (type == Type.INPUT ? " FROM \"source\"" : " TO \"dest\"");
                 limits(clause);
                 assertNull(field(type, clause));
                 assertFalse(
@@ -185,7 +185,7 @@ class StudioExclusionFieldsTest {
 
     @Test
     void invalidOrInjectedPendingTextIsRetainedAndApplyIsAtomic() {
-        String clause = "INPUT 16 FROM a,b", source = program(clause);
+        String clause = "INPUT 16 FROM \"a\",\"b\"", source = program(clause);
         Node node = new Node(UUID.randomUUID(), Type.INPUT, 0, 0, clause);
         for (String invalid : new String[] { "item:a,item:b", "item:a OR item:b", "item:a -- comment",
             "item:a WITH #ingotIron", "EXCEPT item:a", "\"unfinished", "a?", "a.b", "a\nb", "a\rb", "a\0b" }) {
@@ -202,7 +202,7 @@ class StudioExclusionFieldsTest {
 
     @Test
     void combinedLabelsResourceOreAndExclusionApplyOnceWithExactUndo() {
-        String source = "-- 🏭\r\n" + program("INPUT 16 RETAIN 2 FROM a,b OUTPUT TO dest");
+        String source = "-- 🏭\r\n" + program("INPUT 16 RETAIN 2 FROM \"a\",\"b\" OUTPUT TO \"dest\"");
         StudioDocument document = new StudioDocument();
         document.load(source);
         document.openVisual();
@@ -215,7 +215,7 @@ class StudioExclusionFieldsTest {
         StudioFieldDraft draft = draft(node, document.code());
         UUID row = draft.labelRows()
             .get(0).id;
-        draft.setLabel(row, "changed");
+        draft.setLabel(row, "\"changed\"");
         draft.set("amount", "32");
         draft.set("resource", "item:minecraft:iron_ingot");
         draft.setOreMode(Mode.WITHOUT);
@@ -233,7 +233,7 @@ class StudioExclusionFieldsTest {
         assertEquals(draft.labelRevision(), retained.labelRevision());
         String applied = retained.appliedClause(PROJECT, node, document.code());
         assertEquals(
-            "INPUT 32 RETAIN 2 item:minecraft:iron_ingot WITHOUT #dust*  EXCEPT item:minecraft:coal   FROM changed , b",
+            "INPUT 32 RETAIN 2 item:minecraft:iron_ingot WITHOUT #dust*  EXCEPT item:minecraft:coal   FROM \"changed\" , \"b\"",
             applied);
         document.editGraph(
             g -> g.node(node.id)
@@ -252,7 +252,7 @@ class StudioExclusionFieldsTest {
 
     @Test
     void pickerUsesExistingEncodingBudgetsAndPendingOwnershipFences() {
-        String clause = "OUTPUT TO dest", source = program(clause);
+        String clause = "OUTPUT TO \"dest\"", source = program(clause);
         Node node = new Node(UUID.randomUUID(), Type.OUTPUT, 0, 0, clause);
         StudioFieldDraft draft = draft(node, source);
         Field field = field(Type.OUTPUT, clause);

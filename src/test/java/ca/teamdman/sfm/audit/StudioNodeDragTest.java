@@ -11,7 +11,7 @@ import ca.teamdman.sfm.client.gui.mui2.StudioLayout;
 
 class StudioNodeDragTest {
 
-    private static final String CODE = "every 20 ticks do\n input from source\n output to destination\nend\n";
+    private static final String CODE = "every 20 ticks do\n input from \"source\"\n output to \"destination\"\nend\n";
 
     private static StudioDocument document() {
         StudioDocument document = new StudioDocument();

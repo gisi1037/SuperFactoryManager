@@ -107,7 +107,7 @@ class SfmlContentsIntegrationTest {
         fixture.source.setInventorySlotContents(0, stack(SCAN_ITEM, 6, 0, null));
         Program program = program(
             "STATE $result = {before:0, after:0, origin:0, same:FALSE} EVERY 20 TICKS DO "
-                + "LET $before = LABEL(\"source\").contents() INPUT 2 FROM source OUTPUT TO dest "
+                + "LET $before = LABEL(\"source\").contents() INPUT 2 FROM \"source\" OUTPUT TO \"dest\" "
                 + "LET $after = LABEL(\"source\").contents() SET $result.before = $before[0].total "
                 + "SET $result.origin = $before[0].locations[0].amount SET $result.after = $after[0].total "
                 + "SET $result.same = $before[0].item = $after[0].item END");
@@ -253,7 +253,7 @@ class SfmlContentsIntegrationTest {
         fixture.source.setInventorySlotContents(0, stack(SCAN_ITEM, 6, 0, null));
         Program program = program(
             "STATE $result = 0 EVERY 20 TICKS DO LET $s = LABEL(\"source\").contents() "
-                + "SET $result = LEN($s) INPUT FROM source OUTPUT TO dest END");
+                + "SET $result = LEN($s) INPUT FROM \"source\" OUTPUT TO \"dest\" END");
         Memory state = new Memory(program);
         ProgramContext context = context(fixture, state);
         context.getInvocationQueryBudget()

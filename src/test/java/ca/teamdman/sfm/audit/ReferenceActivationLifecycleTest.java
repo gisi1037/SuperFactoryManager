@@ -386,7 +386,7 @@ class ReferenceActivationLifecycleTest {
         for (LogLevel level : new LogLevel[] { LogLevel.INFO, LogLevel.DEBUG, LogLevel.TRACE })
             try (Fixture f = new Fixture(temporary.resolve("privacy" + level))) {
                 f.tick();
-                f.complete(0, "EVERY 1 TICKS DO INPUT FROM private_input OUTPUT TO private_output END");
+                f.complete(0, "EVERY 1 TICKS DO INPUT FROM \"private_input\" OUTPUT TO \"private_output\" END");
                 f.manager.runOnceWithLogLevel(level);
                 String messages = logText(f.manager);
                 assertTrue(messages.contains("Manual run completed"), messages);
@@ -398,7 +398,7 @@ class ReferenceActivationLifecycleTest {
             }
         AuditRegressionTest.Fixture world = new AuditRegressionTest.Fixture();
         TileEntityManager legacy = RecoveryFixtures.manager(world);
-        legacy.saveCodeAndRecompile("EVERY 1 TICKS DO INPUT FROM private_input OUTPUT TO private_output END");
+        legacy.saveCodeAndRecompile("EVERY 1 TICKS DO INPUT FROM \"private_input\" OUTPUT TO \"private_output\" END");
         legacy.runOnceWithLogLevel(LogLevel.DEBUG);
         assertTrue(logText(legacy).contains("private_input"), "Legacy source diagnostics remain available");
     }

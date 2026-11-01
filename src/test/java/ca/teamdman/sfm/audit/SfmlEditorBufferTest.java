@@ -148,15 +148,15 @@ class SfmlEditorBufferTest {
     @Test
     void multilinePasteInMiddlePreservesBothSidesAndIsOneUndoableEdit() {
         SfmlEditorBuffer buffer = new SfmlEditorBuffer();
-        buffer.load("INPUT FROM source");
+        buffer.load("INPUT FROM \"source\"");
         buffer.move(6, false);
         buffer.insert("1\nOUTPUT 2\nFORGET\n");
-        assertEquals("INPUT 1\nOUTPUT 2\nFORGET\nFROM source", buffer.source());
+        assertEquals("INPUT 1\nOUTPUT 2\nFORGET\nFROM \"source\"", buffer.source());
         assertTrue(buffer.undo());
-        assertEquals("INPUT FROM source", buffer.source());
+        assertEquals("INPUT FROM \"source\"", buffer.source());
         assertEquals(6, buffer.caret());
         assertTrue(buffer.redo());
-        assertEquals("INPUT 1\nOUTPUT 2\nFORGET\nFROM source", buffer.source());
+        assertEquals("INPUT 1\nOUTPUT 2\nFORGET\nFROM \"source\"", buffer.source());
     }
 
     @Test

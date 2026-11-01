@@ -24,12 +24,37 @@ public final class PrintStatement implements Statement {
 
     @Override
     public void tick(ProgramContext context) {
+        if (context.isResumable()) {
+            resumable(context);
+            return;
+        }
         if (!context.tryBeginPrint()) return;
         DataRuntime runtime = context.getDataRuntime();
         DataValue[] values = new DataValue[arguments.size()];
         runtime.allocate(values.length);
         for (int i = 0; i < values.length; i++) values[i] = arguments.get(i)
             .evaluate(runtime);
+        context.getDebugConsole()
+            .append(DebugValueFormatter.formatPrint(runtime, values));
+    }
+
+    private void resumable(ProgramContext context) {
+        DataRuntime runtime = context.getDataRuntime();
+        ca.teamdman.sfml.data.Continuation.Progress cursor = runtime.continuation()
+            .progress(this);
+        if (!cursor.initialized) {
+            cursor.initialized = true;
+            cursor.current = context.getWorldTime();
+        }
+        boolean accepted = runtime.evaluate(this, context::tryBeginPrint);
+        if (!accepted) return;
+        DataValue[] values = new DataValue[arguments.size()];
+        runtime.allocate(values.length);
+        for (int i = 0; i < values.length; i++) values[i] = arguments.get(i)
+            .evaluate(runtime);
+        // Finish an already-started call even if capture was disabled while it waited.
+        if (!context.hasDebugOutputEnabled()) return;
+        if (cursor.current != context.getWorldTime() && !context.tryBeginPrint()) return;
         context.getDebugConsole()
             .append(DebugValueFormatter.formatPrint(runtime, values));
     }

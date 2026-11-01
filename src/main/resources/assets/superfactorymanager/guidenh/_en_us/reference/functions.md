@@ -6,7 +6,7 @@ navigation:
   parent: /reference/index.md
   keywords: ["api", "builtin", "min", "max", "len", "total", "stock", "shortage"]
 categories: ["sfm"]
-updated: "2026-10-30"
+updated: "2026-10-31"
 ---
 
 # Default functions
@@ -21,13 +21,15 @@ TRANSFER are reserved boundaries.
 
 | Call | Returns | Meaning |
 | --- | --- | --- |
-| `LABEL("name")` | LABEL_REF | Select the exact saved label group. |
+| `LABEL(name)` | LABEL_REF | Select the exact saved label group from a STRING expression. |
+| `FLUID("water")` | RESOURCE_SELECTOR | Match a fluid registry name; `FLUID("*")` matches all fluids. |
 | `ITEM("namespace:name")` | RESOURCE_SELECTOR | Match every metadata/NBT variant of one exact item ID; `ITEM("*")` matches all items. |
 | `ORE("ingotIron")` | RESOURCE_SELECTOR | Match one exact ore-dictionary name, including its registered alternatives. |
 | `$label.side("up")` | LABEL_REF | Restrict observed/used faces. |
 | `$label.slots(0, 8)` | LABEL_REF | Select an inclusive logical slot range. |
 
-Constructor strings must be literals. A label is a selection, an ITEM/ORE value
+LABEL accepts a STRING expression, including `label("chest" + index)`.
+ITEM, ORE and FLUID strings still must be source literals. A label is a selection, an ITEM/ORE value
 is a filter, and an ITEM_KEY from `.contents()` is one exact registry/metadata/NBT
 identity. These are different types. Unknown ore names match no item without
 registering a new ore category. See [selectors](/automation/selectors.md) and
@@ -96,12 +98,63 @@ evaluated while capture is enabled and allowance remains.
 item action statement. Missing selector means all items; missing amount means
 matching visible source stock observed during preflight. INTO is optional;
 its result has `requested`, `moved`, `remaining` and `status`.
-It cannot be called inside a data expression or a current FUNCTION body.
+Use it in triggers or void procedures, never inside a data expression or a
+value-returning function body. TRANSFERF is the corresponding fluid action in mB.
 
 Item/fluid `INPUT` and `OUTPUT`, redstone `OUTPUT` and `FORGET` also remain action
-statements. Read-only player functions can use the data/query calls above,
-bounded loops and local/parameter assignments; they cannot perform world actions
-or mutate persistent STATE. There are no current recipe-query,
-dynamic interval, append, substring or implicit string-conversion defaults.
+statements for triggers and void procedures. Value functions can use data/query
+calls, bounded loops, local/parameter assignments, direct STATE reads and WAIT;
+they cannot perform world actions or mutate STATE. Void procedures can update
+STATE directly. Program-wide LET and caller locals still need explicit arguments.
+Parameters are values unless a void procedure explicitly declares REF and its
+caller supplies a matching REF target. Those writes update the caller immediately. There are no current
+recipe-query, dynamic interval, append or substring defaults. String plus integer
+concatenation uses signed decimal text; it does not provide general conversion.
+
+## WAIT
+
+`wait(n)` suspends the current trigger and active function stack for exactly n
+game ticks while the manager remains loaded and running. Zero continues now;
+negative values/deadline overflow fault. It resumes independently of the original
+EVERY interval, on the server main thread, without blocking that thread or
+creating a worker. Other triggers continue; new firings of this busy trigger
+are not queued. It also works inside value-returning functions.
+
+Completed operands, locals and loop progress survive; later queries see current
+providers. Continuations are bounded RAM only: program/disk reload or replacement,
+unload, STATE reset and runtime faults cancel them. No call stack is persisted.
+See [scheduling](/automation/scheduling.md) for the full rules and examples.
+
+## Ghost circuits
+
+`setcircuit(machine, configuration)` configures the native ghost circuit on a
+compatible GregTech machine. `machine` must be a whole-machine LABEL_REF, such
+as `label("assembler")`, with no `.side(...)` or `.slots(...)` restriction.
+Values 1 through 24 select a circuit; **0 or -1 clears it**. Other values fault.
+This is a configuration action, not a physical item transfer into a guessed slot.
+
+```sfml
+every 20 ticks {
+  setcircuit(label("assembler"), 5) into configured;
+  print(configured.matched, configured.changed, configured.status);
+}
+```
+
+INTO is optional. Its record has integer `matched` and `changed` fields and a
+string `status`: `complete`, `partial`, `unavailable` or `unsupported`. Counts
+report confirmed results, not every attempted callback. A machine already at the
+requested setting can be matched without being changed. A partial result may
+have unconfirmed side effects; zero confirmed changes is not a rollback guarantee.
+
+The group is checked for connected, loaded, supported endpoints before any
+writes. A missing/disconnected endpoint gives unavailable; an unsupported host
+gives unsupported. Later replacement or callback failures can interrupt commits.
+Earlier accepted changes remain; work/provider failures can fault and pause the
+manager. SETCIRCUIT shares the bounded action/query budgets and runs only on the
+server thread. Use it in triggers or void procedures, not data expressions.
+
+GregTech integration is optional and deliberately limited to supported ghost
+configuration interfaces. It does not assume every machine, addon or inventory
+supports this operation, and never edits a physical circuit stack as a fallback.
 
 Next: [player functions](/language/functions.md) or [complete examples](examples.md).

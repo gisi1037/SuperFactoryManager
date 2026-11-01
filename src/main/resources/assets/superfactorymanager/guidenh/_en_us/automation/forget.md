@@ -14,11 +14,11 @@ FORGET clears the active INPUT declarations in the current trigger. Use it when 
 ```sfml
 NAME "Independent iron and gold stages"
 EVERY 20 TICKS DO
-  INPUT 8 item:minecraft:iron_ingot FROM iron_source
-  OUTPUT TO iron_dest
+  INPUT 8 item:minecraft:iron_ingot FROM "iron_source"
+  OUTPUT TO "iron_dest"
   FORGET
-  INPUT 4 item:minecraft:gold_ingot FROM gold_source
-  OUTPUT TO gold_dest
+  INPUT 4 item:minecraft:gold_ingot FROM "gold_source"
+  OUTPUT TO "gold_dest"
 END
 ```
 
@@ -29,10 +29,10 @@ Without FORGET, the iron input would still be active when gold_dest is processed
 ```sfml
 NAME "Remove one source label"
 EVERY 20 TICKS DO
-  INPUT 8 item:minecraft:iron_ingot FROM source_a, source_b
-  OUTPUT 2 TO priority
-  FORGET source_a
-  OUTPUT TO overflow
+  INPUT 8 item:minecraft:iron_ingot FROM "source_a", "source_b"
+  OUTPUT 2 TO "priority"
+  FORGET "source_a"
+  OUTPUT TO "overflow"
 END
 ```
 

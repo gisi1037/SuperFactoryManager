@@ -662,7 +662,7 @@ class ReferenceLoadingCharacterizationTest {
         }
 
         boolean rejectedBusy() {
-            return readyAt == 0 && getStatusMessage().startsWith("Reference storage busy; use Run to retry");
+            return readyAt == 0 && getStatusMessage().startsWith("Reference storage busy; use Run to \"retry\"");
         }
     }
 

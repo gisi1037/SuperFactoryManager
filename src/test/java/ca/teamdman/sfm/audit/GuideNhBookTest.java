@@ -146,7 +146,7 @@ class GuideNhBookTest {
             while (!next.equals(ROOT.resolve("index.md"))) {
                 assertTrue(seen.add(next), "Navigation cycle at " + next);
                 next = parents.get(next);
-                assertNotNull(next, "Page is not reachable from home: " + page);
+                assertNotNull(next, "Page is not reachable from \"home\": " + page);
             }
         }
     }

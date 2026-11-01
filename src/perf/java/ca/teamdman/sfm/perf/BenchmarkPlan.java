@@ -86,9 +86,9 @@ public final class BenchmarkPlan {
             output.append("1 minecraft:cobble*stone");
         } else output.append("1");
         return "EVERY " + interval
-            + " TICKS DO\n INPUT minecraft:cobblestone FROM source\n "
+            + " TICKS DO\n INPUT minecraft:cobblestone FROM \"source\"\n "
             + output
-            + " TO dest\n FORGET\n INPUT minecraft:stick FROM witness_source\n OUTPUT 1 TO witness_dest\nEND";
+            + " TO \"dest\"\n FORGET\n INPUT minecraft:stick FROM \"witness_source\"\n OUTPUT 1 TO \"witness_dest\"\nEND";
     }
 
     public static List<BenchmarkPlan> focus() {

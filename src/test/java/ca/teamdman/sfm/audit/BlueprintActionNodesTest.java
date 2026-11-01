@@ -206,14 +206,14 @@ class BlueprintActionNodesTest {
             "EVERY 20 TICKS DO " + transfer + " LET $x = 1 PRINT($x) END",
             "EVERY 20 TICKS DO FOR $x = 0 TO 2 DO " + transfer + " PRINT($x) END END",
             "EVERY 20 TICKS DO WHILE FALSE DO " + transfer + " PRINT(1) END END",
-            "EVERY 20 TICKS DO " + transfer + " IF (1 > 0) THEN INPUT (1 + 2) FROM source END END",
+            "EVERY 20 TICKS DO " + transfer + " IF (1 > 0) THEN INPUT (1 + 2) FROM \"source\" END END",
             "EVERY 20 TICKS DO IF TRUE THEN " + transfer + " ELSE IF FALSE THEN PRINT(1) END END",
             "EVERY 20 TICKS DO " + transfer + " INTO $result PRINT($result.moved) END",
             "EVERY 20 TICKS DO " + transfer + " PRINT(LEN([1,2])) END",
             "FUNCTION echo($n: INTEGER) RETURNS INTEGER DO RETURN $n END EVERY 20 TICKS DO " + transfer
                 + " PRINT(echo(1)) END",
             // Slice21 supports the named wrapper; a local declaration must still block its whole import.
-            "EVERY REDSTONE RISING FROM signal DO " + transfer + " LET $x = 1 PRINT($x) END",
+            "EVERY REDSTONE RISING FROM \"signal\" DO " + transfer + " LET $x = 1 PRINT($x) END",
             "STATE $x = 1 EVERY 20 TICKS DO " + transfer + " SET $x = 2 PRINT($x) END",
             "EVERY 20 TICKS DO FOR $x IN [1,2] DO " + transfer + " PRINT($x) END END" };
         for (String source : sources) {

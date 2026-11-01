@@ -16,7 +16,8 @@ public final class IfStatement implements Statement {
 
     @Override
     public void tick(ProgramContext context) {
-        boolean result = condition.evaluate(context);
+        boolean result = context.isResumable() ? context.getDataRuntime()
+            .evaluate(this, () -> condition.evaluate(context)) : condition.evaluate(context);
         if (context.getManager() != null && context.getManager()
             .getLogLevel()
             .includes(ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG)) {

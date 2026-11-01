@@ -5,7 +5,7 @@ navigation:
   position: 50
   keywords: ["sfml", "strings", "text", "escaping"]
 categories: ["sfm", "language"]
-updated: "2026-10-30"
+updated: "2026-10-31"
 ---
 
 # Strings
@@ -24,7 +24,7 @@ EVERY 20 TICKS DO
 END
 ```
 
-Use `+` to concatenate two strings and `=`, `==` or `EQ` to compare their exact contents. For inequality, write `$a != $b` or `NOT ($a = $b)`. String ordering, indexing, interpolation and implicit integer-to-string conversion are unsupported. For debugging, pass mixed values as separate `PRINT` arguments instead of concatenating them.
+Use `+` to concatenate two strings and `=`, `==` or `EQ` to compare their exact contents. For inequality, write `$a != $b` or `NOT ($a = $b)`. String plus integer, or integer plus string, concatenates the integer as signed decimal text: `"chest" + 2` becomes `"chest2"`. Use `label("chest" + index)` for computed label names. This does not add general conversions, interpolation, string ordering or indexing. PRINT can also accept mixed values as separate arguments.
 
 ## Escapes
 

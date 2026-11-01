@@ -5,7 +5,7 @@ navigation:
   position: 90
   keywords: ["sfml", "language"]
 categories: ["sfm", "language"]
-updated: "2026-10-30"
+updated: "2026-10-31"
 ---
 
 # Language
@@ -24,21 +24,34 @@ Read these pages in order, or jump to the feature you need:
 - [Loops](loops.md): counted ranges, array iteration and bounded `WHILE`.
 - [Functions](functions.md): typed player functions and default functions.
 
-The program order is an optional `NAME`, then top-level `STATE` and `LET` declarations, then function definitions, then triggers. Top-level LET keeps shared values in manager memory; STATE persists values on the disk. Statements use words such as `DO`, `THEN`, `ELSE` and `END` to delimit blocks. `--` starts a comment. Braces construct struct values; they do not delimit statement blocks.
+The program order is optional NAME, top-level STATE/LET declarations, functions,
+then triggers. Use braces for statement blocks; DO/THEN/ELSE/END remains supported.
+Semicolons are optional. `--` starts a comment. Braces also construct struct
+values, depending on context. Plain variable names and `$names` are equivalent.
+Literal labels always need quotes; an unquoted name is a variable reference.
 
 ```sfml
-NAME "Calculated batch"
-STATE $runs = 0
+state batches = 0;
 
-EVERY 20 TICKS DO
-  LET $batch = 8
-  SET $runs = $runs + 1
-  INPUT ($batch * 2) item:minecraft:iron_ingot FROM source
-  OUTPUT TO dest
-END
+void moveBatch(label_ref source, label_ref destination) {
+  transfer(source, destination, 8) into result;
+  if (result.moved > 0) {
+    batches = batches + 1;
+    wait(5);
+    print("Batches completed", batches);
+  }
+}
+
+every 20 ticks {
+  moveBatch(label("source"), label("dest"));
+}
 ```
 
-This program increments a disk counter and offers up to sixteen iron ingots for transfer each time the trigger runs. The counter counts executions reaching `SET`, even when nothing can move.
+`void` means this procedure performs statements without returning a value.
+`result.moved` reports actual movement, so an empty source/full destination does
+not count as a successful batch. Earlier transfers and STATE writes are not
+undone if later work fails. WAIT suspends this trigger only; it never sleeps the
+server thread. See [scheduling](/automation/scheduling.md) for the full WAIT rules.
 
 Data calculations run within shared work and size limits. A runtime fault stops the invocation and pauses execution. Earlier completed assignments and transfers remain completed; a trigger is not a rollback transaction.
 

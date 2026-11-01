@@ -16,24 +16,24 @@ class BlueprintDraftTest {
 
     @Test
     void graphAndUnappliedPropertySurviveWithoutSharingMutableEditorObjects() {
-        BlueprintGraph graph = BlueprintCompiler.importText("EVERY 20 TICKS DO INPUT FROM source END");
+        BlueprintGraph graph = BlueprintCompiler.importText("EVERY 20 TICKS DO INPUT FROM \"source\" END");
         Node node = graph.nodes()
             .stream()
             .filter(value -> value.type == Type.INPUT)
             .findFirst()
             .get();
-        String pending = "INPUT FROM unfinished -- unapplied";
+        String pending = "INPUT FROM \"unfinished\" -- unapplied";
         Draft draft = new Draft(graph, node.id, pending, false, true, UUID.randomUUID(), "canonical", "preview");
-        node.setClause("INPUT FROM changed");
+        node.setClause("INPUT FROM \"changed\"");
         BlueprintGraph restored = draft.graphCopy();
         assertEquals(
-            "INPUT FROM source",
+            "INPUT FROM \"source\"",
             restored.node(node.id)
                 .clause());
         restored.node(node.id)
-            .setClause("INPUT FROM another_change");
+            .setClause("INPUT FROM \"another_change\"");
         assertEquals(
-            "INPUT FROM source",
+            "INPUT FROM \"source\"",
             draft.graphCopy()
                 .node(node.id)
                 .clause());
@@ -82,7 +82,7 @@ class BlueprintDraftTest {
 
     @Test
     void validatedGraphsCopyAsSfmlAndUnsupportedSourcesRemainAvailableAsText() {
-        String source = "EVERY 20 TICKS DO INPUT FROM source END";
+        String source = "EVERY 20 TICKS DO INPUT FROM \"source\" END";
         BlueprintGraph graph = BlueprintCompiler.importText(source);
         Draft draft = new Draft(graph, null, "", false, true, UUID.randomUUID(), source, "preview");
         assertEquals(BlueprintCompiler.generate(graph), draft.recoveryText());

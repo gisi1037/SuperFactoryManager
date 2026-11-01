@@ -15,6 +15,9 @@ import ca.teamdman.sfm.common.util.BlockPos;
 public final class LabelPositionHolder {
 
     public static final String NBT_KEY = "sfm:labels";
+    public static final int MAX_SNAPSHOT_LABELS = 4096;
+    public static final int MAX_SNAPSHOT_POSITIONS = 16384;
+    public static final int MAX_SNAPSHOT_NAME_CHARACTERS = 262144;
 
     private final Map<String, Set<BlockPos>> labels = new LinkedHashMap<>();
 
@@ -134,6 +137,31 @@ public final class LabelPositionHolder {
     public static LabelPositionHolder from(ItemStack stack, Set<String> selectedLabels) {
         LabelPositionHolder holder = new LabelPositionHolder();
         if (stack != null && stack.hasTagCompound()) holder.readFromNBT(stack.getTagCompound(), selectedLabels);
+        return holder;
+    }
+
+    /** Complete dynamic-label invocation snapshot. Fail before decoding rather than dropping any groups. */
+    public static LabelPositionHolder boundedSnapshot(ItemStack stack) {
+        LabelPositionHolder holder = new LabelPositionHolder();
+        if (stack == null || !stack.hasTagCompound()) return holder;
+        NBTTagCompound labelCompound = stack.getTagCompound()
+            .getCompoundTag(NBT_KEY);
+        Set<?> names = labelCompound.func_150296_c();
+        if (names.size() > MAX_SNAPSHOT_LABELS)
+            throw new IllegalArgumentException("Dynamic label snapshot exceeds " + MAX_SNAPSHOT_LABELS + " labels");
+        int positions = 0, characters = 0;
+        for (Object key : names) {
+            String name = (String) key;
+            if (name.length() > MAX_SNAPSHOT_NAME_CHARACTERS - characters)
+                throw new IllegalArgumentException("Dynamic label snapshot name character limit exceeded");
+            characters += name.length();
+            int count = labelCompound.getTagList(name, 11)
+                .tagCount();
+            if (count > MAX_SNAPSHOT_POSITIONS - positions) throw new IllegalArgumentException(
+                "Dynamic label snapshot exceeds " + MAX_SNAPSHOT_POSITIONS + " positions");
+            positions += count;
+        }
+        for (Object key : names) holder.readLabel(labelCompound, (String) key);
         return holder;
     }
 

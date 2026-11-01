@@ -16,6 +16,14 @@ public final class WhileStatement implements Statement {
     public void tick(ProgramContext context) {
         context.enterLoop();
         try {
+            if (context.isResumable()) {
+                ca.teamdman.sfml.data.ResumableLoops
+                    .whileLoop(context.getDataRuntime(), this, () -> condition.evaluate(context), () -> {
+                        body.tick(context);
+                        return null;
+                    });
+                return;
+            }
             while (true) {
                 context.getDataRuntime()
                     .loopStep();

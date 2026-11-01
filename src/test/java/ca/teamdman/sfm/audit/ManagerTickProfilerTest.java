@@ -132,7 +132,7 @@ class ManagerTickProfilerTest {
         };
         manager.setWorldObj(AuditRegressionTest.world());
         ItemStack disk = new ItemStack(new ItemDisk());
-        ItemDisk.setProgramString(disk, "EVERY 1 TICKS DO INPUT FROM source END");
+        ItemDisk.setProgramString(disk, "EVERY 1 TICKS DO INPUT FROM \"source\" END");
         manager.setInventorySlotContents(0, disk);
         assertThrows(IllegalStateException.class, manager::updateEntity);
         end(capture);

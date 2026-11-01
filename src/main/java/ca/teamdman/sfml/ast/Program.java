@@ -10,6 +10,8 @@ public final class Program implements Statement {
 
     private final ca.teamdman.sfml.data.ProgramStateSchema stateSchema;
     private final boolean dataFeatures;
+    private final boolean waitFeatures;
+    private final boolean dynamicLabels;
     private final int localCount;
     private final String name;
     private final List<Trigger> triggers;
@@ -44,6 +46,32 @@ public final class Program implements Statement {
     public Program(String name, List<Trigger> triggers, Set<String> referencedLabels,
         ca.teamdman.sfml.data.ProgramStateSchema stateSchema, boolean dataFeatures, int localCount,
         List<ca.teamdman.sfml.data.CompiledFunction> functions, List<ca.teamdman.sfml.data.GlobalDeclaration> globals) {
+        this(name, triggers, referencedLabels, stateSchema, dataFeatures, localCount, functions, globals, false);
+    }
+
+    public Program(String name, List<Trigger> triggers, Set<String> referencedLabels,
+        ca.teamdman.sfml.data.ProgramStateSchema stateSchema, boolean dataFeatures, int localCount,
+        List<ca.teamdman.sfml.data.CompiledFunction> functions, List<ca.teamdman.sfml.data.GlobalDeclaration> globals,
+        boolean waitFeatures) {
+        this(
+            name,
+            triggers,
+            referencedLabels,
+            stateSchema,
+            dataFeatures,
+            localCount,
+            functions,
+            globals,
+            waitFeatures,
+            false);
+    }
+
+    public Program(String name, List<Trigger> triggers, Set<String> referencedLabels,
+        ca.teamdman.sfml.data.ProgramStateSchema stateSchema, boolean dataFeatures, int localCount,
+        List<ca.teamdman.sfml.data.CompiledFunction> functions, List<ca.teamdman.sfml.data.GlobalDeclaration> globals,
+        boolean waitFeatures, boolean dynamicLabels) {
+        this.waitFeatures = waitFeatures;
+        this.dynamicLabels = dynamicLabels;
         this.globals = Collections.unmodifiableList(new java.util.ArrayList<>(globals));
         this.functions = Collections.unmodifiableList(new java.util.ArrayList<>(functions));
         this.stateSchema = stateSchema;
@@ -86,8 +114,13 @@ public final class Program implements Statement {
         return referencedLabels;
     }
 
+    public boolean hasDynamicLabels() {
+        return dynamicLabels;
+    }
+
     @Override
     public void tick(ProgramContext context) {
+        if (dynamicLabels) context.requireDynamicLabels();
         boolean dataStarted = false;
         if (!globals.isEmpty()) {
             ca.teamdman.sfml.data.ProgramGlobals current = context.getProgramGlobals(this);
@@ -109,7 +142,22 @@ public final class Program implements Statement {
                 dataStarted = true;
             }
         }
-        if (!namedRedstoneTriggers.isEmpty()) context.prepareNamedRedstoneTriggers(namedRedstoneTriggers);
+        if (!namedRedstoneTriggers.isEmpty()) {
+            if (!dataStarted) for (NamedRedstoneTrigger trigger : namedRedstoneTriggers) {
+                if (trigger.getSource()
+                    .isDynamic()) {
+                    context.beginDataInvocation(localCount, stateSchema.size() > 0);
+                    dataStarted = true;
+                    break;
+                }
+            }
+            context.prepareNamedRedstoneTriggers(namedRedstoneTriggers);
+        }
+        if (waitFeatures) {
+            context.getProgramExecution(this)
+                .tick(this, context, localCount, stateSchema.size() > 0, dataStarted);
+            return;
+        }
         for (Trigger trigger : triggers) {
             if (!trigger.shouldRun(context)) continue;
             if (dataFeatures) {

@@ -62,6 +62,11 @@ test("all alphabetic lexer keywords are colored in upper, lower and mixed case",
 });
 
 test("variables, function definitions, methods and members have distinct scopes", () => {
+  expectScope("let working = false;", "working", "variable.other.readwrite.sfml");
+  expectScope("integer stock.total(item_contents items) {", "stock.total", "entity.name.function.sfml");
+  expectScope("integer stock.total(item_contents items) {", "items", "variable.other.readwrite.sfml");
+  expectScope("void reset() { return; }", "void", "storage.type.sfml");
+  expectScope("void increment(ref integer value) {", "ref", "keyword.control.sfml");
   expectScope("let $working = false", "$working", "variable.other.readwrite.sfml");
   expectScope("function stock.total($items: item_contents) returns integer do", "stock.total", "entity.name.function.sfml");
   expectScope("function stock.total($items: item_contents) returns integer do", "item_contents", "storage.type.sfml");
@@ -104,7 +109,7 @@ test("escaped backslashes and multiline strings match the SFML lexer", () => {
 
 test("resource selectors and numeric literals stay separate from data fields", () => {
   for (const resource of ["item:*", "item:*:*", "minecraft:iron_ingot", "item:minecraft:wool:14", "fluid:water", "#ore:ingotIron"]) {
-    assert.ok(tokenScope(`input ${resource} from source`, resource).some((scope) => scope.startsWith("support.constant.")), resource);
+    assert.ok(tokenScope(`input ${resource} from "source"`, resource).some((scope) => scope.startsWith("support.constant.")), resource);
   }
   expectScope("every 20g+1 ticks do", "20g", "constant.numeric.integer.sfml");
   expectScope("let $n = -9223372036854775808", "9223372036854775808", "constant.numeric.integer.sfml");
@@ -124,11 +129,12 @@ test("indentation covers mixed case blocks and else without indenting comments",
   const increase = new RegExp(configuration.indentationRules.increaseIndentPattern);
   const decrease = new RegExp(configuration.indentationRules.decreaseIndentPattern);
   for (const line of ["every 20 ticks do", "EvErY REDSTONE PULSE DO", "if ($ready) then", "else if ($other) then",
-    "else", "function f($n: integer) returns integer do", "for $i = 0 to 3 do", "while (false) do -- test"]) {
+    "else", "function f($n: integer) returns integer do", "for $i = 0 to 3 do", "while (false) do -- test",
+    "void reset() {", "integer f(integer n) { -- body", "every 20 ticks {", "} else {", "if (ready) {"]) {
     assert.ok(increase.test(line), line);
   }
   for (const line of ["end", " END -- end block", "else", "Else If ($x) THEN"]) assert.ok(decrease.test(line), line);
-  for (const line of ['print("end")', "-- if (true) then", "let $end = 1"]) {
+  for (const line of ['print("end")', 'print("{")', '-- every 20 ticks {', "-- if (true) then", "let $end = 1"]) {
     assert.ok(!increase.test(line), line);
     assert.ok(!decrease.test(line), line);
   }
@@ -137,8 +143,8 @@ test("indentation covers mixed case blocks and else without indenting comments",
 test("fold markers nest blocks, without treating else as another opening block", () => {
   const start = new RegExp(configuration.folding.markers.start);
   const end = new RegExp(configuration.folding.markers.end);
-  for (const line of ["every 20 ticks do", "if ($ready) then", "for $i in $items do", "-- region setup"]) assert.ok(start.test(line), line);
-  for (const line of ["end", "END -- block", "-- endregion"]) assert.ok(end.test(line), line);
+  for (const line of ["every 20 ticks do", "if ($ready) then", "for $i in $items do", "-- region setup", "void f() {", "every 20 ticks {"]) assert.ok(start.test(line), line);
+  for (const line of ["end", "END -- block", "-- endregion", "}", "} else {"]) assert.ok(end.test(line), line);
   assert.ok(!start.test("else if ($x) then"));
   assert.ok(!start.test("-- every 20 ticks do"));
 });
@@ -160,7 +166,7 @@ test("every published example tokenizes with the real TextMate engine", async ()
 
 test("snippets preserve literal variable sigils and unique completion prefixes", async () => {
   const snippets = await readJson("snippets/sfml.json");
-  assert.equal(Object.keys(snippets).length, 35);
+  assert.equal(Object.keys(snippets).length, 41);
   const prefixes = new Set();
   for (const [name, snippet] of Object.entries(snippets)) {
     assert.ok(!prefixes.has(snippet.prefix), name);
@@ -169,6 +175,13 @@ test("snippets preserve literal variable sigils and unique completion prefixes",
     const body = Array.isArray(snippet.body) ? snippet.body.join("\n") : snippet.body;
     assert.ok(!/(?<!\\)\$[A-Za-z_]/.test(body), `Unescaped snippet variable in ${name}`);
   }
-  const declaration = snippets["Local declaration"].body;
+  const declaration = snippets["Legacy typed player function"].body.join("\n");
   assert.ok(declaration.includes(String.raw`\$`));
+  assert.equal(snippets["Local declaration"].body, 'let ${1:value} = ${2:0}$0');
+  assert.match(snippets["Typed player function"].body[0], /^integer /);
+  assert.match(snippets["Void procedure"].body[0], /^void /);
+  assert.ok(snippets["Named redstone trigger"].body[0].includes('from "${2:signal}"'));
+  assert.ok(snippets["Redstone output"].body.includes('to "${2:signal}"'));
+  assert.ok(snippets["One item per pedestal"].body[0].includes('from "${1:chestin}"'));
+  assert.ok(snippets["One item per pedestal"].body[1].includes('to each "${4:ped}"'));
 });

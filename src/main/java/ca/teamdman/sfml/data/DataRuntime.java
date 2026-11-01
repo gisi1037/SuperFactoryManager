@@ -1,19 +1,117 @@
 package ca.teamdman.sfml.data;
 
 import java.util.Arrays;
+import java.util.function.Supplier;
 
 /** An invocation owns the shared budgets; each trigger/function owns its local frame. */
 public final class DataRuntime {
 
-    private final StateAccess state;
+    private StateAccess state;
     private ProgramGlobals globals;
     private final DataValue[] locals;
-    private final DataQueries queries;
+    private DataReference[] references;
+    private DataQueries queries;
     public static final int MAX_LOOP_STEPS = 1024;
     public static final int MAX_FUNCTION_CALLS = 256;
     public static final int MAX_FUNCTION_DEPTH = 16;
     public static final int MAX_ACTIVE_FUNCTION_LOCALS = 4096;
-    private final Budget budget;
+    private Budget budget;
+    private Continuation continuation;
+    private long gameTick;
+    private boolean functionFrame;
+
+    public boolean isFunctionFrame() {
+        return functionFrame;
+    }
+
+    public boolean isResumable() {
+        return continuation != null;
+    }
+
+    public Continuation continuation() {
+        return continuation;
+    }
+
+    public void enableContinuation(long gameTick) {
+        continuation = new Continuation(this);
+        this.gameTick = gameTick;
+    }
+
+    public <T> T evaluate(Object key, Supplier<T> expression) {
+        return continuation == null ? expression.get() : continuation.evaluate(key, expression);
+    }
+
+    DataValue node(Object key, Supplier<DataValue> expression) {
+        return continuation.node(key, expression);
+    }
+
+    public void waitTicks(Object key, long ticks) {
+        if (continuation == null) throw new IllegalArgumentException("WAIT requires a running resumable trigger");
+        continuation.waitTicks(key, ticks, gameTick);
+    }
+
+    /** Explicit procedure actions borrow the caller's server authority and shared invocation budgets. */
+    public void runAction(ca.teamdman.sfml.ast.Statement statement) {
+        if (!(queries instanceof ca.teamdman.sfm.common.program.ProgramContext))
+            throw new IllegalArgumentException("Procedure actions require an active server program context");
+        ca.teamdman.sfm.common.program.ProgramContext context = (ca.teamdman.sfm.common.program.ProgramContext) queries;
+        DataRuntime previous = context.getDataRuntime();
+        context.setExecutionRuntime(this);
+        try {
+            statement.tick(context);
+        } finally {
+            context.setExecutionRuntime(previous);
+        }
+    }
+
+    /** Native INPUT registrations inside procedure loops obey the same limits as trigger loops. */
+    public DataValue runLoop(Supplier<DataValue> body) {
+        if (!(queries instanceof ca.teamdman.sfm.common.program.ProgramContext)) return body.get();
+        ca.teamdman.sfm.common.program.ProgramContext context = (ca.teamdman.sfm.common.program.ProgramContext) queries;
+        context.enterLoop();
+        try {
+            return body.get();
+        } finally {
+            context.exitLoop();
+        }
+    }
+
+    public DataRuntime triggerFrame(int localCount, long now) {
+        DataRuntime frame = new DataRuntime(state, localCount, queries, budget);
+        frame.globals = globals;
+        frame.enableContinuation(now);
+        return frame;
+    }
+
+    /** Bind fresh invocation budgets/providers; sleeping frames retain only immutable values and cursors. */
+    public void bind(DataRuntime live) {
+        state = live.state;
+        queries = live.queries;
+        globals = live.globals;
+        budget = live.budget;
+        gameTick = live.gameTick;
+        if (continuation != null) continuation.bindChildren(live);
+    }
+
+    public void setGameTick(long now) {
+        gameTick = now;
+    }
+
+    public void detach() {
+        state = null;
+        queries = null;
+        globals = null;
+        budget = null;
+        if (continuation != null) continuation.detach();
+    }
+
+    public void retain(Continuation.Bounds bounds) {
+        bounds.entry();
+        for (DataValue value : locals) bounds.value(value);
+        if (references != null)
+            for (DataReference reference : references) if (reference != null) reference.retain(bounds);
+        if (continuation != null) continuation.retain(bounds);
+    }
 
     private static final class Budget {
 
@@ -116,10 +214,12 @@ public final class DataRuntime {
 
     public void beginTrigger() {
         Arrays.fill(locals, null);
+        if (references != null) Arrays.fill(references, null);
     }
 
     public void endTrigger() {
         Arrays.fill(locals, null);
+        if (references != null) Arrays.fill(references, null);
     }
 
     public void work(int amount) {
@@ -156,6 +256,7 @@ public final class DataRuntime {
 
     public DataValue read(boolean persistent, int slot) {
         work(1);
+        if (!persistent && references != null && references[slot] != null) return references[slot].read(this);
         DataValue value = persistent ? requireState().read(slot) : locals[slot];
         if (value == null) throw new IllegalArgumentException("Uninitialized variable");
         return value;
@@ -194,7 +295,28 @@ public final class DataRuntime {
             if (!value.getType()
                 .isPersistable()) throw new IllegalArgumentException("STATE cannot persist opaque handles");
             requireState().write(slot, value);
-        } else locals[slot] = value;
+        } else if (references != null && references[slot] != null) references[slot].publish(this, value);
+        else locals[slot] = value;
+    }
+
+    /** References retain addresses or local value cells, never a live runtime/provider. */
+    public DataReference reference(DataCompiler.Binding binding, int[] path) {
+        DataReference root;
+        if (binding.kind == DataCompiler.BindingKind.LOCAL) {
+            root = references != null && references[binding.slot] != null ? references[binding.slot]
+                : DataReference.local(locals, binding.slot, binding.type);
+        } else root = DataReference.addressed(binding.kind, binding.slot, binding.type);
+        DataReference selected = root.select(path);
+        selected.read(this); // Validate the captured path before entering the callee or running effects.
+        return selected;
+    }
+
+    public void bindReference(int slot, DataReference reference) {
+        if (references == null) {
+            allocate(locals.length);
+            references = new DataReference[locals.length];
+        }
+        references[slot] = reference;
     }
 
     private StateAccess requireState() {
@@ -213,13 +335,59 @@ public final class DataRuntime {
         budget.calls++;
         budget.depth++;
         budget.activeLocals += localCount;
-        return new DataRuntime(null, localCount, queries, budget);
+        DataRuntime frame = new DataRuntime(state, localCount, queries, budget);
+        frame.functionFrame = true;
+        frame.globals = globals; // Only explicit ref arguments may name caller globals in compiled functions.
+        if (isResumable()) frame.enableContinuation(gameTick);
+        return frame;
     }
 
     void exitFunction() {
         Arrays.fill(locals, null);
+        if (references != null) Arrays.fill(references, null);
         budget.depth--;
         budget.activeLocals -= locals.length;
+    }
+
+    DataRuntime functionFrame(Object call, int localCount, DataValue[] arguments) {
+        return functionFrame(call, localCount, arguments, null);
+    }
+
+    DataRuntime functionFrame(Object call, int localCount, DataValue[] arguments, DataReference[] refs) {
+        DataRuntime frame = isResumable() ? continuation.call(call) : null;
+        if (frame == null) {
+            frame = enterFunction(localCount);
+            try {
+                for (int i = 0; i < arguments.length; i++) {
+                    if (refs != null && refs[i] != null) frame.bindReference(i, refs[i]);
+                    else frame.write(false, i, arguments[i]);
+                }
+            } catch (RuntimeException | Error failure) {
+                frame.exitFunction();
+                throw failure;
+            }
+            if (isResumable()) continuation.call(call, frame);
+        } else {
+            work(1);
+            if (budget.calls >= MAX_FUNCTION_CALLS || budget.depth >= MAX_FUNCTION_DEPTH
+                || localCount > MAX_ACTIVE_FUNCTION_LOCALS - budget.activeLocals)
+                throw new IllegalArgumentException("Resumed function frame budget exceeded");
+            budget.calls++;
+            budget.depth++;
+            budget.activeLocals += localCount;
+            frame.bind(this);
+        }
+        return frame;
+    }
+
+    void leaveFunction(Object call, DataRuntime frame, boolean sleeping) {
+        if (!sleeping) {
+            Arrays.fill(frame.locals, null);
+            if (frame.references != null) Arrays.fill(frame.references, null);
+            if (isResumable()) continuation.finishCall(call);
+        }
+        budget.depth--;
+        budget.activeLocals -= frame.locals.length;
     }
 
     public int getFunctionCalls() {

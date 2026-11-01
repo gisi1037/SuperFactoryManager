@@ -87,21 +87,9 @@ public final class StudioFieldPicker {
                 || value.chars()
                     .anyMatch(c -> Character.isISOControl(c)))
                 throw new IllegalArgumentException("Unrepresentable picker value");
-            DataValue.string(value); // Reject invalid Unicode without changing legacy escape semantics.
+            DataValue.string(value); // The picker and compiler share standard SFML string escaping.
             String literal;
-            if (kind == Kind.LEGACY_LABEL) {
-                // Historic legacy labels do NOT decode escapes. Do not add backslashes here.
-                literal = "\"" + value + "\"";
-                SFMLParser parser = parser(literal);
-                SFMLParser.LabelContext label = parser.label();
-                requireEnd(parser);
-                if (!(label instanceof SFMLParser.StringLabelContext) || !label.getText()
-                    .substring(
-                        1,
-                        label.getText()
-                            .length() - 1)
-                    .equals(value)) throw new IllegalArgumentException("Label cannot be represented exactly");
-            } else if (kind == Kind.TYPED_LABEL) {
+            if (kind == Kind.LEGACY_LABEL || kind == Kind.TYPED_LABEL) {
                 LabelReference.literal(value);
                 literal = DataValue.string(value)
                     .toString();

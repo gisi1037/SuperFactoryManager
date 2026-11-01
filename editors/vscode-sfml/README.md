@@ -34,21 +34,22 @@ choose that file. Reload VS Code if prompted.
   strings, comments, types, function calls and operators, including bitwise
   operators and `!=`.
 - Bracket and quote pairing, `--` line comments, indentation and block folding.
-- 35 lowercase snippets with editable tab stops. Type a prefix and select the
+- 41 lowercase snippets with editable tab stops. Type a prefix and select the
   snippet from completion, or use **Insert Snippet**. Tab moves between fields.
-- A dedicated variable color for `$names`, with dark/light/high-contrast defaults.
+- A dedicated variable color for plain names and optional `$names`, with dark/light/high-contrast defaults.
   Comments and string contents are excluded. Set `sfml.variableHighlighting.enabled`
   to false to use only the theme's TextMate colors, or customize the
   `sfml.variableForeground` entry in `workbench.colorCustomizations`.
 - Hover signatures, descriptions and examples for built-ins and label methods,
   including selector versus exact-key types. Same-file player functions show
-  their declared signatures. Hovers ignore comments and strings.
+  their declared signatures, including type-first headers and `void` procedures.
+  Variable hovers show the declaration or parameter type. Hovers ignore comments and strings.
 - Actual SFML compiler errors in the Problems panel and editor, using the optional
   local compiler backend described below.
 
 Useful prefixes include `every`, `everyglobal`, `pulse`, `redstonetrigger`,
 `redstoneout`, `let`, `globallet`, `state`, `assign`, `ifelse`, `for`, `forin`,
-`while`, `function`, `print`, `label`, `item`, `ore`, `contents`, `count`, `empty`,
+`while`, `function`, `void`, `voidref`, `functionlegacy`, `print`, `label`, `item`, `ore`, `contents`, `count`, `empty`,
 `available`, `transfer2`, `transfer3`, `transfer4`, `into` and `pedestals`.
 `side` and `slots` append restrictions to a typed label handle; `array`, `struct`
 and `string` insert data literals.
@@ -58,8 +59,21 @@ their appropriate contexts and replace example labels with labels from your
 disk. Place program-wide `let` and `state` declarations before functions and
 triggers, and functions before triggers. A program-wide `let` retains its value
 in RAM between runs; `state` stores supported persistent data on the disk.
-Executable edits, unloads and reloads reset RAM bindings. Player functions are
-read-only computations; perform transfers, prints and other effects in triggers.
+Executable edits, unloads and reloads reset RAM bindings. Value-returning functions
+may read STATE. Use triggers or `void` procedures for transfers, prints and STATE
+writes; pass program-wide RAM values as parameters to functions.
+
+The default snippets use brace blocks and plain variable names. `$name` and `name`
+refer to the same binding; `FUNCTION name(...) RETURNS type DO ... END` remains
+supported alongside type-first headers such as `integer next(integer value) { ... }`.
+Literal labels always need quotes, including `input item:* from "source"`,
+`output item:* to "destination"` and `if "source" has > 0 item:* then ... end`.
+A plain name in a label position is a variable reference, not a literal fallback.
+
+Void procedures can declare `ref integer value` parameters. Calls must also use
+`ref`, such as `increment(ref count)`, with a writable variable, array element or
+struct field of exactly the declared type. Writes are immediate; ordinary
+parameters remain value copies.
 
 All keywords accept upper, lower or mixed case. Variables, field names, labels,
 item IDs and OreDictionary names retain their own case-sensitive identities.

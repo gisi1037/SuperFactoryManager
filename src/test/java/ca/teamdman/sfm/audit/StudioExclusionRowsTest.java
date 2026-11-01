@@ -198,7 +198,7 @@ class StudioExclusionRowsTest {
 
     @Test
     void blankInvalidRowsAndBoundarySpoofingRemainDirtyAcrossCopiesAndRefuseAtomically() {
-        String clause = "INPUT 16 EXCEPT \"item:a, b\", item:c FROM source", source = program(clause);
+        String clause = "INPUT 16 EXCEPT \"item:a, b\", item:c FROM \"source\"", source = program(clause);
         Node node = new Node(UUID.randomUUID(), Type.INPUT, 0, 0, clause);
         StudioFieldDraft draft = draft(node, source);
         String original = draft.value("exclusion");
@@ -235,7 +235,7 @@ class StudioExclusionRowsTest {
 
     @Test
     void pickerRepairsOnlyItsBlankOrInvalidRowAndNeverAppliesMalformedNeighbors() {
-        String clause = "OUTPUT 16 EXCEPT item:a,item:b TO dest", source = program(clause);
+        String clause = "OUTPUT 16 EXCEPT item:a,item:b TO \"dest\"", source = program(clause);
         Node node = new Node(UUID.randomUUID(), Type.OUTPUT, 0, 0, clause);
         for (String pending : new String[] { "", "item:x,item:y", "\"unfinished" }) {
             StudioFieldDraft draft = draft(node, source);
@@ -255,7 +255,7 @@ class StudioExclusionRowsTest {
             assertThrows(IllegalArgumentException.class, () -> draft.appliedClause(PROJECT, node, source));
             draft.removeExclusion(neighbor);
             assertEquals(
-                "OUTPUT 32 EXCEPT \"item:minecraft:gold_ingot\" TO dest",
+                "OUTPUT 32 EXCEPT \"item:minecraft:gold_ingot\" TO \"dest\"",
                 draft.appliedClause(PROJECT, node, source));
             assertEquals(clause, node.clause());
         }
@@ -263,7 +263,7 @@ class StudioExclusionRowsTest {
 
     @Test
     void pickerRejectsShiftedRemovedRecreatedAbaAndStaleOwnersWithoutChangingPendingRows() {
-        String clause = "INPUT EXCEPT item:a, item:a, item:a FROM source", source = program(clause);
+        String clause = "INPUT EXCEPT item:a, item:a, item:a FROM \"source\"", source = program(clause);
         Node node = new Node(UUID.randomUUID(), Type.INPUT, 0, 0, clause);
         for (boolean aba : new boolean[] { false, true }) {
             StudioFieldDraft draft = draft(node, source);
@@ -304,10 +304,10 @@ class StudioExclusionRowsTest {
         assertThrows(IllegalArgumentException.class, () -> rows.append("extra"));
         assertEquals(revision, rows.revision());
         assertEquals(list, rows.source());
-        String clause = "INPUT EXCEPT " + list + " FROM source";
+        String clause = "INPUT EXCEPT " + list + " FROM \"source\"";
         assertTrue(draft(new Node(UUID.randomUUID(), Type.INPUT, 0, 0, clause), program(clause)).hasExclusionRows());
         for (String manual : new String[] { list + ",extra", list + ",", "item:a," }) {
-            String full = "INPUT 16 EXCEPT " + manual + " FROM source";
+            String full = "INPUT 16 EXCEPT " + manual + " FROM \"source\"";
             StudioFieldDraft draft = draft(new Node(UUID.randomUUID(), Type.INPUT, 0, 0, full), program(full));
             assertFalse(draft.hasExclusionRows());
             assertThrows(IllegalArgumentException.class, () -> new StudioExclusionRows(manual));
@@ -319,7 +319,8 @@ class StudioExclusionRowsTest {
 
     @Test
     void combinedRowsOreResourceLabelsAndQuantityCommitOnceWithExactSourceUuidUndoRedo() {
-        String source = "-- 🏭\r\n" + program("INPUT 16 RETAIN 2 EXCEPT item:a,item:b FROM a,b OUTPUT TO dest");
+        String source = "-- 🏭\r\n"
+            + program("INPUT 16 RETAIN 2 EXCEPT item:a,item:b FROM \"a\",\"b\" OUTPUT TO \"dest\"");
         StudioDocument document = new StudioDocument();
         document.load(source);
         document.openVisual();
@@ -336,7 +337,7 @@ class StudioExclusionRowsTest {
         draft.setLabel(
             draft.labelRows()
                 .get(0).id,
-            "changed");
+            "\"changed\"");
         draft.set("amount", "32");
         draft.set("resource", "item:minecraft:iron_ingot");
         draft.setOreMode(StudioOreFilter.Mode.WITHOUT);
@@ -352,7 +353,7 @@ class StudioExclusionRowsTest {
         copy.setExclusion(row, "fluid:water");
         String applied = copy.appliedClause(PROJECT, node, document.code());
         assertEquals(
-            "INPUT 32 RETAIN 2 item:minecraft:iron_ingot WITHOUT #dust*   EXCEPT item : a , fluid:water FROM changed , b",
+            "INPUT 32 RETAIN 2 item:minecraft:iron_ingot WITHOUT #dust*   EXCEPT item : a , fluid:water FROM \"changed\" , \"b\"",
             applied);
         document.editGraph(
             g -> g.node(node.id)
@@ -376,7 +377,7 @@ class StudioExclusionRowsTest {
 
     @Test
     void blankNewRowIsDirtyDespiteEmptyJoinedSourceAndExplicitRemovalRestoresNoOp() {
-        String clause = "OUTPUT TO dest", source = program(clause);
+        String clause = "OUTPUT TO \"dest\"", source = program(clause);
         Node node = new Node(UUID.randomUUID(), Type.OUTPUT, 0, 0, clause);
         StudioFieldDraft draft = draft(node, source);
         UUID row = draft.addExclusion("");

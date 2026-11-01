@@ -8,7 +8,7 @@ fences with GuideNH's public renderer registry, keeping their SFML label and cop
 behavior without guessing another language. There is no hard GuideNH dependency
 or server integration; without GuideNH the book assets are unused.
 
-The book has 40 pages split into a short **Getting started** path and an
+The book has 41 pages split into a short **Getting started** path and an
 **Advanced** hub. Beginners build a network, name two chests and run one small
 transfer before choosing an editor or saving a Studio project. A short
 troubleshooting page keeps initial diagnosis separate from the full reference.
@@ -58,7 +58,7 @@ From the workspace parent, using the project's pinned JDK wrapper:
 
 `GuideNhBookTest` compiles every complete SFML example and checks page/parent
 reachability, local links, item IDs, item-shortcut uniqueness and explicit fence
-languages. The corpus retains 53 complete SFML programs. The book resource
+languages. The corpus retains 58 complete SFML programs. The book resource
 directory is an explicit test input, so edits invalidate cached corpus results.
 
 `GuideNhNativeParsingTest` is optional. Pass the exact installed GuideNH JAR and,

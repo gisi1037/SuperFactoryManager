@@ -1,0 +1,25 @@
+name "Typed functions and persistent progress"
+
+state batches = 0;
+
+integer nextBatch() {
+  return batches + 1;
+}
+
+void moveBatch(label_ref source, label_ref destination) {
+  transfer(source, destination, 8) into result;
+  if (result.moved > 0) {
+    batches = nextBatch();
+    print("Completed batches", batches);
+    wait(20);
+  }
+  return;
+}
+
+every 20 ticks {
+  let source = label("inputs");
+  let destination = label("assembly");
+  if (source.available() && destination.available()) {
+    moveBatch(source, destination);
+  }
+}

@@ -23,8 +23,8 @@ class VisualCapabilityTest {
     @Test
     void supportedSyntaxIsAvailableWithoutAnyProfileInput() {
         String source = "NAME \"Keep Case\"\n-- explanation\nEVERY 20 GLOBAL PLUS 2 TICKS DO\n"
-            + "INPUT 64 EACH RETAIN 8 EACH minecraft:iron_ingot FROM EACH source ROUND ROBIN BY BLOCK TOP SIDE SLOTS 0-8\n"
-            + "IF NOT (SOME source HAS >= 3 minecraft:iron_ingot) THEN OUTPUT 4 TO dest ELSE FORGET END\nEND";
+            + "INPUT 64 EACH RETAIN 8 EACH minecraft:iron_ingot FROM EACH \"source\" ROUND ROBIN BY BLOCK TOP SIDE SLOTS 0-8\n"
+            + "IF NOT (SOME \"source\" HAS >= 3 minecraft:iron_ingot) THEN OUTPUT 4 TO \"dest\" ELSE FORGET END\nEND";
         BlueprintCompiler.ImportResult imported = BlueprintCompiler.inspectText(source);
         assertTrue(imported.report.isAvailable(), imported.report.getMessage());
         assertNotNull(imported.graph);
@@ -41,7 +41,7 @@ class VisualCapabilityTest {
     void reportsAllDataConstructsIncludingUnreachableNestedStatements() {
         String source = "STATE $count = 1\nEVERY 20 TICKS DO\n"
             + " LET $amount = 3\n IF FALSE THEN\n  SET $count = $count + 1\n"
-            + "  INPUT ($amount) FROM source\n END\n IF ($count > 0) THEN FORGET END\nEND";
+            + "  INPUT ($amount) FROM \"source\"\n END\n IF ($count > 0) THEN FORGET END\nEND";
         BlueprintCompiler.ImportResult result = BlueprintCompiler.inspectText(source);
         assertNull(result.graph);
         assertEquals(
@@ -65,7 +65,7 @@ class VisualCapabilityTest {
             BlueprintCompiler.ImportException.class,
             () -> BlueprintCompiler.importText(source));
         assertEquals(kinds(result.report), kinds(exception.getReport()));
-        assertTrue(BlueprintCompiler.inspectText("EVERY 20 TICKS DO INPUT 3 FROM source END").report.isAvailable());
+        assertTrue(BlueprintCompiler.inspectText("EVERY 20 TICKS DO INPUT 3 FROM \"source\" END").report.isAvailable());
     }
 
     @Test
@@ -96,7 +96,7 @@ class VisualCapabilityTest {
         for (String source : Arrays.asList(
             "EVERY nope",
             "EVERY 20 TICKS DO\nINPUT FROM\nEND",
-            "EVERY 20 TICKS DO INPUT ($undefined) FROM source END")) {
+            "EVERY 20 TICKS DO INPUT ($undefined) FROM \"source\" END")) {
             BlueprintCompiler.ImportResult result = BlueprintCompiler.inspectText(source);
             assertNull(result.graph);
             assertFalse(result.report.isAvailable());
@@ -150,7 +150,7 @@ class VisualCapabilityTest {
                 .get(0).line);
         assertThrows(
             BlueprintCompiler.ImportException.class,
-            () -> BlueprintCompiler.validateClause(BlueprintGraph.Type.INPUT, "INPUT (1 + 2) FROM source"));
+            () -> BlueprintCompiler.validateClause(BlueprintGraph.Type.INPUT, "INPUT (1 + 2) FROM \"source\""));
     }
 
     @Test

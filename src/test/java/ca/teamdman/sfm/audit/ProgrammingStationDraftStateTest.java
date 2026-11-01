@@ -369,7 +369,7 @@ class ProgrammingStationDraftStateTest {
         ProjectDraft other = new ProjectDraft(UUID.randomUUID(), OWNER, 0, "Other", "other source");
         assertTrue(state.receive(id, Action.LOAD, true, other, null));
         assertSame(other, state.saved);
-        assertNull(state.publication, "Published status must belong to the selected project");
+        assertNull(state.publication, "Published status must belong to \"the\" selected project");
         assertFalse(
             state.revisionLine()
                 .contains("Published"));

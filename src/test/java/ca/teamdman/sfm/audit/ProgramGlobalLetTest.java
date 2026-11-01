@@ -339,7 +339,7 @@ class ProgramGlobalLetTest {
             "LET $a = 1 FUNCTION mutate() RETURNS INTEGER DO SET $a = 2 RETURN 1 END EVERY 1 TICKS DO END",
             "LET $a = PRINT(1) EVERY 1 TICKS DO END",
             "LET $a = effect() FUNCTION effect() RETURNS INTEGER DO PRINT(1) RETURN 1 END EVERY 1 TICKS DO END",
-            "LET $a = effect() FUNCTION effect() RETURNS INTEGER DO INPUT FROM source RETURN 1 END EVERY 1 TICKS DO END" };
+            "LET $a = effect() FUNCTION effect() RETURNS INTEGER DO INPUT FROM \"source\" RETURN 1 END EVERY 1 TICKS DO END" };
         for (String source : invalid) assertFalse(
             new ProgramBuilder(source).build()
                 .isSuccess(),

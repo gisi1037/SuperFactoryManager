@@ -30,10 +30,86 @@ test('hover distinguishes selectors, snapshots and exact NBT keys', () => {
 });
 
 test('hover ignores comments, strings, fields and identifiers that are not calls', () => {
-  for (const source of ['-- transfer()', '"transfer()"', '$transfer', '$row.total', 'let $min = 1']) {
+  for (const source of ['-- transfer()', '"transfer()"', '$transfer', '$row.total']) {
     const offset = source.search(/transfer|min|total/);
     assert.equal(hover(analyze(source), offset + 1), undefined, source);
   }
+});
+
+test('plain variables and optional sigils share declarations, with scoped reference hovers', () => {
+  const source = 'state runs = 0;\n'
+    + 'every 20 ticks { let source = label("source"); let row = {source: 3};\n'
+    + 'print(source.count(item("minecraft:stone")), row.source); $runs = runs + 1;\n'
+    + 'if (true) { let hidden = 1; print(hidden); } print(hidden); }\n'
+    + '-- runs source\n"runs source"';
+  const result = analyze(source);
+  assert.deepEqual(result.variables.map(token => source.slice(token.start, token.end)),
+    ['runs', 'source', 'row', 'source', 'row', '$runs', 'runs', 'hidden', 'hidden']);
+  assert.match(hover(result, source.indexOf('$runs') + 1).description, /Persistent disk STATE/);
+  assert.deepEqual(hover(result, source.indexOf('source.count') + 2).signatures, ['let source']);
+  assert.deepEqual(hover(result, source.indexOf('.count') + 2).signatures, catalog.methods.count.signatures);
+  assert.equal(hover(result, source.indexOf('row.source') + 5), undefined);
+  assert.equal(hover(result, source.lastIndexOf('hidden') + 1), undefined);
+});
+
+test('typed brace functions support spaced parameters, structs, arrays, void and aliases', () => {
+  const source = 'integer[2] math.copy(integer[2] values, {n: integer} row) { return values; }\n'
+    + 'void publish(string message) { print(message); return; }\n'
+    + 'function old(value: integer) returns integer { return value; }\n'
+    + 'every 20 ticks { let values = [1,2]; math.copy(values, {n: 3}); publish("ok"); old(1); }';
+  const result = analyze(source);
+  assert.equal(result.functions.size, 3);
+  assert.match(hover(result, source.lastIndexOf('math.copy') + 6).signatures[0], /^integer\[2\] math.copy/);
+  assert.match(hover(result, source.lastIndexOf('publish') + 1).signatures[0], /^void publish\(string message\)/);
+  assert.match(hover(result, source.lastIndexOf('old') + 1).signatures[0], /^function old/);
+  assert.deepEqual(hover(result, source.indexOf('return values') + 8).signatures, ['integer[2] values']);
+  assert.deepEqual(hover(result, source.indexOf('print(message)') + 7).signatures, ['string message']);
+  assert.equal(hover(result, source.indexOf('integer[2]') + 1), undefined);
+});
+
+test('legacy blocks, loop bindings, result declarations and shadowing remain visible only in scope', () => {
+  const source = 'let amount = 1\nevery 20 ticks do\n'
+    + 'if (true) then let amount = 2 print(amount) else print(amount) end\n'
+    + 'for index = 0 to 2 do print(index) end print(index)\n'
+    + 'transfer(label("source"), label("dest")) into result print(result.moved)\nend';
+  const result = analyze(source);
+  const amounts = result.variables.filter(token => token.text === 'amount');
+  assert.equal(amounts.length, 4);
+  assert.equal(amounts[2].binding, amounts[1].binding);
+  assert.equal(amounts[3].binding, amounts[0].binding);
+  assert.equal(hover(result, source.lastIndexOf('index') + 1), undefined);
+  assert.deepEqual(hover(result, source.indexOf('result.moved') + 1).signatures, ['into result']);
+});
+
+test('partial headers and hostile nesting stay presentation-only without throwing', () => {
+  for (const source of ['void f(integer', 'integer[2] f({x: integer', 'function f(x: integer) returns',
+    '{x:'.repeat(2000) + 'integer' + '}'.repeat(2000)]) {
+    assert.doesNotThrow(() => analyze(source));
+  }
+});
+
+test('struct values and collection-loop headers preserve enclosing bindings', () => {
+  const source = 'every 20 ticks { let amount = 3; let rows = [{amount:amount}]; '
+    + 'for row in [{amount:amount}] { print(row.amount); } print(row); }';
+  const result = analyze(source);
+  assert.equal(result.variables.filter(token => token.text === 'amount').length, 3);
+  assert.equal(result.variables.filter(token => token.text === 'row').length, 2);
+  assert.equal(hover(result, source.lastIndexOf('row') + 1), undefined);
+});
+
+test('ref parameters retain signatures and distinguish writable references from value copies', () => {
+  const source = 'void increment(ref integer value, integer amount) { value = value + amount; }\n'
+    + 'function legacy(ref $value: integer) returns void do $value = $value + 1 end\n'
+    + 'every 20 ticks { let count = 0; increment(ref count, 1); legacy(ref count); }';
+  const result = analyze(source);
+  assert.equal(result.functions.size, 2);
+  assert.match(hover(result, source.lastIndexOf('increment') + 1).signatures[0], /ref integer value/);
+  assert.match(hover(result, source.lastIndexOf('legacy') + 1).signatures[0], /ref \$value: integer/);
+  assert.deepEqual(hover(result, source.indexOf('value =') + 1).signatures, ['ref integer value']);
+  assert.match(hover(result, source.indexOf('value =') + 1).description, /immediately/);
+  assert.match(hover(result, source.indexOf('+ amount') + 3).description, /local copy/);
+  assert.deepEqual(hover(result, source.lastIndexOf('count') + 1).signatures, ['let count']);
+  assert.equal(hover(result, source.indexOf('ref count') + 1), undefined);
 });
 
 test('same-file function signatures support namespaces, multiline types and exact-name overrides', () => {

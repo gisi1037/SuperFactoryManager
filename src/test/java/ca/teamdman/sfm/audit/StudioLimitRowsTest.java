@@ -97,7 +97,7 @@ class StudioLimitRowsTest {
         String group = "16 EACH RETAIN 2 EACH item:a OR item:b WITHOUT #dust*\t, 3 RETAIN 1 item:c,4 fluid:water";
         for (Type type : new Type[] { Type.INPUT, Type.OUTPUT }) for (boolean first : new boolean[] { false, true }) {
             String access = (type == Type.INPUT ? "FROM" : "TO EMPTY SLOTS IN")
-                + " EACH \"Factory 🏭\",other ROUND ROBIN BY LABEL North,Top SIDE SLOTS 0,2-8";
+                + " EACH \"Factory 🏭\",\"other\" ROUND ROBIN BY LABEL North,Top SIDE SLOTS 0,2-8";
             String action = (type == Type.INPUT ? "InPuT " : "OuTpUt ") + group + " EXCEPT item:dirt,fluid:lava";
             String clause = first ? access + "  " + action : action + "  " + access;
             Node node = node(type, clause);
@@ -162,7 +162,7 @@ class StudioLimitRowsTest {
 
     @Test
     void globalsApplyBeforeTwoToOneAndReopeningReturnsOriginalSingleLimitControls() {
-        String clause = "OUTPUT 16 RETAIN 2 item:a,3 item:b EXCEPT item:c TO EMPTY SLOTS IN EACH source,spare ROUND ROBIN BY BLOCK NORTH SIDE SLOTS 0-2";
+        String clause = "OUTPUT 16 RETAIN 2 item:a,3 item:b EXCEPT item:c TO EMPTY SLOTS IN EACH \"source\",\"spare\" ROUND ROBIN BY BLOCK NORTH SIDE SLOTS 0-2";
         Node node = node(Type.OUTPUT, clause);
         StudioFieldDraft draft = draft(node);
         draft.removeLimit(
@@ -173,7 +173,7 @@ class StudioLimitRowsTest {
         draft.setLabel(
             draft.labelRows()
                 .get(0).id,
-            "renamed");
+            "\"renamed\"");
         draft.setExclusion(
             draft.exclusionRows()
                 .get(0).id,
@@ -185,7 +185,7 @@ class StudioLimitRowsTest {
         draft.set("emptySlots", "false");
         String changed = draft.appliedClause(PROJECT, node, program(clause));
         assertEquals(
-            "OUTPUT 16 RETAIN 2 item:a EXCEPT item:d TO   renamed,spare ROUND ROBIN BY LABEL SOUTH SIDE SLOTS 1-3",
+            "OUTPUT 16 RETAIN 2 item:a EXCEPT item:d TO   \"renamed\",\"spare\" ROUND ROBIN BY LABEL SOUTH SIDE SLOTS 1-3",
             changed);
         StudioFieldDraft reopened = draft(node(Type.OUTPUT, changed));
         assertFalse(reopened.hasLimitRows());
@@ -202,7 +202,7 @@ class StudioLimitRowsTest {
     void missingQuantitiesAndRetentionKeepDirectionSpecificDefaultsAndFilterOnlyRows() {
         for (Type type : new Type[] { Type.INPUT, Type.OUTPUT }) {
             String clause = (type == Type.INPUT ? "INPUT " : "OUTPUT ") + "item:a,WITH #ingot* "
-                + (type == Type.INPUT ? "FROM source" : "TO dest");
+                + (type == Type.INPUT ? "FROM \"source\"" : "TO \"dest\"");
             Node node = node(type, clause);
             StudioFieldDraft draft = draft(node);
             assertEquals(clause, draft.appliedClause(PROJECT, node, program(clause)));
@@ -237,9 +237,9 @@ class StudioLimitRowsTest {
 
     @Test
     void blankInjectedOrUnsupportedCellsRefuseWholeApplyAndPreservePendingGlobals() {
-        String clause = "INPUT 16 item:a,2 item:b FROM source";
+        String clause = "INPUT 16 item:a,2 item:b FROM \"source\"";
         Node node = node(Type.INPUT, clause);
-        for (String invalid : new String[] { "", " ", "item:a,", "1 item:a,2 item:b", "item:a FROM stolen",
+        for (String invalid : new String[] { "", " ", "item:a,", "1 item:a,2 item:b", "item:a FROM \"stolen\"",
             "item:a OUTPUT TO dest", "item:a -- hide", "item:a\n", "item:a\0", "item:a?", "\"unfinished",
             "(1+2) item:a", "9223372036854775808 item:a", "item:a WITH (#a OR #b)" }) {
             StudioFieldDraft draft = draft(node);
@@ -249,7 +249,7 @@ class StudioLimitRowsTest {
             draft.setLabel(
                 draft.labelRows()
                     .get(0).id,
-                "renamed");
+                "\"renamed\"");
             StudioFieldDraft copy = new StudioFieldDraft(draft);
             assertTrue(copy.dirty());
             assertEquals(invalid, copy.limitValue(row));
@@ -259,13 +259,13 @@ class StudioLimitRowsTest {
                 () -> copy.appliedClause(PROJECT, node, program(clause)),
                 invalid);
             assertEquals(clause, node.clause());
-            assertEquals("renamed", copy.value("label"));
+            assertEquals("\"renamed\"", copy.value("label"));
         }
     }
 
     @Test
     void joinedTextCannotHideMalformedCellPartitionsAcrossCopiesAndRepair() {
-        String clause = "INPUT \"item:a,b\",item:c FROM source";
+        String clause = "INPUT \"item:a,b\",item:c FROM \"source\"";
         Node node = node(Type.INPUT, clause);
         StudioFieldDraft draft = draft(node);
         String original = draft.value("limits");
@@ -319,8 +319,8 @@ class StudioLimitRowsTest {
 
     @Test
     void initialAbsentSingleAndOtherNodesNeverGainLimitRowsOrPickers() {
-        for (String clause : new String[] { "INPUT FROM source", "INPUT 16 item:a FROM source",
-            "INPUT item:a OR item:b FROM source" }) {
+        for (String clause : new String[] { "INPUT FROM \"source\"", "INPUT 16 item:a FROM \"source\"",
+            "INPUT item:a OR item:b FROM \"source\"" }) {
             StudioFieldDraft draft = draft(node(Type.INPUT, clause));
             assertFalse(draft.hasLimitRows());
             assertTrue(draft.hasResourceRows());
@@ -329,13 +329,13 @@ class StudioLimitRowsTest {
                 IllegalArgumentException.class,
                 () -> StudioNodeProperties.updateIndependentLimits(Type.INPUT, clause, "item:a,item:b"));
         }
-        String clause = "INPUT item:a,item:b FROM source";
+        String clause = "INPUT item:a,item:b FROM \"source\"";
         StudioFieldDraft draft = draft(node(Type.INPUT, clause));
         for (StudioNodeProperties.Field field : StudioNodeProperties.inspect(Type.INPUT, clause)) if (field.getKey()
             .equals("limits")) assertNull(StudioFieldPicker.target(Type.INPUT, field, draft.value("limits")));
         assertThrows(
             IllegalArgumentException.class,
-            () -> StudioNodeProperties.updateIndependentLimits(Type.IF, "source HAS = 0", "item:a"));
+            () -> StudioNodeProperties.updateIndependentLimits(Type.IF, "\"source\" HAS = 0", "item:a"));
     }
 
     @Test
@@ -345,9 +345,9 @@ class StudioLimitRowsTest {
         UUID revision = rows.revision();
         assertThrows(IllegalArgumentException.class, () -> rows.append("item:b"));
         assertEquals(revision, rows.revision());
-        assertTrue(draft(node(Type.INPUT, "INPUT " + group + " FROM source")).hasLimitRows());
+        assertTrue(draft(node(Type.INPUT, "INPUT " + group + " FROM \"source\"")).hasLimitRows());
         for (String manual : new String[] { group + ",item:b", "item:a,item:b,", "(1+2) item:a,item:b" }) {
-            String clause = "INPUT " + manual + " FROM source";
+            String clause = "INPUT " + manual + " FROM \"source\"";
             assertFalse(
                 StudioNodeProperties.inspect(Type.INPUT, clause)
                     .stream()
@@ -365,7 +365,7 @@ class StudioLimitRowsTest {
 
     @Test
     void completeRowsRetainCompilerSupportedTrailingOrAndUnlimitedInnerAlternatives() {
-        String group = "item:a OR,item:b", clause = "INPUT " + group + " FROM source";
+        String group = "item:a OR,item:b", clause = "INPUT " + group + " FROM \"source\"";
         Node node = node(Type.INPUT, clause);
         StudioFieldDraft draft = draft(node);
         assertTrue(draft.hasLimitRows());
@@ -406,7 +406,7 @@ class StudioLimitRowsTest {
 
     @Test
     void combinedApplyPreservesOwnerFencesAllGraphIdentitiesAndExactSourceUndoRedo() {
-        String source = "-- 🏭\r\nevery 20 ticks do if source HAS > 0 then INPUT 16 item:a,2 item:b FROM source OUTPUT TO dest else forget end end";
+        String source = "-- 🏭\r\nevery 20 ticks do if \"source\" HAS > 0 then INPUT 16 item:a,2 item:b FROM \"source\" OUTPUT TO \"dest\" else forget end end";
         StudioDocument document = new StudioDocument();
         document.load(source);
         document.openVisual();
@@ -426,7 +426,7 @@ class StudioLimitRowsTest {
         draft.setLabel(
             draft.labelRows()
                 .get(0).id,
-            "renamed");
+            "\"renamed\"");
         assertThrows(IllegalArgumentException.class, () -> draft.appliedClause(PROJECT, node, document.code()));
         assertEquals(source, document.source());
         assertFalse(document.undo());
@@ -462,7 +462,7 @@ class StudioLimitRowsTest {
     void deepUnsupportedPendingSyntaxRefusesWithoutParserOrTreeWalkStackOverflow() {
         String left = String.join("", Collections.nCopies(1500, "("));
         String right = String.join("", Collections.nCopies(1500, ")"));
-        String clause = "INPUT item:a,item:b FROM source";
+        String clause = "INPUT item:a,item:b FROM \"source\"";
         Node node = node(Type.INPUT, clause);
         for (String deep : new String[] { left + "1" + right + " item:a", "RETAIN " + left + "1" + right,
             "WITH " + left + "#a" + right, "WITH " + String.join("", Collections.nCopies(700, "NOT ")) + "#a",
@@ -476,7 +476,7 @@ class StudioLimitRowsTest {
             draft.setLabel(
                 draft.labelRows()
                     .get(0).id,
-                "renamed");
+                "\"renamed\"");
             StudioFieldDraft copy = new StudioFieldDraft(draft);
             assertThrows(IllegalArgumentException.class, () -> copy.appliedClause(PROJECT, node, program(clause)));
             assertEquals(

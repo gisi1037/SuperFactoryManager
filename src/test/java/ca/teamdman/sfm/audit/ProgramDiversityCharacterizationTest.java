@@ -421,7 +421,7 @@ class ProgramDiversityCharacterizationTest {
                 1,
                 "",
                 "LET $level = LABEL(\"signal\").side(\"north\").redstone() "
-                    + "SET $value = $value + $level OUTPUT ($level) REDSTONE LEVEL TO signal EAST SIDE",
+                    + "SET $value = $value + $level OUTPUT ($level) REDSTONE LEVEL TO \"signal\" EAST SIDE",
                 7));
         result.add(new Workload("not_due_counter", 1200, "", "SET $value = $value + 1", 1));
         return result;

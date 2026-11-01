@@ -17,7 +17,7 @@ import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 /** Throwing providers may mutate before failing; preserve evidence without inventing ownership. */
 class FluidCallbackRecoveryTest {
 
-    private static final String CODE = "EVERY 20 TICKS DO INPUT fluid:water FROM source OUTPUT 1000 fluid:water TO dest END";
+    private static final String CODE = "EVERY 20 TICKS DO INPUT fluid:water FROM \"source\" OUTPUT 1000 fluid:water TO \"dest\" END";
 
     @Test
     void drainFailureBeforeOrAfterMutationIsQuarantined() throws Exception {

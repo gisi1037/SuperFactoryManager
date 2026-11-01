@@ -62,14 +62,14 @@ class LoopTransferTest {
 
     @Test
     void countedArrayAndWhileLoopsGiveLiteralAndDynamicInputsIndependentExecutionQuotas() throws Exception {
-        String[] loops = { "FOR $i = 1 TO 3 DO %s OUTPUT 1 TO dest END",
-            "FOR $i IN [1, 2, 3] DO %s OUTPUT 1 TO dest END",
-            "LET $i = 1 WHILE ($i <= 3) DO %s OUTPUT 1 TO dest SET $i = $i + 1 END" };
+        String[] loops = { "FOR $i = 1 TO 3 DO %s OUTPUT 1 TO \"dest\" END",
+            "FOR $i IN [1, 2, 3] DO %s OUTPUT 1 TO \"dest\" END",
+            "LET $i = 1 WHILE ($i <= 3) DO %s OUTPUT 1 TO \"dest\" SET $i = $i + 1 END" };
         for (String loop : loops) for (String quantity : new String[] { "2", "($quantity)" }) {
             Fixture fixture = new Fixture();
             fixture.stock(0, 30);
-            String body = "LET $quantity = 2 " + String.format(loop, "INPUT " + quantity + " FROM source")
-                + " OUTPUT 100 TO dest";
+            String body = "LET $quantity = 2 " + String.format(loop, "INPUT " + quantity + " FROM \"source\"")
+                + " OUTPUT 100 TO \"dest\"";
             fixture.run(body);
             assertEquals(6, count(fixture.dest), body);
             assertEquals(24, count(fixture.source), body);
@@ -83,7 +83,7 @@ class LoopTransferTest {
             fixture.stock(0, 30);
             fixture.run(
                 "LET $quantity = 5 INPUT " + quantity
-                    + " FROM source FOR $i = 1 TO 3 DO OUTPUT 2 TO dest END OUTPUT 100 TO dest");
+                    + " FROM \"source\" FOR $i = 1 TO 3 DO OUTPUT 2 TO \"dest\" END OUTPUT 100 TO \"dest\"");
             assertEquals(5, count(fixture.dest));
             assertEquals(25, count(fixture.source));
         }
@@ -97,7 +97,7 @@ class LoopTransferTest {
         second.setInventorySlotContents(0, new ItemStack(ITEM, 20));
         fixture.add("second", EXTRA, second);
         fixture.run(
-            "FOR $i = 1 TO 3 DO INPUT 4 RETAIN 10 FROM EACH source, second OUTPUT 1 TO dest END OUTPUT 100 TO dest");
+            "FOR $i = 1 TO 3 DO INPUT 4 RETAIN 10 FROM EACH \"source\", \"second\" OUTPUT 1 TO \"dest\" END OUTPUT 100 TO \"dest\"");
         assertEquals(20, count(fixture.dest));
         assertEquals(10, count(fixture.source));
         assertEquals(10, count(second));
@@ -112,8 +112,8 @@ class LoopTransferTest {
         fixture.world.tiles.put(DST, destination);
         fixture.add("second", EXTRA, second);
         fixture.run(
-            "FOR $i = 1 TO 3 DO INPUT 500 RETAIN 4000 fluid:water FROM EACH source, second "
-                + "OUTPUT 100 fluid:water TO dest END OUTPUT 10000 fluid:water TO dest");
+            "FOR $i = 1 TO 3 DO INPUT 500 RETAIN 4000 fluid:water FROM EACH \"source\", \"second\" "
+                + "OUTPUT 100 fluid:water TO \"dest\" END OUTPUT 10000 fluid:water TO \"dest\"");
         assertEquals(2000, destination.amount);
         assertEquals(4000, source.amount);
         assertEquals(4000, second.amount);
@@ -127,7 +127,8 @@ class LoopTransferTest {
         InventoryTile second = new InventoryTile(1);
         second.setInventorySlotContents(0, new ItemStack(ITEM, 20));
         fixture.add("second", EXTRA, second);
-        List<Statement> body = statements("INPUT 1 FROM source, second ROUND ROBIN BY LABEL OUTPUT 100 TO dest");
+        List<Statement> body = statements(
+            "INPUT 1 FROM \"source\", \"second\" ROUND ROBIN BY LABEL OUTPUT 100 TO \"dest\"");
         InputStatement input = (InputStatement) body.get(0);
         ProgramContext context = context(fixture);
         context.beginDataInvocation(0, false);
@@ -179,7 +180,7 @@ class LoopTransferTest {
         fixture.world.tiles.put(SRC, source);
         fixture.world.tiles.put(DST, destination);
         Program program = parse(
-            "EVERY 20 TICKS DO FOR $i = 1 TO 257 DO INPUT 1 FROM source OUTPUT 1 TO dest FORGET END END");
+            "EVERY 20 TICKS DO FOR $i = 1 TO 257 DO INPUT 1 FROM \"source\" OUTPUT 1 TO \"dest\" FORGET END END");
         ProgramContext context = context(fixture);
         IllegalArgumentException fault = assertThrows(IllegalArgumentException.class, () -> program.tick(context));
         assertTrue(
@@ -201,8 +202,8 @@ class LoopTransferTest {
         fixture.world.tiles.put(DST, destination);
         fixture.add("second", EXTRA, second);
         List<Statement> body = statements(
-            "INPUT 5 RETAIN 3 FROM source, second OUTPUT 2 TO dest "
-                + "FORGET source OUTPUT 100 TO dest FORGET second OUTPUT 100 TO dest");
+            "INPUT 5 RETAIN 3 FROM \"source\", \"second\" OUTPUT 2 TO \"dest\" "
+                + "FORGET \"source\" OUTPUT 100 TO \"dest\" FORGET \"second\" OUTPUT 100 TO \"dest\"");
         ProgramContext context = context(fixture);
         context.beginDataInvocation(0, false);
         context.enterLoop();
@@ -228,8 +229,8 @@ class LoopTransferTest {
             name + " retained an orphan key");
         body.get(3)
             .tick(context);
-        assertEquals(5, count(destination), "Partial FORGET must preserve the already spent item quota");
-        assertEquals(5, destination.tank.amount, "Partial FORGET must preserve the already spent fluid quota");
+        assertEquals(5, count(destination), "Partial FORGET \"must\" preserve the already spent item quota");
+        assertEquals(5, destination.tank.amount, "Partial FORGET \"must\" preserve the already spent fluid quota");
         assertEquals(18, count(source));
         assertEquals(18, source.tank.amount);
         assertEquals(17, count(second));

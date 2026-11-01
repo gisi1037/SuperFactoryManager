@@ -7,8 +7,10 @@ package ca.teamdman.sfm.client.blueprint;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -275,7 +277,13 @@ public final class BlueprintCompiler {
         if (depth > BlueprintGraph.MAX_DEPTH) throw new IllegalArgumentException("Blueprint nesting exceeds 32");
         for (SFMLParser.StatementContext statement : block.statement()) {
             Type type = typeOf(statement);
-            String clause = fragment(tokens, statement);
+            String clause = statement.SEMICOLON() == null ? fragment(tokens, statement)
+                : fragment(
+                    tokens,
+                    statement.getStart()
+                        .getTokenIndex(),
+                    statement.getStop()
+                        .getTokenIndex() - 1);
             if (type == Type.IF) {
                 if (statement.ifStatement()
                     .boolexpr()
@@ -341,13 +349,18 @@ public final class BlueprintCompiler {
     }
 
     public static Token triggerDo(SFMLParser.TriggerContext trigger) {
-        if (trigger instanceof SFMLParser.TimerTriggerContext) return ((SFMLParser.TimerTriggerContext) trigger).DO()
-            .getSymbol();
-        if (trigger instanceof SFMLParser.PulseTriggerContext) return ((SFMLParser.PulseTriggerContext) trigger).DO()
-            .getSymbol();
-        if (trigger instanceof SFMLParser.NamedRedstoneTriggerContext)
-            return ((SFMLParser.NamedRedstoneTriggerContext) trigger).DO()
-                .getSymbol();
+        if (trigger instanceof SFMLParser.TimerTriggerContext) {
+            SFMLParser.TimerTriggerContext timer = (SFMLParser.TimerTriggerContext) trigger;
+            return (timer.DO() != null ? timer.DO() : timer.LBRACE()).getSymbol();
+        }
+        if (trigger instanceof SFMLParser.PulseTriggerContext) {
+            SFMLParser.PulseTriggerContext pulse = (SFMLParser.PulseTriggerContext) trigger;
+            return (pulse.DO() != null ? pulse.DO() : pulse.LBRACE()).getSymbol();
+        }
+        if (trigger instanceof SFMLParser.NamedRedstoneTriggerContext) {
+            SFMLParser.NamedRedstoneTriggerContext named = (SFMLParser.NamedRedstoneTriggerContext) trigger;
+            return (named.DO() != null ? named.DO() : named.LBRACE()).getSymbol();
+        }
         throw new IllegalArgumentException("Unsupported trigger type");
     }
 
@@ -410,22 +423,80 @@ public final class BlueprintCompiler {
     }
 
     static boolean sameTokens(String a, String b) {
-        List<Token> left = tokens(a).getTokens(), right = tokens(b).getTokens();
+        CommonTokenStream first = tokens(a), second = tokens(b);
+        List<Token> left = first.getTokens(), right = second.getTokens();
+        Map<Integer, Integer> leftBlocks = blockTokens(first), rightBlocks = blockTokens(second);
         int i = 0, j = 0;
         while (true) {
             while (left.get(i)
-                .getChannel() != Token.DEFAULT_CHANNEL) i++;
+                .getChannel() != Token.DEFAULT_CHANNEL || normalized(left.get(i), leftBlocks) == -2) i++;
             while (right.get(j)
-                .getChannel() != Token.DEFAULT_CHANNEL) j++;
+                .getChannel() != Token.DEFAULT_CHANNEL || normalized(right.get(j), rightBlocks) == -2) j++;
             Token x = left.get(i++), y = right.get(j++);
-            if (x.getType() != y.getType()) return false;
+            if (normalized(x, leftBlocks) != normalized(y, rightBlocks)) return false;
             if (x.getType() == Token.EOF) return true;
-            if ((x.getType() == SFMLLexer.IDENTIFIER || x.getType() == SFMLLexer.STRING
+            if ((x.getType() == SFMLLexer.IDENTIFIER || x.getType() == SFMLLexer.VARIABLE
+                || x.getType() == SFMLLexer.STRING
                 || x.getType() == SFMLLexer.NUMBER
                 || x.getType() == SFMLLexer.NUMBER_WITH_G_SUFFIX)
                 && !x.getText()
                     .equals(y.getText()))
                 return false;
         }
+    }
+
+    private static int normalized(Token token, Map<Integer, Integer> blocks) {
+        return token.getType() == SFMLLexer.SEMICOLON ? -2
+            : blocks.getOrDefault(token.getTokenIndex(), token.getType());
+    }
+
+    /** Normalize only grammar-owned control delimiters. Struct literal braces remain exact source tokens. */
+    private static Map<Integer, Integer> blockTokens(CommonTokenStream tokens) {
+        boolean braces = false;
+        for (Token token : tokens.getTokens()) if (token.getType() == SFMLLexer.LBRACE) {
+            braces = true;
+            break;
+        }
+        if (!braces) return Collections.emptyMap();
+        SFMLParser parser = new SFMLParser(tokens);
+        parser.removeErrorListeners();
+        SFMLParser.ProgramContext tree = parser.program();
+        Map<Integer, Integer> replacements = new HashMap<>();
+        if (parser.getNumberOfSyntaxErrors() == 0) normalizeBlocks(tree, replacements);
+        return replacements;
+    }
+
+    private static void normalizeBlocks(org.antlr.v4.runtime.tree.ParseTree tree, Map<Integer, Integer> replacements) {
+        if (tree instanceof SFMLParser.TriggerContext) {
+            SFMLParser.TriggerContext trigger = (SFMLParser.TriggerContext) tree;
+            Token open = triggerDo(trigger);
+            if (open.getType() == SFMLLexer.LBRACE) {
+                replacements.put(open.getTokenIndex(), SFMLLexer.DO);
+                replacements.put(
+                    trigger.getStop()
+                        .getTokenIndex(),
+                    SFMLLexer.END);
+            }
+        } else if (tree instanceof SFMLParser.IfStatementContext) {
+            SFMLParser.IfStatementContext branch = (SFMLParser.IfStatementContext) tree;
+            if (!branch.LBRACE()
+                .isEmpty())
+                for (int i = 0; i < branch.block()
+                    .size(); i++) {
+                        replacements.put(
+                            branch.LBRACE(i)
+                                .getSymbol()
+                                .getTokenIndex(),
+                            i < branch.boolexpr()
+                                .size() ? SFMLLexer.THEN : -2);
+                        replacements.put(
+                            branch.RBRACE(i)
+                                .getSymbol()
+                                .getTokenIndex(),
+                            i == branch.block()
+                                .size() - 1 ? SFMLLexer.END : -2);
+                    }
+        }
+        for (int i = 0; i < tree.getChildCount(); i++) normalizeBlocks(tree.getChild(i), replacements);
     }
 }

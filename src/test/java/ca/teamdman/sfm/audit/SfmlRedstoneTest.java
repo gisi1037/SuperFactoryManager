@@ -123,7 +123,7 @@ class SfmlRedstoneTest {
     void playerQueryHelpersCompileAndCollectOnlyReachableLabels() {
         Program program = program(
             "FUNCTION controls.on($port: LABEL_REF) RETURNS BOOLEAN DO RETURN $port.side(\"north\").powered() END "
-                + "EVERY 20 TICKS DO IF (controls.on(LABEL(\"sensor\"))) THEN OUTPUT 15 REDSTONE LEVEL TO emitter END END");
+                + "EVERY 20 TICKS DO IF (controls.on(LABEL(\"sensor\"))) THEN OUTPUT 15 REDSTONE LEVEL TO \"emitter\" END END");
         assertTrue(program.hasDataFeatures());
         assertTrue(
             program.getReferencedLabels()
@@ -174,10 +174,10 @@ class SfmlRedstoneTest {
     @Test
     void literalOutputsKeepClampingAndFirstOptionalQuantitySemantics() {
         for (String source : Arrays.asList(
-            "OUTPUT 99 REDSTONE LEVEL TO emitter",
-            "OUTPUT REDSTONE LEVEL 99 TO emitter",
-            "OUTPUT 99 REDSTONE LEVEL 3 TO emitter",
-            "TO emitter OUTPUT 99 REDSTONE LEVEL 3")) {
+            "OUTPUT 99 REDSTONE LEVEL TO \"emitter\"",
+            "OUTPUT REDSTONE LEVEL 99 TO \"emitter\"",
+            "OUTPUT 99 REDSTONE LEVEL 3 TO \"emitter\"",
+            "TO \"emitter\" OUTPUT 99 REDSTONE LEVEL 3")) {
             Program program = program("EVERY 20 TICKS DO " + source + " END");
             RedstoneOutputStatement output = (RedstoneOutputStatement) program.getTriggers()
                 .get(0)

@@ -116,6 +116,35 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
         return dataRuntime;
     }
 
+    private ca.teamdman.sfml.ast.Program executionProgram;
+    private ca.teamdman.sfml.data.ProgramExecution programExecution;
+
+    public ca.teamdman.sfml.data.ProgramExecution getProgramExecution(ca.teamdman.sfml.ast.Program program) {
+        if (manager != null) return manager.getProgramExecution(program);
+        if (executionProgram != program || programExecution == null) {
+            executionProgram = program;
+            programExecution = new ca.teamdman.sfml.data.ProgramExecution();
+        }
+        return programExecution;
+    }
+
+    public boolean isResumable() {
+        return dataRuntime != null && dataRuntime.isResumable();
+    }
+
+    public boolean isProcedureAction() {
+        return dataRuntime != null && dataRuntime.isFunctionFrame();
+    }
+
+    public void setExecutionRuntime(ca.teamdman.sfml.data.DataRuntime runtime) {
+        dataRuntime = runtime;
+    }
+
+    public boolean evaluateCondition(ca.teamdman.sfml.ast.BoolExpr condition) {
+        return isResumable() ? dataRuntime.evaluate(condition, () -> condition.evaluate(this))
+            : condition.evaluate(this);
+    }
+
     public void beginDataInvocation(int localCount, boolean needsState) {
         if (needsState && stateAccess == null)
             throw new IllegalStateException("Persistent STATE requires an active disk state store");
@@ -260,16 +289,25 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
         nativeItemActions++;
     }
 
+    public GhostCircuitService.Result setCircuit(ca.teamdman.sfml.data.LabelReference label, long configuration) {
+        GhostCircuitService.validate(label, configuration);
+        beginNativeItemAction();
+        return new GhostCircuitService(this).set(label, configuration);
+    }
+
     private final World world;
     private final TileEntityManager manager;
     private final CableNetwork network;
     private LabelPositionHolder labelPositions;
+    private boolean dynamicLabels;
     private final Set<String> referencedLabels;
     private final long managerTick;
     private final boolean redstonePulse;
     // Data/redstone-only invocations need no transfer storage; materialize private collections only on use.
     private List<InputStatement> inputs = Collections.emptyList();
     private Map<InputStatement, List<InputSlot>> inputCache = Collections.emptyMap();
+    private Map<InputStatement, Map<Object, Map<ResourceLimit, TransferQuota>>> resumedItemQuotas = Collections
+        .emptyMap();
     private Map<InputStatement, List<BlockPos>> inputPositions = Collections.emptyMap();
     private Map<InputStatement, Map<Object, Map<ResourceLimit, TransferQuota>>> fluidInputQuotas = Collections
         .emptyMap();
@@ -329,8 +367,14 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
 
     public LabelPositionHolder getLabelPositionHolder() {
         if (labelPositions == null) labelPositions = manager == null ? new LabelPositionHolder()
-            : LabelPositionHolder.from(manager.getDisk(), referencedLabels);
+            : dynamicLabels ? LabelPositionHolder.boundedSnapshot(manager.getDisk())
+                : LabelPositionHolder.from(manager.getDisk(), referencedLabels);
         return labelPositions;
+    }
+
+    /** Configure before globals or trigger queries, retaining lazy, invocation-owned snapshot creation. */
+    public void requireDynamicLabels() {
+        dynamicLabels = true;
     }
 
     public long getManagerTick() {
@@ -388,7 +432,7 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
     }
 
     public void addInputStatement(InputStatement stmt) {
-        if (isInLoop()) {
+        if (isInLoop() || dataRuntime != null && dataRuntime.isFunctionFrame()) {
             // Count executions, not active registrations: FORGET must not mint a new allowance.
             if (loopInputRegistrations >= MAX_LOOP_INPUT_REGISTRATIONS)
                 throw new IllegalArgumentException("Loop input registration budget exhausted (256)");
@@ -425,26 +469,27 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
                 else keep.add(entry);
             }
             if (!found) continue;
-            if (keep.isEmpty()) {
+            ca.teamdman.sfml.ast.LabelAccess access = old.getLabelAccess()
+                .keeping(keep);
+            if (access.getLabels()
+                .isEmpty()) {
                 inputs.remove(i);
                 forgetInputCache(old);
                 continue;
             }
-            ca.teamdman.sfml.ast.LabelAccess access = new ca.teamdman.sfml.ast.LabelAccess(
-                keep,
-                old.getLabelAccess()
-                    .getSides(),
-                old.getLabelAccess()
-                    .getSlots(),
-                old.getLabelAccess()
-                    .getRoundRobin());
             InputStatement replacement = new InputStatement(access, old.getResourceLimits(), old.isEach());
             inputs.set(i, replacement);
             Set<BlockPos> remaining = new java.util.LinkedHashSet<>();
             for (Label entry : keep) remaining.addAll(getLabelPositionHolder().getPositions(entry.getName()));
             if (inputCache.containsKey(old)) {
                 List<InputSlot> slots = new ArrayList<>(inputCache.get(old));
-                slots.removeIf(slot -> !remaining.contains(slot.pos));
+                slots.removeIf(
+                    slot -> !remaining.contains(slot.pos)
+                        || !access.getSlots(slot.pos, slot.side, getLabelPositionHolder())
+                            .contains(slot.slot)
+                        || access.getSides(slot.pos, getLabelPositionHolder())
+                            .resolveDirections()
+                            .isEmpty());
                 inputCache.put(replacement, slots);
                 List<BlockPos> positions = new ArrayList<>(inputPositions.get(old));
                 positions.retainAll(remaining);
@@ -464,13 +509,112 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
         fluidInputQuotas.clear();
         fluidReservations.clear();
         reservedFluids.clear();
+        resumedItemQuotas.clear();
+    }
+
+    /** Resolved declarations and consumption counters only: never keep cached inventories across ticks. */
+    public static final class SuspendedInputs {
+
+        private final List<InputStatement> statements;
+        private final Map<InputStatement, Map<Object, Map<ResourceLimit, TransferQuota>>> items, fluids;
+
+        private SuspendedInputs(List<InputStatement> statements,
+            Map<InputStatement, Map<Object, Map<ResourceLimit, TransferQuota>>> items,
+            Map<InputStatement, Map<Object, Map<ResourceLimit, TransferQuota>>> fluids) {
+            this.statements = statements;
+            this.items = items;
+            this.fluids = fluids;
+        }
+
+        public void retain(ca.teamdman.sfml.data.Continuation.Bounds bounds) {
+            for (InputStatement statement : statements) {
+                bounds.entry();
+                for (Label label : statement.getLabelAccess()
+                    .getLabels()) bounds.value(ca.teamdman.sfml.data.DataValue.label(label.getReference()));
+            }
+            retain(items, bounds);
+            retain(fluids, bounds);
+        }
+
+        private static void retain(Map<InputStatement, Map<Object, Map<ResourceLimit, TransferQuota>>> registrations,
+            ca.teamdman.sfml.data.Continuation.Bounds bounds) {
+            for (Map<Object, Map<ResourceLimit, TransferQuota>> scopes : registrations.values()) {
+                bounds.entry();
+                for (Map<ResourceLimit, TransferQuota> quotas : scopes.values()) {
+                    bounds.entry();
+                    for (TransferQuota quota : quotas.values()) quota.retain(bounds);
+                }
+            }
+        }
+    }
+
+    public SuspendedInputs suspendInputs() {
+        if (inputs.size() > MAX_LOOP_INPUT_REGISTRATIONS)
+            throw new IllegalArgumentException("WAIT retained INPUT registrations exceed 256");
+        getDataRuntime().allocate(4 + inputs.size());
+        ca.teamdman.sfml.data.Continuation.Bounds bounds = new ca.teamdman.sfml.data.Continuation.Bounds();
+        Map<InputStatement, Map<Object, Map<ResourceLimit, TransferQuota>>> itemCounters = new IdentityHashMap<>();
+        for (InputStatement input : inputs) {
+            Map<Object, Map<ResourceLimit, TransferQuota>> scopes = new HashMap<>();
+            List<InputSlot> cached = inputCache.get(input);
+            if (cached != null) for (InputSlot slot : cached) {
+                bounds.entry();
+                scopes.computeIfAbsent(input.isEach() ? slot.pos : null, ignored -> new IdentityHashMap<>())
+                    .put(slot.limit, slot.quota);
+            }
+            if (resumedItemQuotas.containsKey(input)) scopes = resumedItemQuotas.get(input);
+            itemCounters.put(input, scopes);
+        }
+        return new SuspendedInputs(
+            new ArrayList<>(inputs),
+            copyQuotas(itemCounters, bounds),
+            copyQuotas(fluidInputQuotas, bounds));
+    }
+
+    private Map<InputStatement, Map<Object, Map<ResourceLimit, TransferQuota>>> copyQuotas(
+        Map<InputStatement, Map<Object, Map<ResourceLimit, TransferQuota>>> source,
+        ca.teamdman.sfml.data.Continuation.Bounds bounds) {
+        Map<InputStatement, Map<Object, Map<ResourceLimit, TransferQuota>>> copy = new IdentityHashMap<>();
+        for (Map.Entry<InputStatement, Map<Object, Map<ResourceLimit, TransferQuota>>> registration : source
+            .entrySet()) {
+            bounds.entry();
+            getDataRuntime().allocate(2);
+            Map<Object, Map<ResourceLimit, TransferQuota>> scopes = new HashMap<>();
+            copy.put(registration.getKey(), scopes);
+            for (Map.Entry<Object, Map<ResourceLimit, TransferQuota>> scope : registration.getValue()
+                .entrySet()) {
+                bounds.entry();
+                getDataRuntime().allocate(2);
+                Map<ResourceLimit, TransferQuota> quotas = new IdentityHashMap<>();
+                scopes.put(scope.getKey(), quotas);
+                for (Map.Entry<ResourceLimit, TransferQuota> entry : scope.getValue()
+                    .entrySet()) {
+                    getDataRuntime().allocate(2);
+                    quotas.put(
+                        entry.getKey(),
+                        entry.getValue()
+                            .resumed(bounds));
+                }
+            }
+        }
+        return copy;
+    }
+
+    public void restoreInputs(SuspendedInputs saved) {
+        inputs = new ArrayList<>(saved.statements);
+        resumedItemQuotas = saved.items;
+        fluidInputQuotas = saved.fluids;
     }
 
     public void executeRedstoneOutput(RedstoneOutputStatement stmt) {
         // Evaluate once before selection, round-robin advancement, or any world mutation.
         int strength = stmt.evaluateLevel(this);
-        List<ForgeDirection> outSides = stmt.getLabelAccess()
-            .getSides()
+        ca.teamdman.sfml.ast.LabelAccess access = stmt.getLabelAccess()
+            .resolve(this);
+        // Legacy SLOTS syntax is ignored for redstone, as before. Typed handles must not silently widen access.
+        if (access.hasHandleSlots())
+            throw new IllegalArgumentException("Redstone OUTPUT does not accept slot-qualified handles");
+        List<ForgeDirection> outSides = access.getSides()
             .resolveDirections();
         if (outSides.isEmpty() || outSides.contains(null) || outSides.contains(ForgeDirection.UNKNOWN))
             throw new IllegalArgumentException("Redstone OUTPUT requires absolute physical sides");
@@ -478,10 +622,12 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
         if (world.isRemote || net.minecraft.server.MinecraftServer.getServer() != null
             && !ca.teamdman.sfm.common.net.ServerUiTasks.isServerThread())
             throw new IllegalArgumentException("Redstone OUTPUT requires server-thread execution");
-        List<BlockPos> outPositions = stmt.getLabelAccess()
-            .getPositions(getLabelPositionHolder());
+        List<BlockPos> outPositions = access.getPositions(getLabelPositionHolder());
         boolean anyEmitted = false;
         for (BlockPos outPos : outPositions) {
+            outSides = access.getSides(outPos, getLabelPositionHolder())
+                .resolveDirections();
+            if (outSides.isEmpty()) continue;
             if (!outPos.isLoaded(world) || !network.isConnected(outPos)) {
                 if (isLogging(LogLevel.TRACE)) log(LogLevel.TRACE, "Block not connected to cable network: " + outPos);
                 continue;
@@ -531,7 +677,8 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
             }
             List<InputSlot> gathered = new ArrayList<>();
             inputCache.put(inputStmt, gathered);
-            Map<Object, Map<ResourceLimit, TransferQuota>> inputQuotas = new HashMap<>();
+            Map<Object, Map<ResourceLimit, TransferQuota>> inputQuotas = resumedItemQuotas.remove(inputStmt);
+            if (inputQuotas == null) inputQuotas = new HashMap<>();
             if (isLogging(LogLevel.DEBUG)) log(
                 LogLevel.DEBUG,
                 "Gathering slots for IO statement \n```\n" + inputStmt.toStringPretty() + "\n```\n");
@@ -550,9 +697,6 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
             List<BlockPos> inPositions = inputStmt.getLabelAccess()
                 .getPositions(getLabelPositionHolder());
             inPositionsMap.put(inputStmt, inPositions);
-            List<ForgeDirection> inSides = inputStmt.getLabelAccess()
-                .getSides()
-                .resolveDirections();
             String labelStr = inputStmt.getLabelAccess()
                 .getLabels()
                 .isEmpty() ? ""
@@ -563,6 +707,10 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
 
             Set<TileEntityChest> seenInChests = Collections.newSetFromMap(new IdentityHashMap<>());
             for (BlockPos inPos : inPositions) {
+                List<ForgeDirection> inSides = inputStmt.getLabelAccess()
+                    .getSides(inPos, getLabelPositionHolder())
+                    .resolveDirections();
+                if (inSides.isEmpty()) continue;
                 if (!network.isConnected(inPos)) {
                     if (isLogging(LogLevel.TRACE))
                         log(LogLevel.TRACE, "Block not connected to cable network: " + inPos);
@@ -593,7 +741,7 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
                         inInv,
                         inSide,
                         inputStmt.getLabelAccess()
-                            .getSlots());
+                            .getSlots(inPos, inSide, getLabelPositionHolder()));
                     for (int slot : accessibleSlots) {
                         ItemStack inStack = inInv.getStackInSlot(slot);
                         if (inStack == null || inStack.stackSize <= 0) {
@@ -657,9 +805,6 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
 
         List<OutputSlot> outputSlots = new ArrayList<>();
         Map<Object, Map<ResourceLimit, TransferQuota>> outputQuotas = new HashMap<>();
-        List<ForgeDirection> outSides = outputStmt.getLabelAccess()
-            .getSides()
-            .resolveDirections();
         String outLabelStr = outputStmt.getLabelAccess()
             .getLabels()
             .isEmpty() ? ""
@@ -670,6 +815,10 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
 
         Set<TileEntityChest> seenOutChests = Collections.newSetFromMap(new IdentityHashMap<>());
         for (BlockPos outPos : outPositions) {
+            List<ForgeDirection> outSides = outputStmt.getLabelAccess()
+                .getSides(outPos, getLabelPositionHolder())
+                .resolveDirections();
+            if (outSides.isEmpty()) continue;
             if (!network.isConnected(outPos)) {
                 if (isLogging(LogLevel.TRACE)) log(LogLevel.TRACE, "Block not connected to cable network: " + outPos);
                 continue;
@@ -699,7 +848,7 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
                     outInv,
                     outSide,
                     outputStmt.getLabelAccess()
-                        .getSlots());
+                        .getSlots(outPos, outSide, getLabelPositionHolder()));
                 for (int slot : accessibleSlots) {
                     ItemStack outStack = outInv.getStackInSlot(slot);
                     if (outStack != null && observedSlots.add(slot)
@@ -961,9 +1110,6 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
     private void transferFluidsOnly(OutputStatement out, List<BlockPos> outPositions,
         Map<InputStatement, List<BlockPos>> inPositionsMap) {
         Map<Object, Map<ResourceLimit, TransferQuota>> outputQuotas = new HashMap<>();
-        List<ForgeDirection> outSides = out.getLabelAccess()
-            .getSides()
-            .resolveDirections();
         // Observe each destination once. Forge 1.7 tank snapshots do not expose tank identity.
         for (BlockPos pos : outPositions) {
             if (!network.isConnected(pos)) continue;
@@ -972,7 +1118,7 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
             for (FluidStack stack : InventoryUtils.getVisibleFluids(
                 tank,
                 out.getLabelAccess()
-                    .getSides())) {
+                    .getFluidSides(pos, getLabelPositionHolder()))) {
                 if (!out.getResourceLimits()
                     .matchesFluid(stack)) continue;
                 ResourceLimit limit = out.getResourceLimits()
@@ -984,10 +1130,10 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
             fluidInputQuotas = mutableIdentityMap(fluidInputQuotas);
             Map<Object, Map<ResourceLimit, TransferQuota>> sourceQuotas = fluidInputQuotas
                 .computeIfAbsent(in, k -> new HashMap<>());
-            List<ForgeDirection> sides = in.getLabelAccess()
-                .getSides()
-                .resolveDirections();
             for (BlockPos sourcePos : inPositionsMap.get(in)) {
+                List<ForgeDirection> sides = in.getLabelAccess()
+                    .getFluidSides(sourcePos, getLabelPositionHolder())
+                    .resolveDirections();
                 if (!network.isConnected(sourcePos)) continue;
                 IFluidHandler source = InventoryUtils.getFluidHandler(world, sourcePos);
                 if (source == null) continue;
@@ -1017,6 +1163,9 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
                         IFluidHandler dest = InventoryUtils.getFluidHandler(world, destPos);
                         if (dest == null || dest == source) continue;
                         TransferQuota target = quota(outputQuotas, out.isEach() ? destPos : null, outLimit);
+                        List<ForgeDirection> outSides = out.getLabelAccess()
+                            .getFluidSides(destPos, getLabelPositionHolder())
+                            .resolveDirections();
                         for (ForgeDirection destSide : outSides) {
                             int requested = (int) Math.min(remaining, target.remaining(key, true));
                             if (requested <= 0) break;

@@ -175,7 +175,7 @@ class SfmlTransferIntegrationTest {
     void transferDoesNotRegisterForgetOrSpendLegacyInputAllowance() throws Exception {
         Fixture fixture = fixture(12);
         Program program = program(
-            "EVERY 20 TICKS DO INPUT 2 FROM source " + REQUEST + "4) INTO $sent OUTPUT TO dest END");
+            "EVERY 20 TICKS DO INPUT 2 FROM \"source\" " + REQUEST + "4) INTO $sent OUTPUT TO \"dest\" END");
         program.tick(context(fixture, null));
         assertEquals(6, count(fixture.source));
         assertEquals(6, count(fixture.dest));
@@ -321,7 +321,7 @@ class SfmlTransferIntegrationTest {
     @Test
     void transferWordsKeepResourceFieldAndLegacyLabelColors() {
         String source = "TRANSFER (LABEL(\"a\"), LABEL(\"b\"), ITEM(\"*\"), 0) INTO $r\n"
-            + "INPUT minecraft:TRANSFER minecraft:INTO FROM TRANSFER OUTPUT TO INTO\n"
+            + "INPUT minecraft:TRANSFER minecraft:INTO FROM \"TRANSFER\" OUTPUT TO \"INTO\"\n"
             + "LET $x = $record.TRANSFER + $record.INTO";
         SfmlHighlighter.Highlighted text = SfmlHighlighter.highlight(source);
         assertEquals(
@@ -340,11 +340,11 @@ class SfmlTransferIntegrationTest {
                     .styleAt(i));
         }
         assertEquals(
-            SfmlHighlighter.Style.LABEL,
+            SfmlHighlighter.Style.STRING,
             text.lines.get(1)
                 .styleAt(text.lines.get(1).text.lastIndexOf("TRANSFER")));
         assertEquals(
-            SfmlHighlighter.Style.LABEL,
+            SfmlHighlighter.Style.STRING,
             text.lines.get(1)
                 .styleAt(text.lines.get(1).text.lastIndexOf("INTO")));
         assertEquals(
@@ -358,9 +358,9 @@ class SfmlTransferIntegrationTest {
     }
 
     @Test
-    void reservedSpellingsStillWorkAsLegacyLabelsAndFixedFields() {
+    void reservedSpellingsStillWorkAsQuotedLabelsAndFixedFields() {
         program(
-            "EVERY 20 TICKS DO INPUT FROM TRANSFER OUTPUT TO INTO "
+            "EVERY 20 TICKS DO INPUT FROM \"TRANSFER\" OUTPUT TO \"INTO\" "
                 + "LET $row = {TRANSFER: 1, INTO: 2} PRINT($row.TRANSFER, $row.INTO) END");
     }
 

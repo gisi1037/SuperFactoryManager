@@ -6,7 +6,7 @@ navigation:
   parent: /advanced/index.md
   keywords: ["labels", "labelgun", "names", "network", "multiple containers"]
 categories: ["sfm"]
-updated: "2026-10-30"
+updated: "2026-10-31"
 ---
 
 # Labels and cable networks
@@ -35,7 +35,9 @@ gun before changing anything.
 ## Spelling and group behavior
 
 Labels are case-sensitive. SFML keywords ignoring case does not make `Input`
-the same label as `input`. Quote spaces, punctuation and keyword-like names:
+the same label as `input`. Quote every literal label, including simple names.
+Unquoted names now mean variable references; older programs must convert.
+There is no compatibility fallback from an unknown variable to a label:
 
 ```sfml
 NAME "Quoted labels"
@@ -68,7 +70,13 @@ it does not delete saved labels.
 ## Labels as typed values
 
 `LABEL("Input chest")` creates a `LABEL_REF` selection for typed queries and
-`TRANSFER`. It does not create labels or discover disconnected blocks. A handle
+`TRANSFER`, as well as ordinary IO/HAS label operands. LABEL accepts STRING
+expressions, so `label("chest" + index)` can select numbered groups. A plain
+STRING variable is not itself a label handle. Resolved names must be nonempty,
+valid Unicode, at most 256 characters and have no surrounding whitespace.
+Computed names use the invocation's bounded label snapshot.
+
+LABEL does not create labels or discover disconnected blocks. A handle
 can select sides and slots, but coordinates returned by a snapshot do not grant
 permission to access an arbitrary block.
 

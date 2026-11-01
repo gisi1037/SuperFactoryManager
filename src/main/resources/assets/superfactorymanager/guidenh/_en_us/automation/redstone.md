@@ -19,8 +19,8 @@ In a condition, REDSTONE alone means REDSTONE > 0. `REDSTONE LEVEL >= 8` compare
 ```sfml
 NAME "One batch per manager pulse"
 EVERY REDSTONE PULSE DO
-  INPUT 8 item:minecraft:cobblestone FROM source
-  OUTPUT TO dest
+  INPUT 8 item:minecraft:cobblestone FROM "source"
+  OUTPUT TO "dest"
 END
 ```
 
@@ -36,8 +36,8 @@ EVERY REDSTONE PULSE DO
 END
 EVERY 20 TICKS DO
   IF (NOT $Lock) THEN
-    INPUT FROM chest_in
-    OUTPUT TO Ped
+    INPUT FROM "chest_in"
+    OUTPUT TO "Ped"
     SET $Lock = TRUE
   END
 END
@@ -54,9 +54,9 @@ NAME "Copy north input to east output"
 EVERY 20 TICKS DO
   LET $port = LABEL("signal").side("north")
   IF ($port.redstoneAvailable()) THEN
-    OUTPUT ($port.redstone()) REDSTONE LEVEL TO signal EAST SIDE
+    OUTPUT ($port.redstone()) REDSTONE LEVEL TO "signal" EAST SIDE
   ELSE
-    OUTPUT 0 REDSTONE LEVEL TO signal EAST SIDE
+    OUTPUT 0 REDSTONE LEVEL TO "signal" EAST SIDE
   END
 END
 ```
@@ -77,10 +77,10 @@ Typed observations may run in read-only player functions and share the invocatio
 NAME "Count named transitions"
 STATE $rises = 0
 STATE $falls = 0
-EVERY REDSTONE PULSE FROM signal NORTH SIDE DO
+EVERY REDSTONE PULSE FROM "signal" NORTH SIDE DO
   SET $rises = $rises + 1
 END
-EVERY REDSTONE FALLING FROM signal NORTH SIDE DO
+EVERY REDSTONE FALLING FROM "signal" NORTH SIDE DO
   SET $falls = $falls + 1
 END
 ```
@@ -98,7 +98,7 @@ Reliable capture requires neighbor notifications. Unnotified transitions and edg
 ```sfml
 NAME "Latch all output faces high"
 EVERY 20 TICKS DO
-  OUTPUT 15 REDSTONE LEVEL TO signal
+  OUTPUT 15 REDSTONE LEVEL TO "signal"
 END
 ```
 

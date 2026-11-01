@@ -26,7 +26,7 @@ class ItemRecoveryTest {
     }
 
     private void run(Fixture f, TileEntityManager manager) {
-        parse("EVERY 20 TICKS DO INPUT FROM source OUTPUT 1 TO dest OUTPUT 1 TO dest END")
+        parse("EVERY 20 TICKS DO INPUT FROM \"source\" OUTPUT 1 TO \"dest\" OUTPUT 1 TO \"dest\" END")
             .tick(new ProgramContext(f.world, manager, new CableNetwork(f.world, MANAGER), f.labels, 20, false));
     }
 

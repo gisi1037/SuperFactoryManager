@@ -54,7 +54,7 @@ class ManagerUpdateBenchmark {
             manager.yCoord = 64;
             if (!"idle".equals(mode)) {
                 ItemStack disk = new ItemStack(new ItemDisk());
-                ItemDisk.setProgramString(disk, "EVERY 1 TICKS DO INPUT FROM source OUTPUT 1 TO dest END");
+                ItemDisk.setProgramString(disk, "EVERY 1 TICKS DO INPUT FROM \"source\" OUTPUT 1 TO \"dest\" END");
                 LabelPositionHolder.saveTo(disk, f.labels);
                 manager.setInventorySlotContents(0, disk);
             }

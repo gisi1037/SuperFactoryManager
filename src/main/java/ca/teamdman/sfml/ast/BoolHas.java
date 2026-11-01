@@ -6,8 +6,12 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 
+import net.minecraft.inventory.IInventory;
+import net.minecraft.inventory.ISidedInventory;
+import net.minecraft.item.ItemStack;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.tileentity.TileEntityChest;
+import net.minecraftforge.common.util.ForgeDirection;
 
 import ca.teamdman.sfm.common.inventory.InventoryUtils;
 import ca.teamdman.sfm.common.program.ProgramContext;
@@ -51,7 +55,8 @@ public final class BoolHas implements BoolExpr {
         long threshold = quantity.evaluate(context);
         if (labelAccess == null) return false;
 
-        List<BlockPos> positions = labelAccess.getPositions(context.getLabelPositionHolder());
+        LabelAccess access = labelAccess.resolve(context);
+        List<BlockPos> positions = access.getPositions(context.getLabelPositionHolder());
         long overallCount = 0;
         List<Boolean> satisfactionResults = new ArrayList<>();
         Set<TileEntityChest> seenChests = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -74,18 +79,35 @@ public final class BoolHas implements BoolExpr {
             }
             long inThisBlock = 0;
             if (resourceIds.hasItemType()) {
-                inThisBlock += InventoryUtils.countMatchingItems(
-                    context.getWorld(),
-                    pos,
-                    labelAccess.getSides(),
-                    labelAccess.getSlots(),
-                    resourceIds,
-                    with,
-                    except);
+                IInventory inventory = InventoryUtils.getInventory(context.getWorld(), pos);
+                List<ForgeDirection> sides = access.getSides(pos, context.getLabelPositionHolder())
+                    .resolveDirections();
+                if (inventory != null && !sides.isEmpty()) {
+                    if (!(inventory instanceof ISidedInventory))
+                        sides = Collections.singletonList(ForgeDirection.UNKNOWN);
+                    Set<Integer> seen = new java.util.HashSet<>();
+                    for (ForgeDirection side : sides) {
+                        for (int slot : InventoryUtils.getAccessibleSlots(
+                            inventory,
+                            side,
+                            access.getSlots(pos, side, context.getLabelPositionHolder()))) {
+                            if (!seen.add(slot)) continue;
+                            ItemStack stack = inventory.getStackInSlot(slot);
+                            if (stack == null || except != null && except.matchesItem(stack)
+                                || !resourceIds.matchesItem(stack)
+                                || !with.matches(stack)) continue;
+                            inThisBlock += stack.stackSize;
+                        }
+                    }
+                }
             }
             if (resourceIds.hasFluidType()) {
-                inThisBlock += InventoryUtils
-                    .countMatchingFluids(context.getWorld(), pos, labelAccess.getSides(), resourceIds, except);
+                inThisBlock += InventoryUtils.countMatchingFluids(
+                    context.getWorld(),
+                    pos,
+                    access.getFluidSides(pos, context.getLabelPositionHolder()),
+                    resourceIds,
+                    except);
             }
 
             overallCount += inThisBlock;

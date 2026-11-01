@@ -42,6 +42,13 @@ public final class NamedRedstoneTrigger implements Trigger {
         return sideMask;
     }
 
+    public LabelAccess resolveSource(ProgramContext context) {
+        LabelAccess resolved = source.resolve(context);
+        if (resolved.hasHandleSlots())
+            throw new IllegalArgumentException("Named redstone triggers do not accept slot-qualified handles");
+        return resolved;
+    }
+
     @Override
     public Block getBlock() {
         return block;
@@ -60,10 +67,8 @@ public final class NamedRedstoneTrigger implements Trigger {
             .size(); i++) {
             if (i != 0) text.append(", ");
             text.append(
-                ca.teamdman.sfml.data.DataValue.string(
-                    source.getLabels()
-                        .get(i)
-                        .getName()));
+                source.getLabels()
+                    .get(i));
         }
         if (sideMask != 63) {
             boolean first = true;

@@ -10,6 +10,7 @@ import java.util.TreeMap;
 public final class DataType {
 
     public enum Kind {
+        VOID,
         INTEGER,
         BOOLEAN,
         STRING,
@@ -23,6 +24,14 @@ public final class DataType {
         FLUID_KEY,
         FLUID_CONTENTS
     }
+
+    /** Return marker only; never a variable, field, parameter, or stored value type. */
+    public static final DataType VOID = new DataType(
+        Kind.VOID,
+        null,
+        0,
+        Collections.emptyList(),
+        Collections.emptyList());
 
     public static final DataType INTEGER = new DataType(
         Kind.INTEGER,
@@ -100,7 +109,8 @@ public final class DataType {
         this.names = Collections.unmodifiableList(new ArrayList<>(names));
         this.fields = Collections.unmodifiableList(new ArrayList<>(fields));
         int count = 1, nesting = 1;
-        boolean persistent = kind != Kind.LABEL_REF && kind != Kind.RESOURCE_SELECTOR
+        boolean persistent = kind != Kind.VOID && kind != Kind.LABEL_REF
+            && kind != Kind.RESOURCE_SELECTOR
             && kind != Kind.ITEM_KEY
             && kind != Kind.ITEM_CONTENTS
             && kind != Kind.ITEM_LOCATIONS
@@ -143,7 +153,8 @@ public final class DataType {
     }
 
     public static DataType array(DataType element, int length) {
-        if (element == null) throw new IllegalArgumentException("Array element type required");
+        if (element == null || element == VOID)
+            throw new IllegalArgumentException("Non-void array element type required");
         return new DataType(Kind.ARRAY, element, length, Collections.emptyList(), Collections.emptyList());
     }
 
@@ -174,6 +185,7 @@ public final class DataType {
     }
 
     public static DataType struct(Map<String, DataType> fields) {
+        if (fields.containsValue(VOID)) throw new IllegalArgumentException("Struct fields cannot be void");
         TreeMap<String, DataType> sorted = new TreeMap<>(fields);
         for (String name : sorted.keySet()) if (!name.matches("[A-Za-z_][A-Za-z0-9_]*"))
             throw new IllegalArgumentException("Invalid field name: " + name);

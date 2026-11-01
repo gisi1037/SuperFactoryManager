@@ -57,7 +57,7 @@ class StudioConditionFieldsTest {
 
     @Test
     void optionalResourceInsertionAndRemovalKeepFiltersAndExclusions() {
-        String clause = "source HAS >= 2 WITH #forge:ingots/iron EXCEPT item:minecraft:dirt";
+        String clause = "\"source\" HAS >= 2 WITH #forge:ingots/iron EXCEPT item:minecraft:dirt";
         String inserted = edit(Type.IF, clause, "resource", "item:minecraft:iron_ingot");
         assertEquals(clause.replace("2 WITH", "2 item:minecraft:iron_ingot  WITH"), inserted);
         String removed = edit(Type.IF, inserted, "resource", "");
@@ -69,8 +69,8 @@ class StudioConditionFieldsTest {
 
     @Test
     void existingLegacyCompositeConditionsRemainFullClauseFallback() {
-        for (String clause : new String[] { "NOT source HAS > 0", "source HAS > 0 AND dest HAS < 8",
-            "source HAS > 0 OR dest HAS < 8", "source HAS > 0 item:iron OR", "REDSTONE", "TRUE" }) {
+        for (String clause : new String[] { "NOT \"source\" HAS > 0", "\"source\" HAS > 0 AND \"dest\" HAS < 8",
+            "\"source\" HAS > 0 OR \"dest\" HAS < 8", "\"source\" HAS > 0 item:iron OR", "REDSTONE", "TRUE" }) {
             assertTrue(
                 StudioNodeProperties.inspect(Type.IF, clause)
                     .isEmpty(),
@@ -120,20 +120,21 @@ class StudioConditionFieldsTest {
 
     @Test
     void omittedLevelUsesExistingDefaultAndTwoQuantityOrDynamicFormsStayManual() {
-        for (String clause : new String[] { "OUTPUT REDSTONE LEVEL TO signal", "TO signal OUTPUT REDSTONE LEVELS" }) {
+        for (String clause : new String[] { "OUTPUT REDSTONE LEVEL TO \"signal\"",
+            "TO \"signal\" OUTPUT REDSTONE LEVELS" }) {
             assertEquals("15", field(Type.REDSTONE, clause, "level").getValue());
             assertEquals(clause, edit(Type.REDSTONE, clause, "level", "15"));
             assertEquals(clause.replace("REDSTONE", "7 REDSTONE"), edit(Type.REDSTONE, clause, "level", "7"));
         }
-        for (String clause : new String[] { "OUTPUT 1 REDSTONE LEVEL 15 TO signal",
-            "TO signal OUTPUT 1 REDSTONE LEVEL 15", "OUTPUT (2 + 3) REDSTONE LEVEL TO signal" })
+        for (String clause : new String[] { "OUTPUT 1 REDSTONE LEVEL 15 TO \"signal\"",
+            "TO \"signal\" OUTPUT 1 REDSTONE LEVEL 15", "OUTPUT (2 + 3) REDSTONE LEVEL TO \"signal\"" })
             assertTrue(
                 StudioNodeProperties.inspect(Type.REDSTONE, clause)
                     .isEmpty(),
                 clause);
-        for (String value : new String[] { "-1", "1g", "1, 2", "15 TO stolen", "1 -- hide", "9223372036854775808" })
+        for (String value : new String[] { "-1", "1g", "1, 2", "15 TO \"stolen\"", "1 -- hide", "9223372036854775808" })
             assertThrows(
                 IllegalArgumentException.class,
-                () -> edit(Type.REDSTONE, "OUTPUT 15 REDSTONE LEVEL TO signal", "level", value));
+                () -> edit(Type.REDSTONE, "OUTPUT 15 REDSTONE LEVEL TO \"signal\"", "level", value));
     }
 }

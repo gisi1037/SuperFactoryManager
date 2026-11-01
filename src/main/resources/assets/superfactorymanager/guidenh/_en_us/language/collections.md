@@ -22,8 +22,8 @@ EVERY 20 TICKS DO
   SET $last.original = $jobs[0].amount
   SET $last.updated = $edited[0].amount
   IF ($edited[0].enabled) THEN
-    INPUT ($edited[0].amount) item:minecraft:iron_ingot FROM source
-    OUTPUT TO dest
+    INPUT ($edited[0].amount) item:minecraft:iron_ingot FROM "source"
+    OUTPUT TO "dest"
   END
 END
 ```

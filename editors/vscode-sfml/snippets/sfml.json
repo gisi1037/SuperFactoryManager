@@ -6,88 +6,131 @@
   },
   "Timer trigger": {
     "prefix": "every",
-    "body": ["every ${1:20} ticks do", "  $0", "end"],
+    "body": [
+      "every ${1:20} ticks {",
+      "  $0",
+      "}"
+    ],
     "description": "Run on the manager's running-tick timer."
   },
   "Global timer trigger": {
     "prefix": "everyglobal",
-    "body": ["every ${1:20} global plus ${2:0} ticks do", "  $0", "end"],
+    "body": [
+      "every ${1:20} global plus ${2:0} ticks {",
+      "  $0",
+      "}"
+    ],
     "description": "Run against world time with a phase offset."
   },
   "Manager redstone pulse": {
     "prefix": "pulse",
-    "body": ["every redstone pulse do", "  $0", "end"],
+    "body": [
+      "every redstone pulse {",
+      "  $0",
+      "}"
+    ],
     "description": "React to a redstone pulse at the manager."
   },
   "Named redstone trigger": {
     "prefix": "redstonetrigger",
-    "body": ["every redstone ${1|rising,falling,pulse|} from ${2:signal} do", "  $0", "end"],
+    "body": [
+      "every redstone ${1|rising,falling,pulse|} from \"${2:signal}\" {",
+      "  $0",
+      "}"
+    ],
     "description": "React to a labelled redstone port."
   },
   "Redstone output": {
     "prefix": "redstoneout",
-    "body": "output ${1:15} redstone level to ${2:signal}$0",
+    "body": "output ${1:15} redstone level to \"${2:signal}\"$0",
     "description": "Write a level to labelled redstone output ports."
   },
   "Local declaration": {
     "prefix": "let",
-    "body": "let \\$${1:value} = ${2:0}$0",
+    "body": "let ${1:value} = ${2:0}$0",
     "description": "Declare a local in a trigger, branch, loop or function block."
   },
   "Program-wide RAM declaration": {
     "prefix": "globallet",
-    "body": "let \\$${1:runs} = ${2:0}$0",
+    "body": "let ${1:runs} = ${2:0}$0",
     "description": "Place before functions/triggers; this shared binding lives in RAM."
   },
   "Persistent state declaration": {
     "prefix": "state",
-    "body": "state \\$${1:phase} = ${2:0}$0",
+    "body": "state ${1:phase} = ${2:0}$0",
     "description": "Place before functions/triggers; persistent data travels with the disk."
   },
   "Direct assignment": {
     "prefix": "assign",
-    "body": "\\$${1:value} = ${2:0}$0",
+    "body": "${1:value} = ${2:0}$0",
     "description": "Update an existing variable, field or array element."
   },
   "Conditional": {
     "prefix": "if",
-    "body": ["if (${1:true}) then", "  $0", "end"],
+    "body": [
+      "if (${1:true}) {",
+      "  $0",
+      "}"
+    ],
     "description": "Branch on a typed boolean expression."
   },
   "Conditional with else": {
     "prefix": "ifelse",
-    "body": ["if (${1:true}) then", "  ${2:-- true branch}", "else", "  $0", "end"],
+    "body": [
+      "if (${1:true}) {",
+      "  ${2:-- true branch}",
+      "} else {",
+      "  $0",
+      "}"
+    ],
     "description": "Choose between two blocks."
   },
   "Counted loop": {
     "prefix": "for",
-    "body": ["for \\$${1:i} = ${2:0} to ${3:3} step ${4:1} do", "  $0", "end"],
+    "body": [
+      "for ${1:i} = ${2:0} to ${3:3} step ${4:1} {",
+      "  $0",
+      "}"
+    ],
     "description": "Iterate an inclusive integer range under runtime work limits."
   },
   "Array or snapshot loop": {
     "prefix": "forin",
-    "body": ["for \\$${1:entry} in \\$${2:values} do", "  $0", "end"],
+    "body": [
+      "for ${1:entry} in ${2:values} {",
+      "  $0",
+      "}"
+    ],
     "description": "Iterate an array or captured contents/location sequence."
   },
   "While loop": {
     "prefix": "while",
-    "body": ["while (${1:false}) do", "  $0", "end"],
+    "body": [
+      "while (${1:false}) {",
+      "  $0",
+      "}"
+    ],
     "description": "Repeat while a condition holds, subject to shared work limits."
   },
   "Typed player function": {
     "prefix": "function",
-    "body": ["function ${1:next}(\\$${2:value}: integer) returns integer do", "  return \\$${2:value} + ${3:1}", "end", "$0"],
-    "description": "Place before triggers; player functions compute values and cannot perform effects."
+    "body": [
+      "integer ${1:next}(integer ${2:value}) {",
+      "  return ${2:value} + ${3:1};",
+      "}",
+      "$0"
+    ],
+    "description": "Typed value function, declared before triggers. Reads STATE; effects and STATE writes belong in void procedures."
   },
   "Function return": {
     "prefix": "return",
     "body": "return ${1:0}$0",
-    "description": "Return a value of the function's declared type."
+    "description": "Return a value of the declared type; void procedures use a bare return."
   },
   "Debug print": {
     "prefix": "print",
     "body": "print(${1:\"message\"})$0",
-    "description": "Print values from a trigger to the manager's debug output."
+    "description": "Print values from a trigger or void procedure to the manager's debug output."
   },
   "Label handle": {
     "prefix": "label",
@@ -106,47 +149,52 @@
   },
   "Captured item contents": {
     "prefix": "contents",
-    "body": "\\$${1:source}.contents(${2:})$0",
+    "body": "${1:source}.contents(${2:})$0",
     "description": "Capture exact item groups; optionally supply an item/ore selector."
   },
   "Visible item count": {
     "prefix": "count",
-    "body": "\\$${1:source}.count(item(\"${2:minecraft:iron_ingot}\"))$0",
+    "body": "${1:source}.count(item(\"${2:minecraft:iron_ingot}\"))$0",
     "description": "Count matching visible items; incomplete access faults."
   },
   "Empty inventory query": {
     "prefix": "empty",
-    "body": "\\$${1:source}.empty(${2:})$0",
+    "body": "${1:source}.empty(${2:})$0",
     "description": "Check for no visible matching items; missing/incomplete access returns false."
   },
   "Inventory availability query": {
     "prefix": "available",
-    "body": "\\$${1:source}.available(${2:})$0",
+    "body": "${1:source}.available(${2:})$0",
     "description": "Check supported loaded access, not stock or insertion capacity."
   },
   "Transfer all visible items": {
     "prefix": "transfer2",
-    "body": "transfer(\\$${1:source}, \\$${2:destination})$0",
-    "description": "Transfer with automatic amount; optionally append into $result."
+    "body": "transfer(${1:source}, ${2:destination})$0",
+    "description": "Transfer with automatic amount; optionally append into result."
   },
   "Transfer matching items": {
     "prefix": "transfer3",
-    "body": "transfer(\\$${1:source}, \\$${2:destination}, ${3:item(\"minecraft:iron_ingot\")})$0",
-    "description": "Transfer selected items with automatic amount; optionally append into $result."
+    "body": "transfer(${1:source}, ${2:destination}, ${3:item(\"minecraft:iron_ingot\")})$0",
+    "description": "Transfer selected items with automatic amount; optionally append into result."
   },
   "Transfer with aggregate cap": {
     "prefix": "transfer4",
-    "body": "transfer(\\$${1:source}, \\$${2:destination}, ${3:item(\"minecraft:iron_ingot\")}, ${4:16})$0",
-    "description": "Transfer up to a nonnegative aggregate amount; optionally append into $result."
+    "body": "transfer(${1:source}, ${2:destination}, ${3:item(\"minecraft:iron_ingot\")}, ${4:16})$0",
+    "description": "Transfer up to a nonnegative aggregate amount; optionally append into result."
   },
   "Capture transfer result": {
     "prefix": "into",
-    "body": "into \\$${1:result}$0",
+    "body": "into ${1:result}$0",
     "description": "Append to any transfer form to declare requested/moved/remaining/status result fields."
   },
   "One item per pedestal": {
     "prefix": "pedestals",
-    "body": ["input item:* from ${1:chestin} slots ${2:1}-${3:26}", "output 1 retain 1 item:* to each ${4:ped}", "forget", "$0"],
+    "body": [
+      "input item:* from \"${1:chestin}\" slots ${2:1}-${3:26}",
+      "output 1 retain 1 item:* to each \"${4:ped}\"",
+      "forget",
+      "$0"
+    ],
     "description": "Legacy IO: supply at most one item to each labelled pedestal, retaining a stock cap of one."
   },
   "Typed side restriction": {
@@ -173,5 +221,49 @@
     "prefix": "struct",
     "body": "{${1:count}: ${2:0}, ${3:ready}: ${4:false}}$0",
     "description": "Insert a fixed record with case-sensitive field names."
+  },
+  "Wait game ticks": {
+    "prefix": "wait",
+    "body": "wait(${1:20})$0",
+    "description": "Suspend this trigger/function stack for game ticks; other triggers continue."
+  },
+  "Set ghost circuit": {
+    "prefix": "setcircuit",
+    "body": "setcircuit(label(\"${1:machine}\"), ${2:5}) into ${3:configured}$0",
+    "description": "Select a compatible GregTech ghost circuit (1..24); 0 clears."
+  },
+  "Numbered label": {
+    "prefix": "labelnumber",
+    "body": "label(\"${1:chest}\" + ${2:index})$0",
+    "description": "Exact computed label name using a decimal integer index."
+  },
+  "Void procedure": {
+    "prefix": "void",
+    "body": [
+      "void ${1:run}(label_ref ${2:source}) {",
+      "  $0",
+      "}"
+    ],
+    "description": "Effectful procedure, declared before triggers; may update STATE and return without a value."
+  },
+  "Legacy typed player function": {
+    "prefix": "functionlegacy",
+    "body": [
+      "function ${1:next}(\\$${2:value}: integer) returns integer do",
+      "  return \\$${2:value} + ${3:1}",
+      "end",
+      "$0"
+    ],
+    "description": "Legacy FUNCTION/RETURNS spelling; optional $ variable prefixes remain supported."
+  },
+  "Void reference procedure": {
+    "prefix": "voidref",
+    "body": [
+      "void ${1:increment}(ref integer ${2:value}) {",
+      "  ${2:value} = ${2:value} + ${3:1};",
+      "}",
+      "$0"
+    ],
+    "description": "A void procedure with a writable reference parameter; invoke with increment(ref target)."
   }
 }

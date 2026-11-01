@@ -34,7 +34,7 @@ class StudioLabelRowsTest {
 
     @Test
     void invalidCellBoundariesCannotLookCleanJustBecauseJoinedTextMatchesTheOriginal() {
-        String clause = "INPUT FROM \"a, b\", c";
+        String clause = "INPUT FROM \"a, b\", \"c\"";
         Node node = new Node(UUID.randomUUID(), Type.INPUT, 0, 0, clause);
         StudioFieldDraft draft = draft(node, program(clause));
         String initial = draft.value("label");
@@ -45,7 +45,7 @@ class StudioLabelRowsTest {
         draft.setLabel(
             draft.labelRows()
                 .get(1).id,
-            "b\", c");
+            "b\", \"c\"");
         assertEquals(initial, draft.value("label"));
         assertTrue(draft.dirty());
         assertTrue(new StudioFieldDraft(draft).dirty());
@@ -57,7 +57,8 @@ class StudioLabelRowsTest {
 
     @Test
     void pickerCanRepairBlankOrInvalidPendingRowWithoutApplyingMalformedNeighbors() {
-        String clause = "INPUT FROM first,second", source = program(clause) + " " + program("OUTPUT TO dest");
+        String clause = "INPUT FROM \"first\",\"second\"",
+            source = program(clause) + " " + program("OUTPUT TO \"dest\"");
         Node node = new Node(UUID.randomUUID(), Type.INPUT, 0, 0, clause);
         for (String pending : new String[] { "", "\"unfinished", "a,b", "bad -- text" }) {
             StudioFieldDraft draft = draft(node, source);
@@ -73,8 +74,8 @@ class StudioLabelRowsTest {
             assertEquals("\"neighbor", draft.labelValue(second));
             assertThrows(IllegalArgumentException.class, () -> draft.appliedClause(PROJECT, node, source));
             assertEquals(clause, node.clause());
-            draft.setLabel(second, "second");
-            assertEquals("INPUT FROM \"dest\",second", draft.appliedClause(PROJECT, node, source));
+            draft.setLabel(second, "\"second\"");
+            assertEquals("INPUT FROM \"dest\",\"second\"", draft.appliedClause(PROJECT, node, source));
         }
     }
 
@@ -131,7 +132,7 @@ class StudioLabelRowsTest {
 
     @Test
     void editsRetainDuplicateCaseUnicodeQuotesAndEveryUnchangedLexemeAndDelimiter() {
-        String source = "Case,\t\"same\" ,  \"same\",\"Back\\\\path\", \"Escaped\\\"quote\", \"Room 🏭, 😀\"";
+        String source = "\"Case\",\t\"same\" ,  \"same\",\"Back\\\\path\", \"Escaped\\\"quote\", \"Room 🏭, 😀\"";
         StudioLabelRows rows = new StudioLabelRows(source);
         assertEquals(source, rows.source());
         assertEquals(6, rows.size());
@@ -141,7 +142,7 @@ class StudioLabelRowsTest {
                 .get(3).id,
             last = rows.rows()
                 .get(5).id;
-        rows.set(first, "Other");
+        rows.set(first, "\"Other\"");
         rows.set(middle, "\"New\\\\path\"");
         rows.set(last, "\"Last 😀\"");
         assertEquals(
@@ -167,8 +168,9 @@ class StudioLabelRowsTest {
 
     @Test
     void removalUsesFollowingDelimiterExceptFinalAndAppendAddsOnlyCommaSpace() {
-        String source = "a,\tB ,  \"C 😀\",D";
-        String[] expected = { "B ,  \"C 😀\",D", "a,\t\"C 😀\",D", "a,\tB ,  D", "a,\tB ,  \"C 😀\"" };
+        String source = "\"a\",\t\"B\" ,  \"C 😀\",\"D\"";
+        String[] expected = { "\"B\" ,  \"C 😀\",\"D\"", "\"a\",\t\"C 😀\",\"D\"", "\"a\",\t\"B\" ,  \"D\"",
+            "\"a\",\t\"B\" ,  \"C 😀\"" };
         for (int index = 0; index < 4; index++) {
             StudioLabelRows rows = new StudioLabelRows(source);
             UUID revision = rows.revision();
@@ -180,17 +182,17 @@ class StudioLabelRowsTest {
             rows.append("\"new_label\"");
             assertEquals(expected[index] + ", \"new_label\"", rows.source());
         }
-        StudioLabelRows single = new StudioLabelRows("onlyLabel");
+        StudioLabelRows single = new StudioLabelRows("\"onlyLabel\"");
         UUID id = single.rows()
             .get(0).id, revision = single.revision();
         assertThrows(IllegalArgumentException.class, () -> single.remove(id));
-        assertEquals("onlyLabel", single.source());
+        assertEquals("\"onlyLabel\"", single.source());
         assertEquals(revision, single.revision());
     }
 
     @Test
     void exactlyThirtyTwoIsEditableAndThirtyThreeStaysWholeClauseWithoutTruncation() {
-        String list = String.join(",", java.util.Collections.nCopies(32, "same"));
+        String list = String.join(",", java.util.Collections.nCopies(32, "\"same\""));
         StudioLabelRows rows = new StudioLabelRows(list);
         UUID revision = rows.revision();
         assertThrows(IllegalArgumentException.class, () -> rows.append("extra"));
@@ -199,7 +201,7 @@ class StudioLabelRowsTest {
         assertFalse(
             StudioNodeProperties.inspect(Type.INPUT, "INPUT FROM " + list)
                 .isEmpty());
-        String larger = list + ",extra";
+        String larger = list + ",\"extra\"";
         assertTrue(
             StudioNodeProperties.inspect(Type.INPUT, "INPUT FROM " + larger)
                 .isEmpty());
@@ -214,7 +216,7 @@ class StudioLabelRowsTest {
 
     @Test
     void pendingInvalidRowsCannotInjectLabelsModifiersStatementsOrPartiallyApplyCombinedFields() {
-        String clause = "INPUT 16 RETAIN 2 FROM first,second North SIDE";
+        String clause = "INPUT 16 RETAIN 2 FROM \"first\",\"second\" North SIDE";
         Node node = new Node(UUID.randomUUID(), Type.INPUT, 0, 0, clause);
         for (String bad : new String[] { "", "a,b", "a North SIDE", "a -- hide", "\"unterminated",
             "a\nOUTPUT TO stolen", "a@" }) {
@@ -232,7 +234,7 @@ class StudioLabelRowsTest {
             assertEquals("32", draft.value("amount"));
         }
         StudioFieldDraft draft = draft(node, program(clause));
-        draft.addLabel("third");
+        draft.addLabel("\"third\"");
         draft.set("resource", "item:a OR item:b");
         assertThrows(IllegalArgumentException.class, () -> draft.appliedClause(PROJECT, node, program(clause)));
         assertEquals(clause, node.clause());
@@ -241,7 +243,7 @@ class StudioLabelRowsTest {
 
     @Test
     void rowSizeAndAppendFailuresAreAtomicAndInvalidTextCanBeRetainedForCorrection() {
-        StudioLabelRows rows = new StudioLabelRows("first,second");
+        StudioLabelRows rows = new StudioLabelRows("\"first\",\"second\"");
         String before = rows.source();
         UUID revision = rows.revision();
         String huge = new String(new char[4097]).replace('\0', 'x');
@@ -268,7 +270,7 @@ class StudioLabelRowsTest {
     @Test
     void deepCopiesRetainRowIdentityRevisionAndOtherPendingFieldsWithoutSharingMutations() {
         Node node = new Node(Type.OUTPUT, 0, 0);
-        node.setClause("OUTPUT 16 RETAIN 2 TO first,second");
+        node.setClause("OUTPUT 16 RETAIN 2 TO \"first\",\"second\"");
         StudioFieldDraft original = draft(node, program(node.clause()));
         original.setLabel(
             original.labelRows()
@@ -287,8 +289,8 @@ class StudioLabelRowsTest {
         retained.setLabel(
             retained.labelRows()
                 .get(0).id,
-            "fixed");
-        retained.addLabel("third");
+            "\"fixed\"");
+        retained.addLabel("\"third\"");
         assertEquals(2, original.labelCount());
         assertEquals(3, retained.labelCount());
         assertTrue(
@@ -301,18 +303,19 @@ class StudioLabelRowsTest {
 
     @Test
     void duplicateShiftAndSameTextRemoveRecreateAbaInvalidateRowPickerBeforeMutation() {
-        String clause = "INPUT FROM same, same, same";
-        String source = program(clause) + "\n" + program("OUTPUT TO dest");
+        String clause = "INPUT FROM \"same\", \"same\", \"same\"";
+        String source = program(clause) + "\n" + program("OUTPUT TO \"dest\"");
         Node node = new Node(UUID.randomUUID(), Type.INPUT, 0, 0, clause);
         StudioFieldDraft draft = draft(node, source);
         UUID row = draft.labelRows()
             .get(1).id;
         Session picker = picker(draft, row, source, "dest");
         draft.removeLabel(row);
-        draft.addLabel("same");
-        assertEquals("same, same, same", draft.value("label")); // Value-only ownership would incorrectly pass.
+        draft.addLabel("\"same\"");
+        assertEquals("\"same\", \"same\", \"same\"", draft.value("label")); // Value-only ownership would incorrectly
+                                                                            // pass.
         assertThrows(IllegalArgumentException.class, () -> picker.choose(draft, PROJECT, node, source));
-        assertEquals("same, same, same", draft.value("label"));
+        assertEquals("\"same\", \"same\", \"same\"", draft.value("label"));
         StudioFieldDraft shifted = draft(node, source);
         UUID target = shifted.labelRows()
             .get(1).id;
@@ -321,20 +324,20 @@ class StudioLabelRowsTest {
             shifted.labelRows()
                 .get(0).id);
         assertThrows(IllegalArgumentException.class, () -> old.choose(shifted, PROJECT, node, source));
-        assertEquals("same, same", shifted.value("label"));
+        assertEquals("\"same\", \"same\"", shifted.value("label"));
     }
 
     @Test
     void rowPickerCancelAndChooseRetainOtherPendingRowsAndRejectStaleProjectSourceOrDraft() {
-        String clause = "OUTPUT 16 TO first,second";
-        String source = program(clause) + "\n" + program("INPUT FROM dest");
+        String clause = "OUTPUT 16 TO \"first\",\"second\"";
+        String source = program(clause) + "\n" + program("INPUT FROM \"dest\"");
         Node node = new Node(UUID.randomUUID(), Type.OUTPUT, 0, 0, clause);
         StudioFieldDraft draft = draft(node, source);
         draft.set("amount", "32");
         UUID row = draft.labelRows()
             .get(1).id;
         Session canceled = picker(draft, row, source, "dest");
-        assertEquals("first,second", draft.value("label"));
+        assertEquals("\"first\",\"second\"", draft.value("label"));
         assertEquals("32", draft.value("amount"));
         assertThrows(
             IllegalArgumentException.class,
@@ -342,14 +345,14 @@ class StudioLabelRowsTest {
         assertThrows(IllegalArgumentException.class, () -> canceled.choose(draft, UUID.randomUUID(), node, source));
         assertThrows(IllegalArgumentException.class, () -> canceled.choose(draft, PROJECT, node, source + " "));
         assertTrue(canceled.choose(draft, PROJECT, node, source));
-        assertEquals("first,\"dest\"", draft.value("label"));
+        assertEquals("\"first\",\"dest\"", draft.value("label"));
         assertEquals("32", draft.value("amount"));
         assertEquals(clause, node.clause());
     }
 
     @Test
     void bothOrdersAndDirectionsRetainEveryOutsideByteAllowanceAndExactLegacyNameOrder() {
-        String group = "Case,\t\"same\" , \"same\",\"Escaped\\\"quote\",\"Back\\\\path\",\"Room 🏭, 😀\"";
+        String group = "\"Case\",\t\"same\" , \"same\",\"Escaped\\\"quote\",\"Back\\\\path\",\"Room 🏭, 😀\"";
         for (Type type : new Type[] { Type.INPUT, Type.OUTPUT })
             for (boolean sourceFirst : new boolean[] { false, true }) {
                 String access = (type == Type.INPUT ? "FROM" : "TO EMPTY SLOTS IN") + " EACH "
@@ -363,13 +366,13 @@ class StudioLabelRowsTest {
                 draft.setLabel(
                     draft.labelRows()
                         .get(0).id,
-                    "Other");
-                draft.addLabel("last");
+                    "\"Other\"");
+                draft.addLabel("\"last\"");
                 String applied = draft.appliedClause(PROJECT, node, program(clause));
-                assertEquals(clause.replace(group, group.replace("Case", "Other") + ", last"), applied);
+                assertEquals(clause.replace(group, group.replace("Case", "Other") + ", \"last\""), applied);
                 Statement a = compiled(clause), b = compiled(applied);
                 assertEquals(
-                    Arrays.asList("Other", "same", "same", "Escaped\\\"quote", "Back\\\\path", "Room 🏭, 😀", "last"),
+                    Arrays.asList("Other", "same", "same", "Escaped\"quote", "Back\\path", "Room 🏭, 😀", "last"),
                     names(b));
                 assertEquals(limits(a).toString(), limits(b).toString());
                 assertEquals(
@@ -395,16 +398,16 @@ class StudioLabelRowsTest {
             draft.setLabel(
                 draft.labelRows()
                     .get(1).id,
-                "changed");
+                "\"changed\"");
             String applied = draft.appliedClause(PROJECT, node, program(clause));
-            assertEquals(clause.replace("\"b\"", "changed "), applied);
+            assertEquals(clause.replace("\"b\"", "\"changed\""), applied);
             assertEquals(Arrays.asList("a", "changed"), names(compiled(applied)));
         }
     }
 
     @Test
     void oneAtomicCombinedApplyUndoRedoKeepsNodeUuidLayoutAndFreshNavigation() {
-        String source = "-- 🏭\r\n" + program("INPUT 16 RETAIN 2 FROM first,second OUTPUT TO dest");
+        String source = "-- 🏭\r\n" + program("INPUT 16 RETAIN 2 FROM \"first\",\"second\" OUTPUT TO \"dest\"");
         StudioDocument document = new StudioDocument();
         document.load(source);
         document.openVisual();
@@ -417,7 +420,7 @@ class StudioLabelRowsTest {
         StudioSourceMap old = StudioSourceMap
             .prepare(PROJECT, document, StudioSourceMap.normalize(document.code()), false, false, false);
         StudioFieldDraft draft = draft(node, document.code());
-        draft.addLabel("third");
+        draft.addLabel("\"third\"");
         draft.set("amount", "32");
         draft.set("resource", "item:a OR item:b");
         assertThrows(IllegalArgumentException.class, () -> draft.appliedClause(PROJECT, node, document.code()));

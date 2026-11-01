@@ -56,7 +56,7 @@ class StudioLimitPromotionTest {
             for (String limit : new String[] { "item:a", "0016 EACH RETAIN 0002 EACH item:a oR item:b wItH TAG#ingot*",
                 "WITH #ingot*", "RETAIN 0002 EACH", "\"item:Room, OR 🏭\"" }) {
                     String access = (type == Type.INPUT ? "FROM" : "TO EMPTY SLOTS IN")
-                        + " EACH \"箱 🏭\",other North SIDE SLOTS 0-8";
+                        + " EACH \"箱 🏭\",\"other\" North SIDE SLOTS 0-8";
                     String action = (type == Type.INPUT ? "InPuT " : "OuTpUt ") + limit + " EXCEPT item:dirt";
                     String clause = sourceFirst ? access + "  " + action : action + "  " + access;
                     Node node = node(type, clause);
@@ -101,7 +101,7 @@ class StudioLimitPromotionTest {
             String clause = (type == Type.INPUT ? "INPUT" : "OUTPUT")
                 + " 0016 EACH RETAIN 0002 EACH item:a OR item:b wItH TAG#ingotIron EXCEPT item:dirt "
                 + (type == Type.INPUT ? "FROM" : "TO EMPTY SLOTS IN")
-                + " EACH \"source\",spare ROUND ROBIN BY BLOCK North SIDE SLOTS 0-8";
+                + " EACH \"source\",\"spare\" ROUND ROBIN BY BLOCK North SIDE SLOTS 0-8";
             Node node = node(type, clause);
             StudioFieldDraft original = draft(node);
             original.set("amount", "00020");
@@ -146,7 +146,7 @@ class StudioLimitPromotionTest {
 
     @Test
     void invalidPendingCellsAndGlobalsRefuseConversionWithoutAnyDraftMutation() {
-        String clause = "INPUT 16 RETAIN 2 item:a WITH #ingot* EXCEPT item:dirt FROM source";
+        String clause = "INPUT 16 RETAIN 2 item:a WITH #ingot* EXCEPT item:dirt FROM \"source\"";
         for (String key : new String[] { "amount", "retain", "label", "resource", "oreFilter", "exclusion", "sides",
             "slots" }) {
             Node node = node(Type.INPUT, clause);
@@ -163,7 +163,7 @@ class StudioLimitPromotionTest {
             else if (key.equals("label")) original.setLabel(
                 original.labelRows()
                     .get(0).id,
-                "a,b");
+                "\"a\",\"b\"");
             else original.set(key, "not valid!");
             String before = snapshot(original);
             assertThrows(IllegalArgumentException.class, () -> promote(original, node), key);
@@ -199,7 +199,7 @@ class StudioLimitPromotionTest {
 
     @Test
     void originalProjectNodeClauseAndSourceFencesRemainAuthoritativeAfterConversion() {
-        Node node = node(Type.INPUT, "INPUT item:a FROM source");
+        Node node = node(Type.INPUT, "INPUT item:a FROM \"source\"");
         StudioFieldDraft original = draft(node);
         assertThrows(
             IllegalArgumentException.class,
@@ -219,13 +219,15 @@ class StudioLimitPromotionTest {
         assertThrows(
             IllegalArgumentException.class,
             () -> converted.appliedClause(UUID.randomUUID(), node, program(node.clause())));
-        node.setClause("INPUT item:c FROM source");
+        node.setClause("INPUT item:c FROM \"source\"");
         assertThrows(IllegalArgumentException.class, () -> converted.appliedClause(PROJECT, node, converted.source));
     }
 
     @Test
     void retiredControlsAndOldPickersCannotOverwriteRowsButGlobalPickersStillWork() {
-        Node node = node(Type.INPUT, "INPUT 16 EACH RETAIN 2 EACH item:a WITH #ingot* EXCEPT item:dirt FROM source");
+        Node node = node(
+            Type.INPUT,
+            "INPUT 16 EACH RETAIN 2 EACH item:a WITH #ingot* EXCEPT item:dirt FROM \"source\"");
         StudioFieldDraft original = draft(node);
         StudioFieldPicker.Target target = StudioFieldPicker.resourceRowTarget(
             original,
@@ -283,7 +285,7 @@ class StudioLimitPromotionTest {
 
     @Test
     void phaseCopiesRetainModeInvalidRowsIdsAndIndependentRecoveryEdits() {
-        Node node = node(Type.OUTPUT, "OUTPUT 4 item:a TO dest");
+        Node node = node(Type.OUTPUT, "OUTPUT 4 item:a TO \"dest\"");
         StudioFieldDraft original = draft(node), typedCopy = new StudioFieldDraft(original);
         typedCopy.set("amount", "8");
         StudioFieldDraft converted = promote(typedCopy, node);
@@ -306,14 +308,14 @@ class StudioLimitPromotionTest {
                 .get(1).text);
         assertEquals("4", original.value("amount"));
         assertEquals("8", typedCopy.value("amount"));
-        assertEquals("OUTPUT 8 item:a, 2 item:b TO dest", recovered.appliedClause(PROJECT, node, recovered.source));
+        assertEquals("OUTPUT 8 item:a, 2 item:b TO \"dest\"", recovered.appliedClause(PROJECT, node, recovered.source));
         assertThrows(IllegalArgumentException.class, () -> recovered.value("amount"));
     }
 
     @Test
     void removingBlankReturnsExactSingleWithoutMaterializingDefaultsAndLastRemovalRefuses() {
         for (String limit : new String[] { "item:a", "0016 EACH item:a wItH TAG#ingot*" }) {
-            Node node = node(Type.INPUT, "INPUT " + limit + " FROM source");
+            Node node = node(Type.INPUT, "INPUT " + limit + " FROM \"source\"");
             StudioFieldDraft converted = promote(draft(node), node);
             converted.removeLimit(
                 converted.limitRows()
@@ -333,7 +335,7 @@ class StudioLimitPromotionTest {
 
     @Test
     void conversionAndCancellationDoNotEnterHistoryFinalApplyIsExactlyOneUndoRedo() {
-        String source = "-- 🏭\r\nevery 20 ticks do if source HAS > 0 then INPUT 16 item:a FROM source OUTPUT TO dest else forget end end";
+        String source = "-- 🏭\r\nevery 20 ticks do if \"source\" HAS > 0 then INPUT 16 item:a FROM \"source\" OUTPUT TO \"dest\" else forget end end";
         StudioDocument document = new StudioDocument();
         document.load(source);
         document.openVisual();
@@ -383,9 +385,9 @@ class StudioLimitPromotionTest {
 
     @Test
     void absentMultipleTrailingCommaAndUnsupportedFormsNeverImplicitlyPromote() {
-        for (String clause : new String[] { "INPUT FROM source", "INPUT item:a,item:b FROM source",
-            "INPUT item:a, FROM source", "INPUT item:a OR FROM source",
-            "INPUT " + String.join(" OR ", Collections.nCopies(33, "item:a")) + " FROM source" }) {
+        for (String clause : new String[] { "INPUT FROM \"source\"", "INPUT item:a,item:b FROM \"source\"",
+            "INPUT item:a, FROM \"source\"", "INPUT item:a OR FROM \"source\"",
+            "INPUT " + String.join(" OR ", Collections.nCopies(33, "item:a")) + " FROM \"source\"" }) {
             Node node = node(Type.INPUT, clause);
             StudioFieldDraft original = draft(node);
             assertFalse(original.canAddIndependentLimit(), clause);
@@ -394,27 +396,27 @@ class StudioLimitPromotionTest {
         assertThrows(
             IllegalArgumentException.class,
             () -> StudioNodeProperties
-                .updateIndependentLimits(Type.INPUT, "INPUT item:a FROM source", "item:a,item:b"));
+                .updateIndependentLimits(Type.INPUT, "INPUT item:a FROM \"source\"", "item:a,item:b"));
         assertEquals(
-            "INPUT item:a,item:b FROM source",
-            StudioNodeProperties.promoteSingleLimit(Type.INPUT, "INPUT item:a FROM source", "item:a,item:b"));
+            "INPUT item:a,item:b FROM \"source\"",
+            StudioNodeProperties.promoteSingleLimit(Type.INPUT, "INPUT item:a FROM \"source\"", "item:a,item:b"));
         assertThrows(
             IllegalArgumentException.class,
-            () -> StudioNodeProperties.promoteSingleLimit(Type.INPUT, "INPUT FROM source", "item:a,item:b"));
+            () -> StudioNodeProperties.promoteSingleLimit(Type.INPUT, "INPUT FROM \"source\"", "item:a,item:b"));
         assertThrows(
             IllegalArgumentException.class,
             () -> StudioNodeProperties
-                .promoteSingleLimit(Type.INPUT, "INPUT item:a,item:b FROM source", "item:c,item:d"));
+                .promoteSingleLimit(Type.INPUT, "INPUT item:a,item:b FROM \"source\"", "item:c,item:d"));
     }
 
     @Test
     void pendingEditsThatRemoveExplicitLimitRefuseWithoutLosingTypedDraft() {
-        Node node = node(Type.INPUT, "INPUT item:a FROM source");
+        Node node = node(Type.INPUT, "INPUT item:a FROM \"source\"");
         StudioFieldDraft original = draft(node);
         original.removeResource(
             original.resourceRows()
                 .get(0).id);
-        assertEquals("INPUT  FROM source", original.appliedClause(PROJECT, node, original.source));
+        assertEquals("INPUT  FROM \"source\"", original.appliedClause(PROJECT, node, original.source));
         UUID revision = original.resourceRevision();
         assertThrows(IllegalArgumentException.class, () -> promote(original, node));
         assertEquals(0, original.resourceCount());
@@ -424,7 +426,7 @@ class StudioLimitPromotionTest {
 
     @Test
     void deepPendingOrInjectedSyntaxIsGuardedBeforeConversionAndQuotedTextRemainsLiteral() {
-        Node node = node(Type.INPUT, "INPUT 16 item:a WITH #ingot* FROM source");
+        Node node = node(Type.INPUT, "INPUT 16 item:a WITH #ingot* FROM \"source\"");
         String left = String.join("", Collections.nCopies(1500, "("));
         String right = String.join("", Collections.nCopies(1500, ")"));
         for (String pending : new String[] { left + "1" + right,
@@ -447,15 +449,15 @@ class StudioLimitPromotionTest {
         assertThrows(
             IllegalArgumentException.class,
             () -> StudioNodeProperties
-                .singleLimitText(Type.INPUT, "INPUT " + left + "1" + right + " item:a FROM source"));
+                .singleLimitText(Type.INPUT, "INPUT " + left + "1" + right + " item:a FROM \"source\""));
         String quoted = "\"item:" + left + right + "\"";
-        Node literal = node(Type.INPUT, "INPUT " + quoted + " FROM source");
+        Node literal = node(Type.INPUT, "INPUT " + quoted + " FROM \"source\"");
         assertEquals(quoted, first(promote(draft(literal), literal)));
     }
 
     @Test
     void promotedRowsRetainCapsRemovedIdsPartitionsAndFinalValidation() {
-        Node node = node(Type.INPUT, "INPUT item:a FROM source");
+        Node node = node(Type.INPUT, "INPUT item:a FROM \"source\"");
         StudioFieldDraft converted = promote(draft(node), node);
         UUID blank = converted.limitRows()
             .get(1).id;

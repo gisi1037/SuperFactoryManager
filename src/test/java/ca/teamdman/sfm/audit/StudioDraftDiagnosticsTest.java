@@ -33,7 +33,7 @@ class StudioDraftDiagnosticsTest {
 
     @Test
     void fieldsCancelRefreshesValidDiagnosticsWithoutApplyingPendingValuesOrWritingHistory() {
-        String source = "-- 🏭\r\nEVERY 20 TICKS DO INPUT FROM source END";
+        String source = "-- 🏭\r\nEVERY 20 TICKS DO INPUT FROM \"source\" END";
         StudioDocument document = document(source);
         document.openVisual();
         Node node = document.graph()
@@ -49,26 +49,26 @@ class StudioDraftDiagnosticsTest {
             StudioNodeProperties.inspect(node.type, node.clause()));
         StudioDraftDiagnostics diagnostics = new StudioDraftDiagnostics();
         assertTrue(diagnostics.check(document, false).compiled.isSuccess());
-        fields.set("label", "other");
+        fields.set("label", "\"other\"");
         diagnostics.pendingChanged(fields.dirty());
         Result pending = due(diagnostics, document, true);
         assertTrue(pending.message.startsWith("Inspector has unapplied changes"));
         assertNull(pending.compiled);
-        assertEquals("other", fields.value("label"));
+        assertEquals("\"other\"", fields.value("label"));
         assertEquals(source, document.source());
         diagnostics.pendingChanged(false);
         Result canceled = due(diagnostics, document, false);
         assertTrue(canceled.compiled.isSuccess());
         assertTrue(canceled.message.startsWith("Draft: valid"));
         assertEquals(source, document.source());
-        assertEquals("INPUT FROM source", node.clause());
+        assertEquals("INPUT FROM \"source\"", node.clause());
         assertFalse(document.undo());
         assertFalse(document.redo());
     }
 
     @Test
     void fieldsApplyRechecksActualCodeAndKeepsTheSingleGraphUndoEntry() {
-        StudioDocument document = document("EVERY 20 TICKS DO INPUT FROM source END");
+        StudioDocument document = document("EVERY 20 TICKS DO INPUT FROM \"source\" END");
         document.openVisual();
         String before = document.source();
         Node node = document.graph()
@@ -84,7 +84,7 @@ class StudioDraftDiagnosticsTest {
             document.code(),
             StudioNodeProperties.inspect(node.type, node.clause()));
         StudioDraftDiagnostics diagnostics = new StudioDraftDiagnostics();
-        fields.set("label", "other");
+        fields.set("label", "\"other\"");
         diagnostics.pendingChanged(true);
         due(diagnostics, document, true);
         String changed = fields.appliedClause(project, node, document.code());

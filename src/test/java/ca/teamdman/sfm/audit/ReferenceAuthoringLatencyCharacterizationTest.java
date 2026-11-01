@@ -130,7 +130,7 @@ class ReferenceAuthoringLatencyCharacterizationTest {
                 workspace.drainCallbacks(8);
                 assertTrue(
                     System.nanoTime() < deadline,
-                    "Contention workload failed to complete before diagnostic deadline");
+                    "Contention workload failed to \"complete\" before diagnostic deadline");
                 if (!complete(cold) || !complete(authors)) LockSupport.parkNanos(POLL_NANOS);
             } while (!complete(cold) || !complete(authors));
             long elapsed = System.nanoTime() - start;

@@ -34,7 +34,7 @@ class VscodeSfmlExtensionTest {
                 .getAsJsonObject();
         }
         assertEquals(
-            35,
+            41,
             snippets.entrySet()
                 .size(),
             "Update contexts deliberately when adding snippets");
@@ -81,6 +81,9 @@ class VscodeSfmlExtensionTest {
             case "globallet":
             case "state":
             case "function":
+            case "void":
+            case "voidref":
+            case "functionlegacy":
                 return fragment + "\nevery 20 ticks do end";
             case "every":
             case "everyglobal":
@@ -108,6 +111,8 @@ class VscodeSfmlExtensionTest {
             case "side":
             case "slots":
                 return trigger("let $example = label(\"source\")" + fragment);
+            case "labelnumber":
+                return trigger("let index = 1\nlet selected = " + fragment);
             case "transfer2":
             case "transfer3":
             case "transfer4":
@@ -122,6 +127,8 @@ class VscodeSfmlExtensionTest {
             case "while":
             case "print":
             case "pedestals":
+            case "wait":
+            case "setcircuit":
                 return trigger(fragment);
             default:
                 throw new AssertionError("Document an insertion context for snippet " + prefix);

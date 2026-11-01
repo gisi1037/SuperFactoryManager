@@ -113,8 +113,8 @@ EVERY REDSTONE PULSE DO
 END
 EVERY 20 TICKS DO
   IF (NOT $lock) THEN
-    INPUT 1 FROM source
-    OUTPUT TO dest
+    INPUT 1 FROM "source"
+    OUTPUT TO "dest"
     SET $lock = TRUE
   END
 END

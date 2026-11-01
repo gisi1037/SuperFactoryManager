@@ -25,6 +25,18 @@ public final class CountedForStatement implements Statement {
     @Override
     public void tick(ProgramContext context) {
         DataRuntime runtime = context.getDataRuntime();
+        if (context.isResumable()) {
+            context.enterLoop();
+            try {
+                ca.teamdman.sfml.data.ResumableLoops.counted(runtime, this, binding, first, last, step, () -> {
+                    body.tick(context);
+                    return null;
+                });
+            } finally {
+                context.exitLoop();
+            }
+            return;
+        }
         long current = first.evaluate(runtime)
             .asLong();
         long end = last.evaluate(runtime)

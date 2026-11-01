@@ -6,7 +6,7 @@ navigation:
   parent: /start/index.md
   keywords: ["first", "beginner", "tutorial", "chest", "retain"]
 categories: ["sfm"]
-updated: "2026-10-30"
+updated: "2026-10-31"
 ---
 
 # Your first transfer
@@ -37,10 +37,10 @@ Open the manager, choose **Program > Edit code**, and paste this complete progra
 
 ```sfml
 NAME "First transfer"
-EVERY 20 TICKS DO
-  INPUT FROM source
-  OUTPUT RETAIN 1 TO dest
-END
+every 20 ticks {
+  input from "source";
+  output retain 1 to "dest";
+}
 ```
 
 Choose **Save & Close**, wait for confirmation, then press **Start** if paused.
@@ -48,11 +48,15 @@ Choose **Save & Close**, wait for confirmation, then press **Start** if paused.
 **Expected:** after the timer runs, `source` has **7**, and `dest` has **1**.
 Remove the destination item. The next due run replaces it, leaving **6** in source.
 
+Braces group statements; semicolons are optional. The older DO/END spelling
+also works. Literal labels always need quotes. See the [language overview](/language/index.md)
+for a reusable procedure with variables and persistent progress.
+
 ## Understand the result
 
 `INPUT` chooses the source. `OUTPUT` attempts the move.
 `RETAIN 1` keeps the destination's total at **one**. If it already has one,
-nothing moves. Change it to `OUTPUT TO dest` to move all
+nothing moves. Change it to `OUTPUT TO "dest"` to move all
 eligible stock the destination can accept.
 
 `EVERY 20 TICKS` normally runs once per game second. Lag can make a game second

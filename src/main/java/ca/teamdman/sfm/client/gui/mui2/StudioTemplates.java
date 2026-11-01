@@ -5,10 +5,10 @@ public final class StudioTemplates {
 
     public enum Template {
 
-        TRANSFER("Item transfer", "EVERY 20 TICKS DO\n  INPUT FROM source\n  OUTPUT TO destination\nEND\n"),
+        TRANSFER("Item transfer", "EVERY 20 TICKS DO\n  INPUT FROM \"source\"\n  OUTPUT TO \"destination\"\nEND\n"),
         GATE("Stock gate",
-            "EVERY 20 TICKS DO\n  IF source HAS >= 1 THEN\n    INPUT FROM source\n    OUTPUT TO destination\n  END\nEND\n"),
-        PULSE("Redstone pulse", "EVERY REDSTONE PULSE DO\n  INPUT FROM source\n  OUTPUT TO destination\nEND\n");
+            "EVERY 20 TICKS DO\n  IF \"source\" HAS >= 1 THEN\n    INPUT FROM \"source\"\n    OUTPUT TO \"destination\"\n  END\nEND\n"),
+        PULSE("Redstone pulse", "EVERY REDSTONE PULSE DO\n  INPUT FROM \"source\"\n  OUTPUT TO \"destination\"\nEND\n");
 
         public final String title, source;
 

@@ -72,7 +72,7 @@ class StudioIoAllowancesTest {
         for (Type type : new Type[] { Type.INPUT, Type.OUTPUT }) for (boolean first : new boolean[] { false, true })
             for (int enabled = 0; enabled < 4; enabled++) for (int each = 0; each < 4; each++) {
                 String access = (type == Type.INPUT ? "FROM" : "TO EMPTY SLOTS IN")
-                    + " EACH \"Room 🏭\",other ROUND ROBIN BY BLOCK North,Top SIDE SLOTS 0,2-8";
+                    + " EACH \"Room 🏭\",\"other\" ROUND ROBIN BY BLOCK North,Top SIDE SLOTS 0,2-8";
                 String action = (type == Type.INPUT ? "InPuT " : "OuTpUt ") + row + " eXcEpT item:dirt,fluid:lava";
                 String clause = first ? access + "  " + action : action + "  " + access;
                 Node node = node(type, clause);
@@ -114,7 +114,7 @@ class StudioIoAllowancesTest {
             Node node = node(
                 type,
                 (type == Type.INPUT ? "INPUT" : "OUTPUT") + " item:a "
-                    + (type == Type.INPUT ? "FROM source" : "TO dest"));
+                    + (type == Type.INPUT ? "FROM \"source\"" : "TO \"dest\""));
             StudioFieldDraft draft = draft(node);
             assertFalse(draft.allowanceEnabled(Part.AMOUNT));
             assertFalse(draft.allowanceEnabled(Part.RETAIN));
@@ -148,7 +148,7 @@ class StudioIoAllowancesTest {
 
     @Test
     void enabledBlankRefusesDisabledLatentStateSurvivesCopiesAndReenableRestoresExactSyntax() {
-        Node node = node(Type.INPUT, "INPUT 0016 eAcH \tReTaIn 0002 eAcH item:a FROM source");
+        Node node = node(Type.INPUT, "INPUT 0016 eAcH \tReTaIn 0002 eAcH item:a FROM \"source\"");
         StudioFieldDraft original = draft(node);
         for (Part part : Part.values()) original.setAllowanceEnabled(part, false);
         assertFalse(
@@ -167,7 +167,7 @@ class StudioIoAllowancesTest {
         assertFalse(copy.dirty());
         assertEquals(node.clause(), apply(copy, node));
         assertFalse(original.allowanceEnabled(Part.AMOUNT));
-        Node absentNumber = node(Type.INPUT, "INPUT item:a FROM source");
+        Node absentNumber = node(Type.INPUT, "INPUT item:a FROM \"source\"");
         StudioFieldDraft blank = draft(absentNumber);
         blank.setAllowanceEnabled(Part.RETAIN, true);
         assertEquals("", blank.allowanceText(Part.RETAIN));
@@ -181,13 +181,15 @@ class StudioIoAllowancesTest {
         for (Part part : Part.values())
             for (String bad : new String[] { "", "-1", "+1", "9223372036854775808", "0x10", "1 EACH", "1,2",
                 "1 -- comment", "\n5", "5\r", "\0" + "5", String.join("", Collections.nCopies(1500, "(")) + "1" }) {
-                    Node node = node(Type.INPUT, "INPUT 16 RETAIN 2 item:a WITH #ingot* EXCEPT item:dirt FROM source");
+                    Node node = node(
+                        Type.INPUT,
+                        "INPUT 16 RETAIN 2 item:a WITH #ingot* EXCEPT item:dirt FROM \"source\"");
                     StudioFieldDraft draft = draft(node);
                     draft.setAllowanceText(part, bad);
                     draft.setLabel(
                         draft.labelRows()
                             .get(0).id,
-                        "renamed");
+                        "\"renamed\"");
                     UUID labels = draft.labelRevision(), resources = draft.resourceRevision(), label = draft.labelRows()
                         .get(0).id;
                     StudioFieldDraft copy = new StudioFieldDraft(draft);
@@ -204,7 +206,7 @@ class StudioIoAllowancesTest {
                         copy.labelRows()
                             .get(0).id);
                     assertEquals(
-                        "renamed",
+                        "\"renamed\"",
                         copy.labelRows()
                             .get(0).text);
                     assertFalse(copy.hasLimitRows());
@@ -220,7 +222,7 @@ class StudioIoAllowancesTest {
                     type,
                     (type == Type.INPUT ? "INPUT " : "OUTPUT ") + row
                         + " EXCEPT item:dirt "
-                        + (type == Type.INPUT ? "FROM source" : "TO dest"));
+                        + (type == Type.INPUT ? "FROM \"source\"" : "TO \"dest\""));
                 StudioFieldDraft draft = draft(node);
                 for (Part part : Part.values()) draft.setAllowanceEnabled(part, false);
                 String changed = apply(draft, node);
@@ -252,7 +254,7 @@ class StudioIoAllowancesTest {
             String clause = (type == Type.INPUT ? "INPUT " : "OUTPUT ")
                 + "16 RETAIN 2 item:a WITH #ingot* EXCEPT item:dirt "
                 + (type == Type.INPUT ? "FROM" : "TO EMPTY SLOTS IN")
-                + " EACH source ROUND ROBIN BY BLOCK North SIDE SLOTS 0-8";
+                + " EACH \"source\" ROUND ROBIN BY BLOCK North SIDE SLOTS 0-8";
             Node node = node(type, clause);
             StudioFieldDraft draft = draft(node);
             for (Part part : Part.values()) draft.setAllowanceEnabled(part, false);
@@ -286,7 +288,7 @@ class StudioIoAllowancesTest {
                     .getAmount());
             assertFalse(apply(draft, node).contains("item:a"));
         }
-        Node selector = node(Type.INPUT, "INPUT item:a FROM source");
+        Node selector = node(Type.INPUT, "INPUT item:a FROM \"source\"");
         StudioFieldDraft insert = draft(selector);
         insert.setAllowanceEnabled(Part.AMOUNT, true);
         insert.setAllowanceText(Part.AMOUNT, "7");
@@ -298,17 +300,17 @@ class StudioIoAllowancesTest {
 
     @Test
     void legacyLiteralSettersRemainCompatibleAndNewModesCannotBypassAbsentOrManualEligibility() {
-        Node node = node(Type.INPUT, "INPUT 0016 EACH RETAIN 0002 EACH item:a FROM source");
+        Node node = node(Type.INPUT, "INPUT 0016 EACH RETAIN 0002 EACH item:a FROM \"source\"");
         StudioFieldDraft draft = draft(node);
         draft.set("amount", "8");
         draft.set("retain", "3");
         draft.set("amountEach", "false");
         draft.set("retainEach", "false");
-        assertEquals("INPUT 8  RETAIN 3  item:a FROM source", apply(draft, node));
-        for (String clause : new String[] { "INPUT item:a,item:b FROM source", "INPUT 4 item:a, FROM source",
-            "INPUT 4 item:a OR FROM source",
-            "INPUT " + String.join(" OR ", Collections.nCopies(33, "item:a")) + " FROM source",
-            "INPUT (1+2) item:a FROM source" }) {
+        assertEquals("INPUT 8  RETAIN 3  item:a FROM \"source\"", apply(draft, node));
+        for (String clause : new String[] { "INPUT item:a,item:b FROM \"source\"", "INPUT 4 item:a, FROM \"source\"",
+            "INPUT 4 item:a OR FROM \"source\"",
+            "INPUT " + String.join(" OR ", Collections.nCopies(33, "item:a")) + " FROM \"source\"",
+            "INPUT (1+2) item:a FROM \"source\"" }) {
             Node manual = node(Type.INPUT, clause);
             StudioFieldDraft old = draft(manual);
             assertFalse(old.hasIoAllowances(), clause);
@@ -323,14 +325,14 @@ class StudioIoAllowancesTest {
                 clause.replace("INPUT 4", "INPUT 8"),
                 StudioNodeProperties.update(Type.INPUT, clause, "amount", "8"));
         }
-        StudioFieldDraft initiallyOmitted = draft(node(Type.INPUT, "INPUT item:a FROM source"));
+        StudioFieldDraft initiallyOmitted = draft(node(Type.INPUT, "INPUT item:a FROM \"source\""));
         assertThrows(IllegalArgumentException.class, () -> initiallyOmitted.set("amount", "8"));
         assertThrows(IllegalArgumentException.class, () -> initiallyOmitted.set("amountEnabled", "true"));
     }
 
     @Test
     void promotionCapturesNewOptionalNumbersAndRetiresAllNumericApis() {
-        Node node = node(Type.OUTPUT, "TO dest OUTPUT item:a");
+        Node node = node(Type.OUTPUT, "TO \"dest\" OUTPUT item:a");
         StudioFieldDraft draft = draft(node);
         draft.setAllowanceEnabled(Part.AMOUNT, true);
         draft.setAllowanceText(Part.AMOUNT, "0008");
@@ -370,7 +372,7 @@ class StudioIoAllowancesTest {
 
     @Test
     void numberEditsDoNotStaleResourcePickersAndCopiesKeepIndependentPendingModes() {
-        Node node = node(Type.INPUT, "INPUT item:a FROM source");
+        Node node = node(Type.INPUT, "INPUT item:a FROM \"source\"");
         StudioFieldDraft draft = draft(node);
         StudioFieldPicker.Target target = StudioFieldPicker.resourceRowTarget(
             draft,
@@ -396,7 +398,7 @@ class StudioIoAllowancesTest {
 
     @Test
     void sourceFencesAndOneAtomicUndoRedoKeepAllGraphAndBranchIdentities() {
-        String source = "-- 🏭\r\nevery 20 ticks do if source HAS > 0 then INPUT item:a FROM source OUTPUT TO dest else forget end end";
+        String source = "-- 🏭\r\nevery 20 ticks do if \"source\" HAS > 0 then INPUT item:a FROM \"source\" OUTPUT TO \"dest\" else forget end end";
         StudioDocument document = new StudioDocument();
         document.load(source);
         document.openVisual();
@@ -470,7 +472,7 @@ class StudioIoAllowancesTest {
 
     @Test
     void aggregateBoundsAndMalformedBooleanPendingValuesRefuseWithoutChangingSource() {
-        Node node = node(Type.INPUT, "INPUT 16 EACH RETAIN 2 EACH item:a FROM source");
+        Node node = node(Type.INPUT, "INPUT 16 EACH RETAIN 2 EACH item:a FROM \"source\"");
         StudioFieldDraft draft = draft(node);
         draft.set("amountEach", "not a boolean");
         assertThrows(IllegalArgumentException.class, () -> apply(draft, node));

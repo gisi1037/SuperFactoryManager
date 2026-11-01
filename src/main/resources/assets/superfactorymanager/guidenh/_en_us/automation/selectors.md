@@ -30,11 +30,11 @@ OR puts alternatives in one allowance. Commas introduce separate limits:
 ```sfml
 NAME "Two allowances"
 EVERY 20 TICKS DO
-  INPUT 32 item:minecraft:iron_ingot OR item:minecraft:gold_ingot FROM metals
-  OUTPUT TO dest
+  INPUT 32 item:minecraft:iron_ingot OR item:minecraft:gold_ingot FROM "metals"
+  OUTPUT TO "dest"
   FORGET
-  INPUT 8 item:minecraft:iron_ingot, 4 item:minecraft:gold_ingot FROM metals
-  OUTPUT TO reserve
+  INPUT 8 item:minecraft:iron_ingot, 4 item:minecraft:gold_ingot FROM "metals"
+  OUTPUT TO "reserve"
 END
 ```
 
@@ -45,8 +45,8 @@ EXCEPT removes matches after the normal limits, before FROM or TO:
 ```sfml
 NAME "Exclude cobblestone"
 EVERY 20 TICKS DO
-  INPUT 8 item:*:* EXCEPT item:minecraft:cobblestone FROM miscellaneous
-  OUTPUT TO overflow
+  INPUT 8 item:*:* EXCEPT item:minecraft:cobblestone FROM "miscellaneous"
+  OUTPUT TO "overflow"
 END
 ```
 
@@ -55,8 +55,8 @@ WITH TAG and WITHOUT TAG refer to the 1.7.10 OreDictionary. They are not arbitra
 ```sfml
 NAME "Ore membership"
 EVERY 20 TICKS DO
-  INPUT 16 item:*:* WITH TAG ingotIron FROM supply
-  OUTPUT TO reserve
+  INPUT 16 item:*:* WITH TAG ingotIron FROM "supply"
+  OUTPUT TO "reserve"
 END
 ```
 

@@ -53,6 +53,17 @@ public class TileEntityManager extends TileEntity implements IInventory {
     private ProgramStateStore programState;
     private Program globalProgram;
     private ca.teamdman.sfml.data.ProgramGlobals programGlobals;
+    private Program executionProgram;
+    private ca.teamdman.sfml.data.ProgramExecution programExecution;
+
+    public ca.teamdman.sfml.data.ProgramExecution getProgramExecution(Program program) {
+        if (executionProgram != program || programExecution == null) {
+            executionProgram = program;
+            programExecution = new ca.teamdman.sfml.data.ProgramExecution();
+        }
+        return programExecution;
+    }
+
     private DebugConsole debugConsole;
     private ManagerExecutionProfiler executionProfiler;
     private boolean profiledDueUpdate;
@@ -71,6 +82,9 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     private void clearProgramGlobals() {
+        if (programExecution != null) programExecution.clear();
+        programExecution = null;
+        executionProgram = null;
         globalProgram = null;
         programGlobals = null;
     }

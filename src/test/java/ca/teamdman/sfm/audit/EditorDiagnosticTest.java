@@ -18,7 +18,8 @@ class EditorDiagnosticTest {
             draft.source()
                 .indexOf("1"),
             false);
-        draft.insert("\"text\" + ");
+        // STRING + INTEGER is valid concatenation; subtraction still provides a real type error.
+        draft.insert("\"text\" - ");
         String source = draft.source();
         EditorDiagnostic location = EditorDiagnostic.first(
             new ProgramBuilder(source).build()

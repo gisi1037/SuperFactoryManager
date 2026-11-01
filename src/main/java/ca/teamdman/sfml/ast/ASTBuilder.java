@@ -18,6 +18,7 @@ import ca.teamdman.sfml.data.DataType;
 public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
 
     private boolean outputLimits;
+    private boolean triggerLabel;
     private int loopDepth;
     private final DataCompiler data = new DataCompiler();
 
@@ -44,21 +45,18 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
 
         for (SFMLParser.StateDeclarationContext declaration : ctx.stateDeclaration()) {
             data.declareState(
-                declaration.VARIABLE()
-                    .getText()
-                    .substring(1),
+                variable(declaration.variableName()),
                 source(declaration.dataExpression()),
                 declaration.getStart()
                     .getLine(),
                 declaration.getStart()
                     .getCharPositionInLine());
         }
-        new ca.teamdman.sfml.data.FunctionCompiler(data).compile(ctx.functionDefinition());
+        new ca.teamdman.sfml.data.FunctionCompiler(data, statement -> (Statement) visit(statement))
+            .compile(ctx.functionDefinition());
         for (SFMLParser.DataDeclarationContext declaration : ctx.dataDeclaration()) {
             data.declareGlobal(
-                declaration.VARIABLE()
-                    .getText()
-                    .substring(1),
+                variable(declaration.variableName()),
                 source(declaration.dataExpression()),
                 declaration.getStart()
                     .getLine(),
@@ -84,7 +82,9 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
             data.isUsed(),
             data.getMaxLocals(),
             data.getFunctions(),
-            data.getGlobalDeclarations());
+            data.getGlobalDeclarations(),
+            data.hasWait(),
+            data.hasDynamicLabels());
     }
 
     @Override
@@ -110,7 +110,13 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
             || ctx.labelAccess()
                 .slotqualifier() != null)
             throw new IllegalArgumentException("Named redstone triggers do not accept round robin or slots");
-        LabelAccess source = (LabelAccess) visit(ctx.labelAccess());
+        LabelAccess source;
+        triggerLabel = true;
+        try {
+            source = (LabelAccess) visit(ctx.labelAccess());
+        } finally {
+            triggerLabel = false;
+        }
         return new NamedRedstoneTrigger(source, ctx.FALLING() != null, visitBlock(ctx.block()));
     }
 
@@ -178,6 +184,12 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
 
         if (ticks <= 0) throw new IllegalArgumentException("Interval must be positive");
         return new Interval(ticks, true, offset);
+    }
+
+    @Override
+    public ASTNode visitStatement(SFMLParser.StatementContext ctx) {
+        // The optional semicolon is punctuation, not the statement's visitor result.
+        return visit(ctx.getChild(0));
     }
 
     public Block visitBlock(SFMLParser.BlockContext ctx) {
@@ -302,11 +314,7 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
             throw new IllegalArgumentException("FOR bounds and STEP require INTEGER values");
         beginLoop();
         try {
-            DataCompiler.Binding binding = data.declareReadOnlyLocal(
-                ctx.VARIABLE()
-                    .getText()
-                    .substring(1),
-                DataType.INTEGER);
+            DataCompiler.Binding binding = data.declareReadOnlyLocal(variable(ctx.variableName()), DataType.INTEGER);
             return new CountedForStatement(binding, first, last, step, visitBlock(ctx.block()));
         } finally {
             endLoop();
@@ -321,9 +329,7 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
         beginLoop();
         try {
             DataCompiler.Binding binding = data.declareReadOnlyLocal(
-                ctx.VARIABLE()
-                    .getText()
-                    .substring(1),
+                variable(ctx.variableName()),
                 array.getType()
                     .getElementType());
             return new ArrayForStatement(binding, array, visitBlock(ctx.block()));
@@ -372,17 +378,47 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
 
     @Override
     public ASTNode visitRawLabel(SFMLParser.RawLabelContext ctx) {
-        String name = ctx.getText();
-        usedLabels.add(name);
-        return new Label(name);
+        return expressionLabel(ctx);
+    }
+
+    @Override
+    public ASTNode visitVariableLabel(SFMLParser.VariableLabelContext ctx) {
+        return expressionLabel(ctx);
+    }
+
+    @Override
+    public ASTNode visitCallLabel(SFMLParser.CallLabelContext ctx) {
+        return expressionLabel(ctx);
+    }
+
+    private Label expressionLabel(ParserRuleContext ctx) {
+        try {
+            return new Label(
+                triggerLabel ? data.compileInstant(
+                    source(ctx),
+                    ctx.getStart()
+                        .getLine(),
+                    ctx.getStart()
+                        .getCharPositionInLine())
+                    : data.compile(
+                        source(ctx),
+                        ctx.getStart()
+                            .getLine(),
+                        ctx.getStart()
+                            .getCharPositionInLine()));
+        } catch (IllegalArgumentException failure) {
+            throw new IllegalArgumentException(
+                failure.getMessage() + "; literal label names must be quoted, for example \"chest\"");
+        }
     }
 
     @Override
     public ASTNode visitStringLabel(SFMLParser.StringLabelContext ctx) {
-        String raw = ctx.string()
-            .getText();
-        String name = raw.length() >= 2 ? raw.substring(1, raw.length() - 1) : raw;
-        usedLabels.add(name);
+        // Decode escapes using the same bounded string rules as ordinary expressions.
+        String name = DataCompiler.decodeStringLiteral(
+            ctx.string()
+                .getText());
+        data.recordLiteralLabel(name);
         return new Label(name);
     }
 
@@ -625,6 +661,11 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
                         .getStopIndex()));
     }
 
+    private static String variable(SFMLParser.VariableNameContext context) {
+        String name = context.getText();
+        return name.startsWith("$") ? name.substring(1) : name;
+    }
+
     private DataExpression expression(SFMLParser.DataExpressionContext context) {
         return data.compile(
             source(context),
@@ -632,6 +673,27 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
                 .getLine(),
             context.getStart()
                 .getCharPositionInLine());
+    }
+
+    @Override
+    public ASTNode visitWaitStatement(SFMLParser.WaitStatementContext ctx) {
+        DataExpression ticks = expression(ctx.dataExpression());
+        if (ticks.getType() != DataType.INTEGER) throw new IllegalArgumentException("WAIT requires integer game ticks");
+        data.markWait();
+        return new WaitStatement(ticks);
+    }
+
+    @Override
+    public ASTNode visitCircuitStatement(SFMLParser.CircuitStatementContext ctx) {
+        DataExpression target = expression(ctx.dataExpression(0));
+        DataExpression configuration = expression(ctx.dataExpression(1));
+        if (target.getType() != DataType.LABEL_REF || configuration.getType() != DataType.INTEGER)
+            throw new IllegalArgumentException("SETCIRCUIT requires a LABEL_REF and integer configuration");
+        return new CircuitStatement(
+            target,
+            configuration,
+            ctx.variableName() == null ? null
+                : data.declareLocal(variable(ctx.variableName()), CircuitStatement.RESULT_TYPE));
     }
 
     @Override
@@ -658,25 +720,15 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
         }
         return new TransferStatement(
             arguments,
-            ctx.VARIABLE() == null ? null
-                : data.declareLocal(
-                    ctx.VARIABLE()
-                        .getText()
-                        .substring(1),
-                    TransferStatement.RESULT_TYPE),
+            ctx.variableName() == null ? null
+                : data.declareLocal(variable(ctx.variableName()), TransferStatement.RESULT_TYPE),
             fluids);
     }
 
     @Override
     public ASTNode visitDataDeclaration(SFMLParser.DataDeclarationContext ctx) {
         DataExpression value = expression(ctx.dataExpression());
-        return new DataDeclarationStatement(
-            data.declareLocal(
-                ctx.VARIABLE()
-                    .getText()
-                    .substring(1),
-                value.getType()),
-            value);
+        return new DataDeclarationStatement(data.declareLocal(variable(ctx.variableName()), value.getType()), value);
     }
 
     @Override
@@ -701,6 +753,17 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
                 + ctx.getStart()
                     .getCharPositionInLine()
                 + ": RETURN is only valid inside a FUNCTION");
+    }
+
+    @Override
+    public ASTNode visitFunctionCallStatement(SFMLParser.FunctionCallStatementContext ctx) {
+        return new FunctionCallStatement(
+            data.compileCallStatement(
+                source(ctx),
+                ctx.getStart()
+                    .getLine(),
+                ctx.getStart()
+                    .getCharPositionInLine()));
     }
 
     @Override

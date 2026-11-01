@@ -157,8 +157,8 @@ public final class StudioSourceMap {
                 bind(
                     node,
                     statement.getStart(),
-                    branch.THEN(0)
-                        .getSymbol(),
+                    (branch.THEN()
+                        .isEmpty() ? branch.LBRACE(0) : branch.THEN(0)).getSymbol(),
                     built,
                     offsets,
                     visited);

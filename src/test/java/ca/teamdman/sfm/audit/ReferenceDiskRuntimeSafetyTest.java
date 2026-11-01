@@ -104,7 +104,7 @@ class ReferenceDiskRuntimeSafetyTest {
                 ProgramDiskData.isClientPreview(
                     client.getDisk()
                         .copy()),
-                "Preview provenance is never copied to physical media");
+                "Preview provenance is never copied to \"physical\" media");
             assertThrows(IllegalStateException.class, () -> ProgramDiskData.readReference(client.getDisk()));
             java.util.List<String> tooltip = new java.util.ArrayList<>();
             ((ItemDisk) client.getDisk()

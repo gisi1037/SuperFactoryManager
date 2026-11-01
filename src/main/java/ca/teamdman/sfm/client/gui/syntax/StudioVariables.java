@@ -97,7 +97,7 @@ final class StudioVariables {
             if (node instanceof SFMLParser.StateDeclarationContext) {
                 SFMLParser.StateDeclarationContext declaration = (SFMLParser.StateDeclarationContext) node;
                 if (!function && completed(declaration, position))
-                    add(names, declaration.VARIABLE(), "Persistent state");
+                    add(names, declaration.variableName(), "Persistent state");
             } else if (node instanceof SFMLParser.DataDeclarationContext) {
                 SFMLParser.DataDeclarationContext declaration = (SFMLParser.DataDeclarationContext) node;
                 boolean global = declaration.getParent() == program;
@@ -105,27 +105,27 @@ final class StudioVariables {
                     : active.contains(
                         declaration.getParent()
                             .getParent())))
-                    add(names, declaration.VARIABLE(), global ? "Program-wide variable" : "Local variable");
+                    add(names, declaration.variableName(), global ? "Program-wide variable" : "Local variable");
             } else if (node instanceof SFMLParser.FunctionParameterContext) {
                 SFMLParser.FunctionParameterContext parameter = (SFMLParser.FunctionParameterContext) node;
                 if (active.contains(parameter.getParent()) && completed(parameter, position)) add(
                     names,
-                    parameter.VARIABLE(),
+                    parameter.variableName(),
                     "Function parameter: " + parameter.dataType()
                         .getText());
             } else if (node instanceof SFMLParser.CountedForContext) {
                 SFMLParser.CountedForContext loop = (SFMLParser.CountedForContext) node;
-                if (active.contains(loop.block())) add(names, loop.VARIABLE(), "Read-only loop variable");
+                if (active.contains(loop.block())) add(names, loop.variableName(), "Read-only loop variable");
             } else if (node instanceof SFMLParser.ArrayForContext) {
                 SFMLParser.ArrayForContext loop = (SFMLParser.ArrayForContext) node;
-                if (active.contains(loop.block())) add(names, loop.VARIABLE(), "Read-only loop variable");
+                if (active.contains(loop.block())) add(names, loop.variableName(), "Read-only loop variable");
             } else if (node instanceof SFMLParser.TransferStatementContext) {
                 SFMLParser.TransferStatementContext transfer = (SFMLParser.TransferStatementContext) node;
-                if (transfer.VARIABLE() != null && completed(transfer, position)
+                if (transfer.variableName() != null && completed(transfer, position)
                     && active.contains(
                         transfer.getParent()
                             .getParent()))
-                    add(names, transfer.VARIABLE(), "Transfer result");
+                    add(names, transfer.variableName(), "Transfer result");
             }
         }
         return new ArrayList<>(names.values());
@@ -133,6 +133,7 @@ final class StudioVariables {
 
     private static boolean declarationSite(TerminalNode target) {
         ParseTree parent = target.getParent();
+        if (parent instanceof SFMLParser.VariableNameContext) parent = parent.getParent();
         return parent instanceof SFMLParser.DataDeclarationContext
             || parent instanceof SFMLParser.StateDeclarationContext
             || parent instanceof SFMLParser.FunctionParameterContext
@@ -146,14 +147,14 @@ final class StudioVariables {
             .getStopIndex() < position;
     }
 
-    private static void add(Map<String, Entry> names, TerminalNode variable, String role) {
+    private static void add(Map<String, Entry> names, SFMLParser.VariableNameContext variable, String role) {
         String name = variable.getText();
         if (names.size() < SfmlCompletionCatalog.MAX_ENTRIES && !names.containsKey(name)) names.put(
             name,
             SfmlCompletionCatalog.variable(
                 name,
                 role + " declared on line "
-                    + variable.getSymbol()
+                    + variable.getStart()
                         .getLine()
                     + ". The compiler checks its fixed type and initializer."));
     }

@@ -7,6 +7,13 @@ import java.util.TreeMap;
 /** Immutable scalar/container values. Sharing never exposes a mutable child array. */
 public final class DataValue {
 
+    private static final DataValue VOID = new DataValue(DataType.VOID, 0, null);
+
+    /** Internal control-flow marker for a procedure's RETURN. */
+    public static DataValue voidValue() {
+        return VOID;
+    }
+
     private static final DataValue TRUE = new DataValue(DataType.BOOLEAN, 1, null);
     private static final DataValue FALSE = new DataValue(DataType.BOOLEAN, 0, null);
     private static final DataValue[] SMALL = new DataValue[385];
@@ -278,6 +285,7 @@ public final class DataValue {
 
     @Override
     public String toString() {
+        if (type == DataType.VOID) return "void";
         if (type == DataType.INTEGER) return Long.toString(scalar);
         if (type == DataType.BOOLEAN) return scalar == 0 ? "FALSE" : "TRUE";
         if (type == DataType.STRING) return quote(text);

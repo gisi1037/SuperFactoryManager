@@ -5,12 +5,12 @@ navigation:
   position: 70
   keywords: ["sfml", "variables", "state", "let", "set"]
 categories: ["sfm", "language"]
-updated: "2026-10-30"
+updated: "2026-10-31"
 ---
 
 # Variables and persistent state
 
-`LET` declares and initializes a mutable variable. Inside a trigger/function it is local; at program scope it is shared by that manager's triggers. `$name = value` assigns an existing variable; `SET $name = value` remains accepted. Direct assignment also supports paths such as `$jobs[0].amount = 8`. Every variable reference starts with `$`.
+`LET` declares and initializes a mutable variable. Inside a trigger/function it is local; at program scope it is shared by that manager's triggers. `$name = value` assigns an existing variable; `SET $name = value` remains accepted. Direct assignment also supports paths such as `$jobs[0].amount = 8`. The `$` prefix is optional: `name` and `$name` refer to the same binding. Plain names are preferred in new programs.
 
 ```sfml
 NAME "Computed local batch"
@@ -18,21 +18,21 @@ EVERY 20 TICKS DO
   LET $batch = 8
   $batch = $batch * 2 + 4
   IF ($batch > 0) THEN
-    INPUT ($batch) item:minecraft:iron_ingot FROM source
-    OUTPUT TO dest
+    INPUT ($batch) item:minecraft:iron_ingot FROM "source"
+    OUTPUT TO "dest"
   END
 END
 ```
 
 The input allowance is twenty. The compiler infers `$batch` as `INTEGER` from its initializer, so later assignments must also be integers. There is no declaration such as `LET $batch: INTEGER`; explicit type annotations belong to function signatures.
 
-The scalar types are signed 64-bit `INTEGER`, `BOOLEAN` and immutable `STRING`. `TRUE` is a boolean, `1` is an integer, and `"1"` is a string. They do not convert automatically. Arrays, structs and typed query values also have fixed types. See [Collections](collections.md) and [Typed queries](/automation/queries.md).
+The scalar types are signed 64-bit `INTEGER`, `BOOLEAN` and immutable `STRING`. `TRUE` is a boolean, `1` is an integer, and `"1"` is a string. Assignment types do not convert automatically; string plus integer concatenation is supported. Arrays, structs and typed query values also have fixed types. See [Collections](collections.md) and [Typed queries](/automation/queries.md).
 
 Names are case-sensitive: `$Batch` and `$batch` differ. Names start with an ASCII letter or underscore and continue with letters, digits or underscores. Keywords are case-insensitive. Newlines help readability, but the grammar determines where statements end.
 
 ## Local scope
 
-A local is fresh for every trigger invocation. It becomes visible after its initializer and remains visible until the end of its enclosing `DO`, `THEN` or `ELSE` block. An inner block may `SET` an outer variable. A variable declared inside a branch is unavailable after that branch.
+A local is fresh for every trigger invocation. It becomes visible after its initializer and remains visible until the end of its enclosing brace, `DO`, `THEN` or `ELSE` block. An inner block may `SET` an outer variable. A variable declared inside a branch is unavailable after that branch.
 
 Unknown names, use before declaration, self-reference in an initializer and shadowing a visible name fail compilation. Separate triggers and sibling branches may reuse a local name. `FORGET` clears registered inputs; it does not clear variables.
 
@@ -67,12 +67,12 @@ STATE $config = { batch: 8, reserve: 16 }
 
 EVERY 20 TICKS DO
   SET $runs = $runs + 1
-  INPUT ($config.batch) RETAIN ($config.reserve) item:minecraft:iron_ingot FROM source
-  OUTPUT TO dest
+  INPUT ($config.batch) RETAIN ($config.reserve) item:minecraft:iron_ingot FROM "source"
+  OUTPUT TO "dest"
 END
 ```
 
-State names are visible to all triggers and cannot be shadowed by their locals. Completed writes are visible to later statements and other due triggers in source order. Player functions receive state through explicit arguments and return values; they cannot capture it.
+State names are visible to all triggers and cannot be shadowed by their locals. Completed writes are visible to later statements and other due triggers in source order. Player functions can read STATE directly. Only void procedures can write STATE from a function body; value-returning functions cannot. Program-wide LET and caller locals still require explicit arguments. Ordinary parameters remain values: changing one does not change the caller's binding. Void procedures may instead declare explicit REF parameters and receive writable targets via REF arguments.
 
 State belongs to the program disk. It survives pause/resume, moving the disk between managers and ordinary world save/reload. Copying a disk creates an independent snapshot. Updates are kept in memory and saved at persistence or disk movement boundaries; each `SET` does not write the disk immediately. State and external inventories do not share an atomic save transaction, so a counter cannot guarantee exactly-once delivery after a process crash.
 

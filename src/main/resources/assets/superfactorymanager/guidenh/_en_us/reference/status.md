@@ -25,10 +25,16 @@ different.
   diagnostics, logs, PRINT and a bounded inspection terminal.
 - LET locals and program-wide memory, disk-persistent STATE, strings, fixed arrays/structs, checked
   integer arithmetic, logical/bitwise expressions and bounded loops.
-- Typed read-only player functions, math/size defaults and stock helpers.
+- Typed value functions, VOID action procedures, explicit REF parameters,
+  direct STATE access, math/size defaults and stock helpers.
+- Brace or DO/THEN/END blocks, plain or `$` variables, quoted literal labels and
+  computed LABEL expressions. Old unquoted literal names must be converted.
+- Nonblocking game-tick WAIT, including nested functions, plus optional GregTech
+  ghost-circuit configuration through SETCIRCUIT.
 - Typed inventory selections, visible counts/emptiness/availability and exact
   grouped item snapshots with physical origins.
-- A standalone value-driven item TRANSFER action with confirmed progress results.
+- Standalone item TRANSFER and fluid TRANSFERF actions with confirmed progress
+  results; separate fcount/fempty/favailable/fcontents observations use mB.
 - Private Programming Station drafts with remembered projects, revision validation,
   immutable root-source builds and reference-disk imprinting.
 - A normal Manager inventory with inline diagnostics, live variable watches and
@@ -61,7 +67,7 @@ remain separate work.
 
 ## Planned, not callable today
 
-- Effectful user actions and reusable published libraries.
+- Reusable published libraries and imports.
 - Server recipe candidates/requirements, machine recipe-map resolution and
   optional NEI selection tools. GuideNH displaying a crafting recipe is separate
   from an SFML recipe-query API.

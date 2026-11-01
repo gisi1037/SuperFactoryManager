@@ -14,9 +14,9 @@ INPUT registers a source declaration for later OUTPUT statements in the current 
 ```sfml
 NAME "Priority then overflow"
 EVERY 20 TICKS DO
-  INPUT 16 item:minecraft:iron_ingot FROM supply
-  OUTPUT RETAIN 8 item:minecraft:iron_ingot TO priority
-  OUTPUT item:minecraft:iron_ingot TO overflow
+  INPUT 16 item:minecraft:iron_ingot FROM "supply"
+  OUTPUT RETAIN 8 item:minecraft:iron_ingot TO "priority"
+  OUTPUT item:minecraft:iron_ingot TO "overflow"
 END
 ```
 
@@ -31,7 +31,7 @@ The basic statement forms are:
 ```text
 INPUT [limits] [EXCEPT selectors] FROM [EACH] labels [access modifiers]
 OUTPUT [limits] [EXCEPT selectors] TO [EACH] labels [access modifiers]
-OUTPUT [limits] TO EMPTY SLOTS IN labels [access modifiers]
+OUTPUT [limits] TO EMPTY SLOTS IN "labels" [access modifiers]
 ```
 
 Leave limits out to allow all matching resources the endpoints can move. Prefer an explicit item/fluid filter where both handler types may be present. Quantities are maxima; a batch may partially complete. Missing labels, disconnected blocks, no active input, an exhausted allowance, empty source, full destination or a refusing machine can produce zero movement.
@@ -44,8 +44,8 @@ For computed limits, put an integer expression in parentheses:
 NAME "Computed batch"
 EVERY 20 TICKS DO
   LET $batch = 4 * 2
-  INPUT ($batch) item:minecraft:iron_ingot FROM supply
-  OUTPUT RETAIN (16 + $batch) item:minecraft:iron_ingot TO reserve
+  INPUT ($batch) item:minecraft:iron_ingot FROM "supply"
+  OUTPUT RETAIN (16 + $batch) item:minecraft:iron_ingot TO "reserve"
 END
 ```
 

@@ -37,7 +37,7 @@ class ProgramContextLazyTransferStorageTest {
     void dataRedstoneAndForgetWithoutInputsDoNotMaterializeTransferCollections() throws Exception {
         Program program = parse(
             "EVERY 20 TICKS DO LET $count = 1 SET $count = $count + 1 "
-                + "OUTPUT ($count) REDSTONE LEVEL TO signal NORTH SIDE FORGET signal FORGET END");
+                + "OUTPUT ($count) REDSTONE LEVEL TO \"signal\" NORTH SIDE FORGET \"signal\" FORGET END");
         ProgramContext context = new ProgramContext(null, null, null, new LabelPositionHolder(), 20, false);
         assertUnmaterialized(context);
         program.tick(context);
@@ -51,7 +51,7 @@ class ProgramContextLazyTransferStorageTest {
     void forgetRetainsPrivateMaterializedCachesWhileFreshContextsGetFreshQuotas() throws Exception {
         Fixture fixture = new Fixture();
         fixture.stock(0, 8);
-        Program program = parse("EVERY 20 TICKS DO INPUT 1 FROM source OUTPUT 3 TO dest FORGET source END");
+        Program program = parse("EVERY 20 TICKS DO INPUT 1 FROM \"source\" OUTPUT 3 TO \"dest\" FORGET \"source\" END");
         List<Statement> statements = program.getTriggers()
             .get(0)
             .getBlock()

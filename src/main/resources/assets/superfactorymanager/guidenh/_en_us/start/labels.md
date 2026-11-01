@@ -6,7 +6,7 @@ navigation:
   parent: /start/index.md
   keywords: ["labels", "labelgun", "names", "source", "dest"]
 categories: ["sfm"]
-updated: "2026-10-30"
+updated: "2026-10-31"
 item_ids: ["superfactorymanager:labelgun"]
 ---
 
@@ -39,6 +39,9 @@ Insert the disk in the manager. Right-click that manager with the Label Gun
 Editing the gun afterward does not automatically update the disk.
 
 Labels are case-sensitive. Use `source` and `dest` exactly as shown.
+In source code, write these literal labels as `"source"` and `"dest"`, including
+after FROM/TO and in HAS conditions. Bare names are variable references; older
+programs must add quotes or declare a LABEL_REF. There is no literal fallback.
 Both chests still need a cable connection.
 
 **Next: [run your first transfer](first-transfer.md).**

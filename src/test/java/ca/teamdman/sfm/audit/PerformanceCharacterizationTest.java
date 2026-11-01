@@ -76,8 +76,8 @@ class PerformanceCharacterizationTest {
         f.world.tiles.put(SRC, source);
         f.world.tiles.put(DST, destination);
         CableNetwork network = new CableNetwork(f.world, MANAGER);
-        StringBuilder text = new StringBuilder("EVERY 1 TICKS DO INPUT FROM source ");
-        for (int i = 0; i < outputs; i++) text.append("OUTPUT 1 TO dest ");
+        StringBuilder text = new StringBuilder("EVERY 1 TICKS DO INPUT FROM \"source\" ");
+        for (int i = 0; i < outputs; i++) text.append("OUTPUT 1 TO \"dest\" ");
         Program program = parse(
             text.append("END")
                 .toString());
@@ -196,7 +196,7 @@ class PerformanceCharacterizationTest {
             ItemStack disk = new ItemStack(new ItemDisk());
             ItemDisk.setProgramString(
                 disk,
-                "EVERY " + (due ? 1 : 1200) + " TICKS DO INPUT FROM source OUTPUT 1 TO dest END");
+                "EVERY " + (due ? 1 : 1200) + " TICKS DO INPUT FROM \"source\" OUTPUT 1 TO \"dest\" END");
             LabelPositionHolder.saveTo(disk, labels);
             manager.setInventorySlotContents(0, disk);
             manager.updateEntity(); // Compilation and initial discovery are excluded from this warm scenario.

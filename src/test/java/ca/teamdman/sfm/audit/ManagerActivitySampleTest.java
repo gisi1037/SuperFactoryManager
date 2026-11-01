@@ -97,7 +97,7 @@ class ManagerActivitySampleTest {
         assertEquals(Phase.PAUSED, phase(true, false, false, true, false, "Published reference awaiting activation"));
         assertEquals(
             Phase.UNAVAILABLE,
-            phase(true, false, false, true, false, "Published program unavailable; use Run to retry"));
+            phase(true, false, false, true, false, "Published program unavailable; use Run to \"retry\""));
         assertEquals(Phase.UNAVAILABLE, phase(true, true, false, false, false, null));
     }
 

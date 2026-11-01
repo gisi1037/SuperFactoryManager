@@ -107,7 +107,7 @@ public final class StudioNodeProperties {
                 Field labelField = new Field(
                     "label",
                     "Port labels",
-                    "1–32 ordered literal labels. Physical sides remain unchanged.",
+                    "1–32 ordered quoted label names. Physical sides remain unchanged.",
                     FieldType.LABEL,
                     labels.label(0)
                         .getStart(),
@@ -191,7 +191,7 @@ public final class StudioNodeProperties {
                     new Field(
                         "label",
                         "Inventory labels",
-                        "Ordered literal label rows; set operator, sides and slots are retained.",
+                        "Ordered quoted label names; set operator, sides and slots are retained.",
                         FieldType.LABEL,
                         has.labelAccess()
                             .label(0)
@@ -255,7 +255,7 @@ public final class StudioNodeProperties {
                     new Field(
                         "label",
                         "Destination labels",
-                        "Ordered literal label rows; EACH, round robin and side/slot modifiers stay.",
+                        "Ordered quoted label names; EACH, round robin and side/slot modifiers stay.",
                         FieldType.LABEL,
                         output.labelAccess()
                             .label(0)
@@ -360,7 +360,7 @@ public final class StudioNodeProperties {
                 new Field(
                     "label",
                     type == Type.INPUT ? "Source label" : "Destination label",
-                    "Ordered literal label rows. Duplicates/case are retained; this edits references, not block bindings.",
+                    "Ordered quoted label names. Duplicates/case are retained; this edits references, not block bindings.",
                     FieldType.LABEL,
                     labels.label(0)
                         .getStart(),

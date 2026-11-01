@@ -21,7 +21,7 @@ import ca.teamdman.sfml.ast.RoundRobin;
 
 class ExecutableSaveReuseTest {
 
-    private static final String SOURCE = "EVERY 20 TICKS DO INPUT 1 FROM source ROUND ROBIN BY BLOCK OUTPUT TO dest END";
+    private static final String SOURCE = "EVERY 20 TICKS DO INPUT 1 FROM \"source\" ROUND ROBIN BY BLOCK OUTPUT TO \"dest\" END";
 
     @Test
     void comparisonIgnoresOnlyNonExecutableTokensAndRejectsLexicalErrors() {

@@ -14,13 +14,13 @@ IF chooses which statements run. Write IF, a condition, THEN, the chosen stateme
 ```sfml
 NAME "Stock-based priority"
 EVERY 20 TICKS DO
-  INPUT 8 item:minecraft:iron_ingot FROM supply
-  IF priority HAS < 16 item:minecraft:iron_ingot THEN
-    OUTPUT RETAIN 16 item:minecraft:iron_ingot TO priority
-  ELSE IF reserve HAS < 32 item:minecraft:iron_ingot THEN
-    OUTPUT RETAIN 32 item:minecraft:iron_ingot TO reserve
+  INPUT 8 item:minecraft:iron_ingot FROM "supply"
+  IF "priority" HAS < 16 item:minecraft:iron_ingot THEN
+    OUTPUT RETAIN 16 item:minecraft:iron_ingot TO "priority"
+  ELSE IF "reserve" HAS < 32 item:minecraft:iron_ingot THEN
+    OUTPUT RETAIN 32 item:minecraft:iron_ingot TO "reserve"
   ELSE
-    OUTPUT TO overflow
+    OUTPUT TO "overflow"
   END
 END
 ```
@@ -46,9 +46,9 @@ Boolean conditions support TRUE, FALSE, NOT, AND, OR and parentheses. AND and OR
 ```sfml
 NAME "Supply and signal"
 EVERY 20 TICKS DO
-  IF (supply HAS >= 8 item:minecraft:iron_ingot) AND (REDSTONE > 0) THEN
-    INPUT 8 item:minecraft:iron_ingot FROM supply
-    OUTPUT TO dest
+  IF ("supply" HAS >= 8 item:minecraft:iron_ingot) AND (REDSTONE > 0) THEN
+    INPUT 8 item:minecraft:iron_ingot FROM "supply"
+    OUTPUT TO "dest"
   END
 END
 ```

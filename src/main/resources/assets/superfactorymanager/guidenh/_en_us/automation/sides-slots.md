@@ -14,8 +14,8 @@ The side is the accessed block's physical face. It does not refer to the manager
 ```sfml
 NAME "Explicit access"
 EVERY 20 TICKS DO
-  INPUT 8 item:minecraft:iron_ingot FROM source TOP SIDE SLOTS 0-8
-  OUTPUT TO dest BOTTOM SIDE SLOT 1
+  INPUT 8 item:minecraft:iron_ingot FROM "source" TOP SIDE SLOTS 0-8
+  OUTPUT TO "dest" BOTTOM SIDE SLOT 1
 END
 ```
 
@@ -28,8 +28,8 @@ TO EMPTY SLOTS IN prevents an item output from topping up occupied slots:
 ```sfml
 NAME "Empty slots only"
 EVERY 20 TICKS DO
-  INPUT 8 item:minecraft:iron_ingot FROM source
-  OUTPUT TO EMPTY SLOTS IN dest TOP SIDE SLOTS 0-8
+  INPUT 8 item:minecraft:iron_ingot FROM "source"
+  OUTPUT TO EMPTY SLOTS IN "dest" TOP SIDE SLOTS 0-8
 END
 ```
 
@@ -40,8 +40,8 @@ ROUND ROBIN BY BLOCK chooses one unique block from the supplied labels whenever 
 ```sfml
 NAME "Rotate blocks"
 EVERY 20 TICKS DO
-  INPUT 4 item:minecraft:cobblestone FROM source
-  OUTPUT TO machines ROUND ROBIN BY BLOCK
+  INPUT 4 item:minecraft:cobblestone FROM "source"
+  OUTPUT TO "machines" ROUND ROBIN BY BLOCK
 END
 ```
 

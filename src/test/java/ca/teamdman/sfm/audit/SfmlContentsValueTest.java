@@ -41,7 +41,7 @@ class SfmlContentsValueTest {
         assertTrue(DataType.ITEM_CONTENTS.isSequence());
         assertTrue(DataType.ITEM_LOCATIONS.isSequence());
         assertEquals(1, DataType.ITEM_CONTENTS.getCellCount());
-        assertEquals(0, DataType.ITEM_CONTENTS.getLength(), "Type has no padded array length");
+        assertEquals(0, DataType.ITEM_CONTENTS.getLength(), "\"Type\" has no padded array length");
         assertEquals(2, contents.size());
         DataValue row = contents.get(0);
         assertEquals(DataType.ITEM_CONTENTS.getElementType(), row.getType());

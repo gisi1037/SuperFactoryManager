@@ -82,7 +82,7 @@ class SfmlItemQueryIntegrationTest {
         Program program = program(
             "STATE $result = {before:0, after:0, available:FALSE} EVERY 20 TICKS DO "
                 + "LET $src = LABEL(\"source\") LET $all = ITEM(\"*\") "
-                + "SET $result.before = $src.count($all) INPUT 2 FROM source OUTPUT TO dest "
+                + "SET $result.before = $src.count($all) INPUT 2 FROM \"source\" OUTPUT TO \"dest\" "
                 + "SET $result.after = $src.count($all) SET $result.available = $src.available($all) END");
         Memory state = new Memory(program);
         program.tick(context(fixture, state, 20));
@@ -113,7 +113,7 @@ class SfmlItemQueryIntegrationTest {
         AuditRegressionTest.Fixture fixture = new AuditRegressionTest.Fixture();
         Program program = program(
             "STATE $result = {legacy:FALSE, typed:TRUE, guarded:FALSE} EVERY 20 TICKS DO "
-                + "IF missing HAS = 0 THEN SET $result.legacy = TRUE END "
+                + "IF \"missing\" HAS = 0 THEN SET $result.legacy = TRUE END "
                 + "LET $src = LABEL(\"missing\") LET $all = ITEM(\"*\") "
                 + "SET $result.typed = $src.empty($all) "
                 + "IF ($src.available($all) AND $src.count($all) > 0) THEN SET $result.guarded = TRUE END END");
@@ -158,10 +158,10 @@ class SfmlItemQueryIntegrationTest {
             error.getMessage()
                 .contains("budget exhausted"),
             error.getMessage());
-        assertEquals(2, state.value.asLong(), "No partial result from the third query may publish its SET");
+        assertEquals(2, state.value.asLong(), "No partial result from \"the\" third query may publish its SET");
         assertThrows(IllegalArgumentException.class, () -> program.tick(context(fixture, state, 40)));
         assertEquals(4, state.value.asLong(), "A new invocation receives a new budget");
-        fixture.run("IF large HAS = 0 THEN FORGET END"); // Legacy HAS has no new query cutoff.
+        fixture.run("IF \"large\" HAS = 0 THEN FORGET END"); // Legacy HAS has no new query cutoff.
     }
 
     @Test

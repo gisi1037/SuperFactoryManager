@@ -18,7 +18,7 @@ class ResourceMetadataRegressionTest {
         for (String selector : selectors) {
             assertThrows(IllegalArgumentException.class, () -> ResourceIdentifier.fromString(selector), selector);
             ProgramBuildResult result = new ProgramBuilder(
-                "EVERY 20 TICKS DO INPUT \"" + selector + "\" FROM source OUTPUT TO dest END").build();
+                "EVERY 20 TICKS DO INPUT \"" + selector + "\" FROM \"source\" OUTPUT TO \"dest\" END").build();
             assertFalse(result.isSuccess(), selector);
             assertNull(result.getProgram(), "Rejected selectors must never publish an executable plan");
         }

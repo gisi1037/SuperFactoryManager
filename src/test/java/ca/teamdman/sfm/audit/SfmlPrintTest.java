@@ -213,7 +213,7 @@ class SfmlPrintTest {
             .setEnabled(true);
         Program program = build(
             "STATE $done = 0 EVERY 20 TICKS DO " + "PRINT(\"before\", LABEL(\"source\").count(ITEM(\"*\")), $done) "
-                + "INPUT 2 FROM source OUTPUT TO dest SET $done = $done + 1 "
+                + "INPUT 2 FROM \"source\" OUTPUT TO \"dest\" SET $done = $done + 1 "
                 + "PRINT(\"after\", LABEL(\"source\").count(ITEM(\"*\")), $done) END").getProgram();
         ProgramContext context = context(fixture, manager);
         Memory state = new Memory();
@@ -252,7 +252,7 @@ class SfmlPrintTest {
 
     @Test
     void printTokenStillWorksAsLegacyLabelResourceAndTypedStructField() {
-        ProgramBuildResult legacy = build("EVERY 20 TICKS DO INPUT PRINT FROM PRINT OUTPUT TO PRINT END");
+        ProgramBuildResult legacy = build("EVERY 20 TICKS DO INPUT PRINT FROM \"PRINT\" OUTPUT TO \"PRINT\" END");
         assertEquals(
             Collections.singleton("PRINT"),
             legacy.getProgram()

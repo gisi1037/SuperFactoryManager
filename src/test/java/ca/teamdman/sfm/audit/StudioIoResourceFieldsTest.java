@@ -164,7 +164,7 @@ class StudioIoResourceFieldsTest {
             for (boolean sourceFirst : new boolean[] { false, true }) for (String limit : new String[] { "", "16",
                 "RETAIN 3 EACH", "16 EACH RETAIN 3 EACH", "WITH #forge:ingots", "WITHOUT #forge:dusts" }) {
                     String keyword = type == Type.INPUT ? "INPUT" : "OUTPUT",
-                        access = type == Type.INPUT ? "FROM source" : "TO EMPTY SLOTS IN EACH dest";
+                        access = type == Type.INPUT ? "FROM \"source\"" : "TO EMPTY SLOTS IN EACH \"dest\"";
                     String action = keyword + (limit.isEmpty() ? "" : " " + limit) + " EXCEPT item:minecraft:dirt";
                     String clause = sourceFirst ? access + " " + action : action + " " + access;
                     assertEquals("", resource(type, clause).getValue(), clause);
@@ -216,7 +216,7 @@ class StudioIoResourceFieldsTest {
             sameAllowancesAndFilters(limits(clause), limits(removed));
         }
         for (Type type : new Type[] { Type.INPUT, Type.OUTPUT }) {
-            String clause = type == Type.INPUT ? "INPUT * FROM source" : "OUTPUT * TO dest";
+            String clause = type == Type.INPUT ? "INPUT * FROM \"source\"" : "OUTPUT * TO \"dest\"";
             sameAllowancesAndFilters(limits(clause), limits(edit(type, clause, "")));
             assertEquals("*", resource(type, clause).getValue());
         }
@@ -227,7 +227,7 @@ class StudioIoResourceFieldsTest {
         for (Type type : new Type[] { Type.INPUT, Type.OUTPUT }) for (String selector : new String[] {
             "16 item:a, 2 RETAIN 1 item:b", "16 item:a OR", "16 item:a,", "WITH #a,", "16," }) {
                 String clause = (type == Type.INPUT ? "INPUT " : "OUTPUT ") + selector
-                    + (type == Type.INPUT ? " FROM source" : " TO dest");
+                    + (type == Type.INPUT ? " FROM \"source\"" : " TO \"dest\"");
                 compiled(clause);
                 assertNull(resource(type, clause), clause);
                 assertThrows(IllegalArgumentException.class, () -> edit(type, clause, "item:c"));
@@ -238,13 +238,13 @@ class StudioIoResourceFieldsTest {
                             f -> f.getKey()
                                 .equals("label")));
             }
-        assertNotNull(resource(Type.INPUT, "INPUT FROM first,second"));
+        assertNotNull(resource(Type.INPUT, "INPUT FROM \"first\",\"second\""));
     }
 
     @Test
     void injectedValuesFailAtomicallyWhileFluidAndMetadataRemainValidManualSelectors() {
         for (Type type : new Type[] { Type.INPUT, Type.OUTPUT }) {
-            String clause = type == Type.INPUT ? "INPUT 16 FROM source" : "OUTPUT RETAIN 2 TO dest";
+            String clause = type == Type.INPUT ? "INPUT 16 FROM \"source\"" : "OUTPUT RETAIN 2 TO \"dest\"";
             for (String value : new String[] { "item:a OR item:b", "item:a,", "item:a WITH #tag",
                 "item:a EXCEPT item:b", "item:a -- hide", "item:a\nOUTPUT TO stolen", "item:a\0", "\"unfinished",
                 "item:a@" }) assertThrows(IllegalArgumentException.class, () -> edit(type, clause, value), value);
@@ -255,7 +255,7 @@ class StudioIoResourceFieldsTest {
 
     @Test
     void pickerChooseIsPendingAndOneApplyUndoRetainsSourceGraphUuidAndOtherPendingFields() {
-        String source = "-- 🏭\r\nEVERY 20 TICKS DO INPUT 16 RETAIN 2 FROM source OUTPUT TO dest END";
+        String source = "-- 🏭\r\nEVERY 20 TICKS DO INPUT 16 RETAIN 2 FROM \"source\" OUTPUT TO \"dest\" END";
         StudioDocument document = new StudioDocument();
         document.load(source);
         document.openVisual();

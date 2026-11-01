@@ -50,7 +50,7 @@ class GuideNhNativeParsingTest {
                 .sorted()
                 .collect(Collectors.toList());
         }
-        assertEquals(40, pages.size(), "Unexpected guide corpus size");
+        assertEquals(41, pages.size(), "Unexpected guide corpus size");
         int navigationCount = 0;
         int sfmlCount = 0;
         int imageCount = 0;
@@ -197,8 +197,8 @@ class GuideNhNativeParsingTest {
                 }
             }
         }
-        assertEquals(40, navigationCount, "Every page must supply navigation");
-        assertEquals(53, sfmlCount, "Every complete program must remain a native sfml Code node");
+        assertEquals(41, navigationCount, "Every page must supply navigation");
+        assertEquals(58, sfmlCount, "Every complete program must remain a native sfml Code node");
         assertEquals(12, imageCount, "Tutorial and reference item icons must remain native MDX elements");
         assertEquals(3, blockImageCount, "Home/editor/station block previews must remain native MDX elements");
     }

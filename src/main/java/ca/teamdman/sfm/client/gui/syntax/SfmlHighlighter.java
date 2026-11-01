@@ -3,8 +3,10 @@ package ca.teamdman.sfm.client.gui.syntax;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.Token;
@@ -131,8 +133,22 @@ public final class SfmlHighlighter {
             return isNamedRedstoneEdge(tokens, index) ? Style.FLOW : Style.LABEL;
         if (type == SFMLLexer.FUNCTION || type == SFMLLexer.RETURNS || type == SFMLLexer.RETURN)
             return isFunctionFlow(tokens, index, functionNames) ? Style.FLOW : Style.LABEL;
-        if (type == SFMLLexer.TRANSFER || type == SFMLLexer.TRANSFERF) return Style.LABEL; // Calls were already
-                                                                                           // classified above.
+        if (type == SFMLLexer.TRANSFER || type == SFMLLexer.TRANSFERF || type == SFMLLexer.SETCIRCUIT)
+            return Style.LABEL; // Calls were already
+        // classified above.
+        if (type == SFMLLexer.WAIT) {
+            int after = nextVisible(tokens, index);
+            if (after < tokens.size()) {
+                int next = tokens.get(after)
+                    .getType();
+                if (next == SFMLLexer.LPAREN || next == SFMLLexer.NUMBER
+                    || next == SFMLLexer.VARIABLE
+                    || next == SFMLLexer.DASH
+                    || next == SFMLLexer.PLUS
+                    || next == SFMLLexer.BIT_NOT) return Style.FLOW;
+            }
+            return Style.LABEL;
+        }
         if (type == SFMLLexer.INTO) {
             int before = previousVisible(tokens, index), after = nextVisible(tokens, index);
             return before >= 0 && tokens.get(before)
@@ -154,6 +170,9 @@ public final class SfmlHighlighter {
             case SFMLLexer.NUMBER_WITH_G_SUFFIX:
                 return Style.NUMBER;
             case SFMLLexer.IDENTIFIER:
+                int before = previousVisible(tokens, index);
+                return before >= 0 && tokens.get(before)
+                    .getType() == SFMLLexer.DOT ? Style.LABEL : Style.VARIABLE;
             case SFMLLexer.PRINT:
                 return Style.LABEL;
             case SFMLLexer.COLON:
@@ -161,6 +180,8 @@ public final class SfmlHighlighter {
                 return Style.RESOURCE;
             case SFMLLexer.TRANSFER:
             case SFMLLexer.TRANSFERF:
+            case SFMLLexer.SETCIRCUIT:
+            case SFMLLexer.WAIT:
             case SFMLLexer.INPUT:
             case SFMLLexer.OUTPUT:
             case SFMLLexer.FORGET:
@@ -303,7 +324,8 @@ public final class SfmlHighlighter {
             || word.equals("ITEM_CONTENTS")
             || word.equals("ITEM_LOCATIONS")
             || word.equals("FLUID_KEY")
-            || word.equals("FLUID_CONTENTS"))) return false;
+            || word.equals("FLUID_CONTENTS")
+            || word.equals("VOID"))) return false;
         return context.functionHeader[index];
     }
 
@@ -320,9 +342,41 @@ public final class SfmlHighlighter {
     /** Keep the old nearest-keyword rules, but visit each token once instead of rescanning every prefix. */
     private static Context findContext(List<? extends Token> tokens, boolean[] functionNames) {
         Context result = new Context(tokens.size());
+        // Type-first declarations have no FUNCTION marker. Restrict keyword colors to a complete header.
+        for (int first = 0; first < tokens.size(); first++) {
+            if (!typeWord(
+                tokens.get(first)
+                    .getText()))
+                continue;
+            int name = nextVisible(tokens, first);
+            while (name < tokens.size() && tokens.get(name)
+                .getType() == SFMLLexer.LBRACKET) {
+                int length = nextVisible(tokens, name),
+                    close = length < tokens.size() ? nextVisible(tokens, length) : tokens.size();
+                if (close >= tokens.size() || tokens.get(length)
+                    .getType() != SFMLLexer.NUMBER
+                    || tokens.get(close)
+                        .getType() != SFMLLexer.RBRACKET)
+                    break;
+                name = nextVisible(tokens, close);
+            }
+            if (name >= tokens.size() || !functionNames[name]) continue;
+            int open = name;
+            while (open < tokens.size() && tokens.get(open)
+                .getType() != SFMLLexer.LPAREN) open++;
+            int close = open + 1;
+            while (close < tokens.size() && tokens.get(close)
+                .getType() != SFMLLexer.RPAREN) close++;
+            int body = close < tokens.size() ? nextVisible(tokens, close) : tokens.size();
+            if (body >= tokens.size()) continue;
+            int kind = tokens.get(body)
+                .getType();
+            if (kind != SFMLLexer.DO && kind != SFMLLexer.THEN && kind != SFMLLexer.LBRACE) continue;
+            Arrays.fill(result.functionHeader, first, body, true);
+        }
         boolean function = false, countedFor = false, hasTo = false;
         for (int i = 0; i < tokens.size(); i++) {
-            result.functionHeader[i] = function;
+            result.functionHeader[i] |= function;
             result.countedStep[i] = countedFor && hasTo;
             Token token = tokens.get(i);
             if (token.getChannel() != Token.DEFAULT_CHANNEL) continue;
@@ -336,7 +390,9 @@ public final class SfmlHighlighter {
             if (type == SFMLLexer.FOR) {
                 int after = nextVisible(tokens, i);
                 countedFor = after < tokens.size() && tokens.get(after)
-                    .getType() == SFMLLexer.VARIABLE;
+                    .getType() == SFMLLexer.VARIABLE || after < tokens.size()
+                        && tokens.get(after)
+                            .getType() == SFMLLexer.IDENTIFIER;
                 hasTo = false;
             } else if (type == SFMLLexer.TO) hasTo = true;
             else if (type == SFMLLexer.DO || type == SFMLLexer.END
@@ -352,6 +408,31 @@ public final class SfmlHighlighter {
     /** Classify each dotted chain once instead of walking it again for every word. */
     private static boolean[] findFunctionNames(List<? extends Token> tokens) {
         boolean[] names = new boolean[tokens.size()];
+        Set<String> bindings = new HashSet<>();
+        for (int i = 0; i < tokens.size(); i++) {
+            int kind = tokens.get(i)
+                .getType();
+            int next = nextVisible(tokens, i);
+            if ((kind == SFMLLexer.LET || kind == SFMLLexer.STATE || kind == SFMLLexer.FOR) && next < tokens.size())
+                bindings.add(
+                    tokens.get(next)
+                        .getText());
+            if (typeWord(
+                tokens.get(i)
+                    .getText())
+                && next < tokens.size()
+                && tokens.get(next)
+                    .getType() == SFMLLexer.IDENTIFIER) {
+                int after = nextVisible(tokens, next);
+                if (after < tokens.size() && (tokens.get(after)
+                    .getType() == SFMLLexer.COMMA
+                    || tokens.get(after)
+                        .getType() == SFMLLexer.RPAREN))
+                    bindings.add(
+                        tokens.get(next)
+                            .getText());
+            }
+        }
         for (int first = 0; first < tokens.size(); first++) {
             if (!isFunctionIdentifier(
                 tokens.get(first)
@@ -378,6 +459,10 @@ public final class SfmlHighlighter {
                         tokens.get(word)
                             .getType());
                 }
+                if (first != last && bindings.contains(
+                    tokens.get(first)
+                        .getText()))
+                    names[first] = false;
             }
             first = last;
         }
@@ -389,7 +474,23 @@ public final class SfmlHighlighter {
             || type == SFMLLexer.FALLING
             || type == SFMLLexer.TRANSFER
             || type == SFMLLexer.TRANSFERF
+            || type == SFMLLexer.WAIT
+            || type == SFMLLexer.SETCIRCUIT
             || type == SFMLLexer.INTO;
+    }
+
+    private static boolean typeWord(String text) {
+        String name = text.toUpperCase(Locale.ROOT);
+        return name.equals("INTEGER") || name.equals("BOOLEAN")
+            || name.equals("STRING")
+            || name.equals("VOID")
+            || name.equals("LABEL_REF")
+            || name.equals("RESOURCE_SELECTOR")
+            || name.equals("ITEM_KEY")
+            || name.equals("FLUID_KEY")
+            || name.equals("ITEM_CONTENTS")
+            || name.equals("ITEM_LOCATIONS")
+            || name.equals("FLUID_CONTENTS");
     }
 
     private static boolean isNamedRedstoneEdge(List<? extends Token> tokens, int index) {
@@ -446,13 +547,14 @@ public final class SfmlHighlighter {
         switch (tokens.get(index)
             .getType()) {
             case SFMLLexer.FOR:
-                return next == SFMLLexer.VARIABLE;
+                return next == SFMLLexer.VARIABLE || next == SFMLLexer.IDENTIFIER;
             case SFMLLexer.WHILE:
                 if (previous == SFMLLexer.FROM || previous == SFMLLexer.TO
                     || previous == SFMLLexer.EACH
                     || previous == SFMLLexer.COMMA
                     || previous == SFMLLexer.FORGET) return false;
                 return next == SFMLLexer.LPAREN || next == SFMLLexer.TRUE
+                    || next == SFMLLexer.STRING
                     || next == SFMLLexer.FALSE
                     || next == SFMLLexer.NOT
                     || next == SFMLLexer.REDSTONE
@@ -508,6 +610,8 @@ public final class SfmlHighlighter {
         switch (type) {
             case SFMLLexer.TRANSFER:
             case SFMLLexer.TRANSFERF:
+            case SFMLLexer.SETCIRCUIT:
+            case SFMLLexer.WAIT:
             case SFMLLexer.INTO:
             case SFMLLexer.IDENTIFIER:
             case SFMLLexer.LET:

@@ -32,11 +32,27 @@ public final class CompiledFunction {
 
         @Override
         public DataValue execute(DataRuntime runtime) {
-            for (Command command : commands) {
-                runtime.work(1);
-                DataValue returned = command.execute(runtime);
-                if (returned != null) return returned;
+            if (!runtime.isResumable()) {
+                for (Command command : commands) {
+                    runtime.work(1);
+                    DataValue returned = command.execute(runtime);
+                    if (returned != null) return returned;
+                }
+                return null;
             }
+            Continuation flow = runtime.continuation();
+            Continuation.Progress cursor = flow.progress(this);
+            while (cursor.index < commands.size()) {
+                Command command = commands.get(cursor.index);
+                runtime.work(1);
+                DataValue returned = flow.command(command, () -> command.execute(runtime));
+                if (returned != null) {
+                    flow.finish(this);
+                    return returned;
+                }
+                cursor.index++;
+            }
+            flow.finish(this);
             return null;
         }
     }
@@ -44,16 +60,44 @@ public final class CompiledFunction {
     private final String name, source;
     private final List<String> parameterNames;
     private final List<DataType> parameterTypes;
+    private final List<Boolean> referenceParameters;
+    private final boolean hasReferenceParameters;
     private final DataType returnType;
     private final Set<CompiledFunction> calls = new LinkedHashSet<>();
     private final Set<String> referencedLabels = new LinkedHashSet<>();
     private Body body;
     private int localCount;
+    private boolean mayWait;
+
+    void markWait() {
+        mayWait = true;
+    }
+
+    public boolean mayWait() {
+        return mayWait;
+    }
+
+    void inheritWait() {
+        for (CompiledFunction called : calls) mayWait |= called.mayWait;
+    }
 
     CompiledFunction(String name, List<String> names, List<DataType> types, DataType returnType, String source) {
+        this(name, names, types, Collections.nCopies(types.size(), false), returnType, source);
+    }
+
+    CompiledFunction(String name, List<String> names, List<DataType> types, List<Boolean> references,
+        DataType returnType, String source) {
+        if (references.size() != types.size() || names.size() != types.size())
+            throw new IllegalArgumentException("Function parameter metadata mismatch");
+        boolean ref = false;
+        for (Boolean reference : references) ref |= Boolean.TRUE.equals(reference);
+        if (ref && returnType != DataType.VOID)
+            throw new IllegalArgumentException("Only VOID procedures accept ref parameters");
         this.name = name;
         this.parameterNames = Collections.unmodifiableList(new ArrayList<>(names));
         this.parameterTypes = Collections.unmodifiableList(new ArrayList<>(types));
+        this.referenceParameters = Collections.unmodifiableList(new ArrayList<>(references));
+        hasReferenceParameters = ref;
         this.returnType = returnType;
         this.source = source;
     }
@@ -72,6 +116,18 @@ public final class CompiledFunction {
 
     public DataType getReturnType() {
         return returnType;
+    }
+
+    public boolean isReferenceParameter(int index) {
+        return Boolean.TRUE.equals(referenceParameters.get(index));
+    }
+
+    public boolean hasReferenceParameters() {
+        return hasReferenceParameters;
+    }
+
+    public List<Boolean> getReferenceParameters() {
+        return referenceParameters;
     }
 
     void calls(CompiledFunction function) {
@@ -94,24 +150,33 @@ public final class CompiledFunction {
 
     void seal(Body body, int localCount) {
         if (this.body != null) throw new IllegalStateException("Function is already sealed");
-        if (!body.alwaysReturns())
+        if (returnType != DataType.VOID && !body.alwaysReturns())
             throw new IllegalArgumentException("Function " + name + " must RETURN on every path");
         this.body = body;
         this.localCount = localCount;
     }
 
-    DataValue invoke(DataRuntime caller, DataValue[] arguments) {
-        DataRuntime frame = caller.enterFunction(localCount);
+    DataValue invoke(DataRuntime caller, DataValue[] arguments, Object call) {
+        return invoke(caller, arguments, null, call);
+    }
+
+    DataValue invoke(DataRuntime caller, DataValue[] arguments, DataReference[] references, Object call) {
+        DataRuntime frame = references == null ? caller.functionFrame(call, localCount, arguments)
+            : caller.functionFrame(call, localCount, arguments, references);
+        boolean sleeping = false;
         try {
-            for (int i = 0; i < arguments.length; i++) frame.write(false, i, arguments[i]);
             DataValue value = body.execute(frame);
+            if (value == null && returnType == DataType.VOID) return DataValue.voidValue();
             if (value == null || !returnType.equals(value.getType()))
                 throw new IllegalStateException("Compiled function return contract violated: " + name);
             return value;
+        } catch (Continuation.Pause pause) {
+            sleeping = true;
+            throw pause;
         } catch (IllegalArgumentException ex) {
             throw new IllegalArgumentException("In function " + name + ": " + ex.getMessage());
         } finally {
-            frame.exitFunction();
+            caller.leaveFunction(call, frame, sleeping);
         }
     }
 

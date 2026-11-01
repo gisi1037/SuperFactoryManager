@@ -21,7 +21,9 @@ public final class VisualCapabilityReport {
         ELSE_IF,
         GRAPH_LIMIT,
         SOURCE_FIDELITY,
-        TRANSFER_STATEMENT
+        TRANSFER_STATEMENT,
+        WAIT_STATEMENT,
+        CIRCUIT_STATEMENT
     }
 
     public static final class Blocker {

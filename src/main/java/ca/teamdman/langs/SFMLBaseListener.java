@@ -102,6 +102,26 @@ public class SFMLBaseListener implements SFMLListener {
      * </p>
      */
     @Override
+    public void enterVariableName(SFMLParser.VariableNameContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitVariableName(SFMLParser.VariableNameContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
     public void enterDataType(SFMLParser.DataTypeContext ctx) {}
 
     /**
@@ -162,6 +182,26 @@ public class SFMLBaseListener implements SFMLListener {
      * </p>
      */
     @Override
+    public void enterFunctionArgument(SFMLParser.FunctionArgumentContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitFunctionArgument(SFMLParser.FunctionArgumentContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
     public void enterReturnStatement(SFMLParser.ReturnStatementContext ctx) {}
 
     /**
@@ -173,6 +213,26 @@ public class SFMLBaseListener implements SFMLListener {
      */
     @Override
     public void exitReturnStatement(SFMLParser.ReturnStatementContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterFunctionCallStatement(SFMLParser.FunctionCallStatementContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitFunctionCallStatement(SFMLParser.FunctionCallStatementContext ctx) {}
 
     /**
      * {@inheritDoc}
@@ -1342,6 +1402,46 @@ public class SFMLBaseListener implements SFMLListener {
      * </p>
      */
     @Override
+    public void enterVariableLabel(SFMLParser.VariableLabelContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitVariableLabel(SFMLParser.VariableLabelContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterCallLabel(SFMLParser.CallLabelContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitCallLabel(SFMLParser.CallLabelContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
     public void enterEmptyslots(SFMLParser.EmptyslotsContext ctx) {}
 
     /**
@@ -1433,6 +1533,46 @@ public class SFMLBaseListener implements SFMLListener {
      */
     @Override
     public void exitDataAssignment(SFMLParser.DataAssignmentContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterCircuitStatement(SFMLParser.CircuitStatementContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitCircuitStatement(SFMLParser.CircuitStatementContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterWaitStatement(SFMLParser.WaitStatementContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitWaitStatement(SFMLParser.WaitStatementContext ctx) {}
 
     /**
      * {@inheritDoc}
@@ -1773,6 +1913,26 @@ public class SFMLBaseListener implements SFMLListener {
      */
     @Override
     public void exitDataPostfix(SFMLParser.DataPostfixContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void enterDataSuffix(SFMLParser.DataSuffixContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitDataSuffix(SFMLParser.DataSuffixContext ctx) {}
 
     /**
      * {@inheritDoc}

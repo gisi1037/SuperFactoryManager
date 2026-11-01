@@ -33,7 +33,8 @@ class StudioPickerTest {
     @Test
     void multipleConditionFieldsApplyTogetherAndInvalidPendingValuesLeaveHistoryUntouched() {
         StudioDocument document = new StudioDocument();
-        document.load(program("IF (source HAS > 0 WITH #forge:ingots) THEN OUTPUT 9 REDSTONE LEVEL TO signal END"));
+        document
+            .load(program("IF (\"source\" HAS > 0 WITH #forge:ingots) THEN OUTPUT 9 REDSTONE LEVEL TO \"signal\" END"));
         document.openVisual();
         Node node = document.graph()
             .nodes()
@@ -59,7 +60,7 @@ class StudioPickerTest {
         String applied = draft.appliedClause(project, node, code);
         assertEquals(
             node.clause()
-                .replace("source", "\"Other 🏭\"")
+                .replace("\"source\"", "\"Other 🏭\"")
                 .replace("HAS > 0", "HAS <= 0002 item:minecraft:iron_ingot "),
             applied);
         document.editGraph(
@@ -131,14 +132,14 @@ class StudioPickerTest {
     }
 
     @Test
-    void legacyAndTypedLabelPickersPreserveTheirDistinctEscapeSemantics() {
+    void quotedAndTypedLabelPickersShareStandardStringEscapeSemantics() {
         String[] names = { "Back\\slash", "Escaped\\\"quote", "Plain\"quote", "Trailing\\", "Unicode 🏭" };
         StringBuilder source = new StringBuilder("EVERY 20 TICKS DO INPUT FROM \"Legacy\\\\path\" ");
         for (String name : names) source.append("PRINT(LABEL(")
             .append(DataValue.string(name))
             .append(")) ");
         source.append("END");
-        Target legacy = target(Type.INPUT, "INPUT FROM source", "label");
+        Target legacy = target(Type.INPUT, "INPUT FROM \"source\"", "label");
         Target typed = target(Type.TRANSFER, "TRANSFER(LaBeL(  \"old\"  ), LABEL(\"dest\"))", "source");
         Snapshot old = StudioFieldPicker.labels(source.toString(), legacy);
         Snapshot modern = StudioFieldPicker.labels(source.toString(), typed);
@@ -147,13 +148,16 @@ class StudioPickerTest {
             assertEquals("LaBeL(  " + DataValue.string(name) + "  )", selected.replacement);
             references(program("PRINT(" + selected.replacement + ")"), name);
         }
-        for (String name : new String[] { names[0], names[1], names[4], "Legacy\\\\path" }) {
+        for (String name : new String[] { names[0], names[1], names[2], names[3], names[4], "Legacy\\path" }) {
             Candidate selected = candidate(old, name);
-            assertEquals("\"" + name + "\"", selected.replacement);
+            assertEquals(
+                DataValue.string(name)
+                    .toString(),
+                selected.replacement);
             references(program("INPUT FROM " + selected.replacement), name);
         }
-        assertEquals(2, old.omitted);
-        assertFalse(
+        assertEquals(0, old.omitted);
+        assertTrue(
             old.search("Plain").entries.stream()
                 .anyMatch(c -> c.value.equals(names[2])));
         assertTrue(old.origin.contains("not live connectivity"));
@@ -172,7 +176,7 @@ class StudioPickerTest {
             "LABEL(\"s\") -- comment", "LABEL(\"s\")\n", "LABEL(\"s\"), LABEL(\"d\")", "1", "$x", "LABEL(\"s\")@" })
             assertNull(StudioFieldPicker.target(Type.TRANSFER, source, value), value);
         assertNull(target(Type.PRINT, "PRINT(LABEL(\"s\"))", "expression0"));
-        assertNotNull(target(Type.IF, "source HAS > 0", "resource"));
+        assertNotNull(target(Type.IF, "\"source\" HAS > 0", "resource"));
     }
 
     @Test
@@ -208,20 +212,20 @@ class StudioPickerTest {
         assertEquals(8192, reads.get());
         assertThrows(IllegalArgumentException.class, () -> snapshot.search(new String(new char[97])));
         assertThrows(UnsupportedOperationException.class, () -> snapshot.search("").entries.clear());
-        Target legacy = target(Type.IF, "source HAS > 0", "resource");
+        Target legacy = target(Type.IF, "\"source\" HAS > 0", "resource");
         Snapshot old = StudioFieldPicker.items(Arrays.asList("Mod:Item", "minecraft:iron_ingot"), legacy);
         assertEquals("\"item:Mod:Item\"", candidate(old, "Mod:Item").replacement);
-        StudioNodeProperties.update(Type.IF, "source HAS > 0", "resource", candidate(old, "Mod:Item").replacement);
+        StudioNodeProperties.update(Type.IF, "\"source\" HAS > 0", "resource", candidate(old, "Mod:Item").replacement);
         assertTrue(old.origin.contains("metadata/NBT stay manual"));
     }
 
     @Test
     void draftLabelsAreBoundedAndInvalidSourcesDoNotProvidePartialSuggestions() {
-        Target target = target(Type.INPUT, "INPUT FROM source", "label");
+        Target target = target(Type.INPUT, "INPUT FROM \"source\"", "label");
         StringBuilder source = new StringBuilder("EVERY 20 TICKS DO ");
-        for (int i = 0; i < 300; i++) source.append("INPUT FROM label_")
+        for (int i = 0; i < 300; i++) source.append("INPUT FROM \"label_")
             .append(i)
-            .append(' ');
+            .append("\" ");
         source.append("END");
         Snapshot snapshot = StudioFieldPicker.labels(source.toString(), target);
         assertTrue(snapshot.truncated);
@@ -236,7 +240,7 @@ class StudioPickerTest {
     @Test
     void selectionAndChooseStayPendingUntilOneApplyAndUndoPreservesIdsAndExactSource() {
         StudioDocument document = new StudioDocument();
-        document.load(program("INPUT FROM source OUTPUT TO dest"));
+        document.load(program("INPUT FROM \"source\" OUTPUT TO \"dest\""));
         document.openVisual();
         Node node = document.graph()
             .nodes()
@@ -263,7 +267,7 @@ class StudioPickerTest {
         assertTrue(selected.choose(draft, project, node, code));
         assertTrue(draft.dirty());
         assertEquals(original, document.source());
-        assertEquals("INPUT FROM source", node.clause());
+        assertEquals("INPUT FROM \"source\"", node.clause());
         assertFalse(document.undo());
         StudioFieldDraft retained = new StudioFieldDraft(draft);
         assertEquals(draft.value("label"), retained.value("label"));
@@ -300,8 +304,8 @@ class StudioPickerTest {
         BlueprintGraph graph = new BlueprintGraph();
         Node node = new Node(Type.INPUT, 0, 0);
         graph.add(node);
-        node.setClause("INPUT FROM source");
-        String source = program("INPUT FROM source OUTPUT TO dest");
+        node.setClause("INPUT FROM \"source\"");
+        String source = program("INPUT FROM \"source\" OUTPUT TO \"dest\"");
         UUID project = UUID.randomUUID();
         StudioFieldDraft draft = new StudioFieldDraft(
             project,
@@ -323,18 +327,18 @@ class StudioPickerTest {
         assertThrows(
             IllegalArgumentException.class,
             () -> session.choose(draft, project, node, source + " -- unrelated edit"));
-        node.setClause("INPUT FROM other");
+        node.setClause("INPUT FROM \"other\"");
         assertThrows(IllegalArgumentException.class, () -> session.choose(draft, project, node, source));
-        node.setClause("INPUT FROM source");
+        node.setClause("INPUT FROM \"source\"");
         Target foreign = target(node.type, node.clause(), "label");
         Snapshot other = StudioFieldPicker.labels(source, foreign);
         assertThrows(IllegalArgumentException.class, () -> new Session(draft, target, other));
         assertThrows(IllegalArgumentException.class, () -> session.select(candidate(other, "dest")));
         assertFalse(draft.dirty());
-        draft.set("label", "manual");
+        draft.set("label", "\"manual\"");
         assertThrows(IllegalArgumentException.class, () -> session.choose(draft, project, node, source));
-        assertEquals("manual", draft.value("label"));
-        assertEquals("INPUT FROM source", node.clause());
+        assertEquals("\"manual\"", draft.value("label"));
+        assertEquals("INPUT FROM \"source\"", node.clause());
         assertThrows(IllegalArgumentException.class, () -> draft.appliedClause(project, node, source + " "));
     }
 }

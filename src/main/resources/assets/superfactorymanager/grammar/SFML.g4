@@ -42,15 +42,19 @@ package ca.teamdman.langs;
     }
 }
 
-program : name? (stateDeclaration | dataDeclaration)* functionDefinition* trigger* EOF;
+program : name? ((stateDeclaration | dataDeclaration) SEMICOLON?)* (functionDefinition | trigger)* EOF;
 
-functionDefinition : FUNCTION functionName LPAREN (functionParameter (COMMA functionParameter)*)? RPAREN RETURNS dataType DO block END;
+functionDefinition : FUNCTION functionName LPAREN (functionParameter (COMMA functionParameter)*)? RPAREN RETURNS dataType (DO block END | LBRACE block RBRACE)
+                   | dataType functionName LPAREN (functionParameter (COMMA functionParameter)*)? RPAREN ((DO | THEN) block END | LBRACE block RBRACE);
 functionName : dataName (DOT dataName)*;
-functionParameter : VARIABLE COLON dataType;
+functionParameter : REF? (variableName COLON dataType | dataType variableName);
+variableName : VARIABLE | IDENTIFIER;
 dataType : (dataName | LBRACE (typeField (COMMA typeField)*)? RBRACE) (LBRACKET NUMBER RBRACKET)*;
 typeField : dataName COLON dataType;
-functionCall : functionName LPAREN (dataExpression (COMMA dataExpression)*)? RPAREN;
-returnStatement : RETURN dataExpression;
+functionCall : functionName LPAREN (functionArgument (COMMA functionArgument)*)? RPAREN;
+functionArgument : REF dataTarget | dataExpression;
+returnStatement : RETURN dataExpression?;
+functionCallStatement : functionCall;
 
 name: NAME string ;
 
@@ -58,9 +62,9 @@ name: NAME string ;
 // TRIGGERS
 //
 
-trigger : EVERY interval DO block END           #TimerTrigger
-        | EVERY REDSTONE PULSE DO block END     #PulseTrigger
-        | EVERY REDSTONE (PULSE | RISING | FALLING) FROM labelAccess DO block END #NamedRedstoneTrigger
+trigger : EVERY interval (DO block END | LBRACE block RBRACE)           #TimerTrigger
+        | EVERY REDSTONE PULSE (DO block END | LBRACE block RBRACE)     #PulseTrigger
+        | EVERY REDSTONE (PULSE | RISING | FALLING) FROM labelAccess (DO block END | LBRACE block RBRACE) #NamedRedstoneTrigger
         ;
 
 interval: NUMBER? GLOBAL? (PLUS NUMBER)? (TICKS | TICK | SECONDS | SECOND)      # IntervalSpace
@@ -71,7 +75,9 @@ interval: NUMBER? GLOBAL? (PLUS NUMBER)? (TICKS | TICK | SECONDS | SECOND)      
 //
 
 block           : statement* ;
-statement       : dataDeclaration
+statement       : (circuitStatement
+                | waitStatement
+                | dataDeclaration
                 | dataAssignment
                 | printStatement
                 | transferStatement
@@ -83,6 +89,7 @@ statement       : dataDeclaration
                 | forStatement
                 | whileStatement
                 | forgetStatement
+                | functionCallStatement) SEMICOLON?
                 ;
 
 redstoneOutputStatement
@@ -162,10 +169,11 @@ rangeset        : range (COMMA range)*;
 range           : number (DASH number)? ;
 
 
-ifStatement     : IF boolexpr THEN block (ELSE IF boolexpr THEN block)* (ELSE block)? END;
-forStatement    : FOR VARIABLE EQ_SYMBOL dataExpression TO dataExpression (STEP dataExpression)? DO block END #CountedFor
-                | FOR VARIABLE IN dataExpression DO block END #ArrayFor;
-whileStatement  : WHILE boolexpr DO block END;
+ifStatement     : IF boolexpr THEN block (ELSE IF boolexpr THEN block)* (ELSE block)? END
+                | IF boolexpr LBRACE block RBRACE (ELSE IF boolexpr LBRACE block RBRACE)* (ELSE LBRACE block RBRACE)?;
+forStatement    : FOR variableName EQ_SYMBOL dataExpression TO dataExpression (STEP dataExpression)? (DO block END | LBRACE block RBRACE) #CountedFor
+                | FOR variableName IN dataExpression (DO block END | LBRACE block RBRACE) #ArrayFor;
+whileStatement  : WHILE boolexpr (DO block END | LBRACE block RBRACE);
 boolexpr        : TRUE                              #BooleanTrue
                 | FALSE                             #BooleanFalse
                 | LPAREN boolexpr RPAREN            #BooleanParen
@@ -208,23 +216,27 @@ setOp           : OVERALL
 labelAccess     : label (COMMA label)* roundrobin? sidequalifier? slotqualifier?;
 roundrobin      : ROUND ROBIN BY (LABEL | BLOCK);
 
-label           : (identifier)  #RawLabel
+label           : identifier dataSuffix*  #RawLabel
                 | string        #StringLabel
+                | VARIABLE dataSuffix*      #VariableLabel
+                | functionCall dataSuffix*  #CallLabel
                 ;
 
 emptyslots      : EMPTY (SLOTS | SLOT) IN ;
 
-identifier : (IDENTIFIER | TRANSFER | TRANSFERF | INTO | LET | SET | STATE | PRINT | FUNCTION | RETURNS | RETURN | FOR | WHILE | STEP | RISING | FALLING | REDSTONE | LEVEL | LEVELS | GLOBAL | SECOND | SECONDS | TOP | BOTTOM | LEFT | RIGHT | FRONT | BACK) ;
+identifier : (IDENTIFIER | WAIT | SETCIRCUIT | TRANSFER | TRANSFERF | INTO | LET | SET | STATE | PRINT | FUNCTION | RETURNS | RETURN | FOR | WHILE | STEP | RISING | FALLING | REDSTONE | LEVEL | LEVELS | GLOBAL | SECOND | SECONDS | TOP | BOTTOM | LEFT | RIGHT | FRONT | BACK) ;
 
 // Typed data expressions. Multiplication retains the legacy wildcard token.
-stateDeclaration : STATE VARIABLE EQ_SYMBOL dataExpression;
-dataDeclaration : LET VARIABLE EQ_SYMBOL dataExpression;
+stateDeclaration : STATE variableName EQ_SYMBOL dataExpression;
+dataDeclaration : LET variableName EQ_SYMBOL dataExpression;
 dataAssignment : SET? dataTarget EQ_SYMBOL dataExpression;
+circuitStatement : SETCIRCUIT LPAREN dataExpression COMMA dataExpression RPAREN (INTO variableName)?;
+waitStatement : WAIT dataExpression;
 printStatement : PRINT LPAREN dataExpression (COMMA dataExpression)* RPAREN;
 // Actions are statements: no transfer can hide inside a predicate or ordinary function call.
 transferStatement : (TRANSFER | TRANSFERF) LPAREN dataExpression COMMA dataExpression
-                    (COMMA dataExpression (COMMA dataExpression)?)? RPAREN (INTO VARIABLE)?;
-dataTarget : VARIABLE (DOT dataName | LBRACKET dataExpression RBRACKET)*;
+                    (COMMA dataExpression (COMMA dataExpression)?)? RPAREN (INTO variableName)?;
+dataTarget : variableName (DOT dataName | LBRACKET dataExpression RBRACKET)*;
 dataExpression : dataOr;
 dataOr : dataAnd (OR dataAnd)*;
 dataAnd : dataNot (AND dataNot)*;
@@ -239,15 +251,16 @@ dataAdd : dataMultiply ((PLUS | DASH) dataMultiply)*;
 dataMultiply : dataSign ((multiplyOperator | SLASH | PERCENT) dataSign)*;
 multiplyOperator : {_input.LT(1).getText().equals("*")}? IDENTIFIER;
 dataSign : (PLUS | DASH | BIT_NOT) dataSign | dataPostfix;
-dataPostfix : dataPrimary (DOT dataName (LPAREN (dataExpression (COMMA dataExpression)*)? RPAREN)?
-                         | LBRACKET dataExpression RBRACKET)*;
+dataPostfix : dataPrimary dataSuffix*;
+dataSuffix : DOT dataName (LPAREN (dataExpression (COMMA dataExpression)*)? RPAREN)?
+           | LBRACKET dataExpression RBRACKET;
 dataPrimary : NUMBER | STRING | VARIABLE | TRUE | FALSE | LPAREN dataExpression RPAREN
-            | functionCall
+            | functionCall | IDENTIFIER
             | LBRACKET (dataExpression (COMMA dataExpression)* COMMA?)? RBRACKET
             | LBRACE (dataField (COMMA dataField)* COMMA?)? RBRACE;
 dataField : dataName COLON dataExpression;
 // All legacy keyword spellings are legal fixed field names.
-dataName : IDENTIFIER | TRANSFER | TRANSFERF | INTO | LET | SET | STATE | PRINT | FUNCTION | RETURNS | RETURN | IF | THEN | ELSE | HAS | OVERALL | SOME | ONE | LONE
+dataName : IDENTIFIER | WAIT | SETCIRCUIT | TRANSFER | TRANSFERF | INTO | LET | SET | STATE | PRINT | FUNCTION | RETURNS | RETURN | IF | THEN | ELSE | HAS | OVERALL | SOME | ONE | LONE
          | TRUE | FALSE | NOT | AND | OR | GT | LT | EQ | LE | GE | FROM | TO | INPUT | OUTPUT
          | WHERE | SLOTS | SLOT | RETAIN | EACH | EXCEPT | FORGET | EMPTY | IN | WITHOUT | WITH
          | TAG | ROUND | ROBIN | BY | LABEL | BLOCK | TOP | BOTTOM | NORTH | EAST | SOUTH | WEST
@@ -265,12 +278,15 @@ number: NUMBER ;
 //
 
 // DATA STATEMENTS
+SETCIRCUIT : S E T C I R C U I T;
+WAIT : W A I T;
 TRANSFER : T R A N S F E R;
 TRANSFERF : T R A N S F E R F;
 INTO : I N T O;
 FUNCTION : F U N C T I O N;
 RETURNS : R E T U R N S;
 RETURN : R E T U R N;
+REF : R E F;
 LET : L E T;
 SET : S E T;
 STATE : S T A T E;
@@ -286,6 +302,7 @@ RBRACKET : ']';
 LBRACE : '{';
 RBRACE : '}';
 DOT : '.';
+SEMICOLON : ';';
 PERCENT : '%';
 BIT_AND : '&';
 BIT_OR : '|';

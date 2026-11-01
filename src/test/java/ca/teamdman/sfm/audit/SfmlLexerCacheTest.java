@@ -34,7 +34,7 @@ class SfmlLexerCacheTest {
     @Test
     void strictAndTolerantTokensAndErrorsMatchOriginalOnEdgeCases() {
         String[] sources = { "", "\n\r\n\t ", "EVERY 20 TICKS DO END", "eVeRy 20g PLUS 4 tIcKs Do EnD",
-            "INPUT *:* FROM a OUTPUT minecraft:iron_* TO EACH b", "-- comment \" @ $\n@EVERY $x = 2",
+            "INPUT *:* FROM \"a\" OUTPUT minecraft:iron_* TO EACH \"b\"", "-- comment \" @ $\n@EVERY $x = 2",
             "\"closed\" \"escaped <BS>\" quote\" \"paired <BS><BS>\" -- end\r\nEND".replace("<BS>", "\\"),
             "\"unterminated", "\"unterminated\\", "\"bad\nstring", "@\u0000\u2603\ud83d\ude00\ud800x\udc00",
             "$name $ $a9 $x_ \"\" -- trailing comment", "123g 123G 3.14 << >> >>> != ! || | && & # / : * **",

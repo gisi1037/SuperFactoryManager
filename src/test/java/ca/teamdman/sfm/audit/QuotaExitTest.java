@@ -33,7 +33,7 @@ class QuotaExitTest {
         source.setInventorySlotContents(0, new ItemStack(ITEM, 20));
         f.world.tiles.put(SRC, source);
         f.world.tiles.put(DST, destination);
-        f.run("INPUT FROM source OUTPUT 1 TO dest");
+        f.run("INPUT FROM \"source\" OUTPUT 1 TO \"dest\"");
         assertTrue(source.reads < 10, "Quota exhaustion must bound reads independently of destination length");
         assertEquals(19, count(source));
         assertEquals(1, count(destination));
@@ -52,7 +52,7 @@ class QuotaExitTest {
         destination.setInventorySlotContents(0, new ItemStack(ITEM, 60));
         f.world.tiles.put(SRC, source);
         f.world.tiles.put(DST, destination);
-        f.run("INPUT FROM source OUTPUT RETAIN 64 TO dest");
+        f.run("INPUT FROM \"source\" OUTPUT RETAIN 64 TO \"dest\"");
         assertTrue(source.reads < 10);
         assertEquals(16, count(source));
         assertEquals(64, destination.getStackInSlot(0).stackSize);
@@ -70,7 +70,7 @@ class QuotaExitTest {
         destination.setInventorySlotContents(2, new ItemStack(ITEM, 63));
         f.world.tiles.put(SRC, source);
         f.world.tiles.put(DST, destination);
-        f.run("INPUT FROM source OUTPUT 3 TO dest");
+        f.run("INPUT FROM \"source\" OUTPUT 3 TO \"dest\"");
         assertTrue(source.reads < 15);
         assertEquals(17, count(source));
         assertSame(

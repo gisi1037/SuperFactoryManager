@@ -231,11 +231,12 @@ class SfmlDirectAssignmentTest {
 
     @Test
     void dollarTargetsLeaveLegacyWildcardResourcesAndKeywordLabelsUnambiguous() throws Exception {
-        Program legacy = program("EVERY 20g+1 TICKS DO INPUT a*b FROM LET OUTPUT *3 TO STATE FORGET SET END");
+        Program legacy = program(
+            "EVERY 20g+1 TICKS DO INPUT a*b FROM \"LET\" OUTPUT *3 TO \"STATE\" FORGET \"SET\" END");
         assertFalse(legacy.hasDataFeatures());
         Program program = program(
             "STATE $result = 0 EVERY 20 TICKS DO LET $amount = 2 $amount = 3 "
-                + "INPUT ($amount) * FROM source OUTPUT * TO dest $result = $amount END");
+                + "INPUT ($amount) * FROM \"source\" OUTPUT * TO \"dest\" $result = $amount END");
         Fixture fixture = new Fixture();
         fixture.stock(0, 10);
         Memory state = new Memory(program.getStateSchema());

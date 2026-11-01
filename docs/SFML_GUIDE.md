@@ -5,7 +5,7 @@ The in-game GuideNH book is maintained in
 See [GuideNH maintenance and installation](GUIDENH_GUIDE.md) for its format,
 validation and content-only updates.
 
-Reviewed on 2026-10-30 for this development fork: Minecraft 1.7.10 / Forge
+Reviewed on 2026-10-31 for this development fork: Minecraft 1.7.10 / Forge
 10.13.4.1614, with GTNH `daily-2026-10-27+803` as the pinned integration target.
 Implemented language behavior and real-pack qualification are separate. This
 guide does not claim complete modern SFM or RetroSFM compatibility.
@@ -29,6 +29,8 @@ features automatically.
 - [Program structure and scheduling](#program-structure-and-scheduling)
 - [Data: locals, persistent state and expressions](#data-locals-persistent-state-and-expressions)
 - [Player-written functions](#player-written-functions)
+- [Waiting between steps](#waiting-between-steps)
+- [Ghost circuits](#ghost-circuits)
 - [INPUT and OUTPUT](#input-and-output)
 - [Typed item queries](#typed-item-queries)
 - [PRINT and the debug terminal](#print-and-the-debug-terminal)
@@ -65,8 +67,8 @@ is assumed here.
 ```sfml
 NAME "First transfer"
 EVERY 20 TICKS DO
-  INPUT FROM source
-  OUTPUT RETAIN 1 TO dest
+  INPUT FROM "source"
+  OUTPUT RETAIN 1 TO "dest"
 END
 ```
 
@@ -75,11 +77,42 @@ END
 
 `RETAIN 1` on an output is a stock cap. Further executions do not add more while
 the destination holds one matching item. Removing it permits replacement on a
-later execution. Change the output to `OUTPUT TO dest` to move everything the
+later execution. Change the output to `OUTPUT TO "dest"` to move everything the
 destination can accept.
 
 This pattern has scoped vanilla-chest evidence in the real pack. It does not
 qualify every machine, cover, tank or unusual inventory.
+
+### A reusable batch with modern syntax
+
+This second program uses the same `source` and `dest` labels. It attempts eight
+items per batch, records successful batches on the disk, and waits five game
+ticks before printing. `let` creates a local; `state` survives disk/world reloads.
+Braces group statements; semicolons are optional. Both plain names and `$names`
+work, and DO/THEN/END blocks remain available.
+
+```sfml
+state batches = 0;
+
+void moveBatch(label_ref source, label_ref destination) {
+  transfer(source, destination, 8) into result;
+  if (result.moved > 0) {
+    batches = batches + 1;
+    wait(5);
+    print("Batches completed", batches);
+  }
+}
+
+every 20 ticks {
+  moveBatch(label("source"), label("dest"));
+}
+```
+
+`void` means this procedure performs statements without returning a value.
+`result.moved` reports actual movement, so an empty source/full destination does
+not count as a successful batch. Earlier transfers and STATE writes are not
+undone if later work fails. WAIT suspends this trigger only; it never sleeps the
+server thread. The full rules are below.
 
 ## Disks, labels and cables
 
@@ -88,7 +121,13 @@ positions, not items or network addresses. One label can contain several blocks;
 a block can have several labels. Use the same spelling and case in the gun and
 source. Keyword case-insensitivity does not make labels case-insensitive.
 
-Quote labels with spaces, punctuation or words that collide with keywords:
+Every literal label must be quoted, even a simple name such as `"source"`.
+A plain name in a label position now means a variable reference: old programs
+using `FROM source` must change to `FROM "source"` or declare a LABEL_REF named
+`source`. There is no implicit literal fallback. The same rule applies to HAS,
+FORGET and named redstone clauses. Typed LABEL_REF expressions can select labels
+in those clauses; an ordinary STRING variable must first pass through LABEL.
+For example:
 
 ```sfml
 NAME "Quoted labels"
@@ -140,7 +179,7 @@ choosing the running state are separate concerns.
 
 The [SFML extension](../editors/vscode-sfml/README.md) provides `.sfml` syntax
 highlighting, `--` comment toggling, bracket/quote pairing, block indentation and
-folding, and 35 snippets for the current language. It supports lowercase or
+folding, and 41 snippets for the current language. It supports lowercase or
 uppercase keywords, program-wide LET, direct assignment, loops/functions and
 typed queries/transfers. Install its packaged VSIX, then open an `.sfml` file.
 Function hovers describe built-ins/methods and same-file player signatures.
@@ -178,8 +217,8 @@ ordinary SFML clause; specialized forms for every modifier are not present yet.
 
 - Select a node, edit the bottom field, then use **Enter** or **Apply**.
 - Trigger fields hold a header such as `EVERY 20 TICKS`, without DO/END.
-- An If field holds a condition such as `source HAS >= 1`, without IF/THEN/END.
-- Other fields hold complete statements such as `OUTPUT 2 TO dest`.
+- An If field holds a condition such as `"source" HAS >= 1`, without IF/THEN/END.
+- Other fields hold complete statements such as `OUTPUT 2 TO "dest"`.
 - Click an output pin then an input pin to wire. Each has one connection; a valid
   replacement rewires it. Cycles are rejected.
 - If nodes have TRUE, FALSE and AFTER outputs. AFTER runs after the chosen branch.
@@ -283,13 +322,13 @@ are case-insensitive. `--` comments continue to the end of the line.
 ```sfml
 NAME "Two rates"
 EVERY 20 TICKS DO
-  INPUT 8 item:minecraft:cobblestone FROM source
-  OUTPUT TO dest
+  INPUT 8 item:minecraft:cobblestone FROM "source"
+  OUTPUT TO "dest"
 END
 EVERY 5 SECONDS DO
-  IF reserve HAS < 16 item:minecraft:iron_ingot THEN
-    INPUT 4 item:minecraft:iron_ingot FROM supply
-    OUTPUT RETAIN 16 item:minecraft:iron_ingot TO reserve
+  IF "reserve" HAS < 16 item:minecraft:iron_ingot THEN
+    INPUT 4 item:minecraft:iron_ingot FROM "supply"
+    OUTPUT RETAIN 16 item:minecraft:iron_ingot TO "reserve"
   END
 END
 ```
@@ -305,8 +344,8 @@ is not running time. GLOBAL timers use world time instead.
 ```sfml
 NAME "Global phase"
 EVERY 20 GLOBAL PLUS 2 TICKS DO
-  INPUT 1 FROM source
-  OUTPUT TO dest
+  INPUT 1 FROM "source"
+  OUTPUT TO "dest"
 END
 ```
 
@@ -318,7 +357,50 @@ pretty-print text is not always pasteable source.
 Triggers and statements run in source order. Each trigger has its own active
 INPUT list and quota lifetime. Unloading does not queue all missed executions
 for catch-up. Wider pulse/restart behavior remains a qualification item. There
-is no current runtime statement to change interval or sleep a program.
+is no runtime interval setter. Use `wait(n)` to suspend the current trigger
+without blocking the server; see [Waiting between steps](#waiting-between-steps).
+
+### Waiting between steps
+
+`wait(n)` suspends the current trigger and its active function calls for a
+nonnegative integer number of **game ticks**. With a loaded, running manager,
+`wait(5)` resumes five ticks later, independently of the original EVERY interval.
+Lag changes elapsed real time. Zero is a no-op; negative values and deadline
+overflow fault. A paused manager does not execute; an already-due continuation
+can resume when execution is enabled again.
+
+All execution still happens on the server's main thread. WAIT returns control
+to the game; it does not start a worker, block the thread, or make providers safe
+to call asynchronously. Other triggers continue. A busy trigger does not queue
+new timer firings or redstone pulses while its earlier invocation is waiting.
+
+Locals, function parameters, loop position and completed expression operands
+survive the wait. A completed operand is not evaluated again. Later reads see
+current STATE and providers: INPUT retains quantity already spent, but provider
+access and retention are checked again after waking. Work budgets refresh for
+the new invocation, while retained continuation memory remains bounded.
+
+WAIT is allowed inside value-returning functions as well as void procedures:
+
+```sfml
+state answer = 0;
+
+integer later(integer value) {
+  wait(5);
+  return value + 1;
+}
+
+every 20 ticks {
+  answer = later(answer);
+}
+```
+
+Suspended call stacks exist only in RAM. Program recompile/reload, disk removal
+or replacement, chunk/world unload, STATE reset and runtime faults cancel them.
+They are not serialized with the disk or restored after restart. Persistent
+STATE remains subject to its normal save rules; completed transfers are not
+rolled back. Use explicit STATE phases when a workflow must recover after reload.
+WAIT cannot run in top-level LET/STATE initialization.
 
 ## Data: locals, persistent state and expressions
 
@@ -332,7 +414,8 @@ Compiler/headless acceptance is separate from full-pack and multiplayer evidence
 LET declares and initializes a mutable binding. `$name = value` changes a visible
 existing binding; it does not create one. `SET $name = value` remains accepted.
 The same direct syntax updates fields/indices, such as `$jobs[0].amount = 8`.
-All variable references have a `$`.
+The `$` prefix is optional: `batch` and `$batch` are the same binding.
+Plain names are preferred in new examples; the prefixed spelling remains valid.
 Variable and field names are case-sensitive, start with an ASCII letter or
 underscore, and continue with letters, digits or underscores. `$Batch` and `$batch`
 are different. Keywords remain case-insensitive.
@@ -343,19 +426,19 @@ EVERY 20 TICKS DO
   LET $batch = 8
   SET $batch = $batch * 2 + 4
   IF ($batch > 0) THEN
-    INPUT ($batch) item:minecraft:iron_ingot FROM source
-    OUTPUT TO dest
+    INPUT ($batch) item:minecraft:iron_ingot FROM "source"
+    OUTPUT TO "dest"
   END
 END
 ```
 
 This computes twenty before registering an INPUT. Newlines do not terminate
 statements; the grammar does. There is no implicit label-to-variable conversion.
-Bare resource names and old labels such as LET, SET or STATE retain their
-legacy identifier meaning outside data-statement contexts.
+Literal labels require quotes; unquoted names are variable references, with no
+compatibility fallback. Resource-selector syntax is unchanged.
 
 Locals are fresh for each trigger invocation. A LET becomes visible after its
-initializer and lasts to the end of its enclosing DO, THEN or ELSE block. An inner
+initializer and lasts to the end of its enclosing brace, DO, THEN or ELSE block. An inner
 block can SET a visible outer binding. A branch-local declaration does not escape
 that branch. Self-reference, use before declaration, unknown variables and
 shadowing a visible name are compile errors. Separate triggers and sibling
@@ -387,8 +470,9 @@ Initializers may use earlier program-wide LET bindings, STATE, pure functions
 and bounded queries. Self/forward global references and duplicate/shadowed names
 are rejected. Queries run at activation, not while compiling/saving. All global
 initializers publish together; a fault pauses execution without partial global
-values, and resume retries initialization. Functions still receive globals and
-STATE through explicit parameters rather than capturing them.
+values, and resume retries initialization. Functions receive program-wide LET
+through explicit parameters. They may read STATE directly; only void procedures
+may write STATE from a function body.
 
 Globals may retain label/selector handles and immutable exact item keys/contents
 snapshots. They do not keep a live inventory or automatically refresh a snapshot.
@@ -435,8 +519,8 @@ EVERY 20 TICKS DO
   SET $last.original = $jobs[0].amount
   SET $last.updated = $edited[0].amount
   IF ($edited[0].enabled) THEN
-    INPUT ($edited[0].amount) item:minecraft:iron_ingot FROM source
-    OUTPUT TO dest
+    INPUT ($edited[0].amount) item:minecraft:iron_ingot FROM "source"
+    OUTPUT TO "dest"
   END
 END
 ```
@@ -455,8 +539,10 @@ the whole trigger is not a rollback transaction.
 ### Strings and item-stack records
 
 Strings support `+` concatenation with another string and `=` / `EQ` equality.
-Use `$a != $b` or `NOT ($a = $b)` for inequality. No automatic integer-to-string conversion,
-string ordering, interpolation or string methods are implemented.
+Use `$a != $b` or `NOT ($a = $b)` for inequality. String plus integer (or integer
+plus string) appends the integer as signed decimal text: `"chest" + 2` is
+`"chest2"`. Other implicit conversions, string ordering, interpolation and
+general string-formatting methods are not implemented.
 
 Data-string escapes are `\"`, `\\`, `\n`, `\r`, `\t`, `\b`, `\f`, and `\uXXXX`.
 Raw Unicode and multiline strings are accepted; unknown escapes and unpaired
@@ -473,8 +559,8 @@ EVERY 20 TICKS DO
   LET $prefix = "Iron"
   SET $message = $prefix + " ready"
   IF ($message = "Iron ready") THEN
-    INPUT 8 item:minecraft:iron_ingot FROM source
-    OUTPUT TO dest
+    INPUT 8 item:minecraft:iron_ingot FROM "source"
+    OUTPUT TO "dest"
   END
 END
 ```
@@ -492,8 +578,8 @@ EVERY 20 TICKS DO
   SET $stacks[0].count = 16
   SET $lastItem = $stacks[0].item
   IF ($stack.item = "minecraft:iron_ingot") THEN
-    INPUT ($stack.count) item:minecraft:iron_ingot FROM source
-    OUTPUT TO dest
+    INPUT ($stack.count) item:minecraft:iron_ingot FROM "source"
+    OUTPUT TO "dest"
   END
 END
 ```
@@ -630,7 +716,7 @@ END
 WHILE uses the same condition syntax as IF and reevaluates before every body
 execution. Parenthesize typed expressions; existing HAS/REDSTONE conditions also
 work. Body LET initializers execute again each iteration. Outer locals and STATE
-remain assignable. BREAK/CONTINUE and brace syntax are not implemented.
+remain assignable. BREAK/CONTINUE are not implemented. Brace-delimited loop bodies are supported.
 
 All nested loops and due triggers share **1,024 loop steps per invocation**.
 A FOR body entry consumes one step. Every WHILE condition test consumes one,
@@ -651,96 +737,143 @@ Budget faults stop the invocation, retaining prior STATE writes and completed
 transfers. Loops never yield between extraction and insertion/recovery. These
 limits prevent endless loops; they do not guarantee a fixed tick time for a large
 legacy inventory scan or slow third-party callback. Loops currently require Text.
-Array iteration does not add dynamic label/resource substitution to legacy I/O;
-typed handles can be used with the query methods below.
+Iteration can build dynamic LABEL_REF values with `label("chest" + index)`
+and use them in queries and IO clauses. Resource selectors keep their own rules.
 
 ### Player-written functions
 
 Define functions after top-level STATE/LET declarations and before triggers.
-Parameters and return values have explicit types; LET locals inside a function
-still infer their types. Calls use ordinary names or namespaced names such as
-`math.sum(...)`. Function names and variables are case-sensitive; keywords and
-type names are case-insensitive. Forward calls are allowed.
+Prefer the return type first, with space-separated type/name pairs for parameters:
+`integer next(integer previous) { ... }`. Names are case-sensitive; keywords and
+type names ignore case. Forward calls and names such as `math.sum(...)` work.
+The older `FUNCTION next($previous: INTEGER) RETURNS INTEGER DO ... END` spelling
+remains supported, as do colon-style parameters and optional `$` prefixes.
 
 ```sfml
-NAME "Typed player functions"
-STATE $total = 0
+name "Typed player functions"
+state total = 0;
 
-FUNCTION math.sum($values: INTEGER[3]) RETURNS INTEGER DO
-  LET $sum = 0
-  FOR $value IN $values DO
-    SET $sum = $sum + $value
-  END
-  RETURN $sum
-END
+integer math.sum(integer[3] values) {
+  let sum = 0;
+  for value in values {
+    sum = sum + value;
+  }
+  return sum;
+}
 
-FUNCTION next($previous: INTEGER) RETURNS INTEGER DO
-  RETURN $previous + 1
-END
+integer next(integer previous) {
+  return previous + 1;
+}
 
-EVERY 20 TICKS DO
-  LET $values = [2, 4, 8]
-  SET $total = next(math.sum($values))
-  PRINT("total", $total)
-END
+void updateTotal(integer[3] values) {
+  total = next(math.sum(values));
+  print("total", total);
+  return;
+}
+
+every 20 ticks {
+  updateTotal([2, 4, 8]);
+}
 ```
 
-This prints15 when capture is enabled. Supported signature types are `INTEGER`,
-`BOOLEAN`, `STRING`, `LABEL_REF`, `RESOURCE_SELECTOR`, `ITEM_KEY`,
-`ITEM_CONTENTS`, `ITEM_LOCATIONS`, `FLUID_KEY`, `FLUID_CONTENTS`, fixed arrays such as
-`INTEGER[3]` and structural records such as `{count: INTEGER, name: STRING}`.
-Types and collection shapes must match exactly. Functions can also return arrays,
-structs and handles. Handles still cannot be stored in persistent STATE.
+This stores fifteen and prints it when capture is enabled. Signature types are
+`integer`, `boolean`, `string`, `label_ref`, `resource_selector`, `item_key`,
+`item_contents`, `item_locations`, `fluid_key`, `fluid_contents`, fixed arrays
+such as `integer[3]`, and records such as `{count: integer, name: string}`.
+Argument and return shapes must match exactly. `void` is a procedure return type,
+not a parameter, variable or collection type. Handles/snapshots cannot persist
+in STATE, even when a function returns them.
 
-Parameters are function-local values. SET may update a parameter or local, but
-an updated struct/array is an immutable replacement and cannot change the
-caller's original. Pass state explicitly and use the returned value in caller
-SET. Functions cannot implicitly read caller locals, program-wide LET or STATE, and they cannot
-mutate persistent state. There are no closures or library-global variables.
-
-Query helpers take the caller's label/selector handles and observe current stock:
+Parameters without REF are values. Assigning a parameter or one of its array/struct members
+changes that function's local value, not the caller's original. Functions cannot
+implicitly read caller locals or program-wide LET; pass those as arguments.
+STATE is directly visible: value-returning functions may read it, while void
+procedures may also assign it, including indexed/field updates. There are no
+closures. Each manager uses its own live STATE even when sharing a published build.
 
 ```sfml
-NAME "Player query helper"
-FUNCTION stock($src: LABEL_REF, $what: RESOURCE_SELECTOR) RETURNS INTEGER DO
-  RETURN $src.count($what)
-END
-EVERY 20 TICKS DO
-  LET $src = LABEL("chest_in").slots(0, 8)
-  IF ($src.available()) THEN
-    LET $amount = stock($src, ITEM("minecraft:iron_ingot"))
-    PRINT("iron", $amount)
-  END
-END
+state batches = 0;
+
+integer nextBatch() {
+  return batches + 1;
+}
+
+void recordBatch() {
+  batches = nextBatch();
+  print("batches", batches);
+}
+
+every 20 ticks {
+  recordBatch();
+}
 ```
 
-Arguments evaluate once, left to right; AND/OR retain short-circuit behavior.
-User calls are not constant-folded, so query helpers read fresh values and see
-earlier transfers. LABEL literals inside function bodies are included in the
-program's referenced-label set. Functions receive no direct world/Java access.
+Value-returning functions may calculate, query, use bounded IF/FOR/WHILE blocks,
+read STATE and call `wait(n)`. Every reachable path must return the declared type.
+A loop may execute zero times, so provide a return after it. A return exits nested
+loops/branches; statements after an unconditional return are rejected.
 
-Function bodies support local LET/SET, typed IF/ELSE, bounded FOR/WHILE and
-RETURN. Every reachable path must RETURN a value of the declared type. Early
-RETURN exits nested loops/branches. Loops conservatively need a subsequent
-RETURN because they may run zero times. Code after an unconditional return is
-rejected. Direct/indirect recursion, duplicate names, overloading, optional/
-variadic parameters, void/procedure calls, imports and extension methods are not
-implemented. LABEL/ITEM constructor names and boolean operator spellings are
-reserved. RETURN is only valid inside a function.
+Void procedures can use PRINT, item/fluid transfers, INPUT/OUTPUT, FORGET,
+redstone output and SETCIRCUIT, and call other void procedures. Call them as
+statements, never as values or conditions. Bare `return;` ends a procedure early;
+reaching its closing brace also finishes it. Value functions cannot call void
+procedures or perform those effects. Typed port queries work in either kind.
 
-Functions cannot contain PRINT, INPUT/OUTPUT, FORGET, bare manager REDSTONE
-conditions or other actions. Typed native-port observations such as
-`$port.redstoneAvailable()`, `$port.redstone()` and `$port.powered()` are allowed.
-Put actions in the trigger, using returned values
-for conditions or computed transfer quantities. Definitions/calls require Text;
-Visual reports their unsupported constructs without altering source.
+#### Reference parameters
+
+Ordinary parameters remain value copies. A void procedure can opt into a writable
+reference with `ref` on both the parameter and argument:
+
+```sfml
+state count = 0;
+
+void increment(ref integer value) {
+  value = value + 1;
+}
+
+every 20 ticks {
+  let counters = [1, 2];
+  let job = {amount: 0};
+  increment(ref count);
+  increment(ref counters[0]);
+  increment(ref job.amount);
+  print(count, counters[0], job.amount);
+}
+```
+
+A reference target can be a writable whole variable, array element or struct
+field. It must have exactly the parameter's type; literals, computed values and
+read-only targets are rejected. Only void procedures may declare reference
+parameters. Omitting REF on either side is an error, not an implicit conversion.
+
+Writes update the caller's target immediately. Two references to the same target
+observe each other's writes; they are not copies written back at return. Target
+indices are evaluated once at the call, so changing the index variable while a
+call waits does not redirect its reference. Non-reference parameters still copy
+their values, even alongside reference parameters.
+
+WAIT retains references safely with the suspended call in RAM; it does not
+persist a call stack or reference. Unload/reload cancels the call as usual.
+Already completed writes remain subject to normal variable/STATE save rules.
+
+Arguments evaluate once, left to right; AND/OR short-circuit. Queries observe
+current loaded providers and can see earlier transfers. Computed LABEL names
+use the invocation's bounded label snapshot. Functions receive no direct world
+or Java access. See [Waiting between steps](#waiting-between-steps) for suspended
+calls, frozen operands and fresh observations after a wait.
+
+Direct/indirect recursion, duplicate names, overloading, optional/variadic
+parameters, imports and extension methods are unsupported. Constructor/action
+names and boolean operator spellings are reserved. RETURN belongs inside a
+function. Use Text/Studio for definitions and calls; Visual refuses unsupported
+constructs without rewriting their source.
 
 Limits are 128 definitions, 16 parameters per definition, 256 local bindings per
-frame, 256 calls per manager invocation, call depth16 and 4,096 active function
-local cells. Calls and all due triggers share expression, allocation, string,
-query and loop allowances. Function entry never resets them, and frames unwind
-after return/failure. These finite limits do not preempt third-party callbacks
-or establish a hard tick-time guarantee.
+frame, 256 calls per manager invocation, call depth 16 and 4,096 active function
+local cells. Calls and due triggers share expression, allocation, string, query
+and loop allowances. Function entry does not reset them. WAIT additionally bounds
+retained stacks; suspension does not permit unlimited memory or work in one tick.
+These limits do not preempt slow third-party callbacks.
 
 ### Computed quantities and snapshots
 
@@ -754,10 +887,10 @@ or destination.
 NAME "Input snapshot"
 EVERY 20 TICKS DO
   LET $n = 8
-  INPUT ($n) item:minecraft:iron_ingot FROM source
+  INPUT ($n) item:minecraft:iron_ingot FROM "source"
   SET $n = 32
-  OUTPUT 3 item:minecraft:iron_ingot TO dest
-  OUTPUT ($n) item:minecraft:iron_ingot TO dest
+  OUTPUT 3 item:minecraft:iron_ingot TO "dest"
+  OUTPUT ($n) item:minecraft:iron_ingot TO "dest"
 END
 ```
 
@@ -775,9 +908,9 @@ EVERY 20 TICKS DO
   LET $batch = 1000
   LET $reserve = 2000
   LET $target = 4000
-  IF water_source HAS >= ($batch + $reserve) fluid:water THEN
-    INPUT ($batch) RETAIN ($reserve) fluid:water FROM water_source
-    OUTPUT RETAIN ($target) fluid:water TO water_buffer
+  IF "water_source" HAS >= ($batch + $reserve) fluid:water THEN
+    INPUT ($batch) RETAIN ($reserve) fluid:water FROM "water_source"
+    OUTPUT RETAIN ($target) fluid:water TO "water_buffer"
   END
 END
 ```
@@ -792,8 +925,8 @@ NAME "Computed signal threshold"
 EVERY 20 TICKS DO
   LET $threshold = 8
   IF REDSTONE LEVEL >= ($threshold) THEN
-    INPUT 4 item:minecraft:cobblestone FROM source
-    OUTPUT TO dest
+    INPUT 4 item:minecraft:cobblestone FROM "source"
+    OUTPUT TO "dest"
   END
 END
 ```
@@ -817,8 +950,8 @@ STATE $runs = 0
 STATE $config = { batch: 8, reserve: 16 }
 EVERY 20 TICKS DO
   SET $runs = $runs + 1
-  INPUT ($config.batch) RETAIN ($config.reserve) item:minecraft:iron_ingot FROM source
-  OUTPUT TO dest
+  INPUT ($config.batch) RETAIN ($config.reserve) item:minecraft:iron_ingot FROM "source"
+  OUTPUT TO "dest"
 END
 ```
 
@@ -910,9 +1043,9 @@ the declaration itself.
 ```sfml
 NAME "Priority then overflow"
 EVERY 20 TICKS DO
-  INPUT 16 item:minecraft:iron_ingot FROM supply
-  OUTPUT RETAIN 8 item:minecraft:iron_ingot TO priority
-  OUTPUT item:minecraft:iron_ingot TO overflow
+  INPUT 16 item:minecraft:iron_ingot FROM "supply"
+  OUTPUT RETAIN 8 item:minecraft:iron_ingot TO "priority"
+  OUTPUT item:minecraft:iron_ingot TO "overflow"
 END
 ```
 
@@ -927,8 +1060,9 @@ ordinary transfers can succeed partially.
 ## Typed item queries
 
 The first typed-method slice adds local `LABEL_REF` and `RESOURCE_SELECTOR`
-values. Constructors take one quoted literal; a string variable or concatenated
-string is not accepted. Names of constructors/methods ignore case, while label
+values. LABEL accepts a STRING expression, including variables and
+concatenation, such as `label("chest" + index)`. ITEM, ORE and FLUID still require
+quoted source literals. Names of constructors/methods ignore case, while label
 names and registered item identifiers are compared exactly.
 
 ```sfml
@@ -937,8 +1071,8 @@ EVERY 20 TICKS DO
   LET $src = LABEL("chest_in")
   LET $iron = ITEM("minecraft:iron_ingot")
   IF ($src.available($iron) AND $src.count($iron) >= 8) THEN
-    INPUT 8 item:minecraft:iron_ingot FROM chest_in
-    OUTPUT TO chest_out
+    INPUT 8 item:minecraft:iron_ingot FROM "chest_in"
+    OUTPUT TO "chest_out"
   END
 END
 ```
@@ -966,8 +1100,8 @@ Legacy transfer/HAS selectors keep their existing behavior.
 
 Count requires exactly one typed selector argument. Empty and available accept
 zero or one; the zero-argument form explicitly means all visible **items**, not
-fluids or insertion capacity. Implicit string conversion is not supported.
-LABEL/ITEM literals are limited to 256 characters; label names must be nonempty
+fluids or insertion capacity. A STRING is not implicitly a LABEL_REF or selector.
+Resolved LABEL names and ITEM literals are limited to 256 characters; label names must be nonempty
 and have no surrounding whitespace. Handles may live in locals, fixed arrays and
 structs. They cannot be stored in STATE, including inside containers. Persistent
 query results can be ordinary integers/booleans.
@@ -1041,6 +1175,28 @@ construct without dropping source. Removing unsupported data expressions can
 restore Visual availability. The Labels and Queries palettes include the new snippets,
 and constructor/method calls receive action coloring.
 
+
+### Numbered labels
+
+Label groups named `chest1`, `chest2` and `chest3` can be selected by computed
+strings. The variable after FROM below is a LABEL_REF, while `"dest"` is a literal:
+
+```sfml
+every 20 ticks {
+  for index = 1 to 3 {
+    let source = label("chest" + index);
+    if (source.available()) {
+      input 8 item:* from source;
+      output item:* to "dest";
+      forget;
+    }
+  }
+}
+```
+
+Computed names must satisfy the same exact spelling, length and whitespace rules
+as literal names. Computation does not create label groups or load chunks.
+
 ## PRINT and the debug terminal
 
 `PRINT(...)` is a diagnostic statement with one to eight expressions. Open the
@@ -1065,8 +1221,8 @@ invocation's print allowance remains. Disabled printing does not evaluate its
 arguments, perform their inventory queries or format their values. Names and
 types still validate at compile time. Do not put observations you need for program
 logic exclusively inside PRINT. PRINT does not return a value and cannot appear
-on the right-hand side of LET/SET. Current player-written functions are read-only;
-PRINT remains a trigger statement rather than an allowed function effect.
+on the right-hand side of LET/SET. PRINT is permitted in triggers and void
+procedures; value-returning functions cannot print.
 
 Values are separated by spaces; strings print as text. Arrays/structs and handles
 use a bounded readable representation, with truncation for large/deep values.
@@ -1138,11 +1294,11 @@ allowances. EXCEPT follows limits and precedes FROM or TO:
 ```sfml
 NAME "Filtered routing"
 EVERY 20 TICKS DO
-  INPUT 32 item:minecraft:iron_ingot OR item:minecraft:gold_ingot FROM metals
-  OUTPUT TO dest
+  INPUT 32 item:minecraft:iron_ingot OR item:minecraft:gold_ingot FROM "metals"
+  OUTPUT TO "dest"
   FORGET
-  INPUT 8 item:*:* EXCEPT item:minecraft:cobblestone FROM miscellaneous
-  OUTPUT TO overflow
+  INPUT 8 item:*:* EXCEPT item:minecraft:cobblestone FROM "miscellaneous"
+  OUTPUT TO "overflow"
 END
 ```
 
@@ -1155,8 +1311,8 @@ or arbitrary NBT predicates:
 ```sfml
 NAME "Ore dictionary filter"
 EVERY 20 TICKS DO
-  INPUT 16 item:*:* WITH TAG ingotIron FROM source
-  OUTPUT TO dest
+  INPUT 16 item:*:* WITH TAG ingotIron FROM "source"
+  OUTPUT TO "dest"
 END
 ```
 
@@ -1172,12 +1328,12 @@ The positions of EACH describe different scopes:
 
 | Fragment | Scope |
 | --- | --- |
-| `INPUT 8 FROM source` | Eight matching units shared across selected source blocks. |
-| `INPUT 8 FROM EACH source` | Eight per selected source block. |
-| `INPUT 8 EACH FROM source` | Eight per resource identity, shared across source blocks. |
-| `OUTPUT 8 TO dest` | Eight total for this OUTPUT. |
-| `OUTPUT 8 TO EACH dest` | Eight for each selected destination block. |
-| `OUTPUT 8 EACH TO dest` | Eight per resource identity for this OUTPUT. |
+| `INPUT 8 FROM "source"` | Eight matching units shared across selected source blocks. |
+| `INPUT 8 FROM EACH "source"` | Eight per selected source block. |
+| `INPUT 8 EACH FROM "source"` | Eight per resource identity, shared across source blocks. |
+| `OUTPUT 8 TO "dest"` | Eight total for this OUTPUT. |
+| `OUTPUT 8 TO EACH "dest"` | Eight for each selected destination block. |
+| `OUTPUT 8 EACH TO "dest"` | Eight per resource identity for this OUTPUT. |
 | `RETAIN 8 EACH` | Independent reserve/cap per resource identity. |
 
 All quantities are upper bounds. Quantity EACH and statement EACH can combine.
@@ -1199,8 +1355,8 @@ limit share its reserve/cap. Retention is not multiplied by slots or faces.
 ```sfml
 NAME "Reserve supply and stock machines"
 EVERY 20 TICKS DO
-  INPUT 64 RETAIN 16 item:minecraft:iron_ingot FROM supply
-  OUTPUT 8 RETAIN 16 item:minecraft:iron_ingot TO EACH machines
+  INPUT 64 RETAIN 16 item:minecraft:iron_ingot FROM "supply"
+  OUTPUT 8 RETAIN 16 item:minecraft:iron_ingot TO EACH "machines"
 END
 ```
 
@@ -1212,8 +1368,8 @@ input allowance can reduce the result.
 ```sfml
 NAME "Per resource supply"
 EVERY 20 TICKS DO
-  INPUT 8 EACH RETAIN 4 EACH item:minecraft:iron_ingot OR item:minecraft:gold_ingot FROM supply
-  OUTPUT 8 EACH TO dest
+  INPUT 8 EACH RETAIN 4 EACH item:minecraft:iron_ingot OR item:minecraft:gold_ingot FROM "supply"
+  OUTPUT 8 EACH TO "dest"
 END
 ```
 
@@ -1226,8 +1382,8 @@ A fluid-only example uses millibuckets:
 ```sfml
 NAME "Water supply"
 EVERY 20 TICKS DO
-  INPUT 1000 fluid:water FROM water_source
-  OUTPUT RETAIN 4000 fluid:water TO water_buffer
+  INPUT 1000 fluid:water FROM "water_source"
+  OUTPUT RETAIN 4000 fluid:water TO "water_buffer"
 END
 ```
 
@@ -1242,8 +1398,8 @@ selection. A side is the accessed inventory's face, not the manager's facing.
 ```sfml
 NAME "Explicit access views"
 EVERY 20 TICKS DO
-  INPUT 8 item:minecraft:iron_ingot FROM source TOP SIDE SLOTS 0-8
-  OUTPUT TO dest BOTTOM SIDE SLOT 1
+  INPUT 8 item:minecraft:iron_ingot FROM "source" TOP SIDE SLOTS 0-8
+  OUTPUT TO "dest" BOTTOM SIDE SLOT 1
 END
 ```
 
@@ -1267,8 +1423,8 @@ existing stacks. It is not a container-fullness query:
 ```sfml
 NAME "Only empty item slots"
 EVERY 20 TICKS DO
-  INPUT 8 item:minecraft:iron_ingot FROM source
-  OUTPUT TO EMPTY SLOTS IN dest TOP SIDE SLOTS 0-8
+  INPUT 8 item:minecraft:iron_ingot FROM "source"
+  OUTPUT TO EMPTY SLOTS IN "dest" TOP SIDE SLOTS 0-8
 END
 ```
 
@@ -1278,8 +1434,8 @@ the access resolves. BY LABEL selects one label, which may contain many blocks:
 ```sfml
 NAME "Rotate destination blocks"
 EVERY 20 TICKS DO
-  INPUT 4 item:minecraft:cobblestone FROM source
-  OUTPUT TO machines ROUND ROBIN BY BLOCK
+  INPUT 4 item:minecraft:cobblestone FROM "source"
+  OUTPUT TO "machines" ROUND ROBIN BY BLOCK
 END
 ```
 
@@ -1297,13 +1453,13 @@ first Visual slice. Nested ordinary IFs can be represented visually.
 ```sfml
 NAME "Stock-based priority"
 EVERY 20 TICKS DO
-  INPUT 8 item:minecraft:iron_ingot FROM supply
-  IF priority HAS < 16 item:minecraft:iron_ingot THEN
-    OUTPUT RETAIN 16 item:minecraft:iron_ingot TO priority
-  ELSE IF reserve HAS < 32 item:minecraft:iron_ingot THEN
-    OUTPUT RETAIN 32 item:minecraft:iron_ingot TO reserve
+  INPUT 8 item:minecraft:iron_ingot FROM "supply"
+  IF "priority" HAS < 16 item:minecraft:iron_ingot THEN
+    OUTPUT RETAIN 16 item:minecraft:iron_ingot TO "priority"
+  ELSE IF "reserve" HAS < 32 item:minecraft:iron_ingot THEN
+    OUTPUT RETAIN 32 item:minecraft:iron_ingot TO "reserve"
   ELSE
-    OUTPUT TO overflow
+    OUTPUT TO "overflow"
   END
 END
 ```
@@ -1331,9 +1487,9 @@ mixed expressions to clarify grouping:
 ```sfml
 NAME "Gate on supply and redstone"
 EVERY 20 TICKS DO
-  IF (supply HAS >= 8 item:minecraft:iron_ingot) AND (REDSTONE > 0) THEN
-    INPUT 8 item:minecraft:iron_ingot FROM supply
-    OUTPUT TO dest
+  IF ("supply" HAS >= 8 item:minecraft:iron_ingot) AND (REDSTONE > 0) THEN
+    INPUT 8 item:minecraft:iron_ingot FROM "supply"
+    OUTPUT TO "dest"
   END
 END
 ```
@@ -1342,6 +1498,38 @@ HAS measures stock, not free space, insertion capacity, a reservation or whether
 a machine accepts an item. There is no current FULL/CAN_ACCEPT function, direct
 capacity query or dynamic interval function. A condition is an observation, not
 a promise that a later transfer completes.
+
+## Ghost circuits
+
+`setcircuit(machine, configuration)` configures the native ghost circuit on a
+compatible GregTech machine. `machine` must be a whole-machine LABEL_REF, such
+as `label("assembler")`, with no `.side(...)` or `.slots(...)` restriction.
+Values 1 through 24 select a circuit; **0 or -1 clears it**. Other values fault.
+This is a configuration action, not a physical item transfer into a guessed slot.
+
+```sfml
+every 20 ticks {
+  setcircuit(label("assembler"), 5) into configured;
+  print(configured.matched, configured.changed, configured.status);
+}
+```
+
+INTO is optional. Its record has integer `matched` and `changed` fields and a
+string `status`: `complete`, `partial`, `unavailable` or `unsupported`. Counts
+report confirmed results, not every attempted callback. A machine already at the
+requested setting can be matched without being changed. A partial result may
+have unconfirmed side effects; zero confirmed changes is not a rollback guarantee.
+
+The group is checked for connected, loaded, supported endpoints before any
+writes. A missing/disconnected endpoint gives unavailable; an unsupported host
+gives unsupported. Later replacement or callback failures can interrupt commits.
+Earlier accepted changes remain; work/provider failures can fault and pause the
+manager. SETCIRCUIT shares the bounded action/query budgets and runs only on the
+server thread. Use it in triggers or void procedures, not data expressions.
+
+GregTech integration is optional and deliberately limited to supported ghost
+configuration interfaces. It does not assume every machine, addon or inventory
+supports this operation, and never edits a physical circuit stack as a fallback.
 
 ## Redstone
 
@@ -1354,8 +1542,8 @@ receiver power. This is not arbitrary labelled vanilla-sensor syntax.
 ```sfml
 NAME "One batch per pulse"
 EVERY REDSTONE PULSE DO
-  INPUT 8 item:minecraft:cobblestone FROM source
-  OUTPUT TO dest
+  INPUT 8 item:minecraft:cobblestone FROM "source"
+  OUTPUT TO "dest"
 END
 ```
 
@@ -1383,8 +1571,8 @@ END
 
 EVERY 20 TICKS DO
   IF (NOT $Lock) THEN
-    INPUT FROM chest_in
-    OUTPUT TO Ped
+    INPUT FROM "chest_in"
+    OUTPUT TO "Ped"
     SET $Lock = TRUE
   END
 END
@@ -1410,9 +1598,9 @@ NAME "Copy north input to east output"
 EVERY 20 TICKS DO
   LET $port = LABEL("signal").side("north")
   IF ($port.redstoneAvailable()) THEN
-    OUTPUT ($port.redstone()) REDSTONE LEVEL TO signal EAST SIDE
+    OUTPUT ($port.redstone()) REDSTONE LEVEL TO "signal" EAST SIDE
   ELSE
-    OUTPUT 0 REDSTONE LEVEL TO signal EAST SIDE
+    OUTPUT 0 REDSTONE LEVEL TO "signal" EAST SIDE
   END
 END
 ```
@@ -1445,10 +1633,10 @@ This is a work bound, not a hard timing guarantee for third-party callbacks.
 NAME "Count separate input transitions"
 STATE $rises = 0
 STATE $falls = 0
-EVERY REDSTONE PULSE FROM signal NORTH SIDE DO
+EVERY REDSTONE PULSE FROM "signal" NORTH SIDE DO
   SET $rises = $rises + 1
 END
-EVERY REDSTONE FALLING FROM signal NORTH SIDE DO
+EVERY REDSTONE FALLING FROM "signal" NORTH SIDE DO
   SET $falls = $falls + 1
 END
 ```
@@ -1500,7 +1688,7 @@ they do not automatically combine all native ports.
 ```sfml
 NAME "Native or legacy emitter example"
 EVERY 20 TICKS DO
-  OUTPUT 15 REDSTONE LEVEL TO signal
+  OUTPUT 15 REDSTONE LEVEL TO "signal"
 END
 ```
 
@@ -1526,11 +1714,11 @@ Use it to prevent later outputs from using an earlier independent stage:
 ```sfml
 NAME "Independent iron and gold stages"
 EVERY 20 TICKS DO
-  INPUT 8 item:minecraft:iron_ingot FROM iron_source
-  OUTPUT TO iron_dest
+  INPUT 8 item:minecraft:iron_ingot FROM "iron_source"
+  OUTPUT TO "iron_dest"
   FORGET
-  INPUT 4 item:minecraft:gold_ingot FROM gold_source
-  OUTPUT TO gold_dest
+  INPUT 4 item:minecraft:gold_ingot FROM "gold_source"
+  OUTPUT TO "gold_dest"
 END
 ```
 
@@ -1539,10 +1727,10 @@ A partial multi-label removal:
 ```sfml
 NAME "Remove one source label"
 EVERY 20 TICKS DO
-  INPUT 8 item:minecraft:iron_ingot FROM source_a, source_b
-  OUTPUT 2 TO priority
-  FORGET source_a
-  OUTPUT TO overflow
+  INPUT 8 item:minecraft:iron_ingot FROM "source_a", "source_b"
+  OUTPUT 2 TO "priority"
+  FORGET "source_a"
+  OUTPUT TO "overflow"
 END
 ```
 
@@ -1660,7 +1848,8 @@ Syntax that compiles is not by itself a qualified pack feature.
 | Typed item count/empty/availability | LABEL/ITEM/ORE handles, side/slot modifiers and no-argument item predicates; bounded live reads, Text only. | Unit/world fixtures cover the item slice; fluid/proxy adapters and broader pack qualification remain open. |
 | PRINT and manager debug terminal | Opt-in bounded output, capture controls, status/STATE/saved-label/recent-log inspection and panel-local command recall. | Headless command/protocol/runtime coverage; exact client scope recorded separately. |
 | Counted/array FOR and WHILE | Readonly loop locals, array snapshots, shared step/work/registration limits; Text only. | Headless signed-boundary, scope, iteration and item/fluid transfer regressions; no hard tick-time guarantee. |
-| Player-written functions | Explicit typed parameters/RETURN, local pure/query bodies, forward calls and shared invocation bounds; Text only. | No recursion, actions, implicit STATE capture, imports or user extension methods in this slice. |
+| Player-written functions | Type-first value functions and VOID procedures, direct STATE reads and procedure writes, explicit REF parameters, forward calls and shared invocation bounds; Text only. | No recursion, imports or user extension methods. Ordinary parameters are copies; REF must be explicit at both ends. |
+| WAIT and ghost circuits | Game-tick suspension through trigger/function calls, plus optional GT SETCIRCUIT actions; Text only. | Sleeping frames live only in RAM and cancel on unload/replacement/fault. Real-pack GT machine qualification remains separate from headless service tests. |
 | Programming Station | Full-screen MUI2 projects, guarded saves/checks, published builds and imprinted reference disks that managers can run. | Root-source builds; reusable published libraries and imports remain planned. |
 | Runtime-adjustable cadence / fullness and acceptance queries | Requested future shared Java API work. | count/empty do not measure capacity or acceptance; no current cadence/fullness API. |
 | Event-driven destination availability | Deferred. | No implementation or measured cache gain. |
@@ -1752,7 +1941,8 @@ the shared invocation budget. These primitives do not allocate player call frame
 Built-in names ignore case. Existing exact-name player functions still take
 precedence in ordinary calls. Pure defaults may initialize STATE, but defining
 an exact-name player function that conflicts with a default used by STATE is
-rejected. Player functions still cannot initialize STATE or perform transfers.
+rejected. Player functions cannot initialize STATE. Void procedures may perform
+transfers; value-returning functions cannot.
 
 ```sfml
 EVERY 20 TICKS DO
@@ -1832,7 +2022,8 @@ Each query reads providers once; indexing, LEN, printing and loops use its
 materialized data. Earlier snapshots retain their observed quantities after a
 transfer; another query observes fresh stock. Current snapshot data is advisory,
 not transfer authority. The candidate TRANSFER action below accepts label and
-item values; player-written effectful functions remain future work.
+item values. Void procedures can compose effectful statements; see
+[player-written functions](#player-written-functions).
 
 Provisional caps: 256 exact groups, 1024 locations, and per-key NBT depth 16 /1024
 nodes /8192 canonical bytes. Shared work/allocation limits often fail earlier.
@@ -1924,10 +2115,11 @@ Legacy `input`/`output fluid:*` behavior is unchanged.
 
 ### Checking readiness without blocking a tick
 
-There is no `wait 20` or asynchronous/yielding function. `while (...) do` executes
-in the current invocation and shares a finite loop budget; it cannot wait for
-the next game tick. Read readiness once and check again from a scheduled trigger.
-Pass outer handles explicitly and return a boolean on every function path:
+Use `wait(20)` to resume after twenty game ticks; the spelling `wait 20` is not
+accepted. A WHILE loop without WAIT runs in the current invocation and cannot
+let machines advance to their next tick. You can also read readiness once and
+check again from a scheduled trigger, as below. Pass program-wide LET handles
+explicitly and return a boolean on every value-function path:
 
 ```sfml
 let $plasmaoutput = label("plasmaoutput")
@@ -2033,10 +2225,9 @@ allowances and RETAIN quotas remain scoped to their original statements; TRANSFE
 does not consume or apply those registrations. Put the desired amount/restrictions
 on each self-contained TRANSFER action explicitly.
 
-TRANSFER is text-only until Visual has an equivalent node. It cannot appear in
-STATE defaults, predicates, ordinary call arguments or current player FUNCTION
-bodies. A future ACTION/CALL boundary will let players compose effects explicitly;
-ordinary FUNCTION calls remain read-only. It is not an atomic multi-container
+TRANSFER is a statement for triggers and void procedures. It cannot appear in
+STATE defaults, predicates, ordinary call arguments or value-returning function
+bodies. Visual supports its bounded self-contained subset. It is not an atomic multi-container
 transaction: each accepted pair reuses simulation/extraction/insertion/rollback
 and disk-recovery sequencing. Budget reservations happen before extraction so
 recovery is still allowed after a work limit is reached.

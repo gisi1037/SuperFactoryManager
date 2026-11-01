@@ -23,8 +23,8 @@ import ca.teamdman.sfml.ast.Program;
 /** Exercises document saves at the shared server transaction boundary, independently of either editor. */
 class ProgramEditTransactionTest {
 
-    private static final String SOURCE = "EVERY 20 TICKS DO INPUT 1 FROM source OUTPUT TO dest END";
-    private static final String EDITED = "EVERY 20 TICKS DO INPUT 2 FROM source OUTPUT TO dest END";
+    private static final String SOURCE = "EVERY 20 TICKS DO INPUT 1 FROM \"source\" OUTPUT TO \"dest\" END";
+    private static final String EDITED = "EVERY 20 TICKS DO INPUT 2 FROM \"source\" OUTPUT TO \"dest\" END";
     private static final String COUNTER = "STATE $count = 0 EVERY 1 TICKS DO SET $count = $count + 1 END";
 
     @Test

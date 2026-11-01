@@ -32,7 +32,7 @@ public class ParserTest {
 
     @Test
     public void testBasicInputOutput() {
-        String code = "EVERY 20 TICKS DO\n" + "  INPUT FROM chest\n" + "  OUTPUT TO furnace\n" + "END";
+        String code = "EVERY 20 TICKS DO\n" + "  INPUT FROM \"chest\"\n" + "  OUTPUT TO \"furnace\"\n" + "END";
         ProgramBuildResult result = new ProgramBuilder(code).build();
         assertTrue(result.isSuccess(), "Errors: " + result.getErrors());
         Program program = result.getProgram();
@@ -66,8 +66,8 @@ public class ParserTest {
 
     @Test
     public void testSidednessAndSlots() {
-        String code = "EVERY 1 SECONDS DO\n" + "  INPUT FROM chest TOP SIDE SLOTS 0-8\n"
-            + "  OUTPUT TO furnace BOTTOM SIDE\n"
+        String code = "EVERY 1 SECONDS DO\n" + "  INPUT FROM \"chest\" TOP SIDE SLOTS 0-8\n"
+            + "  OUTPUT TO \"furnace\" BOTTOM SIDE\n"
             + "END";
         ProgramBuildResult result = new ProgramBuilder(code).build();
         assertTrue(result.isSuccess(), "Errors: " + result.getErrors());
@@ -115,8 +115,8 @@ public class ParserTest {
 
     @Test
     public void testLimitsAndRetention() {
-        String code = "EVERY 10 TICKS DO\n" + "  INPUT 64 RETAIN 16 minecraft:iron_ingot FROM chest\n"
-            + "  OUTPUT 32 TO chest2\n"
+        String code = "EVERY 10 TICKS DO\n" + "  INPUT 64 RETAIN 16 minecraft:iron_ingot FROM \"chest\"\n"
+            + "  OUTPUT 32 TO \"chest2\"\n"
             + "END";
         ProgramBuildResult result = new ProgramBuilder(code).build();
         assertTrue(result.isSuccess(), "Errors: " + result.getErrors());
@@ -170,8 +170,8 @@ public class ParserTest {
 
     @Test
     public void testRoundRobin() {
-        String code = "EVERY 5 TICKS DO\n" + "  INPUT FROM chest\n"
-            + "  OUTPUT TO furnace1, furnace2 ROUND ROBIN BY LABEL\n"
+        String code = "EVERY 5 TICKS DO\n" + "  INPUT FROM \"chest\"\n"
+            + "  OUTPUT TO \"furnace1\", \"furnace2\" ROUND ROBIN BY LABEL\n"
             + "END";
         ProgramBuildResult result = new ProgramBuilder(code).build();
         assertTrue(result.isSuccess(), "Errors: " + result.getErrors());
@@ -199,8 +199,8 @@ public class ParserTest {
 
     @Test
     public void testRoundRobinAlternationByLabel() {
-        String code = "EVERY 20 TICKS DO\n" + "  INPUT FROM chest\n"
-            + "  OUTPUT TO furnace1, furnace2 ROUND ROBIN BY LABEL\n"
+        String code = "EVERY 20 TICKS DO\n" + "  INPUT FROM \"chest\"\n"
+            + "  OUTPUT TO \"furnace1\", \"furnace2\" ROUND ROBIN BY LABEL\n"
             + "END";
         ProgramBuildResult res = new ProgramBuilder(code).build();
         assertTrue(res.isSuccess());
@@ -239,8 +239,8 @@ public class ParserTest {
 
     @Test
     public void testRoundRobinAlternationByBlock() {
-        String code = "EVERY 20 TICKS DO\n" + "  INPUT FROM chest\n"
-            + "  OUTPUT TO chests ROUND ROBIN BY BLOCK\n"
+        String code = "EVERY 20 TICKS DO\n" + "  INPUT FROM \"chest\"\n"
+            + "  OUTPUT TO \"chests\" ROUND ROBIN BY BLOCK\n"
             + "END";
         ProgramBuildResult res = new ProgramBuilder(code).build();
         assertTrue(res.isSuccess());
@@ -279,9 +279,9 @@ public class ParserTest {
 
     @Test
     public void testIfConditionsAndRedstone() {
-        String code = "EVERY REDSTONE PULSE DO\n" + "  IF chest HAS GT 10 WITH #ingotIron AND REDSTONE > 0 THEN\n"
-            + "    INPUT FROM chest\n"
-            + "    OUTPUT TO barrel\n"
+        String code = "EVERY REDSTONE PULSE DO\n" + "  IF \"chest\" HAS GT 10 WITH #ingotIron AND REDSTONE > 0 THEN\n"
+            + "    INPUT FROM \"chest\"\n"
+            + "    OUTPUT TO \"barrel\"\n"
             + "  ELSE\n"
             + "    FORGET\n"
             + "  END\n"
@@ -348,7 +348,9 @@ public class ParserTest {
 
     @Test
     public void testFluidSyntax() {
-        String code = "EVERY 10 TICKS DO\n" + "  INPUT 1000 fluid:water FROM tank\n" + "  OUTPUT TO boiler\n" + "END";
+        String code = "EVERY 10 TICKS DO\n" + "  INPUT 1000 fluid:water FROM \"tank\"\n"
+            + "  OUTPUT TO \"boiler\"\n"
+            + "END";
         ProgramBuildResult result = new ProgramBuilder(code).build();
         assertTrue(result.isSuccess(), "Errors: " + result.getErrors());
         Program program = result.getProgram();
@@ -384,8 +386,8 @@ public class ParserTest {
             + "-- Another comment\n"
             + "EVERY 10 GLOBAL PLUS 2 TICKS DO\n"
             + "  -- Do something inside\n"
-            + "  INPUT FROM input_chest\n"
-            + "  OUTPUT TO EMPTY SLOTS IN output_chest\n"
+            + "  INPUT FROM \"input_chest\"\n"
+            + "  OUTPUT TO EMPTY SLOTS IN \"output_chest\"\n"
             + "END\n";
         ProgramBuildResult result = new ProgramBuilder(code).build();
         assertTrue(result.isSuccess(), "Errors: " + result.getErrors());
@@ -412,9 +414,9 @@ public class ParserTest {
 
     @Test
     public void testNegatedCondition() {
-        String code = "EVERY 20 TICKS DO\n" + "  IF NOT chest HAS > 0 THEN\n"
-            + "    INPUT FROM backup_chest\n"
-            + "    OUTPUT TO chest\n"
+        String code = "EVERY 20 TICKS DO\n" + "  IF NOT \"chest\" HAS > 0 THEN\n"
+            + "    INPUT FROM \"backup_chest\"\n"
+            + "    OUTPUT TO \"chest\"\n"
             + "  END\n"
             + "END";
         ProgramBuildResult result = new ProgramBuilder(code).build();
@@ -440,11 +442,11 @@ public class ParserTest {
 
     @Test
     public void testRedstoneOutputStatements() {
-        String code = "EVERY 20 TICKS DO\n" + "  OUTPUT 15 REDSTONE LEVEL TO emitter\n"
-            + "  OUTPUT REDSTONE LEVEL 12 TO emitter\n"
-            + "  OUTPUT 0 REDSTONE LEVEL TO emitter TOP SIDE\n"
-            + "  OUTPUT REDSTONE LEVEL TO EACH emitter\n"
-            + "  OUTPUT 15 REDSTONE TO chest\n"
+        String code = "EVERY 20 TICKS DO\n" + "  OUTPUT 15 REDSTONE LEVEL TO \"emitter\"\n"
+            + "  OUTPUT REDSTONE LEVEL 12 TO \"emitter\"\n"
+            + "  OUTPUT 0 REDSTONE LEVEL TO \"emitter\" TOP SIDE\n"
+            + "  OUTPUT REDSTONE LEVEL TO EACH \"emitter\"\n"
+            + "  OUTPUT 15 REDSTONE TO \"chest\"\n"
             + "END";
         ProgramBuildResult result = new ProgramBuilder(code).build();
         assertTrue(result.isSuccess(), "Errors: " + result.getErrors());

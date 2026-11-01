@@ -67,7 +67,7 @@ class ReferencedLabelsTest {
     void snapshotIsLazyButCapturesAllReferencedLabelsTogether() throws Exception {
         Fixture f = new Fixture();
         TileEntityManager manager = RecoveryFixtures.manager(f);
-        Program program = parse("EVERY 1 TICKS DO INPUT FROM source OUTPUT 1 TO dest END");
+        Program program = parse("EVERY 1 TICKS DO INPUT FROM \"source\" OUTPUT 1 TO \"dest\" END");
         ProgramContext context = context(f, manager, program);
         // Writes before the first access are visible, exactly as with the old full reader.
         LabelPositionHolder.saveTo(manager.getDisk(), f.labels);
@@ -96,7 +96,7 @@ class ReferencedLabelsTest {
     void diskReplacementIsVisibleToTheNextContextWithoutChangingTheOldSnapshot() throws Exception {
         Fixture f = new Fixture();
         TileEntityManager manager = RecoveryFixtures.manager(f);
-        Program program = parse("EVERY 1 TICKS DO INPUT FROM source OUTPUT 1 TO dest END");
+        Program program = parse("EVERY 1 TICKS DO INPUT FROM \"source\" OUTPUT 1 TO \"dest\" END");
         LabelPositionHolder.saveTo(manager.getDisk(), f.labels);
         LabelPositionHolder first = context(f, manager, program).getLabelPositionHolder();
         ItemStack replacement = manager.getDisk()
@@ -115,8 +115,9 @@ class ReferencedLabelsTest {
     @Test
     void compilerReferencesCoverConditionsForgetQuotedLabelsAndRedstoneOutputs() {
         Program program = parse(
-            "EVERY 1 TICKS DO INPUT FROM \"source label\" " + "IF observer HAS > 0 THEN OUTPUT 1 TO \"dest label\" END "
-                + "OUTPUT 15 REDSTONE LEVEL TO emitter FORGET \"source label\", forgotten END");
+            "EVERY 1 TICKS DO INPUT FROM \"source label\" "
+                + "IF \"observer\" HAS > 0 THEN OUTPUT 1 TO \"dest label\" END "
+                + "OUTPUT 15 REDSTONE LEVEL TO \"emitter\" FORGET \"source label\", \"forgotten\" END");
         assertEquals(
             new HashSet<>(Arrays.asList("source label", "observer", "dest label", "emitter", "forgotten")),
             program.getReferencedLabels());
@@ -136,7 +137,7 @@ class ReferencedLabelsTest {
         Fixture f = new Fixture();
         TileEntityManager manager = RecoveryFixtures.manager(f);
         f.stock(0, 20);
-        manager.saveCodeAndRecompile("EVERY 1 TICKS DO INPUT FROM source OUTPUT 1 TO dest END");
+        manager.saveCodeAndRecompile("EVERY 1 TICKS DO INPUT FROM \"source\" OUTPUT 1 TO \"dest\" END");
         CountingLabels labels = new CountingLabels();
         f.labels.writeToNBT(
             manager.getDisk()
@@ -170,7 +171,8 @@ class ReferencedLabelsTest {
         InventoryTile extra = new InventoryTile(3);
         f.add("dest", EXTRA, extra);
         f.stock(0, 20);
-        manager.saveCodeAndRecompile("EVERY 1 TICKS DO INPUT FROM source OUTPUT 1 TO dest ROUND ROBIN BY BLOCK END");
+        manager.saveCodeAndRecompile(
+            "EVERY 1 TICKS DO INPUT FROM \"source\" OUTPUT 1 TO \"dest\" ROUND ROBIN BY BLOCK END");
         LabelPositionHolder.saveTo(manager.getDisk(), f.labels);
         manager.updateEntity();
         assertEquals(1, count(f.dest));

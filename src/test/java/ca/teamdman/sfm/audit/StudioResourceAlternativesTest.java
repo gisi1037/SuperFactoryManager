@@ -119,7 +119,7 @@ class StudioResourceAlternativesTest {
     void compoundOreFilterKeepsExistingCompilerRefusalAndNoPartialFields() {
         for (String filter : new String[] { "WITH (#ingotIron OR #dustIron)", "WITHOUT NOT #dustIron",
             "WITH #a AND #b" }) {
-            String clause = "INPUT item:a " + filter + " FROM source";
+            String clause = "INPUT item:a " + filter + " FROM \"source\"";
             ProgramBuildResult built = new ProgramBuilder("every 20 ticks do " + clause + " end").build();
             assertFalse(built.isSuccess());
             assertTrue(
@@ -206,7 +206,7 @@ class StudioResourceAlternativesTest {
         for (Type type : new Type[] { Type.INPUT, Type.OUTPUT })
             for (boolean first : new boolean[] { false, true }) for (String rest : new String[] { "", "16",
                 "RETAIN 2 EACH", "16 EACH RETAIN 2 EACH", "WITH #ingotIron", "WITHOUT #dust*" }) {
-                    String access = type == Type.INPUT ? "FROM source" : "TO dest";
+                    String access = type == Type.INPUT ? "FROM \"source\"" : "TO \"dest\"";
                     String action = (type == Type.INPUT ? "INPUT" : "OUTPUT") + (rest.isEmpty() ? "" : " " + rest);
                     String clause = first ? access + " " + action : action + " " + access;
                     Node node = new Node(UUID.randomUUID(), type, 0, 0, clause);
@@ -238,7 +238,7 @@ class StudioResourceAlternativesTest {
 
     @Test
     void invalidPartitionAndSingleBlankCannotLookCleanByJoinedTextAndAreRetainedAcrossCopies() {
-        String clause = "INPUT \"item:a OR b\" OR item:c FROM source", source = program(clause);
+        String clause = "INPUT \"item:a OR b\" OR item:c FROM \"source\"", source = program(clause);
         Node node = new Node(UUID.randomUUID(), Type.INPUT, 0, 0, clause);
         StudioFieldDraft draft = draft(node, source);
         String initial = draft.value("resource");
@@ -257,7 +257,7 @@ class StudioResourceAlternativesTest {
         assertThrows(IllegalArgumentException.class, () -> copy.appliedClause(PROJECT, node, source));
         assertTrue(copy.set("resource", initial));
         assertFalse(copy.dirty());
-        String empty = "INPUT FROM source";
+        String empty = "INPUT FROM \"source\"";
         Node blankNode = new Node(UUID.randomUUID(), Type.INPUT, 0, 0, empty);
         StudioFieldDraft blank = draft(blankNode, program(empty));
         UUID row = blank.addResource("");
@@ -271,7 +271,7 @@ class StudioResourceAlternativesTest {
 
     @Test
     void perCellValidationRejectsCommasOrClausesCommentsAndLexerErrorsWithoutPartialApply() {
-        String clause = "INPUT 16 item:a OR item:b FROM source", source = program(clause);
+        String clause = "INPUT 16 item:a OR item:b FROM \"source\"", source = program(clause);
         Node node = new Node(UUID.randomUUID(), Type.INPUT, 0, 0, clause);
         for (String invalid : new String[] { "", " ", "item:a OR item:b", "item:a,item:b", "item:a OR", "a?", "a.b",
             "item:a WITH #dust*", "item:a EXCEPT item:c", "item:a -- hide", "\"unfinished", "a\nb", "a\rb", "a\0b" }) {
@@ -291,7 +291,7 @@ class StudioResourceAlternativesTest {
 
     @Test
     void pickerRepairsOnlyItsRowAndLabelExclusionEditsDoNotInterfereWithResourceRevision() {
-        String clause = "INPUT item:a OR item:b EXCEPT item:c FROM source", source = program(clause);
+        String clause = "INPUT item:a OR item:b EXCEPT item:c FROM \"source\"", source = program(clause);
         Node node = new Node(UUID.randomUUID(), Type.INPUT, 0, 0, clause);
         StudioFieldDraft draft = draft(node, source);
         UUID row = draft.resourceRows()
@@ -304,7 +304,7 @@ class StudioResourceAlternativesTest {
         draft.setLabel(
             draft.labelRows()
                 .get(0).id,
-            "renamed");
+            "\"renamed\"");
         draft.setExclusion(
             draft.exclusionRows()
                 .get(0).id,
@@ -315,14 +315,14 @@ class StudioResourceAlternativesTest {
         assertThrows(IllegalArgumentException.class, () -> draft.appliedClause(PROJECT, node, source));
         draft.removeResource(neighbor);
         assertEquals(
-            "INPUT \"item:minecraft:gold_ingot\" EXCEPT item:d FROM renamed",
+            "INPUT \"item:minecraft:gold_ingot\" EXCEPT item:d FROM \"renamed\"",
             draft.appliedClause(PROJECT, node, source));
         assertEquals(clause, node.clause());
     }
 
     @Test
     void stalePickerRejectsStructuralAbaRemovedShiftedCopiesOwnersAndChangedRowContent() {
-        String clause = "OUTPUT item:a OR item:a OR item:a TO dest", source = program(clause);
+        String clause = "OUTPUT item:a OR item:a OR item:a TO \"dest\"", source = program(clause);
         Node node = new Node(UUID.randomUUID(), Type.OUTPUT, 0, 0, clause);
         for (boolean aba : new boolean[] { true, false }) {
             StudioFieldDraft draft = draft(node, source);
@@ -362,10 +362,10 @@ class StudioResourceAlternativesTest {
         assertThrows(IllegalArgumentException.class, () -> rows.append("extra"));
         assertEquals(revision, rows.revision());
         assertEquals(group, rows.source());
-        String clause = "INPUT " + group + " FROM source";
+        String clause = "INPUT " + group + " FROM \"source\"";
         assertTrue(draft(new Node(UUID.randomUUID(), Type.INPUT, 0, 0, clause), program(clause)).hasResourceRows());
         for (String manual : new String[] { group + " OR extra", "item:a OR", "item:a,", "16 item:a,2 item:b" }) {
-            String full = "INPUT " + manual + " EXCEPT item:c FROM source";
+            String full = "INPUT " + manual + " EXCEPT item:c FROM \"source\"";
             Node node = new Node(UUID.randomUUID(), Type.INPUT, 0, 0, full);
             StudioFieldDraft draft = draft(node, program(full));
             assertFalse(draft.hasResourceRows());
@@ -380,8 +380,8 @@ class StudioResourceAlternativesTest {
 
     @Test
     void combinedOreAndRowsRemainAtomicAfterOrAddedAndUndoRestoresExactSourceAndUuid() {
-        String source = "-- 🏭\r\n"
-            + program("INPUT 16 EACH RETAIN 2 EACH item:a WITH #ingotIron EXCEPT item:c FROM a,b OUTPUT TO dest");
+        String source = "-- 🏭\r\n" + program(
+            "INPUT 16 EACH RETAIN 2 EACH item:a WITH #ingotIron EXCEPT item:c FROM \"a\",\"b\" OUTPUT TO \"dest\"");
         StudioDocument document = new StudioDocument();
         document.load(source);
         document.openVisual();
@@ -397,7 +397,7 @@ class StudioResourceAlternativesTest {
         draft.setLabel(
             draft.labelRows()
                 .get(0).id,
-            "renamed");
+            "\"renamed\"");
         draft.setOreMode(StudioOreFilter.Mode.WITHOUT);
         draft.setOrePattern("dust*");
         draft.setExclusion(
@@ -413,7 +413,7 @@ class StudioResourceAlternativesTest {
         String applied = copy.appliedClause(PROJECT, node, document.code());
         assertTrue(applied.contains(" OR fluid:water"), applied);
         assertEquals(
-            "INPUT 32 EACH RETAIN 2 EACH item : a OR fluid:water WITHOUT # dust* EXCEPT item:d FROM renamed , b",
+            "INPUT 32 EACH RETAIN 2 EACH item : a OR fluid:water WITHOUT # dust* EXCEPT item:d FROM \"renamed\" , \"b\"",
             applied);
         assertTrue(
             limits(applied).getLimits()
@@ -467,20 +467,20 @@ class StudioResourceAlternativesTest {
             "INPUT item:c OR item:d FROM\"src😀\"",
             StudioNodeProperties.updateResourceAlternatives(Type.INPUT, compact, "item:c OR item:d"));
         assertEquals("INPUT FROM\"src😀\"", StudioNodeProperties.updateResourceAlternatives(Type.INPUT, compact, ""));
-        String clause = "OUTPUT item:a TO dest", source = program(clause);
+        String clause = "OUTPUT item:a TO \"dest\"", source = program(clause);
         Node node = new Node(UUID.randomUUID(), Type.OUTPUT, 0, 0, clause);
         StudioFieldDraft draft = draft(node, source);
         draft.set("resource", "item:b");
         assertEquals(1, draft.resourceCount());
-        assertEquals("OUTPUT item:b TO dest", draft.appliedClause(PROJECT, node, source));
+        assertEquals("OUTPUT item:b TO \"dest\"", draft.appliedClause(PROJECT, node, source));
         draft.set("resource", "");
         assertEquals(0, draft.resourceCount());
-        assertEquals("OUTPUT  TO dest", draft.appliedClause(PROJECT, node, source));
+        assertEquals("OUTPUT  TO \"dest\"", draft.appliedClause(PROJECT, node, source));
         draft.set("resource", "item:a OR item:b");
         assertThrows(IllegalArgumentException.class, () -> draft.appliedClause(PROJECT, node, source));
         assertThrows(
             IllegalArgumentException.class,
             () -> StudioNodeProperties
-                .updateResourceAlternatives(Type.REDSTONE, "OUTPUT REDSTONE LEVEL TO a", "item:a"));
+                .updateResourceAlternatives(Type.REDSTONE, "OUTPUT REDSTONE LEVEL TO \"a\"", "item:a"));
     }
 }

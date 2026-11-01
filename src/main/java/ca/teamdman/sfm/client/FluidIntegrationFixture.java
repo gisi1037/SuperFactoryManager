@@ -97,7 +97,7 @@ public final class FluidIntegrationFixture {
                 source,
                 dest,
                 "quantity",
-                "INPUT fluid:water FROM source OUTPUT 1000 fluid:water TO dest",
+                "INPUT fluid:water FROM \"source\" OUTPUT 1000 fluid:water TO \"dest\"",
                 4000,
                 1000,
                 phases);
@@ -108,7 +108,7 @@ public final class FluidIntegrationFixture {
                 source,
                 dest,
                 "destination retention",
-                "INPUT fluid:water FROM source OUTPUT RETAIN 1200 fluid:water TO dest",
+                "INPUT fluid:water FROM \"source\" OUTPUT RETAIN 1200 fluid:water TO \"dest\"",
                 3800,
                 1200,
                 phases);
@@ -121,7 +121,7 @@ public final class FluidIntegrationFixture {
                 source,
                 dest,
                 "source retention",
-                "INPUT RETAIN 1500 fluid:water FROM source OUTPUT fluid:water TO dest",
+                "INPUT RETAIN 1500 fluid:water FROM \"source\" OUTPUT fluid:water TO \"dest\"",
                 1500,
                 3500,
                 phases);
@@ -134,7 +134,7 @@ public final class FluidIntegrationFixture {
                 source,
                 dest,
                 "explicit faces",
-                "INPUT fluid:water FROM source NORTH SIDE OUTPUT 1000 fluid:water TO dest SOUTH SIDE",
+                "INPUT fluid:water FROM \"source\" NORTH SIDE OUTPUT 1000 fluid:water TO \"dest\" SOUTH SIDE",
                 4000,
                 1000,
                 phases);
@@ -150,7 +150,7 @@ public final class FluidIntegrationFixture {
                 source,
                 dest,
                 "tagged payload",
-                "INPUT fluid:water FROM source OUTPUT 1000 fluid:water TO dest",
+                "INPUT fluid:water FROM \"source\" OUTPUT 1000 fluid:water TO \"dest\"",
                 4000,
                 1000,
                 phases);
@@ -169,7 +169,7 @@ public final class FluidIntegrationFixture {
                 source,
                 dest,
                 "distinct tag rejected",
-                "INPUT fluid:water FROM source OUTPUT 1000 fluid:water TO dest",
+                "INPUT fluid:water FROM \"source\" OUTPUT 1000 fluid:water TO \"dest\"",
                 4000,
                 1000,
                 phases);
@@ -184,7 +184,7 @@ public final class FluidIntegrationFixture {
                 source,
                 dest,
                 "full destination",
-                "INPUT fluid:water FROM source OUTPUT 1000 fluid:water TO dest",
+                "INPUT fluid:water FROM \"source\" OUTPUT 1000 fluid:water TO \"dest\"",
                 5000,
                 capacity,
                 phases);

@@ -217,7 +217,7 @@ public class GuiManager extends GuiContainer
             mc.displayGuiScreen(new ca.teamdman.sfm.client.gui.GuiBlueprintEditor(manager, this));
         } else if (button.id == 3) {
             // View examples
-            String exampleProgram = "name \"Transfer Iron\"\n\nevery 20 ticks do\n  input from chest_in\n  output to chest_out\nend\n";
+            String exampleProgram = "name \"Transfer Iron\"\n\nevery 20 ticks do\n  input from \"chest_in\"\n  output to \"chest_out\"\nend\n";
             setClipboardString(exampleProgram);
             if (mc.thePlayer != null) {
                 mc.thePlayer.addChatMessage(

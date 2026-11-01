@@ -41,14 +41,14 @@ public final class BlueprintGraph {
 
         TIMER("Timer", "EVERY 20 TICKS", 0x527b9d),
         PULSE("Pulse", "EVERY REDSTONE PULSE", 0x9b5656),
-        INPUT("Input", "INPUT FROM source", 0x568760),
-        OUTPUT("Output", "OUTPUT TO destination", 0x986f46),
-        IF("If", "source HAS >= 1", 0x8b719d),
+        INPUT("Input", "INPUT FROM \"source\"", 0x568760),
+        OUTPUT("Output", "OUTPUT TO \"destination\"", 0x986f46),
+        IF("If", "\"source\" HAS >= 1", 0x8b719d),
         FORGET("Forget", "FORGET", 0x737b82),
-        REDSTONE("Redstone output", "OUTPUT 15 REDSTONE LEVEL TO target", 0x9b5656),
+        REDSTONE("Redstone output", "OUTPUT 15 REDSTONE LEVEL TO \"target\"", 0x9b5656),
         TRANSFER("Transfer", "TRANSFER(LABEL(\"source\"), LABEL(\"destination\"))", 0x568760),
         PRINT("Print", "PRINT(\"Message\")", 0x527b9d),
-        NAMED_REDSTONE("Port edge", "EVERY REDSTONE RISING FROM signal", 0x9b5656);
+        NAMED_REDSTONE("Port edge", "EVERY REDSTONE RISING FROM \"signal\"", 0x9b5656);
 
         public final String title;
         public final String defaultClause;

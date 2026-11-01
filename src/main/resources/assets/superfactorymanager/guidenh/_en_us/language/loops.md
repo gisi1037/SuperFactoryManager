@@ -5,7 +5,7 @@ navigation:
   position: 20
   keywords: ["sfml", "loops", "for", "while", "budgets"]
 categories: ["sfm", "language"]
-updated: "2026-10-30"
+updated: "2026-10-31"
 ---
 
 # Loops
@@ -47,7 +47,7 @@ Array `FOR` evaluates its source once and visits the resulting immutable snapsho
 
 The iteration variable is local to the loop and read-only, including any array or struct members. Copy it into a `LET` local if you need to change a value. It cannot shadow a visible name and is unavailable after `END`.
 
-Body locals are initialized afresh each iteration. A loop body may `SET` visible outer locals and state. `BREAK`, `CONTINUE` and brace-delimited loop bodies are unsupported. In a function, `RETURN` can exit a loop and the function together.
+Body locals are initialized afresh each iteration. A loop body may `SET` visible outer locals and state. `BREAK` and `CONTINUE` are unsupported. Brace-delimited loop bodies are supported. In a function, `RETURN` can exit a loop and the function together.
 
 ## Shared budgets
 
@@ -62,3 +62,8 @@ Each executed `INPUT` registers an independent captured allowance. These accumul
 A budget fault stops execution while retaining earlier state writes and completed transfers. Loops do not yield between extraction and insertion/recovery. These bounds prevent an endless SFML loop, but do not impose a fixed duration on an inventory scan or a third-party callback.
 
 Next: [Functions](functions.md). Related: [Collections](collections.md) and [Expressions](expressions.md).
+
+A loop without WAIT executes within the current invocation. `wait(n)` inside a
+loop suspends that trigger/function stack and preserves its cursor; it lets game
+ticks advance without blocking the server. Retained stacks and each resumed
+invocation remain bounded. See [scheduling](/automation/scheduling.md).

@@ -43,8 +43,8 @@ public class AuditScaleBenchmark {
                 fixtures.add(f);
                 networks.add(new CableNetwork(f.world, AuditRegressionTest.MANAGER));
             }
-            StringBuilder text = new StringBuilder("EVERY 20 TICKS DO INPUT FROM source ");
-            for (int i = 0; i < outputs; i++) text.append("OUTPUT 1 TO dest ");
+            StringBuilder text = new StringBuilder("EVERY 20 TICKS DO INPUT FROM \"source\" ");
+            for (int i = 0; i < outputs; i++) text.append("OUTPUT 1 TO \"dest\" ");
             text.append("END");
             Program program = AuditRegressionTest.parse(text.toString());
             long[] times = new long[40];

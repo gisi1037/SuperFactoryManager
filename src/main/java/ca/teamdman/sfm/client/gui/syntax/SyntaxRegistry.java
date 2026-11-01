@@ -44,26 +44,26 @@ public final class SyntaxRegistry {
             "trig_port_rising",
             "Named Redstone Port RISING edge",
             SnippetCategory.TRIGGER,
-            "EVERY REDSTONE RISING FROM <sensor> NORTH SIDE DO\n  <statements>\nEND",
+            "EVERY REDSTONE RISING FROM \"<sensor>\" NORTH SIDE DO\n  <statements>\nEND",
             "Runs when the selected native-port input rises; Visual Port edge header supports labels/physical faces, without slots or round robin");
         snippet(
             "trig_port_pulse",
             "Named Redstone Port PULSE edge",
             SnippetCategory.TRIGGER,
-            "EVERY REDSTONE PULSE FROM <sensor> NORTH SIDE DO\n  <statements>\nEND",
+            "EVERY REDSTONE PULSE FROM \"<sensor>\" NORTH SIDE DO\n  <statements>\nEND",
             "PULSE FROM is a named native-port rising edge alias; distinct from the manager Pulse trigger");
         snippet(
             "trig_port_falling",
             "Named Redstone Port FALLING edge",
             SnippetCategory.TRIGGER,
-            "EVERY REDSTONE FALLING FROM <sensor> NORTH SIDE DO\n  <statements>\nEND",
+            "EVERY REDSTONE FALLING FROM \"<sensor>\" NORTH SIDE DO\n  <statements>\nEND",
             "Runs when the selected native-port input falls; Visual Port edge header is available, missing/incomplete groups are unavailable");
         snippet(
             "trig_port_gate",
             "Native port edges drive an output",
             SnippetCategory.TRIGGER,
-            "EVERY REDSTONE RISING FROM <sensor> NORTH SIDE DO\n  OUTPUT 15 REDSTONE LEVEL TO <emit> EAST SIDE\nEND\n"
-                + "EVERY REDSTONE FALLING FROM <sensor> NORTH SIDE DO\n  OUTPUT 0 REDSTONE LEVEL TO <emit> EAST SIDE\nEND",
+            "EVERY REDSTONE RISING FROM \"<sensor>\" NORTH SIDE DO\n  OUTPUT 15 REDSTONE LEVEL TO \"<emit>\" EAST SIDE\nEND\n"
+                + "EVERY REDSTONE FALLING FROM \"<sensor>\" NORTH SIDE DO\n  OUTPUT 0 REDSTONE LEVEL TO \"<emit>\" EAST SIDE\nEND",
             "Complete program: named input edges switch an output face on a second Redstone Port");
         snippet(
             "trig_name",
@@ -138,83 +138,101 @@ public final class SyntaxRegistry {
             "LET $tank = LABEL(\"<src>\")\nIF ($tank.favailable()) THEN\n  PRINT($tank.fcount(), $tank.fempty(), $tank.fcontents())\nEND",
             "Fresh complete-group fluid observations, in mB. Missing tanks are never treated as empty");
         snippet(
+            "logic_wait",
+            "Wait game ticks",
+            SnippetCategory.CONDITION,
+            "wait(<ticks>)",
+            "Suspend one trigger/call stack; other triggers continue. wait(20) is one second at 20 TPS");
+        snippet(
+            "io_setcircuit",
+            "Set a ghost circuit",
+            SnippetCategory.IO,
+            "setcircuit(label(\"<machine>\"), <configuration>) into $configured\nPRINT($configured.changed, $configured.status)",
+            "Compatible GregTech machines/hatches only; 1..24 selects and 0 clears. No physical items move");
+        snippet(
+            "query_dynamic_label",
+            "Query a numbered label",
+            SnippetCategory.QUERY,
+            "LET $index = 1\nLET $chest = LABEL(\"chest\" + $index)\nIF ($chest.available()) THEN\n  PRINT($chest.empty())\nEND",
+            "Computed label names are exact strings; concatenation formats integer indices as decimal");
+        snippet(
             "io_basic",
             "INPUT / OUTPUT",
             SnippetCategory.IO,
-            "INPUT FROM <src>\nOUTPUT TO <dst>",
+            "INPUT FROM \"<src>\"\nOUTPUT TO \"<dst>\"",
             "Registers sources, then attempts transfers into destinations");
         snippet(
             "io_input_all",
             "INPUT FROM label",
             SnippetCategory.IO,
-            "INPUT FROM <src>",
+            "INPUT FROM \"<src>\"",
             "Registers source views for subsequent OUTPUT statements");
         snippet(
             "io_input_qty",
             "INPUT quantity",
             SnippetCategory.IO,
-            "INPUT <quantity> FROM <src>",
+            "INPUT <quantity> FROM \"<src>\"",
             "Limits the total input allowance across subsequent outputs");
         snippet(
             "io_input_with",
             "INPUT a specific item",
             SnippetCategory.IO,
-            "INPUT <quantity> item:<item> FROM <src>",
+            "INPUT <quantity> item:<item> FROM \"<src>\"",
             "Selects a registered item by namespace and name");
         snippet(
             "io_input_retain",
             "INPUT with source reserve",
             SnippetCategory.IO,
-            "INPUT <quantity> RETAIN <amount> FROM <src>",
+            "INPUT <quantity> RETAIN <amount> FROM \"<src>\"",
             "Leaves the retained amount in selected sources");
         snippet(
             "io_output_all",
             "OUTPUT TO label",
             SnippetCategory.IO,
-            "OUTPUT TO <dst>",
+            "OUTPUT TO \"<dst>\"",
             "Attempts transfers from the active input sources");
         snippet(
             "io_output_qty",
             "OUTPUT quantity",
             SnippetCategory.IO,
-            "OUTPUT <quantity> TO <dst>",
+            "OUTPUT <quantity> TO \"<dst>\"",
             "Transfers up to this quantity using remaining input allowance");
         snippet(
             "io_output_retain",
             "OUTPUT toward target stock",
             SnippetCategory.IO,
-            "OUTPUT RETAIN <amount> TO <dst>",
+            "OUTPUT RETAIN <amount> TO \"<dst>\"",
             "Fills destinations toward this total stock cap");
         snippet(
             "io_output_empty",
             "OUTPUT to empty slots",
             SnippetCategory.IO,
-            "OUTPUT TO EMPTY SLOTS IN <dst>",
+            "OUTPUT TO EMPTY SLOTS IN \"<dst>\"",
             "Inserts into empty item slots only");
         snippet(
             "io_redstone_out",
             "OUTPUT redstone level",
             SnippetCategory.IO,
-            "OUTPUT <15> REDSTONE LEVEL TO <emit>",
+            "OUTPUT <15> REDSTONE LEVEL TO \"<emit>\"",
             "Sets a native Redstone Port or legacy emitter output; literal levels retain historical 0-15 clamping");
         snippet(
             "io_redstone_dynamic",
             "Computed Redstone Port output",
             SnippetCategory.IO,
-            "LET $level = <level>\nOUTPUT ($level) REDSTONE LEVEL TO <emit> EAST SIDE",
+            "LET $level = <level>\nOUTPUT ($level) REDSTONE LEVEL TO \"<emit>\" EAST SIDE",
             "Integer expression evaluated once before output writes; dynamic levels must be within 0-15");
         snippet(
             "io_redstone_forward",
             "Forward native Redstone Port input",
             SnippetCategory.IO,
             "LET $sensor = LABEL(\"<sensor>\").side(\"north\")\nIF ($sensor.redstoneAvailable()) THEN\n"
-                + "  LET $level = $sensor.redstone()\n  OUTPUT ($level) REDSTONE LEVEL TO <emit> EAST SIDE\nEND",
+                + "  LET $level = $sensor.redstone()\n  OUTPUT ($level) REDSTONE LEVEL TO \"<emit>\" EAST SIDE\nEND",
             "Checks native-group availability before forwarding its maximum input level to an output face");
         snippet(
             "io_forget",
             "FORGET a source",
             SnippetCategory.IO,
-            "FORGET <label>",
+            "FORGET \"<label>\"",
             "Discards active INPUT registrations for this label");
         snippet(
             "io_forget_all",
@@ -263,37 +281,37 @@ public final class SyntaxRegistry {
             "cond_has",
             "Label HAS item threshold",
             SnippetCategory.CONDITION,
-            "<src> HAS GT <quantity> item:<item>",
+            "\"<src>\" HAS GT <quantity> item:<item>",
             "Tests selected stock against a quantity threshold");
         snippet(
             "cond_has_overall",
             "OVERALL label HAS",
             SnippetCategory.CONDITION,
-            "OVERALL <src> HAS GE <quantity>",
+            "OVERALL \"<src>\" HAS GE <quantity>",
             "Compares combined stock across selected blocks");
         snippet(
             "cond_has_some",
             "SOME label HAS",
             SnippetCategory.CONDITION,
-            "SOME <src> HAS GE <quantity>",
+            "SOME \"<src>\" HAS GE <quantity>",
             "True when at least one selected block meets the threshold");
         snippet(
             "cond_has_every",
             "EVERY label HAS",
             SnippetCategory.CONDITION,
-            "EVERY <src> HAS GE <quantity>",
+            "EVERY \"<src>\" HAS GE <quantity>",
             "Tests the threshold for every selected block");
         snippet(
             "cond_has_one",
             "ONE label HAS",
             SnippetCategory.CONDITION,
-            "ONE <src> HAS GE <quantity>",
+            "ONE \"<src>\" HAS GE <quantity>",
             "True when exactly one selected block meets the threshold");
         snippet(
             "cond_has_lone",
             "LONE label HAS",
             SnippetCategory.CONDITION,
-            "LONE <src> HAS GE <quantity>",
+            "LONE \"<src>\" HAS GE <quantity>",
             "True when at most one selected block meets the threshold, including zero");
         snippet(
             "cond_redstone_on",
@@ -331,20 +349,20 @@ public final class SyntaxRegistry {
             "label_each",
             "EACH label",
             SnippetCategory.LABEL,
-            "EACH <label>",
+            "EACH \"<label>\"",
             "Uses independent transfer allowances for each block");
         snippet(
             "label_group",
             "Multiple labels",
             SnippetCategory.LABEL,
-            "<src>, <dst>",
+            "\"<src>\", \"<dst>\"",
             "Combines labeled block groups");
         for (String side : new String[] { "TOP", "BOTTOM", "NORTH", "SOUTH", "EAST", "WEST", "NULL" }) {
             snippet(
                 "side_" + side.toLowerCase(Locale.ROOT),
                 side + " SIDE",
                 SnippetCategory.LABEL,
-                "<label> " + side + " SIDE",
+                "\"<label>\" " + side + " SIDE",
                 side.equals("NULL") ? "Uses unsided access, subject to machine rules"
                     : "Uses the container's " + side.toLowerCase(Locale.ROOT) + " face");
         }
@@ -352,7 +370,7 @@ public final class SyntaxRegistry {
             "side_each",
             "EACH SIDE",
             SnippetCategory.LABEL,
-            "<label> EACH SIDE",
+            "\"<label>\" EACH SIDE",
             "Uses all faces without multiplying shared physical stock");
 
         snippet(
@@ -525,13 +543,13 @@ public final class SyntaxRegistry {
             "data_quantity",
             "Computed transfer quantity",
             SnippetCategory.DATA,
-            "LET $batch = <quantity>\nINPUT ($batch) FROM <src>\nOUTPUT ($batch) TO <dst>",
+            "LET $batch = <quantity>\nINPUT ($batch) FROM \"<src>\"\nOUTPUT ($batch) TO \"<dst>\"",
             "Data expressions in transfer limits require parentheses");
         snippet(
             "data_retention",
             "Computed source reserve",
             SnippetCategory.DATA,
-            "LET $reserve = <amount>\nINPUT RETAIN ($reserve) FROM <src>",
+            "LET $reserve = <amount>\nINPUT RETAIN ($reserve) FROM \"<src>\"",
             "Snapshots a computed retention value when the statement runs");
         snippet(
             "data_condition",
@@ -810,7 +828,7 @@ public final class SyntaxRegistry {
             "FUNCTION signals.read($sensor: LABEL_REF) RETURNS INTEGER DO\n  RETURN $sensor.redstone()\nEND\n"
                 + "EVERY 20 TICKS DO\n  LET $sensor = LABEL(\"<sensor>\").side(\"north\")\n"
                 + "  IF ($sensor.redstoneAvailable()) THEN\n    LET $level = signals.read($sensor)\n"
-                + "    OUTPUT ($level) REDSTONE LEVEL TO <emit> EAST SIDE\n  END\nEND",
+                + "    OUTPUT ($level) REDSTONE LEVEL TO \"<emit>\" EAST SIDE\n  END\nEND",
             "Complete program: a typed helper observes native input; its caller performs output");
     }
 
@@ -855,9 +873,9 @@ public final class SyntaxRegistry {
             result.add(
                 new SyntaxSnippet(
                     "label_placeholder",
-                    "<label>",
+                    "\"<label>\"",
                     SnippetCategory.LABEL,
-                    "<label>",
+                    "\"<label>\"",
                     "Name of a labeled block in cable network"));
         }
         return result;

@@ -1,4 +1,7 @@
 const catalog = require('../data/functions.json');
+const typeNames = new Set('integer boolean string void label_ref resource_selector item_key item_contents item_locations fluid_key fluid_contents'.split(' '));
+const bindingName = token => token.text.replace(/^\$/, '');
+const isName = token => token && (token.kind === 'word' || token.kind === 'variable');
 
 // A small lexical scan for presentation only. All diagnostics come from Java's ProgramBuilder.
 function analyze(text) {
@@ -27,12 +30,40 @@ function analyze(text) {
       while (i < text.length && /[A-Za-z0-9_]/.test(text[i])) i++;
       const token = { start, end: i, kind: variable ? 'variable' : 'word', text: text.slice(start, i) };
       tokens.push(token);
-      if (variable) variables.push(token);
+    } else if (/[0-9]/.test(c)) {
+      while (i < text.length && /[0-9]/.test(text[i])) i++;
+      tokens.push({ start, end: i, kind: 'number', text: text.slice(start, i) });
     } else { tokens.push({ start, end: ++i, kind: 'symbol', text: c }); }
   }
+  // This is deliberately a presentation scan, not a second type checker. Match
+  // bounded type/header shapes and leave malformed/incomplete code to Java.
+  function typeEnd(start, depth = 0) {
+    if (depth > 64) return -1;
+    let j = start;
+    if (tokens[j]?.text === '{') {
+      j++;
+      while (tokens[j] && tokens[j].text !== '}') {
+        if (tokens[j]?.kind !== 'word' || tokens[j + 1]?.text !== ':') return -1;
+        j = typeEnd(j + 2, depth + 1);
+        if (j < 0) return -1;
+        if (tokens[j]?.text === '}') break;
+        if (tokens[j++]?.text !== ',') return -1;
+      }
+      if (tokens[j++]?.text !== '}') return -1;
+    } else if (tokens[j]?.kind === 'word' && typeNames.has(tokens[j].text.toLowerCase())) j++;
+    else return -1;
+    while (tokens[j]?.text === '[') {
+      if (tokens[j + 1]?.kind !== 'number' || tokens[j + 2]?.text !== ']') return -1;
+      j += 3;
+    }
+    return j;
+  }
+  const headers = new Map();
   for (let i = 0; i < tokens.length; i++) {
-    if (tokens[i].kind !== 'word' || tokens[i].text.toLowerCase() !== 'function' || tokens[i - 1]?.text === '.') continue;
-    let j = i + 1;
+    if (tokens[i - 1]?.text === '.') continue;
+    const alias = tokens[i].text?.toLowerCase() === 'function';
+    let j = alias ? i + 1 : typeEnd(i);
+    if (j < 0) continue;
     if (tokens[j]?.kind !== 'word') continue;
     let name = tokens[j++].text;
     while (tokens[j]?.text === '.' && tokens[j + 1]?.kind === 'word') {
@@ -40,25 +71,87 @@ function analyze(text) {
       j += 2;
     }
     if (tokens[j]?.text !== '(') continue;
-    let depth = 0;
-    do {
-      if (tokens[j]?.text === '(') depth++;
-      if (tokens[j]?.text === ')') depth--;
-      j++;
-    } while (j < tokens.length && depth);
-    if (depth || tokens[j++]?.text?.toLowerCase() !== 'returns') continue;
-    let braces = 0;
-    for (; j < tokens.length; j++) {
-      const token = tokens[j];
-      if (token.text === '{' || token.text === '[') braces++;
-      if (token.text === '}' || token.text === ']') braces--;
-      if (braces === 0 && token.kind === 'word' && token.text.toLowerCase() === 'do') {
-        functions.set(name, { signatures: [text.slice(tokens[i].start, token.end).slice(0, 2048)],
-          description: 'Player-defined function in this file. Parameter and return types are explicit; names are case-sensitive.' });
-        break;
+    const parameters = [];
+    j++;
+    while (tokens[j] && tokens[j].text !== ')' && j - i <= 1024) {
+      const start = j;
+      const reference = tokens[j]?.text?.toLowerCase() === 'ref';
+      if (reference) j++;
+      let parameter;
+      if (isName(tokens[j]) && tokens[j + 1]?.text === ':') {
+        parameter = tokens[j];
+        j = typeEnd(j + 2);
+      } else {
+        j = typeEnd(j);
+        parameter = tokens[j];
+        if (isName(parameter)) j++;
+        else j = -1;
       }
-      if (j - i > 1024) break;
+      if (j < 0) break;
+      parameters.push({ token: parameter, signatures: [text.slice(tokens[start].start, tokens[j - 1].end)],
+        description: reference
+          ? 'Reference parameter of a void procedure. The caller must pass ref with a writable target of exactly this type; writes update that target immediately.'
+          : 'Value parameter. Assignment changes this local copy. Names are case-sensitive; the $ prefix is optional.' });
+      if (tokens[j]?.text === ')') break;
+      if (tokens[j++]?.text !== ',') { j = -1; break; }
     }
+    if (j < 0 || tokens[j++]?.text !== ')') continue;
+    if (alias) {
+      if (tokens[j++]?.text?.toLowerCase() !== 'returns') continue;
+      j = typeEnd(j);
+    }
+    if (j < 0 || !['{', 'do', 'then'].includes(tokens[j]?.text?.toLowerCase())) continue;
+    functions.set(name, { signatures: [text.slice(tokens[i].start, tokens[j].end).slice(0, 2048)],
+      description: 'Player-defined function in this file. Parameter and return types are explicit; names are case-sensitive. Void procedures perform effects and may return without a value.' });
+    headers.set(i, { end: j, parameters });
+    i = j;
+  }
+  const scopes = [{ kind: 'root', bindings: new Map() }];
+  let pendingParameters = [], pendingLoop;
+  function declare(token, entry, scope = scopes.at(-1)) {
+    token.binding = entry;
+    scope.bindings.set(bindingName(token), entry);
+  }
+  for (let i = 0; i < tokens.length; i++) {
+    const header = headers.get(i);
+    if (header) {
+      pendingParameters = header.parameters;
+      for (const parameter of pendingParameters) {
+        parameter.token.binding = parameter;
+        variables.push(parameter.token);
+      }
+      i = header.end;
+    }
+    const token = tokens[i], lower = token.text?.toLowerCase();
+    const field = tokens[i - 1]?.text === '.' || tokens[i + 1]?.text === ':';
+    if (!field && (lower === 'end' || lower === '}')) {
+      if (scopes.length > 1) scopes.pop();
+    } else if (!field && lower === 'else' && scopes.at(-1).kind === 'legacy') {
+      scopes.pop();
+      if (tokens[i + 1]?.text?.toLowerCase() !== 'if') scopes.push({ kind: 'legacy', bindings: new Map() });
+    } else if (!field && ['{', 'do', 'then'].includes(lower)) {
+      const structure = lower === '{' && tokens[i + 1]?.kind === 'word' && tokens[i + 2]?.text === ':';
+      scopes.push({ kind: structure ? 'structure' : lower === '{' ? 'brace' : 'legacy', bindings: new Map() });
+      for (const parameter of pendingParameters) declare(parameter.token, parameter);
+      pendingParameters = [];
+      if (pendingLoop && !structure) { declare(pendingLoop.token, pendingLoop); pendingLoop = undefined; }
+    }
+    if (!isName(token) || field) continue;
+    const previous = tokens[i - 1]?.text?.toLowerCase();
+    if (['let', 'state', 'into', 'for'].includes(previous) && tokens[i - 2]?.text !== '.') {
+      const entry = { token, signatures: [`${previous} ${token.text}`],
+        description: previous === 'state' ? 'Persistent disk STATE binding. Names are case-sensitive; the $ prefix is optional.'
+          : 'Local or program RAM binding. Names are case-sensitive; the $ prefix is optional. Types are checked by the Java compiler.' };
+      if (previous === 'for') { token.binding = entry; pendingLoop = entry; }
+      else declare(token, entry);
+    } else if (tokens[i + 1]?.text !== '(' && (tokens[i - 1]?.text !== ':' || scopes.at(-1).kind === 'structure')) {
+      // Keep editing malformed, deeply nested source bounded as well.
+      for (let s = scopes.length - 1; s >= 0 && s >= scopes.length - 64; s--) {
+        const entry = scopes[s].bindings.get(bindingName(token));
+        if (entry) { token.binding = entry; break; }
+      }
+    }
+    if (token.kind === 'variable' || token.binding) variables.push(token);
   }
   return { tokens, variables, functions };
 }
@@ -72,9 +165,11 @@ function hover(analysis, offset) {
     else if (offset >= token.end) low = middle + 1;
     else { index = middle; break; }
   }
-  if (index < 0 || tokens[index].kind !== 'word') return;
+  if (index < 0) return;
+  if (tokens[index].binding) return { ...tokens[index].binding, start: tokens[index].start, end: tokens[index].end };
+  if (tokens[index].kind !== 'word') return;
   let first = index, last = index;
-  while (tokens[first - 1]?.text === '.' && tokens[first - 2]?.kind === 'word') first -= 2;
+  while (tokens[first - 1]?.text === '.' && tokens[first - 2]?.kind === 'word' && !tokens[first - 2].binding) first -= 2;
   while (tokens[last + 1]?.text === '.' && tokens[last + 2]?.kind === 'word') last += 2;
   if (tokens[last + 1]?.text !== '(') return;
   const name = tokens.slice(first, last + 1).map(token => token.text).join('');

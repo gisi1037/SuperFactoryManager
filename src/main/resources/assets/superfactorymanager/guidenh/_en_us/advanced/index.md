@@ -6,7 +6,7 @@ navigation:
   parent: /index.md
   keywords: ["advanced", "reference", "api", "studio"]
 categories: ["sfm"]
-updated: "2026-10-30"
+updated: "2026-10-31"
 ---
 
 # Advanced guide
@@ -22,7 +22,7 @@ conditions, sides, slots, redstone and item queries.
 ## Write larger programs
 
 [SFML language](/language/index.md) covers variables, persistent STATE,
-collections, strings, expressions, loops and read-only player functions.
+collections, strings, expressions, loops, value functions and void procedures.
 
 ## Look up a rule or diagnose a problem
 

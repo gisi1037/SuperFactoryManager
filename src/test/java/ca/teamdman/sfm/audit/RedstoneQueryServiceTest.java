@@ -139,12 +139,12 @@ class RedstoneQueryServiceTest {
         fixture.stock(0, 6);
         RecordingPort port = port(fixture, EXTRA);
         fixture.run(
-            "LET $strength = 7 INPUT 2 FROM source OUTPUT ($strength) REDSTONE LEVEL TO signal NORTH SIDE OUTPUT TO dest");
+            "LET $strength = 7 INPUT 2 FROM \"source\" OUTPUT ($strength) REDSTONE LEVEL TO \"signal\" NORTH SIDE OUTPUT TO \"dest\"");
         assertEquals(7, port.outputs[2]);
         for (int side = 0; side < 6; side++) if (side != 2) assertEquals(0, port.outputs[side]);
         assertEquals(2, count(fixture.dest));
         assertEquals(4, count(fixture.source));
-        fixture.run("OUTPUT 99 REDSTONE LEVEL TO signal");
+        fixture.run("OUTPUT 99 REDSTONE LEVEL TO \"signal\"");
         for (int level : port.outputs) assertEquals(15, level);
     }
 
@@ -156,7 +156,7 @@ class RedstoneQueryServiceTest {
         fixture.runProgram(
             "FUNCTION signals.level($port: LABEL_REF) RETURNS INTEGER DO "
                 + "IF ($port.redstoneAvailable()) THEN RETURN $port.side(\"north\").redstone() ELSE RETURN 0 END END "
-                + "EVERY 20 TICKS DO OUTPUT (signals.level(LABEL(\"signal\"))) REDSTONE LEVEL TO signal EAST SIDE END");
+                + "EVERY 20 TICKS DO OUTPUT (signals.level(LABEL(\"signal\"))) REDSTONE LEVEL TO \"signal\" EAST SIDE END");
         assertEquals(7, port.outputs[5]);
         assertEquals(2, port.refreshes);
         assertEquals(1, port.outputWrites);
@@ -173,15 +173,15 @@ class RedstoneQueryServiceTest {
             false);
         assertThrows(IllegalArgumentException.class, () -> invalidSide.tick(context));
         assertEquals(0, port.outputWrites);
-        assertThrows(IllegalArgumentException.class, () -> fixture.run("OUTPUT (16) REDSTONE LEVEL TO signal"));
+        assertThrows(IllegalArgumentException.class, () -> fixture.run("OUTPUT (16) REDSTONE LEVEL TO \"signal\""));
         assertEquals(0, port.outputWrites);
         fixture.world.unloaded.add(SRC);
-        fixture.run("OUTPUT 4 REDSTONE LEVEL TO signal");
+        fixture.run("OUTPUT 4 REDSTONE LEVEL TO \"signal\"");
         assertEquals(0, port.outputWrites);
         fixture.world.unloaded.remove(SRC);
         BlockPos farPosition = new BlockPos(40, 64, 40);
         RecordingPort far = port(fixture, farPosition);
-        fixture.run("OUTPUT 4 REDSTONE LEVEL TO signal");
+        fixture.run("OUTPUT 4 REDSTONE LEVEL TO \"signal\"");
         assertEquals(1, port.outputWrites);
         assertEquals(0, far.outputWrites);
     }
@@ -194,15 +194,15 @@ class RedstoneQueryServiceTest {
         IllegalArgumentException fault = assertThrows(
             IllegalArgumentException.class,
             () -> fixture.runProgram(
-                "EVERY 20 TICKS DO FOR $i = 0 TO 127 DO OUTPUT 3 REDSTONE LEVEL TO signal NORTH SIDE END END "
-                    + "EVERY 20 TICKS DO FOR $j = 0 TO 128 DO OUTPUT 3 REDSTONE LEVEL TO signal NORTH SIDE END END"));
+                "EVERY 20 TICKS DO FOR $i = 0 TO 127 DO OUTPUT 3 REDSTONE LEVEL TO \"signal\" NORTH SIDE END END "
+                    + "EVERY 20 TICKS DO FOR $j = 0 TO 128 DO OUTPUT 3 REDSTONE LEVEL TO \"signal\" NORTH SIDE END END"));
         assertTrue(
             fault.getMessage()
                 .contains("write budget"),
             fault.getMessage());
         assertEquals(256, port.outputWrites);
         assertEquals(3, port.outputs[2], "Earlier completed writes remain in place after the budget fault");
-        fixture.run("OUTPUT 4 REDSTONE LEVEL TO signal NORTH SIDE");
+        fixture.run("OUTPUT 4 REDSTONE LEVEL TO \"signal\" NORTH SIDE");
         assertEquals(257, port.outputWrites, "A fresh invocation receives a new allowance");
     }
 
@@ -220,7 +220,7 @@ class RedstoneQueryServiceTest {
             fixture.labels.addPosition("beta", DST);
             fixture.labels.addPosition("alias", SRC);
             fixture.labels.addPosition("far", farPosition);
-            String clause = String.format(form, "alpha,beta"), source = "every 20 ticks do " + clause + " end";
+            String clause = String.format(form, "\"alpha\",\"beta\""), source = "every 20 ticks do " + clause + " end";
             Node node = new Node(java.util.UUID.randomUUID(), Type.REDSTONE, 0, 0, clause);
             java.util.UUID project = java.util.UUID.randomUUID();
             StudioFieldDraft draft = new StudioFieldDraft(
@@ -228,8 +228,8 @@ class RedstoneQueryServiceTest {
                 node,
                 source,
                 StudioNodeProperties.inspect(Type.REDSTONE, clause));
-            draft.addLabel("alias");
-            draft.addLabel("far");
+            draft.addLabel("\"alias\"");
+            draft.addLabel("\"far\"");
             draft.set("level", "00007");
             String changed = draft.appliedClause(project, node, source);
             fixture.run(changed);
@@ -260,8 +260,8 @@ class RedstoneQueryServiceTest {
         RecordingPort first = port(fixture, SRC), second = port(fixture, DST);
         fixture.labels.addPosition("alpha", SRC);
         fixture.labels.addPosition("beta", DST);
-        String clause = "TO alpha,beta ROUND ROBIN BY LABEL NORTH SIDE OUTPUT 4 REDSTONE LEVEL";
-        String changed = StudioNodeProperties.update(Type.REDSTONE, clause, "label", "alpha,beta,alpha");
+        String clause = "TO \"alpha\",\"beta\" ROUND ROBIN BY LABEL NORTH SIDE OUTPUT 4 REDSTONE LEVEL";
+        String changed = StudioNodeProperties.update(Type.REDSTONE, clause, "label", "\"alpha\",\"beta\",\"alpha\"");
         RedstoneOutputStatement output = (RedstoneOutputStatement) parse("every 20 ticks do " + changed + " end")
             .getTriggers()
             .get(0)

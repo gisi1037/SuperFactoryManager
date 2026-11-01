@@ -139,9 +139,8 @@ class SfmlFunctionTest {
     }
 
     @Test
-    void nestedFramesDoNotCaptureCallerLocalsOrStateAndNamesAreCaseSensitive() {
-        String[] invalid = { "STATE $x = 7 FUNCTION f() RETURNS INTEGER DO RETURN $x END",
-            "STATE $x = 7 FUNCTION f() RETURNS INTEGER DO SET $x = 8 RETURN 1 END",
+    void nestedFramesDoNotCaptureCallerLocalsAndNamesAreCaseSensitive() {
+        String[] invalid = { "STATE $x = 7 FUNCTION f() RETURNS INTEGER DO SET $x = 8 RETURN 1 END",
             "FUNCTION f() RETURNS INTEGER DO RETURN $x END EVERY 20 TICKS DO LET $x = 7 LET $y = f() END",
             "FUNCTION f($x: INTEGER) RETURNS INTEGER DO LET $x = 1 RETURN $x END",
             "FUNCTION f($x: INTEGER, $x: INTEGER) RETURNS INTEGER DO RETURN $x END",
@@ -156,14 +155,21 @@ class SfmlFunctionTest {
                 "FUNCTION outer($x: INTEGER) RETURNS INTEGER DO RETURN inner(2) + $x END "
                     + "FUNCTION inner($x: INTEGER) RETURNS INTEGER DO RETURN $x END",
                 "outer(2)").asLong());
-        // A STATE name is not captured; an explicit parameter with the same spelling is legal.
-        program("STATE $x = 7 FUNCTION f($x: INTEGER) RETURNS INTEGER DO RETURN $x END");
+        program("STATE $x = 7 FUNCTION f() RETURNS INTEGER DO RETURN $x END");
+        // STATE is directly visible, so shadowing its spelling is rejected like other shared bindings.
+        assertFalse(
+            new ProgramBuilder("STATE $x = 7 FUNCTION f($x: INTEGER) RETURNS INTEGER DO RETURN $x END").build()
+                .isSuccess());
     }
 
     @Test
     void onlyPureAndObservationStatementsAreAllowedAndStateDefaultsCannotCallFunctions() {
-        for (String body : Arrays
-            .asList("PRINT(1)", "INPUT FROM source", "OUTPUT TO dest", "FORGET", "OUTPUT REDSTONE TO target"))
+        for (String body : Arrays.asList(
+            "PRINT(1)",
+            "INPUT FROM \"source\"",
+            "OUTPUT TO \"dest\"",
+            "FORGET",
+            "OUTPUT REDSTONE TO \"target\""))
             assertFalse(
                 new ProgramBuilder("FUNCTION f() RETURNS INTEGER DO " + body + " RETURN 1 END").build()
                     .isSuccess(),
@@ -375,7 +381,7 @@ class SfmlFunctionTest {
 
     @Test
     void keywordsRetainLegacyLabelResourceAndMemberMeaningAndVisualNamesFunctions() {
-        Program legacy = program("EVERY 20 TICKS DO INPUT function FROM returns OUTPUT return TO function END");
+        Program legacy = program("EVERY 20 TICKS DO INPUT function FROM \"returns\" OUTPUT return TO \"function\" END");
         assertFalse(legacy.hasDataFeatures());
         assertEquals(
             6,
@@ -410,7 +416,7 @@ class SfmlFunctionTest {
             "FUNCTION unused() RETURNS INTEGER DO RETURN LABEL(\"unused\").count(ITEM(\"*\")) END "
                 + "FUNCTION outer() RETURNS INTEGER DO RETURN inner() END "
                 + "FUNCTION inner() RETURNS INTEGER DO RETURN LABEL(\"reached\").count(ITEM(\"*\")) END "
-                + "EVERY 20 TICKS DO IF FALSE THEN LET $count = outer() END INPUT FROM direct END");
+                + "EVERY 20 TICKS DO IF FALSE THEN LET $count = outer() END INPUT FROM \"direct\" END");
         assertTrue(reached.hasDataFeatures());
         assertTrue(
             reached.getReferencedLabels()
@@ -501,7 +507,7 @@ class SfmlFunctionTest {
             "STATE $after = 0 "
                 + "FUNCTION contents($source: LABEL_REF) RETURNS INTEGER DO RETURN $source.count(ITEM(\"*\")) END "
                 + "FUNCTION transferable($source: LABEL_REF, $reserve: INTEGER) RETURNS INTEGER DO RETURN contents($source) - $reserve END "
-                + "EVERY 20 TICKS DO INPUT FROM source OUTPUT (transferable(LABEL(\"source\"), 2)) TO dest "
+                + "EVERY 20 TICKS DO INPUT FROM \"source\" OUTPUT (transferable(LABEL(\"source\"), 2)) TO \"dest\" "
                 + "SET $after = contents(LABEL(\"source\")) END");
         MemoryState state = new MemoryState(program.getStateSchema());
         ProgramContext context = new ProgramContext(

@@ -61,9 +61,11 @@ public final class InputStatement implements Statement {
 
     public InputStatement resolve(ProgramContext context) {
         ResourceLimits resolved = resourceLimits.resolve(context);
+        LabelAccess access = labelAccess.resolve(context);
         // Repeated loop execution needs an independent registration/quota identity.
         // Share LabelAccess so its round-robin cursor still advances normally.
-        return resolved == resourceLimits && !context.isInLoop() ? this
-            : new InputStatement(labelAccess, resolved, each);
+        return resolved == resourceLimits && access == labelAccess
+            && !context.isInLoop()
+            && !context.isProcedureAction() ? this : new InputStatement(access, resolved, each);
     }
 }

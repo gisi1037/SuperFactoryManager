@@ -153,8 +153,8 @@ class SfmlDataTest {
     @Test
     void dynamicInputSnapshotsBeforeLaterAssignmentsAndKeepsQuotaAcrossOutputs() throws Exception {
         Program program = program(
-            "EVERY 20 TICKS DO LET $n = 8 INPUT ($n) FROM source SET $n = 32 "
-                + "OUTPUT 3 TO dest OUTPUT 64 TO dest END");
+            "EVERY 20 TICKS DO LET $n = 8 INPUT ($n) FROM \"source\" SET $n = 32 "
+                + "OUTPUT 3 TO \"dest\" OUTPUT 64 TO \"dest\" END");
         AuditRegressionTest.Fixture fixture = new AuditRegressionTest.Fixture();
         fixture.stock(0, 32);
         program.tick(
@@ -172,7 +172,8 @@ class SfmlDataTest {
     @Test
     void everyOutputLimitIsValidatedBeforeAnyTransferAndPriorOutputRemains() throws Exception {
         Program program = program(
-            "EVERY 20 TICKS DO LET $bad = -1 INPUT FROM source OUTPUT 2 TO dest " + "OUTPUT 4, ($bad) TO dest END");
+            "EVERY 20 TICKS DO LET $bad = -1 INPUT FROM \"source\" OUTPUT 2 TO \"dest\" "
+                + "OUTPUT 4, ($bad) TO \"dest\" END");
         AuditRegressionTest.Fixture fixture = new AuditRegressionTest.Fixture();
         fixture.stock(0, 32);
         ProgramContext context = new ProgramContext(
@@ -190,8 +191,8 @@ class SfmlDataTest {
     @Test
     void dynamicRetentionAndHasCountsUseTheCurrentScalarSnapshot() throws Exception {
         Program program = program(
-            "EVERY 20 TICKS DO LET $reserve = 12 IF source HAS >= ($reserve) THEN "
-                + "INPUT 100 RETAIN ($reserve) FROM source OUTPUT 100 TO dest END END");
+            "EVERY 20 TICKS DO LET $reserve = 12 IF \"source\" HAS >= ($reserve) THEN "
+                + "INPUT 100 RETAIN ($reserve) FROM \"source\" OUTPUT 100 TO \"dest\" END END");
         AuditRegressionTest.Fixture fixture = new AuditRegressionTest.Fixture();
         fixture.stock(0, 32);
         program.tick(
@@ -208,7 +209,8 @@ class SfmlDataTest {
 
     @Test
     void oldKeywordsAndWildcardsKeepTheirLegacyParseAndNoFrame() {
-        Program legacy = program("EVERY 20g+1 TICKS DO INPUT a*b FROM LET OUTPUT *3 TO STATE FORGET SET END");
+        Program legacy = program(
+            "EVERY 20g+1 TICKS DO INPUT a*b FROM \"LET\" OUTPUT *3 TO \"STATE\" FORGET \"SET\" END");
         assertFalse(legacy.hasDataFeatures());
         Program plain = program("EVERY 20 TICKS DO IF (TRUE AND FALSE) THEN END END");
         assertFalse(plain.hasDataFeatures());
@@ -275,13 +277,14 @@ class SfmlDataTest {
 
     @Test
     void dynamicRedstoneOutputsUseTheFirstQuantityAndRejectIgnoredExpressions() {
-        for (String output : new String[] { "OUTPUT ($n) REDSTONE LEVEL TO dest", "OUTPUT REDSTONE LEVEL ($n) TO dest",
-            "TO dest OUTPUT REDSTONE LEVEL ($n)", "TO dest OUTPUT ($n) REDSTONE LEVEL" }) {
+        for (String output : new String[] { "OUTPUT ($n) REDSTONE LEVEL TO \"dest\"",
+            "OUTPUT REDSTONE LEVEL ($n) TO \"dest\"", "TO \"dest\" OUTPUT REDSTONE LEVEL ($n)",
+            "TO \"dest\" OUTPUT ($n) REDSTONE LEVEL" }) {
             Program accepted = program("EVERY 20 TICKS DO LET $n = 3 " + output + " END");
             assertTrue(accepted.hasDataFeatures());
             program(accepted.toString());
         }
-        String[] outputs = { "OUTPUT 4 REDSTONE LEVEL ($n) TO dest", "TO dest OUTPUT 4 REDSTONE LEVEL ($n)" };
+        String[] outputs = { "OUTPUT 4 REDSTONE LEVEL ($n) TO \"dest\"", "TO \"dest\" OUTPUT 4 REDSTONE LEVEL ($n)" };
         for (String output : outputs) {
             ProgramBuildResult result = new ProgramBuilder("EVERY 20 TICKS DO LET $n = 3 " + output + " END").build();
             assertFalse(result.isSuccess(), output);
@@ -290,7 +293,7 @@ class SfmlDataTest {
                     .contains("Dynamic redstone OUTPUT"),
                 result.getErrorMessage());
         }
-        Program literal = program("EVERY 20 TICKS DO OUTPUT 4 REDSTONE LEVEL 8 TO dest END");
+        Program literal = program("EVERY 20 TICKS DO OUTPUT 4 REDSTONE LEVEL 8 TO \"dest\" END");
         assertEquals(
             4,
             ((ca.teamdman.sfml.ast.RedstoneOutputStatement) literal.getTriggers()
@@ -317,8 +320,8 @@ class SfmlDataTest {
 
     @Test
     void dynamicQuantityCanonicalRoundTripPreservesZeroMaximumRetentionAndEach() throws Exception {
-        String[] bodies = { "LET $n = 8 INPUT FROM source OUTPUT ($n) RETAIN 0 TO dest",
-            "LET $n = 8 INPUT ($n) EACH RETAIN 9223372036854775807 EACH FROM source OUTPUT ($n) TO dest" };
+        String[] bodies = { "LET $n = 8 INPUT FROM \"source\" OUTPUT ($n) RETAIN 0 TO \"dest\"",
+            "LET $n = 8 INPUT ($n) EACH RETAIN 9223372036854775807 EACH FROM \"source\" OUTPUT ($n) TO \"dest\"" };
         for (String body : bodies) {
             Program original = program("EVERY 20 TICKS DO " + body + " END");
             Program rebuilt = program(original.toString());
@@ -335,7 +338,8 @@ class SfmlDataTest {
             assertEquals(32, AuditRegressionTest.count(fixture.source));
             assertEquals(0, AuditRegressionTest.count(fixture.dest));
         }
-        Program each = program("EVERY 20 TICKS DO LET $n = 8 INPUT ($n) EACH RETAIN ($n) EACH FROM EACH source END");
+        Program each = program(
+            "EVERY 20 TICKS DO LET $n = 8 INPUT ($n) EACH RETAIN ($n) EACH FROM EACH \"source\" END");
         Program rebuilt = program(each.toString());
         ca.teamdman.sfml.ast.InputStatement input = (ca.teamdman.sfml.ast.InputStatement) rebuilt.getTriggers()
             .get(0)

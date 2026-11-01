@@ -57,9 +57,11 @@ does not select tanks. Equivalent face views are counted once; incompatible
 views need an explicit side. Opaque/proxy adapters still need qualification.
 
 Transfers make one bounded attempt now; they do not wait for capacity. Use
-`every 20 ticks do` to check again later. A `while` loop cannot let game ticks
-advance, and there is no `wait 20` command. Put ready-state actions inside an
-`if ($tank.fempty()) then` branch in the scheduled trigger.
+a scheduled trigger to check again later, or `wait(20)` to suspend the current
+trigger/function stack for twenty game ticks. A WHILE loop without WAIT stays in
+one invocation; it cannot let machines advance. WAIT is nonblocking and uses
+parentheses, not `wait 20`. See [scheduling](scheduling.md) for cancellation and
+resume rules.
 
 Item and fluid actions share 64 potentially mutating actions per invocation,
 plus work budgets. Recovery evidence pauses uncertain operations; see
