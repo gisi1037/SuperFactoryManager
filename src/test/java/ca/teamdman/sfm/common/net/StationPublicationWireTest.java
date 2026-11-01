@@ -14,6 +14,7 @@ import ca.teamdman.sfm.common.program.project.ProjectValidation;
 import ca.teamdman.sfm.common.program.project.ProjectWorkspace;
 import ca.teamdman.sfm.common.program.project.PublicationPage;
 import ca.teamdman.sfm.common.program.project.PublicationReceipt;
+import ca.teamdman.sfm.common.program.project.PublicationSource;
 import ca.teamdman.sfm.common.program.project.PublishedProgram;
 import cpw.mods.fml.common.network.ByteBufUtils;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
@@ -24,6 +25,71 @@ class StationPublicationWireTest {
 
     private static final UUID OWNER = new UUID(1, 2), PROJECT = new UUID(3, 4);
     private static final String DIGEST = new PublishedProgram("EVERY 20 TICKS DO END").digest();
+
+    @Test
+    void restoreRequestIsSourceFreeAndRequiresExactPublishedSelection() {
+        PacketStationRequest request = request(PacketStationRequest.Action.RESTORE_BUILD);
+        request.expectedRevision = 2;
+        PacketStationRequest decoded = decodeRequest(encode(request));
+        assertEquals(PROJECT, decoded.projectId);
+        assertEquals(2, decoded.expectedRevision);
+        assertEquals(DIGEST, decoded.buildDigest);
+        assertEquals("", decoded.name);
+        assertEquals("", decoded.source);
+        for (String digest : new String[] { "", DIGEST.toUpperCase(), "../" + DIGEST.substring(3) }) {
+            request.buildDigest = digest;
+            assertThrows(IllegalArgumentException.class, request::validate);
+        }
+        request.buildDigest = DIGEST;
+        request.source = "client supplied source";
+        assertThrows(IllegalArgumentException.class, request::validate);
+        request.source = "";
+        request.name = "client supplied name";
+        assertThrows(IllegalArgumentException.class, request::validate);
+        request.name = "";
+        request.offset = 1;
+        assertThrows(IllegalArgumentException.class, request::validate);
+        request.offset = 0;
+        request.expectedRevision = -1;
+        assertThrows(IllegalArgumentException.class, request::validate);
+    }
+
+    @Test
+    void restoreReplyBindsSourceToExactReceiptAndRejectsTruncationCorruptionAndTrailingBytes() {
+        PacketStationReply sent = reply(PacketStationRequest.Action.RESTORE_BUILD, true);
+        addPayload(sent, 5);
+        byte[] wire = encode(sent);
+        PacketStationReply decoded = decodeReply(wire);
+        assertEquals(OWNER, decoded.restored.receipt.owner);
+        assertEquals(PROJECT, decoded.restored.receipt.project);
+        assertEquals(DIGEST, decoded.restored.receipt.digest);
+        assertEquals("EVERY 20 TICKS DO END", decoded.restored.source);
+        assertNull(decoded.draft);
+        assertNull(decoded.publication);
+        byte[] corrupt = wire.clone();
+        corrupt[corrupt.length - 1] ^= 1;
+        assertThrows(IllegalArgumentException.class, () -> decodeReply(corrupt));
+        assertThrows(IllegalArgumentException.class, () -> decodeReply(Arrays.copyOf(wire, wire.length + 1)));
+        for (int length = 0; length < wire.length; length++) {
+            byte[] truncated = Arrays.copyOf(wire, length);
+            assertThrows(RuntimeException.class, () -> decodeReply(truncated));
+        }
+    }
+
+    @Test
+    void maximumRestoreSourceFitsTheActualBoundedReplyWithoutGrantOrDraftPayloads() {
+        String prefix = "EVERY 20 TICKS DO END --";
+        String source = prefix
+            + String.join("", Collections.nCopies(ProjectWorkspace.MAX_SOURCE_BYTES - prefix.length(), "x"));
+        PacketStationReply sent = reply(PacketStationRequest.Action.RESTORE_BUILD, true);
+        sent.restored = new PublicationSource(
+            new PublicationReceipt(OWNER, PROJECT, 0, new PublishedProgram(source).digest(), "Saved"),
+            source);
+        byte[] wire = encode(sent);
+        assertTrue(wire.length < PacketStationRequest.MAX_PACKET_BYTES);
+        assertEquals(source, decodeReply(wire).restored.source);
+        assertThrows(IllegalArgumentException.class, () -> new PublicationSource(sent.restored.receipt, source + "x"));
+    }
 
     @Test
     void publicationRequestsContainOnlySavedProjectAndRevisionAndRejectClientSource() {
@@ -83,8 +149,9 @@ class StationPublicationWireTest {
                 : action == PacketStationRequest.Action.VALIDATE ? 2
                     : action == PacketStationRequest.Action.PUBLISH ? 3
                         : action == PacketStationRequest.Action.LIST_PUBLICATIONS ? 4
-                            : action == PacketStationRequest.Action.WRITE_DISK ? -1 : 0;
-            for (int payload = -1; payload < 5; payload++) {
+                            : action == PacketStationRequest.Action.WRITE_DISK ? -1
+                                : action == PacketStationRequest.Action.RESTORE_BUILD ? 5 : 0;
+            for (int payload = -1; payload < 6; payload++) {
                 PacketStationReply reply = reply(action, true);
                 addPayload(reply, payload);
                 if (action == PacketStationRequest.Action.WRITE_DISK && payload != -1) {
@@ -272,7 +339,8 @@ class StationPublicationWireTest {
     @Test
     void onlyWriteDiskAcceptsBuildDigestAndDecoderRejectsSmuggledDigestOnOtherActions() {
         for (PacketStationRequest.Action action : PacketStationRequest.Action.values()) {
-            if (action == PacketStationRequest.Action.WRITE_DISK) continue;
+            if (action == PacketStationRequest.Action.WRITE_DISK || action == PacketStationRequest.Action.RESTORE_BUILD)
+                continue;
             PacketStationRequest request = request(action);
             request.buildDigest = DIGEST;
             assertThrows(IllegalArgumentException.class, request::validate);
@@ -309,7 +377,7 @@ class StationPublicationWireTest {
     private static byte[] encodeUnvalidatedRequest(PacketStationRequest request) {
         ByteBuf buffer = Unpooled.buffer();
         try {
-            buffer.writeInt(0x53545004);
+            buffer.writeInt(0x53545005);
             buffer.writeInt(request.x);
             buffer.writeInt(request.y);
             buffer.writeInt(request.z);
@@ -335,7 +403,8 @@ class StationPublicationWireTest {
     private static PacketStationRequest request(PacketStationRequest.Action action) {
         PacketStationRequest request = new PacketStationRequest();
         request.action = action;
-        request.buildDigest = action == PacketStationRequest.Action.WRITE_DISK ? DIGEST : "";
+        request.buildDigest = action == PacketStationRequest.Action.WRITE_DISK
+            || action == PacketStationRequest.Action.RESTORE_BUILD ? DIGEST : "";
         request.sessionId = new UUID(5, 6);
         request.projectId = PROJECT;
         request.windowId = 9;
@@ -370,6 +439,9 @@ class StationPublicationWireTest {
                 break;
             case 4:
                 reply.publications = new PublicationPage(Collections.singletonList(receipt(OWNER, PROJECT, 0)), 1, 0);
+                break;
+            case 5:
+                reply.restored = new PublicationSource(receipt(OWNER, PROJECT, 0), "EVERY 20 TICKS DO END");
                 break;
             default:
                 break;

@@ -53,6 +53,16 @@ receipt records its owner, project, saved revision and name. Later draft edits
 cannot alter a published bundle. A lost acknowledgement can be reconciled by
 refreshing or retrying publication of that saved revision.
 
+To recover code from an older build, select its row and choose **Restore** in the
+Build revisions dock, or **Restore to draft** in the builds window. The source is
+loaded into your current local draft as one undoable text edit. Keep or discard
+unsaved work when prompted; kept work also has a separate session recovery copy.
+The current project name and saved revision remain the baseline. Choose Save to
+create a new revision, then check/publish normally if you want to deploy it.
+Restoring never changes a manager or imprinted disk. Edits made while loading
+prevent the late reply from replacing your work. Only the project's owner may
+retrieve source; possession of an execution disk or digest is insufficient.
+
 Builds currently contain root SFML source only, with no imported dependencies.
 Storage and compilation run on the bounded project worker. The world's
 `sfm/projects` directory holds drafts/receipts, and `sfm/programs` holds bundles;

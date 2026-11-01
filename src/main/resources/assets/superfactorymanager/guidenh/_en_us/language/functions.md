@@ -90,7 +90,7 @@ procedures or perform those effects. Typed port queries work in either kind.
 
 ## Reference parameters
 
-Ordinary parameters remain value copies. A void procedure can opt into a writable
+Ordinary parameters remain value copies. Either a void procedure or a value-returning function can opt into a writable
 reference with `ref` on both the parameter and argument:
 
 ```sfml
@@ -112,8 +112,29 @@ every 20 ticks {
 
 A reference target can be a writable whole variable, array element or struct
 field. It must have exactly the parameter's type; literals, computed values and
-read-only targets are rejected. Only void procedures may declare reference
-parameters. Omitting REF on either side is an error, not an implicit conversion.
+read-only targets are rejected. Omitting REF on either side is an error, not an
+implicit conversion.
+
+```sfml
+integer takeNext(ref integer cursor) {
+  let previous = cursor;
+  cursor = cursor + 1;
+  return previous;
+}
+
+every 20 ticks {
+  let next = 0;
+  let selected = takeNext(ref next);
+  print(selected, next);
+}
+```
+
+Calls with direct or indirect REF effects cannot run in program-wide LET
+initializers or named-redstone subscription expressions. Value functions cannot
+directly acquire a STATE reference: a trigger or void procedure must explicitly
+pass it. Forwarding a received reference is allowed. Native actions still belong
+in triggers or void procedures. Disabled PRINT skips its arguments, so put a
+mutating function call in its own assignment first when it must always run.
 
 Writes update the caller's target immediately. Two references to the same target
 observe each other's writes; they are not copies written back at return. Target

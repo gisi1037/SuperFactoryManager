@@ -46,6 +46,30 @@ Groups appear in first-encounter order from label positions and ascending eligib
 
 An ITEM_KEY includes exact registry ID, metadata and canonical NBT. Quantity is separate. Compound entry order does not change a key; NBT types, list order and payload do. Absent NBT and an empty NBT compound are distinct keys. `=` and `==` compare keys exactly; `!=` detects a difference, including an NBT-only change. Printed key summaries omit the NBT payload, so identical-looking summaries do not prove equal variants. There is no public key constructor or general NBT inspector.
 
+## Selecting worn tools
+
+`metadata` is the raw stack damage value. For items that store ordinary wear
+there, use a known damage threshold and transfer the exact captured key:
+
+```sfml
+every 20 ticks {
+  let source = label("tools");
+  let destination = label("worn_tools");
+  for group in source.contents(item("minecraft:iron_pickaxe")) {
+    if (group.metadata >= 200) {
+      transfer(source, destination, group.item);
+    }
+  }
+}
+```
+
+This selects at least 200 damage used, not 200 remaining. Maximum/remaining
+durability and individual NBT fields are not exposed yet. Other items may use
+metadata for variants or store wear elsewhere; those need an inspection adapter.
+Using the exact `group.item` avoids also selecting undamaged variants.
+
+## Snapshot lifetime
+
 Program-wide LET can retain a baseline between runs. Compare `$current[0].item != $original[0].item` after checking both sequence lengths. This is automatic full-NBT comparison, not a universal recipe-completion signal: some machines change NBT during processing or return an identical final key. RAM baselines reset on reload/recompile; STATE still cannot store exact keys.
 
 Guard indices using LEN before indexing:

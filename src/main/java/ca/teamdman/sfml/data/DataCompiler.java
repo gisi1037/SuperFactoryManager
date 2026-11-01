@@ -78,8 +78,6 @@ public final class DataCompiler {
             throw new IllegalArgumentException("Reserved built-in function: " + name);
         if (names.size() > 16) throw new IllegalArgumentException("Function parameters exceed 16");
         if (functions.containsKey(name)) throw new IllegalArgumentException("Duplicate function: " + name);
-        if (result != DataType.VOID && referenceParameters.contains(true))
-            throw new IllegalArgumentException("Only VOID procedures can declare REF parameters");
         CompiledFunction function = new CompiledFunction(name, names, types, referenceParameters, result, source);
         functions.put(name, function);
         return function;
@@ -464,38 +462,8 @@ public final class DataCompiler {
 
         public void execute(DataRuntime runtime) {
             try {
-                if (runtime.isResumable() && !indices.isEmpty()) {
-                    executeResumable(runtime);
-                    return;
-                }
-                if (indices.isEmpty()) {
-                    binding.write(runtime, rhs.evaluate(runtime));
-                    return;
-                }
-                DataValue[] parents = new DataValue[indices.size()];
-                int[] offsets = new int[indices.size()];
-                int cells = 0;
-                if (!indices.isEmpty()) {
-                    DataValue cursor = binding.read(runtime);
-                    for (int i = 0; i < indices.size(); i++) {
-                        long index = indices.get(i)
-                            .evaluate(runtime)
-                            .asLong();
-                        runtime.work(1);
-                        if (index < 0 || index >= cursor.size())
-                            throw new IllegalArgumentException("Index out of range: " + index);
-                        parents[i] = cursor;
-                        offsets[i] = (int) index;
-                        cells = Math.addExact(cells, cursor.size());
-                        cursor = cursor.get((int) index);
-                    }
-                }
-                DataValue replacement = rhs.evaluate(runtime);
-                runtime.allocate(cells);
-                // Reserve root publication before any copy or state mutation.
-                runtime.work(1);
-                for (int i = parents.length - 1; i >= 0; i--) replacement = parents[i].with(offsets[i], replacement);
-                binding.publish(runtime, replacement);
+                if (indices.isEmpty()) binding.write(runtime, rhs.evaluate(runtime));
+                else executePath(runtime);
             } catch (ArithmeticException ex) {
                 throw SfmlRuntimeException.at(location, "Arithmetic overflow", ex);
             } catch (RuntimeException ex) {
@@ -503,9 +471,9 @@ public final class DataCompiler {
             }
         }
 
-        private void executeResumable(DataRuntime runtime) {
+        private void executePath(DataRuntime runtime) {
             int[] offsets = runtime.evaluate(this, () -> {
-                runtime.allocate(indices.size() + 1);
+                if (runtime.isResumable()) runtime.allocate(indices.size() + 1);
                 int[] path = new int[indices.size()];
                 DataValue cursor = binding.read(runtime);
                 for (int i = 0; i < indices.size(); i++) {
@@ -521,11 +489,11 @@ public final class DataCompiler {
                 return path;
             });
             DataValue replacement = rhs.evaluate(runtime);
-            // Commit into the current immutable root; other fields may have changed while this call waited.
+            // RHS REF calls and waits can change sibling fields; publish into the current root.
             DataValue cursor = binding.read(runtime);
             DataValue[] parents = new DataValue[offsets.length];
             int cells = 0;
-            runtime.allocate(parents.length);
+            if (runtime.isResumable()) runtime.allocate(parents.length);
             for (int i = 0; i < offsets.length; i++) {
                 parents[i] = cursor;
                 cells = Math.addExact(cells, cursor.size());
@@ -597,7 +565,7 @@ public final class DataCompiler {
 
         @Override
         protected DataValue compute(DataRuntime runtime) {
-            throw new IllegalArgumentException("REF is valid only for a procedure's REF argument");
+            throw new IllegalArgumentException("REF is valid only for a function's REF argument");
         }
 
         DataReference resolve(DataRuntime runtime) {
@@ -958,7 +926,7 @@ public final class DataCompiler {
         CompiledFunction function = functions.get(name);
         if (function == null) {
             for (Node argument : arguments) if (argument instanceof ReferenceArgument)
-                throw new IllegalArgumentException("REF arguments require a declared player procedure");
+                throw new IllegalArgumentException("REF arguments require a declared player function");
             Node builtin = builtinCall(name, arguments);
             if (builtin != null) {
                 if (constantOnly) stateBuiltinCalls.add(name);
@@ -967,6 +935,10 @@ public final class DataCompiler {
             throw new IllegalArgumentException("Unknown function: " + name);
         }
         if (constantOnly) throw new IllegalArgumentException("STATE defaults cannot call player functions");
+        if ((globalInitializer || instantExpression) && function.mayMutateReferences())
+            throw new IllegalArgumentException(
+                globalInitializer ? "Program-wide LET initializers cannot call functions with REF effects"
+                    : "Named redstone label expressions cannot call functions with REF effects");
         if (instantExpression && function.mayWait())
             throw new IllegalArgumentException("Named redstone label expressions cannot call functions that WAIT");
         if (function.getReturnType() == DataType.VOID) {
@@ -1510,6 +1482,10 @@ public final class DataCompiler {
             String name = token.startsWith("$") ? token.substring(1) : token;
             Binding binding = find(name);
             if (binding == null) throw new IllegalArgumentException("Unknown REF variable: " + token);
+            // Only the trigger/procedure caller may explicitly authorize a STATE reference.
+            // Forwarded REF parameters are local bindings, even when they ultimately point at STATE.
+            if (binding.persistent && currentFunction != null && currentFunction.getReturnType() != DataType.VOID)
+                throw new IllegalArgumentException("Value functions cannot pass implicit STATE by REF");
             if (binding.readOnly)
                 throw new IllegalArgumentException("REF requires a writable variable; loop bindings are read-only");
             List<Node> path = new ArrayList<>();

@@ -30,6 +30,18 @@ numbers, undo/redo, indentation, wrapping and snippets. Copy valuable drafts
 before leaving if a save is unconfirmed. A rejected or stale edit does not
 silently replace a newer saved project.
 
+## Restore an older build
+
+Open **Build revisions**, select the published revision and choose **Restore**
+(or **Restore to draft** in the builds window). Keep or discard unsaved work when
+prompted. Kept work also has a separate local recovery copy for this session.
+
+The recovered code becomes one undoable local edit. The project name and saved
+revision stay current. Choose **Save** to create a new revision, then check and
+publish normally. Running managers and disks are unchanged. If you edit while
+loading, the late reply keeps your newer work. Only the owner can recover source;
+an execution disk or digest alone does not grant access.
+
 ## Code, Visual and Split
 
 **Code** supports the complete current language. **Visual** edits the supported

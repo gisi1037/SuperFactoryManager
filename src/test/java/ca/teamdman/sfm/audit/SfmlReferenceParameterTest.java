@@ -231,7 +231,7 @@ class SfmlReferenceParameterTest {
     }
 
     @Test
-    void refsAreExplicitWritableExactTypedLvaluesAndOnlyVoidProceduresAcceptThem() {
+    void refsAreExplicitWritableExactTypedLvalues() {
         String prefix = "void edit(ref integer value) { value = 9; } ";
         for (String body : new String[] { "LET number = 1; edit(number);", "edit(ref 1);",
             "LET number = true; edit(ref number);", "LET number = 1; edit(ref number + 1);", "edit(ref absent);",
@@ -240,7 +240,7 @@ class SfmlReferenceParameterTest {
                 new ProgramBuilder(prefix + "EVERY 10 TICKS { " + body + " }").build()
                     .isSuccess(),
                 body);
-        for (String source : new String[] { "integer bad(ref integer value) { RETURN value; } EVERY 10 TICKS {}",
+        for (String source : new String[] {
             "void edit(integer value) {} EVERY 10 TICKS { LET value = 1; edit(ref value); }",
             "void edit(ref void value) {} EVERY 10 TICKS {}",
             "void edit(ref integer value) {} integer bad() { LET value=1; edit(ref value); RETURN value; } EVERY 10 TICKS {}" })
@@ -248,6 +248,211 @@ class SfmlReferenceParameterTest {
                 new ProgramBuilder(source).build()
                     .isSuccess(),
                 source);
+    }
+
+    @Test
+    void valueFunctionsReturnAfterMutatingExplicitStateAliasesAndNestedFields() throws Exception {
+        Run run = new Run(
+            "STATE data = {rows:[1,2], untouched:7} STATE answer = 0 "
+                + "integer combine(ref integer first, ref integer other) { "
+                + "first = first + 1; other = other + first; RETURN first + other; } "
+                + "EVERY 10 TICKS { answer = combine(ref data.rows[1], ref data.rows[1]); }");
+        run.tick(10);
+        assertEquals(
+            12,
+            run.value(1)
+                .asLong());
+        assertEquals(
+            6,
+            run.value(0)
+                .get("rows")
+                .get(1)
+                .asLong());
+        assertEquals(
+            1,
+            run.value(0)
+                .get("rows")
+                .get(0)
+                .asLong());
+        assertEquals(
+            7,
+            run.value(0)
+                .get("untouched")
+                .asLong());
+        parse(run.program.toString());
+    }
+
+    @Test
+    void fixedLabelArrayRefCanBeChangedAndReturnedAsALabel() throws Exception {
+        Run run = new Run(
+            "LET labels = [label(\"a\"),label(\"b\"),label(\"c\"),label(\"d\"),"
+                + "label(\"e\"),label(\"f\"),label(\"g\"),label(\"h\")] LET chosen = label(\"initial\") "
+                + "label_ref assign(ref label_ref[8] targets) { targets[0] = label(\"source\"); RETURN targets[0]; } "
+                + "EVERY 10 TICKS { chosen = assign(ref labels); }");
+        run.tick(10);
+        ProgramGlobals globals = run.manager.getProgramGlobals(run.program);
+        assertEquals(
+            "source",
+            globals.read(0)
+                .get(0)
+                .asLabel()
+                .getName());
+        assertEquals(
+            "h",
+            globals.read(0)
+                .get(7)
+                .asLabel()
+                .getName());
+        assertEquals(
+            "source",
+            globals.read(1)
+                .asLabel()
+                .getName());
+        assertFalse(
+            new ProgramBuilder(
+                "label_ref assign(ref label_ref[8] targets) { RETURN targets[0]; } "
+                    + "EVERY 10 TICKS { LET labels = [label(\"one\")]; LET chosen = assign(ref labels); }").build()
+                        .isSuccess());
+    }
+
+    @Test
+    void valueRefCallsReturnExactlyOnceAcrossWaitAndForwardExplicitReferences() throws Exception {
+        Run run = new Run(
+            "STATE count = 1 STATE answer = 0 " + "integer outer(ref integer cell) { RETURN inner(ref cell); } "
+                + "integer inner(ref integer value) { value = value + 1; WAIT(2); value = value + 10; RETURN value; } "
+                + "EVERY 10 TICKS { answer = count + outer(ref count); }");
+        run.tick(10);
+        assertEquals(
+            2,
+            run.value(0)
+                .asLong());
+        assertEquals(
+            0,
+            run.value(1)
+                .asLong());
+        run.tick(11);
+        assertEquals(
+            2,
+            run.value(0)
+                .asLong());
+        run.tick(12);
+        assertEquals(
+            12,
+            run.value(0)
+                .asLong());
+        assertEquals(
+            13,
+            run.value(1)
+                .asLong(),
+            "The operand read before WAIT must not replay");
+        run.tick(13);
+        assertEquals(
+            12,
+            run.value(0)
+                .asLong());
+    }
+
+    @Test
+    void compoundAssignmentPublishesIntoCurrentRootAfterRefRhsMutatesASibling() throws Exception {
+        for (String wait : new String[] { "", "WAIT(1);" }) {
+            Run run = new Run(
+                "STATE pair = {left:1, right:2} " + "integer bump(ref integer cell) { cell = cell + 1; "
+                    + wait
+                    + " RETURN 9; } "
+                    + "EVERY 10 TICKS { pair.left = bump(ref pair.right); }");
+            run.tick(10);
+            if (!wait.isEmpty()) run.tick(11);
+            assertEquals(
+                9,
+                run.value(0)
+                    .get("left")
+                    .asLong());
+            assertEquals(
+                3,
+                run.value(0)
+                    .get("right")
+                    .asLong());
+        }
+    }
+
+    @Test
+    void assignmentIndexRefMutationAndRhsRefMutationPreserveCurrentRootAndFrozenIndex() throws Exception {
+        Run run = new Run(
+            "STATE rows = [1,2] STATE answer = 0 " + "integer choose(ref integer cell) { cell = 7; RETURN 0; } "
+                + "integer replace(ref integer cell) { cell = cell + 1; RETURN 9; } "
+                + "EVERY 10 TICKS { rows[choose(ref rows[1])] = replace(ref rows[1]); answer = rows[1]; }");
+        run.tick(10);
+        assertEquals(
+            9,
+            run.value(0)
+                .get(0)
+                .asLong());
+        assertEquals(
+            8,
+            run.value(0)
+                .get(1)
+                .asLong());
+        assertEquals(
+            8,
+            run.value(1)
+                .asLong());
+    }
+
+    @Test
+    void valueFunctionsCannotObtainImplicitStateReferencesOrNativeActionAuthority() {
+        String increment = "integer increment(ref integer cell) { cell = cell + 1; RETURN cell; } ";
+        for (String body : new String[] { "integer bad() { RETURN increment(ref count); }",
+            "integer bad() { RETURN increment(ref nested.values[0]); }",
+            "integer bad(ref integer cell) { count = 1; RETURN cell; }",
+            "integer bad(ref integer cell) { INPUT FROM \"source\"; RETURN cell; }",
+            "integer bad(ref integer cell) { transfer(label(\"source\"),label(\"dest\")); RETURN cell; }" }) {
+            ProgramBuildResult built = new ProgramBuilder(
+                "STATE count = 0 STATE nested = {values:[1,2]} " + increment + body + " EVERY 10 TICKS {}").build();
+            assertFalse(built.isSuccess(), body);
+        }
+    }
+
+    @Test
+    void refEffectsAreRejectedInGlobalInitializersAndNamedTriggerSourcesIncludingForwardWrappers() {
+        String functions = "label_ref wrapper() { LET local = label(\"old\"); RETURN assign(ref local); } "
+            + "label_ref assign(ref label_ref target) { target = label(\"signal\"); RETURN target; } ";
+        for (String source : new String[] {
+            "LET target = label(\"old\") LET result = assign(ref target) " + functions + "EVERY 10 TICKS {}",
+            "LET result = wrapper() " + functions + "EVERY 10 TICKS {}",
+            functions + "EVERY REDSTONE RISING FROM wrapper() DO END",
+            "LET target = label(\"old\") " + functions + "EVERY REDSTONE RISING FROM assign(ref target) DO END" }) {
+            ProgramBuildResult built = new ProgramBuilder(source).build();
+            assertFalse(built.isSuccess(), source);
+            assertTrue(
+                built.getErrorMessage()
+                    .contains("REF effects"),
+                built.getErrorMessage());
+        }
+        assertFalse(
+            new ProgramBuilder(
+                "STATE count = 0 STATE bad = increment(ref count) "
+                    + "integer increment(ref integer cell) { cell = cell + 1; RETURN cell; } EVERY 10 TICKS {}").build()
+                        .isSuccess());
+        ProgramBuildResult pure = new ProgramBuilder(
+            "LET result = pure() label_ref pure() { RETURN label(\"signal\"); } "
+                + "EVERY REDSTONE RISING FROM pure() DO END").build();
+        assertTrue(pure.isSuccess(), pure.getErrorMessage());
+    }
+
+    @Test
+    void disabledPrintSkipsValueRefEffectsButEnabledPrintEvaluatesThemOnce() throws Exception {
+        for (boolean enabled : new boolean[] { false, true }) {
+            Run run = new Run(
+                "STATE count = 0 integer increment(ref integer cell) { cell = cell + 1; RETURN cell; } "
+                    + "EVERY 10 TICKS { PRINT(increment(ref count)); }");
+            run.manager.getDebugConsole()
+                .setEnabled(enabled);
+            run.tick(10);
+            assertEquals(
+                enabled ? 1 : 0,
+                run.value(0)
+                    .asLong());
+        }
     }
 
     @Test

@@ -191,6 +191,28 @@ final class ProjectRepository {
     }
 
     /** Issues only from an existing authenticated publication; never publishes or substitutes a draft. */
+    PublicationSource readPublicationSource(UUID owner, UUID id, long revision, String expectedDigest)
+        throws IOException {
+        requireId(owner);
+        requireId(id);
+        if (revision < 0 || !PublicationIO.isDigest(expectedDigest))
+            throw new IllegalArgumentException("Invalid published build selection");
+        Path ownerPath = ownerDirectory(owner, false);
+        if (ownerPath == null) throw missing();
+        Path project = ownerPath.resolve(id.toString());
+        if (!Files.exists(project, LinkOption.NOFOLLOW_LINKS)) throw missing();
+        requireDirectory(project);
+        Path publications = childDirectory(project, "publications", false);
+        if (publications == null) throw missing();
+        Path receiptFile = publications.resolve(revision + ".bin");
+        if (!Files.exists(receiptFile, LinkOption.NOFOLLOW_LINKS)) throw missing();
+        PublicationReceipt receipt = readReceipt(receiptFile, owner, id, revision);
+        if (!expectedDigest.equals(receipt.digest))
+            throw new Failure(ProjectResult.Status.STALE, "Published build does not match the selection");
+        return new PublicationSource(receipt, verifyProgram(receipt.digest).source);
+    }
+
+    /** Issues only from an existing authenticated publication; never publishes or substitutes a draft. */
     ExecutionReference issueExecutionGrant(UUID owner, UUID id, long revision, String expectedDigest)
         throws IOException {
         requireId(owner);

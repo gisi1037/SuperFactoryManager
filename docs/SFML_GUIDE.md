@@ -288,6 +288,14 @@ RAM-only; save or copy important text before leaving the world. A timeout does
 not cancel a save that may already have committed; reopen/reconcile the saved
 revision before writing again.
 
+In **Build revisions**, select a published build and choose **Restore** (or
+**Restore to draft** in the builds window) to recover its source as one undoable
+local edit. Keep or discard unsaved work first. Kept work also has a separate
+session recovery copy. The current project name and saved revision stay intact;
+Save creates the next revision. Managers and disks are unchanged. If you edit
+while the build is loading, the reply is ignored rather than replacing your work.
+Restoration requires source access as the authenticated project owner.
+
 Projects are private to the authenticated player's UUID. Knowing a project ID,
 copying station NBT or using another player's station does not grant source
 access. Another station can browse your projects after the original is broken.
@@ -821,7 +829,7 @@ procedures or perform those effects. Typed port queries work in either kind.
 
 #### Reference parameters
 
-Ordinary parameters remain value copies. A void procedure can opt into a writable
+Ordinary parameters remain value copies. Either a void procedure or a value-returning function can opt into a writable
 reference with `ref` on both the parameter and argument:
 
 ```sfml
@@ -843,8 +851,32 @@ every 20 ticks {
 
 A reference target can be a writable whole variable, array element or struct
 field. It must have exactly the parameter's type; literals, computed values and
-read-only targets are rejected. Only void procedures may declare reference
-parameters. Omitting REF on either side is an error, not an implicit conversion.
+read-only targets are rejected. Omitting REF on either side is an error, not an
+implicit conversion. A value-returning function can update an explicitly passed
+reference and return a value:
+
+```sfml
+integer takeNext(ref integer cursor) {
+  let previous = cursor;
+  cursor = cursor + 1;
+  return previous;
+}
+
+every 20 ticks {
+  let next = 0;
+  let selected = takeNext(ref next);
+  print(selected, next);
+}
+```
+
+Calls that can use REF, including indirect calls through other functions, are
+not allowed in program-wide LET initializers or named-redstone subscription
+expressions. Value functions cannot directly acquire a reference to STATE;
+the trigger or a void procedure must explicitly pass that STATE target. A value
+function may forward a reference parameter it already received. Transfers,
+PRINT and the other native actions still require a trigger or void procedure.
+PRINT skips its arguments when capture is disabled, so put a mutating function
+call in its own assignment before PRINT when the mutation must always happen.
 
 Writes update the caller's target immediately. Two references to the same target
 observe each other's writes; they are not copies written back at return. Target
@@ -2034,6 +2066,26 @@ including an NBT-only change. Quantity is separate from identity. Debug display 
 so equal-looking key summaries may refer to different variants. Keys/sequences
 can be passed to/returned from typed player functions, but cannot live in STATE,
 even nested in arrays/structs. They have no source-level constructor.
+
+`metadata` is the captured stack's raw damage value, not a universal remaining
+durability field. For items that use this value for wear, a known damage
+threshold can select worn variants and their exact keys can drive transfers:
+
+```sfml
+every 20 ticks {
+  let source = label("tools");
+  let destination = label("worn_tools");
+  for group in source.contents(item("minecraft:iron_pickaxe")) {
+    if (group.metadata >= 200) {
+      transfer(source, destination, group.item);
+    }
+  }
+}
+```
+
+This threshold means at least 200 damage used. Maximum/remaining durability and
+individual NBT fields are not exposed yet. Items that encode wear differently
+need an inspection adapter; do not interpret every item's metadata as damage.
 
 A program-wide LET can retain a baseline snapshot across runs. Compare
 `$current[0].item != $original[0].item` after checking both lengths. This detects

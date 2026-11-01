@@ -221,6 +221,37 @@ public final class StationProjectService {
                         finish(player, container, request, reply);
                     });
                     break;
+                case RESTORE_BUILD:
+                    World sourceWorld = player.worldObj;
+                    net.minecraft.network.NetHandlerPlayServer sourceConnection = player.playerNetServerHandler;
+                    net.minecraft.network.NetworkManager sourceChannel = sourceConnection.netManager;
+                    admitted = store.readPublicationSource(
+                        owner,
+                        request.projectId,
+                        request.expectedRevision,
+                        request.buildDigest,
+                        result -> {
+                            if (!isCurrent(store, sourceWorld) || player.worldObj != sourceWorld
+                                || player.playerNetServerHandler != sourceConnection
+                                || sourceConnection.netManager != sourceChannel
+                                || !owner.equals(player.getUniqueID())
+                                || authorized(player, request) != container
+                                || container.pendingRequestId != request.requestId) {
+                                finish(
+                                    player,
+                                    container,
+                                    request,
+                                    new PacketStationReply(
+                                        request,
+                                        false,
+                                        "Station or author session changed; source was not returned"));
+                                return;
+                            }
+                            PacketStationReply reply = reply(request, result);
+                            reply.restored = result.value;
+                            finish(player, container, request, reply);
+                        });
+                    break;
                 case LIST:
                     admitted = store.list(owner, request.offset, result -> {
                         PacketStationReply reply = reply(request, result);

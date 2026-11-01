@@ -11,6 +11,7 @@ import ca.teamdman.sfm.common.program.project.ProjectValidation;
 import ca.teamdman.sfm.common.program.project.ProjectWorkspace;
 import ca.teamdman.sfm.common.program.project.PublicationPage;
 import ca.teamdman.sfm.common.program.project.PublicationReceipt;
+import ca.teamdman.sfm.common.program.project.PublicationSource;
 import cpw.mods.fml.common.network.simpleimpl.IMessage;
 import cpw.mods.fml.common.network.simpleimpl.IMessageHandler;
 import cpw.mods.fml.common.network.simpleimpl.MessageContext;
@@ -19,7 +20,7 @@ import io.netty.buffer.ByteBuf;
 /** One correlated result. Catalog/source/validation are separate, bounded payloads. */
 public final class PacketStationReply implements IMessage {
 
-    private static final int VERSION = 0x53545005;
+    private static final int VERSION = 0x53545006;
     public int x, y, z, windowId;
     public UUID sessionId;
     public long requestId;
@@ -31,6 +32,7 @@ public final class PacketStationReply implements IMessage {
     public ProjectValidation validation;
     public PublicationReceipt publication;
     public PublicationPage publications;
+    public PublicationSource restored;
 
     public PacketStationReply() {}
 
@@ -54,8 +56,11 @@ public final class PacketStationReply implements IMessage {
 
     @Override
     public void toBytes(ByteBuf buffer) {
-        if (action == PacketStationRequest.Action.WRITE_DISK
-            && (draft != null || page != null || validation != null || publication != null || publications != null))
+        if (action == PacketStationRequest.Action.WRITE_DISK && (draft != null || page != null
+            || validation != null
+            || publication != null
+            || publications != null
+            || restored != null))
             throw new IllegalArgumentException("Disk write replies contain an acknowledgment only");
         buffer.writeInt(VERSION);
         buffer.writeInt(x);
@@ -102,6 +107,11 @@ public final class PacketStationReply implements IMessage {
             buffer.writeByte(publications.entries.size());
             for (PublicationReceipt entry : publications.entries) writeReceipt(buffer, entry);
         }
+        buffer.writeBoolean(restored != null);
+        if (restored != null) {
+            writeReceipt(buffer, restored.receipt);
+            ProgramEditWire.string(buffer, restored.source, ProjectWorkspace.MAX_SOURCE_BYTES);
+        }
     }
 
     @Override
@@ -125,6 +135,7 @@ public final class PacketStationReply implements IMessage {
         validation = null;
         publication = null;
         publications = null;
+        restored = null;
         if (buffer.readBoolean()) {
             UUID id = ProgramEditWire.uuid(buffer), owner = ProgramEditWire.uuid(buffer);
             long revision = revision(buffer);
@@ -174,10 +185,14 @@ public final class PacketStationReply implements IMessage {
             }
             publications = new PublicationPage(entries, total, offset);
         }
+        if (buffer.readBoolean()) restored = new PublicationSource(
+            readReceipt(buffer),
+            ProgramEditWire.string(buffer, ProjectWorkspace.MAX_SOURCE_BYTES));
         int payloads = (draft == null ? 0 : 1) + (page == null ? 0 : 1)
             + (validation == null ? 0 : 1)
             + (publication == null ? 0 : 1)
-            + (publications == null ? 0 : 1);
+            + (publications == null ? 0 : 1)
+            + (restored == null ? 0 : 1);
         boolean expectedPayload;
         switch (action) {
             case LIST:
@@ -194,6 +209,9 @@ public final class PacketStationReply implements IMessage {
                 break;
             case WRITE_DISK:
                 expectedPayload = true;
+                break;
+            case RESTORE_BUILD:
+                expectedPayload = restored != null;
                 break;
             default:
                 expectedPayload = draft != null;

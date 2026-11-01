@@ -74,10 +74,16 @@ Literal labels always need quotes, including `input item:* from "source"`,
 `output item:* to "destination"` and `if "source" has > 0 item:* then ... end`.
 A plain name in a label position is a variable reference, not a literal fallback.
 
-Void procedures can declare `ref integer value` parameters. Calls must also use
+Void procedures and value-returning functions can declare `ref integer value` parameters. Calls must also use
 `ref`, such as `increment(ref count)`, with a writable variable, array element or
 struct field of exactly the declared type. Writes are immediate; ordinary
 parameters remain value copies.
+
+Calls with direct or indirect REF effects cannot run in program-wide LET
+initializers or named-redstone subscription expressions. Value functions must
+receive STATE references explicitly from a trigger or void procedure rather than
+acquiring them implicitly. Native actions still belong in triggers or void
+procedures. Disabled PRINT skips argument evaluation, including any REF calls.
 
 Function return types can also be fixed arrays or structs. For example,
 `label_ref[2]` means exactly two label handles:

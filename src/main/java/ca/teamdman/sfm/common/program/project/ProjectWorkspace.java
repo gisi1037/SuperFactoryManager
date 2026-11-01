@@ -92,6 +92,12 @@ public final class ProjectWorkspace implements AutoCloseable {
         return submit(() -> repository.listPublications(owner, id, offset), callback);
     }
 
+    /** Source-author access only. Owner must be the authenticated server player, never a bearer grant. */
+    public boolean readPublicationSource(UUID owner, UUID id, long revision, String expectedDigest,
+        Consumer<ProjectResult<PublicationSource>> callback) {
+        return submit(() -> repository.readPublicationSource(owner, id, revision, expectedDigest), callback);
+    }
+
     /** Owner is the authenticated player. Selection must identify an already published exact build. */
     public boolean issueExecutionGrant(UUID owner, UUID id, long publishedRevision, String expectedDigest,
         Consumer<ProjectResult<ExecutionReference>> callback) {

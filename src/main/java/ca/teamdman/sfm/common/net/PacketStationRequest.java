@@ -15,7 +15,7 @@ import io.netty.buffer.ByteBuf;
 /** Bounded authoring requests; identity always comes from the authenticated connection. */
 public final class PacketStationRequest implements IMessage {
 
-    private static final int VERSION = 0x53545004;
+    private static final int VERSION = 0x53545005;
     public static final int MAX_PACKET_BYTES = 32000;
 
     public enum Action {
@@ -26,7 +26,8 @@ public final class PacketStationRequest implements IMessage {
         VALIDATE,
         PUBLISH,
         LIST_PUBLICATIONS,
-        WRITE_DISK
+        WRITE_DISK,
+        RESTORE_BUILD
     }
 
     public int x, y, z, windowId, offset;
@@ -47,11 +48,14 @@ public final class PacketStationRequest implements IMessage {
         BoundedUtf8.encode(name, ProjectWorkspace.MAX_NAME_BYTES);
         BoundedUtf8.encode(source, ProjectWorkspace.MAX_SOURCE_BYTES);
         BoundedUtf8.encode(buildDigest, 64);
-        if (action == Action.WRITE_DISK ? !isBuildDigest(buildDigest) : !buildDigest.isEmpty())
-            throw new IllegalArgumentException("Invalid selected build digest");
-        if ((action == Action.PUBLISH || action == Action.LIST_PUBLICATIONS || action == Action.WRITE_DISK)
+        if (action == Action.WRITE_DISK || action == Action.RESTORE_BUILD ? !isBuildDigest(buildDigest)
+            : !buildDigest.isEmpty()) throw new IllegalArgumentException("Invalid selected build digest");
+        if ((action == Action.PUBLISH || action == Action.LIST_PUBLICATIONS
+            || action == Action.WRITE_DISK
+            || action == Action.RESTORE_BUILD)
             && (!name.isEmpty() || !source.isEmpty()
-                || (action == Action.PUBLISH || action == Action.WRITE_DISK) && offset != 0))
+                || (action == Action.PUBLISH || action == Action.WRITE_DISK || action == Action.RESTORE_BUILD)
+                    && offset != 0))
             throw new IllegalArgumentException("Publication requests use saved server data only");
     }
 

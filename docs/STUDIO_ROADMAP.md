@@ -6,6 +6,16 @@ preserve their source and explain why they require Code.
 
 ## Available now
 
+- Published build source can be restored to the current local draft through
+  Build revisions. Restoration preserves the saved project baseline, guards
+  unsaved work and late replies, and creates one undoable text edit. Save/check/
+  publish remain explicit; running managers and disks are unchanged.
+- Value-returning functions accept explicit REF parameters alongside void
+  procedures. References retain exact types, aliases and WAIT progress; calls
+  with REF effects remain excluded from global initializers and named-redstone
+  subscription expressions. Native actions still require triggers or void
+  procedures.
+
 - Separate fluid API: `transferf(source, destination)` and optional mB amount or
   fluid selector/exact key, plus `favailable`, `fempty`, `fcount` and `fcontents`.
   Compiler help, insert snippets and GuideNH cover all forms. Direct Forge tank

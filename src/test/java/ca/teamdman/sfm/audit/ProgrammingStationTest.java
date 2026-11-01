@@ -188,12 +188,14 @@ class ProgrammingStationTest {
             request.projectId = UUID.randomUUID();
             boolean publicationAction = action == PacketStationRequest.Action.PUBLISH
                 || action == PacketStationRequest.Action.LIST_PUBLICATIONS
-                || action == PacketStationRequest.Action.WRITE_DISK;
+                || action == PacketStationRequest.Action.WRITE_DISK
+                || action == PacketStationRequest.Action.RESTORE_BUILD;
             request.name = publicationAction ? "" : "Local project";
             request.source = publicationAction ? "" : "invalid draft \ud83d\ude00";
             request.buildDigest = action == PacketStationRequest.Action.WRITE_DISK
-                ? new PublishedProgram("EVERY 20 TICKS DO END").digest()
-                : "";
+                || action == PacketStationRequest.Action.RESTORE_BUILD
+                    ? new PublishedProgram("EVERY 20 TICKS DO END").digest()
+                    : "";
             ByteBuf buffer = Unpooled.buffer();
             try {
                 request.toBytes(buffer);
@@ -220,12 +222,21 @@ class ProgrammingStationTest {
                             "Saved project");
                         if (action == PacketStationRequest.Action.PUBLISH) reply.publication = receipt;
                         else reply.publications = new PublicationPage(Arrays.asList(receipt), 1, 0);
-                    } else if (action != PacketStationRequest.Action.WRITE_DISK) reply.draft = new ProjectDraft(
-                        request.projectId,
-                        UUID.randomUUID(),
-                        0,
-                        request.name,
-                        request.source);
+                    } else if (action == PacketStationRequest.Action.RESTORE_BUILD)
+                        reply.restored = new ca.teamdman.sfm.common.program.project.PublicationSource(
+                            new PublicationReceipt(
+                                UUID.randomUUID(),
+                                request.projectId,
+                                0,
+                                request.buildDigest,
+                                "Saved build"),
+                            "EVERY 20 TICKS DO END");
+                else if (action != PacketStationRequest.Action.WRITE_DISK) reply.draft = new ProjectDraft(
+                    request.projectId,
+                    UUID.randomUUID(),
+                    0,
+                    request.name,
+                    request.source);
                 buffer.clear();
                 reply.toBytes(buffer);
                 PacketStationReply decoded = new PacketStationReply();

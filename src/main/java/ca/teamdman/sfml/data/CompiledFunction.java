@@ -68,6 +68,7 @@ public final class CompiledFunction {
     private Body body;
     private int localCount;
     private boolean mayWait;
+    private boolean mayMutateReferences;
 
     void markWait() {
         mayWait = true;
@@ -78,7 +79,10 @@ public final class CompiledFunction {
     }
 
     void inheritWait() {
-        for (CompiledFunction called : calls) mayWait |= called.mayWait;
+        for (CompiledFunction called : calls) {
+            mayWait |= called.mayWait;
+            mayMutateReferences |= called.mayMutateReferences;
+        }
     }
 
     CompiledFunction(String name, List<String> names, List<DataType> types, DataType returnType, String source) {
@@ -91,13 +95,12 @@ public final class CompiledFunction {
             throw new IllegalArgumentException("Function parameter metadata mismatch");
         boolean ref = false;
         for (Boolean reference : references) ref |= Boolean.TRUE.equals(reference);
-        if (ref && returnType != DataType.VOID)
-            throw new IllegalArgumentException("Only VOID procedures accept ref parameters");
         this.name = name;
         this.parameterNames = Collections.unmodifiableList(new ArrayList<>(names));
         this.parameterTypes = Collections.unmodifiableList(new ArrayList<>(types));
         this.referenceParameters = Collections.unmodifiableList(new ArrayList<>(references));
         hasReferenceParameters = ref;
+        mayMutateReferences = ref;
         this.returnType = returnType;
         this.source = source;
     }
@@ -124,6 +127,11 @@ public final class CompiledFunction {
 
     public boolean hasReferenceParameters() {
         return hasReferenceParameters;
+    }
+
+    /** Includes indirect calls so initialization and trigger subscriptions remain read-only. */
+    public boolean mayMutateReferences() {
+        return mayMutateReferences;
     }
 
     public List<Boolean> getReferenceParameters() {

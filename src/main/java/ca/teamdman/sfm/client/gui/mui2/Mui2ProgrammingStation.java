@@ -146,7 +146,7 @@ public final class Mui2ProgrammingStation {
     private TextFieldWidget nameField;
     private TextWidget<?> authoringLabel;
     private ButtonWidget<?> projectSelector, toolsButton, saveButton, checkButton, imprintButton, allInsert, apiInsert;
-    private ButtonWidget<?> publishDockButton, refreshBuildsButton, imprintDockButton;
+    private ButtonWidget<?> publishDockButton, refreshBuildsButton, imprintDockButton, restoreDockButton;
     private final List<ButtonWidget<?>> viewButtons = new ArrayList<>(), dockTabs = new ArrayList<>();
     private String lastProblemDiagnostic, lastProblemStatus;
     private ProjectDraft lastProblemSaved;
@@ -183,6 +183,8 @@ public final class Mui2ProgrammingStation {
     private String protectedLabel;
     private Retained loadingRecovery;
     private boolean recoveryOverCurrent;
+    private boolean protectedBuildRestore, restoreGuardApproved;
+    private String restoreBackupKey;
 
     private static final class Retained {
 
@@ -572,12 +574,14 @@ public final class Mui2ProgrammingStation {
             for (int i = 0; i < dockTabs.size(); i++) dockTabs.get(i)
                 .pos(4 + i * tabWidth, 2)
                 .size(tabWidth - 2, 18);
-            int buildWidth = Math.max(1, Math.min(80, (width - workspace.mainLeft - 32) / 3));
+            int buildWidth = Math.max(1, Math.min(80, (width - workspace.mainLeft - 35) / 4));
             publishDockButton.left(4)
                 .width(buildWidth);
             refreshBuildsButton.left(7 + buildWidth)
                 .width(buildWidth);
             imprintDockButton.left(10 + buildWidth * 2)
+                .width(buildWidth);
+            restoreDockButton.left(13 + buildWidth * 3)
                 .width(buildWidth);
         }
         return true;
@@ -1134,6 +1138,18 @@ public final class Mui2ProgrammingStation {
         buildDock.child(publishDockButton);
         buildDock.child(refreshBuildsButton);
         buildDock.child(imprintDockButton);
+        restoreDockButton = button(
+            "Restore",
+            211,
+            3,
+            80,
+            () -> state.saved != null && state.selectedBuild() != null
+                && !state.awaitingReply()
+                && !state.uncertainWrite,
+            this::restoreSelectedBuild).height(18)
+                .addTooltipLine(
+                    "Restore selected build source to this local draft. Save creates a new saved revision; running managers stay unchanged.");
+        buildDock.child(restoreDockButton);
         ListWidget<IWidget, ?> revisions = new ListWidget<>().left(4)
             .right(4)
             .top(26)
@@ -3109,14 +3125,61 @@ public final class Mui2ProgrammingStation {
             .matches(sessionId, windowId, station.xCoord, station.yCoord, station.zCoord, reply)) return;
         Minecraft mc = Minecraft.getMinecraft();
         if (mc.thePlayer == null || mc.thePlayer.openContainer.windowId != windowId) return;
+        if (!state.matchesPending(reply.requestId, reply.action)) return;
         UUID previous = state.saved == null ? null : state.saved.id;
-        if (!state
-            .receive(reply.requestId, reply.action, reply.accepted, reply.draft, reply.validation, reply.publication))
-            return;
+        String previousSource = state.source;
+        Retained previousDraft = reply.action == Action.RESTORE_BUILD && reply.accepted ? new Retained(this) : null;
+        ca.teamdman.sfm.common.program.project.ProjectValidation previousValidation = state.validation;
+        if (reply.action == Action.RESTORE_BUILD && reply.accepted && !recoveryCapacity()) state.noteLocalEdit();
+        if (!state.receive(
+            reply.requestId,
+            reply.action,
+            reply.accepted,
+            reply.draft,
+            reply.validation,
+            reply.publication,
+            reply.restored)) return;
         status = reply.message;
         if (!reply.accepted) {
+            if (reply.action == Action.RESTORE_BUILD) releaseRestoreBackup();
             if (reply.action == Action.LOAD) loadingRecovery = null;
             retain();
+            return;
+        }
+        if (reply.action == Action.RESTORE_BUILD) {
+            if (state.ignoredLateRestore) {
+                releaseRestoreBackup();
+                status = "Build arrived after the draft or project changed; current work was kept. Select the build again to retry.";
+                retain();
+                return;
+            }
+            discardFields("Fields closed for restored build.");
+            view = View.CODE;
+            codeFocused = true;
+            document.load(state.source);
+            if (graphEditor != null) graphEditor.resetSelection();
+            boolean identicalCode = editor.source()
+                .equals(document.code());
+            if (!identicalCode && !editor.replaceRange(
+                0,
+                editor.source()
+                    .length(),
+                document.code())) {
+                state.source = previousSource;
+                state.validation = previousValidation;
+                restoreVisual(previousDraft);
+                releaseRestoreBackup();
+                status = "Build could not replace this draft; current source was kept. Make room in local recovery and retry.";
+                return;
+            }
+            restoreBackupKey = null;
+            diagnostics.schedule(1);
+            layoutWidth = -1;
+            panel.scheduleResize();
+            retain();
+            status = "Restored build r" + reply.restored.receipt.revision
+                + (identicalCode ? "; code already matches this build. Saved revision unchanged."
+                    : " to the local draft. Undo restores prior code. Save normally to create a new revision.");
             return;
         }
         if (reply.page != null) {
@@ -3253,15 +3316,19 @@ public final class Mui2ProgrammingStation {
             request.projectId = id;
             request.offset = offset;
             PublicationReceipt selectedBuild = state.selectedBuild();
-            request.expectedRevision = action == Action.WRITE_DISK && selectedBuild != null ? selectedBuild.revision
-                : state.saved == null ? 0 : state.saved.revision;
-            request.buildDigest = action == Action.WRITE_DISK && selectedBuild != null ? selectedBuild.digest : "";
+            request.expectedRevision = (action == Action.WRITE_DISK || action == Action.RESTORE_BUILD)
+                && selectedBuild != null ? selectedBuild.revision : state.saved == null ? 0 : state.saved.revision;
+            request.buildDigest = (action == Action.WRITE_DISK || action == Action.RESTORE_BUILD)
+                && selectedBuild != null ? selectedBuild.digest : "";
             request.name = write ? state.name : "";
             request.source = write ? state.source : "";
             recoveryOverCurrent = action == Action.LOAD && loadingRecovery != null
                 && state.saved != null
                 && state.saved.id.equals(id);
-            request.requestId = recoveryOverCurrent ? state.beginRecoveryLoad() : state.begin(action);
+            request.requestId = action == Action.RESTORE_BUILD && restoreGuardApproved
+                ? state.beginGuardedBuildRestore()
+                : recoveryOverCurrent ? state.beginRecoveryLoad() : state.begin(action);
+            restoreGuardApproved = false;
             try {
                 request.validate();
             } catch (IllegalArgumentException invalid) {
@@ -3275,11 +3342,44 @@ public final class Mui2ProgrammingStation {
                         ? "Writing selected build r" + request.expectedRevision + " to the held disk..."
                         : action == Action.CREATE || action == Action.SAVE
                             ? "Saving project; waiting for confirmation..."
-                            : action == Action.LIST_PUBLICATIONS ? "Loading saved builds..."
-                                : "Loading project data...";
+                            : action == Action.RESTORE_BUILD ? "Loading selected build source into the local draft..."
+                                : action == Action.LIST_PUBLICATIONS ? "Loading saved builds..."
+                                    : "Loading project data...";
         } catch (IllegalArgumentException | IllegalStateException error) {
+            restoreGuardApproved = false;
+            if (action == Action.RESTORE_BUILD) releaseRestoreBackup();
             status = error.getMessage() + " Draft kept.";
         }
+    }
+
+    private void restoreSelectedBuild() {
+        PublicationReceipt selected = state.selectedBuild();
+        if (selected == null || state.saved == null || state.awaitingReply() || state.uncertainWrite) return;
+        if (!recoveryCapacity()) {
+            status = "Make room in local recovery before restoring a build. Current draft kept.";
+            return;
+        }
+        protect("Restore saved build r" + selected.revision + " to local draft", () -> {
+            if (state.saved == null || !state.isSelectedBuild(selected)) return;
+            restoreGuardApproved = true;
+            request(Action.RESTORE_BUILD, selected.project, 0);
+        }, true);
+    }
+
+    private boolean retainRestoreBackup() {
+        if (!retain()) return false;
+        if (cache().size() >= MAX_RECOVERED_DRAFTS) {
+            status = "Local recovery is full. Save a retained draft before keeping another restore backup.";
+            return false;
+        }
+        restoreBackupKey = scope + "restore:" + UUID.randomUUID();
+        cache().put(restoreBackupKey, new Retained(this));
+        return true;
+    }
+
+    private void releaseRestoreBackup() {
+        if (restoreBackupKey != null) cache().remove(restoreBackupKey);
+        restoreBackupKey = null;
     }
 
     private void newDraft() {
@@ -3391,7 +3491,7 @@ public final class Mui2ProgrammingStation {
                 "Write held disk",
                 8,
                 176,
-                128,
+                96,
                 () -> REFERENCE_DISKS_ENABLED && state.saved != null
                     && state.selectedBuild() != null
                     && !state.awaitingReply(),
@@ -3400,17 +3500,32 @@ public final class Mui2ProgrammingStation {
                         REFERENCE_DISKS_ENABLED
                             ? "Hold exactly one fresh program disk before opening the station. Writes the selected immutable build."
                             : "Reference disk writing awaits runtime verification."));
-        popup.child(button("Copy digest", 140, 176, 96, () -> state.selectedBuild() != null, () -> {
+        popup.child(
+            button(
+                "Restore to draft",
+                108,
+                176,
+                106,
+                () -> state.saved != null && state.selectedBuild() != null
+                    && !state.awaitingReply()
+                    && !state.uncertainWrite,
+                () -> {
+                    buildsPanel.closePanel();
+                    restoreSelectedBuild();
+                }).height(17)
+                    .addTooltipLine(
+                        "Loads the selected build into a local draft. Never saves, republishes or changes running managers."));
+        popup.child(button("Copy digest", 218, 176, 86, () -> state.selectedBuild() != null, () -> {
             PublicationReceipt selected = state.selectedBuild();
             if (selected == null) return;
             GuiScreen.setClipboardString(selected.digest);
             status = "Copied build digest for saved r" + selected.revision + ".";
         }).height(17));
-        popup.child(button("Done", 242, 176, 62, () -> true, buildsPanel::closePanel).height(17));
+        popup.child(button("Done", 242, 196, 62, () -> true, buildsPanel::closePanel).height(17));
         popup.child(
-            new TextWidget<>(IKey.dynamic(() -> trimFor(status, 296))).color(0xffb0b3bb)
+            new TextWidget<>(IKey.dynamic(() -> trimFor(status, 228))).color(0xffb0b3bb)
                 .pos(8, 198)
-                .size(296, 12)
+                .size(228, 12)
                 .addTooltipLine(IKey.dynamic(() -> status)));
         popup.child(
             new TextWidget<>(
@@ -3523,6 +3638,11 @@ public final class Mui2ProgrammingStation {
     }
 
     private void protect(String label, Runnable action) {
+        protect(label, action, false);
+    }
+
+    private void protect(String label, Runnable action, boolean buildRestore) {
+        protectedBuildRestore = buildRestore;
         if (state.canReplace() && !visualDraft()) {
             action.run();
             return;
@@ -3574,6 +3694,15 @@ public final class Mui2ProgrammingStation {
 
     private void continueProtected(boolean keep) {
         if (state.busy() || protectedAction == null) return;
+        if (protectedBuildRestore) {
+            if (keep && !retainRestoreBackup()) return;
+            Runnable action = protectedAction;
+            protectedAction = null;
+            protectedBuildRestore = false;
+            confirmationPanel.closePanel();
+            action.run();
+            return;
+        }
         if (keep) {
             if (!retain()) return;
             state.afterRetainingDraft();

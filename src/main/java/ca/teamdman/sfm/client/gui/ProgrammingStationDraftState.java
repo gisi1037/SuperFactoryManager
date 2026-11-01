@@ -8,6 +8,7 @@ import ca.teamdman.sfm.common.net.PacketStationRequest.Action;
 import ca.teamdman.sfm.common.program.project.ProjectDraft;
 import ca.teamdman.sfm.common.program.project.ProjectValidation;
 import ca.teamdman.sfm.common.program.project.PublicationReceipt;
+import ca.teamdman.sfm.common.program.project.PublicationSource;
 
 /** Draft identity, dirty guards and late acknowledgments, independent of rendering and networking. */
 public final class ProgrammingStationDraftState {
@@ -19,7 +20,7 @@ public final class ProgrammingStationDraftState {
     public ProjectValidation validation;
     public PublicationReceipt publication;
     private PublicationReceipt selectedBuild;
-    public boolean uncertainWrite, ignoredLateLoad;
+    public boolean uncertainWrite, ignoredLateLoad, ignoredLateRestore;
     private long requestId;
     private Action action;
     private int ticks;
@@ -27,6 +28,8 @@ public final class ProgrammingStationDraftState {
     private boolean recoveryLoad;
     private String sentName, sentSource;
     private long localEditGeneration, sentEditGeneration;
+    private ProjectDraft sentSaved;
+    private PublicationReceipt sentBuild;
     private boolean editedAtGenerationLimit;
 
     /** Includes visual-only edits that leave the last serializable source unchanged. */
@@ -50,6 +53,10 @@ public final class ProgrammingStationDraftState {
 
     public boolean awaitingReply() {
         return waiting;
+    }
+
+    public boolean matchesPending(long id, Action receivedAction) {
+        return waiting && id == requestId && receivedAction == action;
     }
 
     public Action action() {
@@ -93,32 +100,46 @@ public final class ProgrammingStationDraftState {
         return begin(Action.LOAD, true);
     }
 
+    /** Caller has explicitly retained or discarded the current dirty/visual draft in the restore guard. */
+    public long beginGuardedBuildRestore() {
+        return begin(Action.RESTORE_BUILD, true);
+    }
+
     private long begin(Action next, boolean recovering) {
         if (waiting)
             throw new IllegalStateException("Waiting for the previous request; a timed-out save may still apply.");
         if (next == Action.LOAD && !recovering && !canReplace())
             throw new IllegalStateException("Keep or save the current source and name before loading another project.");
+        if (next == Action.RESTORE_BUILD && (!recovering && !canReplace() || uncertainWrite))
+            throw new IllegalStateException(
+                "Keep or discard the current draft and reconcile unconfirmed saves before restoring a build.");
         if ((next == Action.SAVE || next == Action.CREATE) && uncertainWrite) throw new IllegalStateException(
             "Previous save unconfirmed. Copy this draft and inspect the saved project before writing again.");
         if ((next == Action.SAVE || next == Action.VALIDATE
             || next == Action.PUBLISH
             || next == Action.LIST_PUBLICATIONS
-            || next == Action.WRITE_DISK) && saved == null) throw new IllegalStateException("Create a project first.");
+            || next == Action.WRITE_DISK
+            || next == Action.RESTORE_BUILD) && saved == null)
+            throw new IllegalStateException("Create a project first.");
         if ((next == Action.VALIDATE || next == Action.PUBLISH) && dirty()) throw new IllegalStateException(
             "Save source and name changes before checking or publishing a saved revision.");
-        if (next == Action.WRITE_DISK && (selectedBuild == null || !selectedBuild.owner.equals(saved.owner)
-            || !selectedBuild.project.equals(saved.id)))
+        if ((next == Action.WRITE_DISK || next == Action.RESTORE_BUILD)
+            && (selectedBuild == null || !selectedBuild.owner.equals(saved.owner)
+                || !selectedBuild.project.equals(saved.id)))
             throw new IllegalStateException("Select an immutable published build before writing the held disk.");
         action = next;
-        recoveryLoad = recovering;
+        recoveryLoad = next == Action.LOAD && recovering;
         sentName = name;
         sentSource = source;
         sentEditGeneration = localEditGeneration;
+        sentSaved = saved;
+        sentBuild = selectedBuild;
         // Saturation never wraps; a further edit still invalidates this request's snapshot.
         editedAtGenerationLimit = false;
         waiting = true;
         timedOut = false;
         ignoredLateLoad = false;
+        ignoredLateRestore = false;
         ticks = 0;
         return requestId = IDS.incrementAndGet();
     }
@@ -138,12 +159,40 @@ public final class ProgrammingStationDraftState {
 
     public boolean receive(long id, Action receivedAction, boolean accepted, ProjectDraft draft,
         ProjectValidation checked, PublicationReceipt published) {
-        if (!waiting || id != requestId || receivedAction != action) return false;
+        return receive(id, receivedAction, accepted, draft, checked, published, null);
+    }
+
+    public boolean receive(long id, Action receivedAction, boolean accepted, ProjectDraft draft,
+        ProjectValidation checked, PublicationReceipt published, PublicationSource restored) {
+        if (!matchesPending(id, receivedAction)) return false;
         waiting = false;
         timedOut = false;
         if (action == Action.CREATE || action == Action.SAVE || accepted && action == Action.LOAD)
             uncertainWrite = false;
         if (!accepted || action == Action.WRITE_DISK) return true;
+        if (action == Action.RESTORE_BUILD) {
+            boolean edited = localEditGeneration != sentEditGeneration || editedAtGenerationLimit
+                || !name.equals(sentName)
+                || !source.equals(sentSource);
+            if (restored == null || sentBuild == null
+                || sentSaved == null
+                || saved == null
+                || edited
+                || !saved.owner.equals(sentSaved.owner)
+                || !saved.id.equals(sentSaved.id)
+                || saved.revision != sentSaved.revision
+                || !saved.name.equals(sentSaved.name)
+                || !saved.source.equals(sentSaved.source)
+                || !sameBuild(sentBuild, selectedBuild)
+                || !sameBuild(sentBuild, restored.receipt)) {
+                ignoredLateRestore = true;
+                return true;
+            }
+            source = restored.source;
+            validation = null;
+            noteLocalEdit();
+            return true;
+        }
         if (draft != null && (action == Action.CREATE || action == Action.SAVE || action == Action.LOAD)) {
             boolean edited = localEditGeneration != sentEditGeneration || editedAtGenerationLimit
                 || !name.equals(sentName)
@@ -209,6 +258,17 @@ public final class ProgrammingStationDraftState {
         requestId = 0;
         localEditGeneration = sentEditGeneration = 0;
         editedAtGenerationLimit = false;
+        sentSaved = null;
+        sentBuild = null;
+        ignoredLateRestore = false;
+    }
+
+    private static boolean sameBuild(PublicationReceipt first, PublicationReceipt second) {
+        return first != null && second != null
+            && first.owner.equals(second.owner)
+            && first.project.equals(second.project)
+            && first.revision == second.revision
+            && first.digest.equals(second.digest);
     }
 
     public String revisionLine() {

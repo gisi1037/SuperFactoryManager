@@ -15,7 +15,7 @@ import ca.teamdman.sfml.ast.Statement;
 import ca.teamdman.sfml.data.CompiledFunction.Body;
 import ca.teamdman.sfml.data.CompiledFunction.Command;
 
-/** Value functions remain pure; void procedures may compile explicit, bounded statement actions. */
+/** Value functions mutate only explicit REF arguments; void procedures also allow bounded native actions. */
 public final class FunctionCompiler {
 
     private final DataCompiler data;

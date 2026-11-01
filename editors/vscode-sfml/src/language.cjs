@@ -90,7 +90,7 @@ function analyze(text) {
       if (j < 0) break;
       parameters.push({ token: parameter, signatures: [text.slice(tokens[start].start, tokens[j - 1].end)],
         description: reference
-          ? 'Reference parameter of a void procedure. The caller must pass ref with a writable target of exactly this type; writes update that target immediately.'
+          ? 'Reference parameter. The caller must pass ref with a writable target of exactly this type; writes update that target immediately. Supported by void and value-returning functions.'
           : 'Value parameter. Assignment changes this local copy. Names are case-sensitive; the $ prefix is optional.' });
       if (tokens[j]?.text === ')') break;
       if (tokens[j++]?.text !== ',') { j = -1; break; }
