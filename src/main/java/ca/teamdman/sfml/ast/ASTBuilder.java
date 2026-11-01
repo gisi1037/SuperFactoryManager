@@ -380,13 +380,8 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
 
     @Override
     public ASTNode visitBreakStatement(SFMLParser.BreakStatementContext ctx) {
-        if (loopDepth == 0) throw new IllegalArgumentException(
-            "Line " + ctx.getStart()
-                .getLine()
-                + ", Col "
-                + ctx.getStart()
-                    .getCharPositionInLine()
-                + ": BREAK requires an enclosing loop in this function/trigger");
+        // Trigger blocks consume a BREAK that was not consumed by an enclosing loop.
+        // FunctionCompiler separately requires a lexical loop inside player functions.
         return BreakStatement.INSTANCE;
     }
 

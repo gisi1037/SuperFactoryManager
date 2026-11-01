@@ -213,8 +213,7 @@ public final class Program implements Statement {
             long startNs = System.nanoTime();
             context.clearAllInputs();
             try {
-                trigger.getBlock()
-                    .tick(context);
+                trigger.runBlock(context);
             } finally {
                 context.clearAllInputs();
                 if (dataFeatures) context.getDataRuntime()

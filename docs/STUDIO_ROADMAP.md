@@ -161,3 +161,9 @@ Direct recipes target late HV; see CRAFTING.md. Studio adds native text cursors,
 matching delimiter feedback and subtle two-space indent guides. Full-pack crafting,
 cursor appearance and scaled/wrapped editor rendering still require manual checks.
 Disk copier and automatic block completion remain planned.
+
+## Trigger-level BREAK
+
+Outside loops, BREAK ends only the current trigger activation. It starts fresh
+at its next normal schedule/edge; other due triggers continue. Nearest-loop
+behavior, completed effects and function-local restrictions remain intact.

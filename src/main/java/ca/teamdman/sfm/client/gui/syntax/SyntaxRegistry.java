@@ -704,7 +704,7 @@ public final class SyntaxRegistry {
             "Exit a loop with BREAK",
             SnippetCategory.CONDITION,
             "FOR $i = <first> TO <last> DO\n  IF ($i = <value>) THEN\n    BREAK\n  END\nEND",
-            "BREAK exits only the nearest loop, skips the Java FOR update and never yields or undoes completed actions");
+            "BREAK exits the nearest loop; outside loops in a trigger it ends that run. Never yields or undoes completed actions");
         snippet(
             "query_item_nbt",
             "Inspect item NBT heat and keys",

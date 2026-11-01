@@ -313,4 +313,8 @@ and [VSIX packaging](https://code.visualstudio.com/api/working-with-extensions/p
 
 Captured ITEM_KEY NBT methods now have completion and hover help: hasnbt, nbttype, nbtinteger, nbtstring, nbttext, nbtkeys and nbtlength. Use JSON Pointer paths such as /heat. They inspect a contents snapshot without live item mutation or rescanning. Install the matching compiler build for diagnostics.
 
-BREAK now exits the innermost lexical loop in triggers/functions, including after WAIT. It skips Java FOR updates, does not yield, and does not limit the batch size inside a transfer. The real compiler diagnoses outside-loop use.
+BREAK now exits the innermost lexical loop in triggers/functions, including after WAIT. It skips Java FOR updates, does not yield, and does not limit the batch size inside a transfer. The real compiler diagnoses outside-loop BREAK inside player functions.
+
+BREAK outside loops now ends only the current trigger activation. Its normal timer
+or redstone condition controls the next run; other due triggers keep running.
+Inside loops it still exits only the nearest loop. Functions require a local loop.

@@ -83,8 +83,8 @@ class SfmlBreakTest {
     }
 
     @Test
-    void breakOutsideLexicalLoopIsRejectedEvenIfTheFunctionIsCalledFromALoop() {
-        for (String source : new String[] { "every 20 ticks {break;}",
+    void functionBreakOutsideLexicalLoopIsRejectedEvenWhenCalledFromATriggerOrLoop() {
+        for (String source : new String[] { "void bad(){break;} every 20 ticks {bad();}",
             "void bad(){break;} every 20 ticks {for i=0 to 1{bad();}}" }) {
             ProgramBuildResult result = new ProgramBuilder(source).build();
             assertFalse(result.isSuccess());
@@ -93,6 +93,65 @@ class SfmlBreakTest {
                     .contains("BREAK requires"),
                 result.getErrorMessage());
         }
+    }
+
+    @TestFactory
+    Collection<DynamicTest> triggerBreakEndsOnlyCurrentActivationIncludingAfterWait() {
+        Collection<DynamicTest> tests = new ArrayList<>();
+        for (boolean wait : new boolean[] { false, true }) for (boolean braces : new boolean[] { false, true }) {
+            tests.add(DynamicTest.dynamicTest("trigger break wait=" + wait + " braces=" + braces, () -> {
+                Run run = new Run(
+                    "state runs=0 state after=0 state other=0 every 100 ticks " + (braces ? "{" : "do")
+                        + " runs=runs+1; "
+                        + (wait ? "wait(1); " : "")
+                        + "if(true) "
+                        + (braces ? "{break;}" : "then break end")
+                        + " after=after+1; "
+                        + (braces ? "}" : "end")
+                        + " every 100 ticks {other=other+1;}");
+                run.tick(100);
+                assertEquals(1, run.value(0));
+                assertEquals(0, run.value(1));
+                assertEquals(1, run.value(2), "Other due triggers must still run");
+                assertEquals(wait ? 1 : 0, run.sleeping());
+                run.tick(101);
+                assertEquals(1, run.value(0), "No immediate restart or replay after BREAK");
+                assertEquals(0, run.sleeping());
+                run.tick(200);
+                if (wait) run.tick(201);
+                assertEquals(2, run.value(0));
+                assertEquals(0, run.value(1));
+                assertEquals(2, run.value(2));
+                assertEquals(0, run.sleeping());
+            }));
+        }
+        return tests;
+    }
+
+    @Test
+    void triggerBreakWaitsForAnotherRedstonePulse() throws Exception {
+        Run run = new Run("state runs=0 every redstone pulse {runs=runs+1; break; runs=runs+100;}");
+        run.tick(1, true);
+        assertEquals(1, run.value(0));
+        run.tick(2, false);
+        assertEquals(1, run.value(0));
+        run.tick(3, true);
+        assertEquals(2, run.value(0));
+    }
+
+    @Test
+    void triggerBreakClearsInputsWithoutUndoingTransfersOnLegacyPath() throws Exception {
+        Run run = new Run(
+            "every 100 ticks { input 4 from \"source\"; output 1 to \"dest\"; break; output to \"dest\"; } "
+                + "every 100 ticks { output to \"dest\"; }");
+        assertFalse(run.program.hasDataFeatures());
+        run.fixture.source.setInventorySlotContents(0, new net.minecraft.item.ItemStack(ITEM, 10));
+        run.tick(100);
+        assertEquals(9, count(run.fixture.source));
+        assertEquals(1, count(run.fixture.dest));
+        run.tick(200);
+        assertEquals(8, count(run.fixture.source));
+        assertEquals(2, count(run.fixture.dest));
     }
 
     @Test
@@ -151,6 +210,10 @@ class SfmlBreakTest {
         }
 
         void tick(long now) {
+            tick(now, false);
+        }
+
+        void tick(long now, boolean pulse) {
             fixture.world.time = now;
             ProgramContext context = new ProgramContext(
                 fixture.world,
@@ -158,7 +221,7 @@ class SfmlBreakTest {
                 new CableNetwork(fixture.world, MANAGER),
                 fixture.labels,
                 now,
-                false);
+                pulse);
             context.setStateAccess(this);
             program.tick(context);
         }

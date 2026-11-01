@@ -420,3 +420,9 @@ existing operator recovery workflow; never erase recovery data to make a test pa
 - [ ] Full cable in a 3x3 grid: left column gives legacy cable; right gives Fancy; center gives neither. Fancy/legacy revert to our full cable in any slot. Each conversion consumes one and produces one.
 - [ ] In Studio, nested two-space indents show faint vertical guides. Check horizontal scrolling, wrapping, zoom and selections; guides must stay in leading whitespace.
 - [ ] Place the caret beside braces or DO/THEN/END. Matching delimiters highlight without changing source. Test nested mixed blocks, ELSE IF, comments, strings and emoji.
+
+
+## Trigger-level BREAK
+
+- [ ] Use a timer trigger that prints before BREAK and after it. Only the first PRINT appears once per scheduled run; a second due trigger still runs. Put BREAK inside an IF, then after WAIT, and confirm no skipped statements replay on the next run.
+- [ ] Inside a loop, BREAK still exits only that loop and the remaining trigger statements run. A BREAK outside loops in a player function must remain a compiler error. Confirm redstone triggers await the next matching pulse/edge, without a synthetic restart.

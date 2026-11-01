@@ -2534,12 +2534,17 @@ and [exact variant](../examples/logistics/exact_variant.sfml).
 
 ## Exit early with BREAK
 
-Use BREAK by itself, with an optional semicolon, inside any supported FOR or
-WHILE. It exits only the nearest loop, including after a WAIT resumes. Code
-following that loop continues normally; completed effects and INPUT registrations
-remain. A function cannot break a caller's loop. Outside-loop use is a compiler
-error. BREAK never sleeps and never rolls back a transfer. Visual currently
-refuses programs containing it rather than dropping the statement.
+Use BREAK by itself, with an optional semicolon. Inside FOR or WHILE it exits
+only the nearest loop, including after a WAIT resumes. Code following that loop
+continues normally; completed effects and INPUT registrations remain.
+
+Outside loops in a trigger, BREAK ends the current trigger run. Its next run
+starts from the beginning when its normal timer or redstone condition fires.
+Other due triggers still run. Completed effects remain; this trigger's pending
+INPUT registrations and continuation are discarded. BREAK neither sleeps nor
+rolls back transfers. A function still requires a lexical loop for BREAK; it
+cannot break its caller's loop or end its caller's trigger. Visual currently
+refuses programs containing BREAK rather than dropping the statement.
 
 ```sfml
 name "First matching value"

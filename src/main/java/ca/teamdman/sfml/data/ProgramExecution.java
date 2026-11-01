@@ -59,8 +59,7 @@ public final class ProgramExecution {
                 context.setDidSomething(true);
                 boolean paused = false;
                 try {
-                    trigger.getBlock()
-                        .tick(context);
+                    trigger.runBlock(context);
                 } catch (Continuation.Pause pause) {
                     if (sleeping.size() >= MAX_SLEEPING_TRIGGERS)
                         throw new IllegalArgumentException("WAIT sleeping-trigger limit exceeded");

@@ -209,7 +209,7 @@
       "signatures": [
         "break"
       ],
-      "description": "Exit the innermost lexical counted/Java FOR, foreach or WHILE loop. Skips remaining body and Java FOR update; does not yield or roll back effects. Supported in triggers and player functions, including after WAIT. A function cannot break its caller loop. No arguments or labels. Outside-loop use is a compiler error. Text-only until a lossless Visual representation exists.",
+      "description": "Exit the innermost lexical counted/Java FOR, foreach or WHILE loop. Skips remaining body and Java FOR update; does not yield or roll back effects. Supported in triggers and player functions, including after WAIT. A function cannot break its caller loop. No arguments or labels. Outside loops in a trigger, ends only its current activation; the next normal schedule/edge starts fresh. Outside-loop use inside a function remains a compiler error. Text-only until a lossless Visual representation exists.",
       "example": "every 20 ticks { for i = 0 to 10 { if (i == 2) { break } print(i) } }"
     }
   },
