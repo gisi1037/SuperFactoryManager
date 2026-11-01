@@ -49,6 +49,8 @@ public final class JavaForStatement implements Statement {
                 body.tick(context);
                 if (step != null) step.tick(context);
             }
+        } catch (ca.teamdman.sfml.data.LoopBreak done) {
+            // BREAK skips the update, unlike a completed iteration.
         } finally {
             context.exitLoop();
         }

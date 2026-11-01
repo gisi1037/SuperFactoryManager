@@ -76,7 +76,7 @@ class SfmlCompletionCatalogTest {
             else assertEquals(Context.EXPRESSION, entry.getContext());
         }
         assertEquals(expected, actual);
-        assertEquals(47, actual.size());
+        assertEquals(48, actual.size());
     }
 
     @Test

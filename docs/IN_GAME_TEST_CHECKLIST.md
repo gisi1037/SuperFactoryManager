@@ -326,6 +326,28 @@ every 20 ticks {
   machine slots never overlap diagnostic controls, and NEI works around the
   machine window. Studio must expose neither usable inventory slots nor NEI.
 
+### T11: BREAK before and after WAIT (requires the BREAK build)
+
+Run without inventories. Expect one body print, followed a tick later by the
+after-loop message, per scheduled run. Neither the later body message nor the
+Java FOR update should execute. Repeat with counted FOR, foreach and WHILE.
+Nested BREAK exits only the innermost loop. BREAK does not yield or revert prior
+actions; extraction/refill must still be consecutive and not separated by WAIT.
+
+```sfml
+name "T11 break"
+every 40 ticks {
+  let updates = 0
+  for (let i = 0; i < 4; updates = updates + 1) {
+    print("body once", i)
+    wait(1)
+    break
+    print("unreachable")
+  }
+  print("after loop", updates)
+}
+```
+
 ## Dedicated server / two players
 
 - [ ] Publish/imprint as A; hand the disk to B and execute it without exposing A's

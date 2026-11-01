@@ -47,7 +47,7 @@ Array `FOR` evaluates its source once and visits the resulting immutable snapsho
 
 The iteration variable is local to the loop and read-only, including any array or struct members. Copy it into a `LET` local if you need to change a value. It cannot shadow a visible name and is unavailable after `END`.
 
-Body locals are initialized afresh each iteration. A loop body may `SET` visible outer locals and state. `BREAK` and `CONTINUE` are unsupported. Brace-delimited loop bodies are supported. In a function, `RETURN` can exit a loop and the function together.
+Body locals are initialized afresh each iteration. A loop body may `SET` visible outer locals and state. `BREAK` exits the innermost loop. `CONTINUE` is unsupported. Brace-delimited loop bodies are supported. In a function, `RETURN` can exit a loop and the function together.
 
 ## Shared budgets
 
@@ -105,10 +105,35 @@ and counted `for index = first to last step amount` forms remain supported.
 Both forms support braces or DO/END, trigger blocks and player functions. WAIT
 can suspend initialization, test, body or update; completed phases do not repeat
 on resume. A function RETURN exits before the update. Loop/work/depth/retention
-limits remain shared. BREAK and CONTINUE remain unsupported.
+limits remain shared. BREAK exits the innermost loop, skips remaining body statements and skips a Java FOR update. CONTINUE remains unsupported.
 
 Visual offers **For loop** and **Indexed array loop**, with BODY/AFTER pins.
 The For inspector edits its complete header; the indexed-array inspector edits
 index name, element name and source separately. Header semicolons are mandatory
 separators and are preserved by source identity/layout checks; optional statement
 terminators still normalize for Visual round-tripping.
+
+## Exit early with BREAK
+
+Use BREAK by itself, with an optional semicolon, inside any supported FOR or
+WHILE. It exits only the nearest loop, including after a WAIT resumes. Code
+following that loop continues normally; completed effects and INPUT registrations
+remain. A function cannot break a caller's loop. Outside-loop use is a compiler
+error. BREAK never sleeps and never rolls back a transfer. Visual currently
+refuses programs containing it rather than dropping the statement.
+
+```sfml
+name "First matching value"
+every 20 ticks {
+  for value in [2, 4, 6] {
+    if (value > 3) {
+      print(value)
+      break
+    }
+  }
+  print("after loop")
+}
+```
+
+This prints4 and after loop. To limit an item batch, still specify its amount:
+BREAK prevents later iterations, not multiple items within one TRANSFER call.

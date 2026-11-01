@@ -127,7 +127,10 @@ public final class FunctionCompiler {
         try {
             for (SFMLParser.StatementContext statement : context.statement()) {
                 if (returns) throw fail(statement, "Unreachable statement after RETURN");
-                if (statement.waitStatement() != null) {
+                if (statement.breakStatement() != null) {
+                    if (loopDepth == 0) throw fail(statement, "BREAK requires an enclosing loop in this function");
+                    commands.add(runtime -> { throw LoopBreak.INSTANCE; });
+                } else if (statement.waitStatement() != null) {
                     DataExpression ticks = expression(
                         statement.waitStatement()
                             .dataExpression());
@@ -460,7 +463,15 @@ public final class FunctionCompiler {
     }
 
     private Command loopAuthority(Command loop) {
-        return result == DataType.VOID ? runtime -> runtime.runLoop(() -> loop.execute(runtime)) : loop;
+        Command action = result == DataType.VOID ? runtime -> runtime.runLoop(() -> loop.execute(runtime)) : loop;
+        return runtime -> {
+            try {
+                return action.execute(runtime);
+            } catch (LoopBreak done) {
+                // Body.execute owns a separate command frame; normal completion drops all nested WAIT progress.
+                return null;
+            }
+        };
     }
 
     private void enterLoop(ParserRuleContext context) {

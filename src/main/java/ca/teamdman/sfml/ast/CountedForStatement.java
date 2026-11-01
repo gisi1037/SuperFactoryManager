@@ -32,6 +32,8 @@ public final class CountedForStatement implements Statement {
                     body.tick(context);
                     return null;
                 });
+            } catch (ca.teamdman.sfml.data.LoopBreak done) {
+                // The owning statement command completes and discards its continuation subtree.
             } finally {
                 context.exitLoop();
             }
@@ -55,6 +57,8 @@ public final class CountedForStatement implements Statement {
                 if (increment > 0 ? current > Long.MAX_VALUE - increment : current < Long.MIN_VALUE - increment) break;
                 current += increment;
             }
+        } catch (ca.teamdman.sfml.data.LoopBreak done) {
+            // Leave only this nearest lexical loop.
         } finally {
             context.exitLoop();
         }

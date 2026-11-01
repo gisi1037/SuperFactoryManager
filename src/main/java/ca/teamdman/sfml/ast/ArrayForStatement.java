@@ -35,6 +35,8 @@ public final class ArrayForStatement implements Statement {
                     body.tick(context);
                     return null;
                 });
+            } catch (ca.teamdman.sfml.data.LoopBreak done) {
+                // The owning statement command completes and discards its continuation subtree.
             } finally {
                 context.exitLoop();
             }
@@ -49,6 +51,8 @@ public final class ArrayForStatement implements Statement {
                 binding.write(runtime, snapshot.get(index));
                 body.tick(context);
             }
+        } catch (ca.teamdman.sfml.data.LoopBreak done) {
+            // Leave only this nearest lexical loop.
         } finally {
             context.exitLoop();
         }

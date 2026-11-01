@@ -30,6 +30,8 @@ public final class WhileStatement implements Statement {
                 if (!condition.evaluate(context)) break;
                 body.tick(context);
             }
+        } catch (ca.teamdman.sfml.data.LoopBreak done) {
+            // Returning normally also releases this loop's command frame and any suspended body cursors.
         } finally {
             context.exitLoop();
         }

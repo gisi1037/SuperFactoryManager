@@ -78,6 +78,7 @@ interval: NUMBER? GLOBAL? (PLUS NUMBER)? (TICKS | TICK | SECONDS | SECOND)      
 
 block           : statement* ;
 statement       : (circuitStatement
+                | breakStatement
                 | waitStatement
                 | dataDeclaration
                 | dataAssignment
@@ -93,6 +94,9 @@ statement       : (circuitStatement
                 | forgetStatement
                 | functionCallStatement) SEMICOLON?
                 ;
+
+// Contextual spelling preserves existing variables/fields/functions named break.
+breakStatement : {"break".equalsIgnoreCase(_input.LT(1).getText())}? IDENTIFIER;
 
 redstoneOutputStatement
                 : OUTPUT quantity? REDSTONE (LEVEL | LEVELS) quantity? TO EACH? labelAccess

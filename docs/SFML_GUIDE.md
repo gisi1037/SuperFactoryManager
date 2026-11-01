@@ -818,7 +818,7 @@ END
 WHILE uses the same condition syntax as IF and reevaluates before every body
 execution. Parenthesize typed expressions; existing HAS/REDSTONE conditions also
 work. Body LET initializers execute again each iteration. Outer locals and STATE
-remain assignable. BREAK/CONTINUE are not implemented. Brace-delimited loop bodies are supported.
+remain assignable. BREAK exits the innermost loop; CONTINUE is not implemented. Brace-delimited loop bodies are supported.
 
 All nested loops and due triggers share **1,024 loop steps per invocation**.
 A FOR body entry consumes one step. Every WHILE condition test consumes one,
@@ -878,7 +878,7 @@ and counted `for index = first to last step amount` forms remain supported.
 Both forms support braces or DO/END, trigger blocks and player functions. WAIT
 can suspend initialization, test, body or update; completed phases do not repeat
 on resume. A function RETURN exits before the update. Loop/work/depth/retention
-limits remain shared. BREAK and CONTINUE remain unsupported.
+limits remain shared. BREAK exits the innermost loop and skips a Java FOR update; CONTINUE remains unsupported.
 
 Visual offers **For loop** and **Indexed array loop**, with BODY/AFTER pins.
 The For inspector edits its complete header; the indexed-array inspector edits
@@ -2531,3 +2531,28 @@ not a persistent stock cache. These helpers can be called by read-only player
 functions. SHORTAGE can initialize STATE; live snapshots/keys cannot.
 Runnable source examples are [target stock](../examples/logistics/target_stock.sfml)
 and [exact variant](../examples/logistics/exact_variant.sfml).
+
+## Exit early with BREAK
+
+Use BREAK by itself, with an optional semicolon, inside any supported FOR or
+WHILE. It exits only the nearest loop, including after a WAIT resumes. Code
+following that loop continues normally; completed effects and INPUT registrations
+remain. A function cannot break a caller's loop. Outside-loop use is a compiler
+error. BREAK never sleeps and never rolls back a transfer. Visual currently
+refuses programs containing it rather than dropping the statement.
+
+```sfml
+name "First matching value"
+every 20 ticks {
+  for value in [2, 4, 6] {
+    if (value > 3) {
+      print(value)
+      break
+    }
+  }
+  print("after loop")
+}
+```
+
+This prints4 and after loop. To limit an item batch, still specify its amount:
+BREAK prevents later iterations, not multiple items within one TRANSFER call.

@@ -593,6 +593,15 @@ public final class SfmlCompletionCatalog {
             "print(\"stock\", 1)",
             Kind.STATEMENT,
             Context.TRIGGER_STATEMENT);
+        add(
+            entries,
+            "break",
+            "break",
+            "break",
+            "Exit the innermost lexical FOR/WHILE loop. No update or later body statements run. Valid in triggers and functions, including after WAIT; never yields or rolls back completed effects. Code only until a lossless Visual node is available.",
+            "for i = 0 to 1 { break; }",
+            Kind.STATEMENT,
+            Context.TRIGGER_STATEMENT);
         method(
             entries,
             "contents",

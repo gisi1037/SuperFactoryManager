@@ -187,6 +187,14 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     T visitStatement(SFMLParser.StatementContext ctx);
 
     /**
+     * Visit a parse tree produced by {@link SFMLParser#breakStatement}.
+     *
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitBreakStatement(SFMLParser.BreakStatementContext ctx);
+
+    /**
      * Visit a parse tree produced by {@link SFMLParser#redstoneOutputStatement}.
      * 
      * @param ctx the parse tree

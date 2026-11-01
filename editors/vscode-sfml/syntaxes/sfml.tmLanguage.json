@@ -339,7 +339,7 @@
     },
     "keywords": {
       "name": "keyword.control.sfml",
-      "match": "(?i:\\b(?:ref|print|transfer|transferf|wait|setcircuit|name|let|set|state|every|global|g|tick|ticks|second|seconds|do|end|if|then|else|for|while|step|in|into|function|returns|return|input|output|from|to|forget|retain|each|except|has|overall|some|one|lone|empty|slots|slot|where|with|without|tag|round|robin|by|label|block|top|bottom|north|east|south|west|left|right|front|back|null|side|redstone|level|levels|pulse|rising|falling))\\b"
+      "match": "(?i:\\b(?:ref|print|transfer|transferf|wait|setcircuit|name|let|set|state|every|global|g|tick|ticks|second|seconds|do|end|if|then|else|for|while|step|in|into|function|returns|return|break|input|output|from|to|forget|retain|each|except|has|overall|some|one|lone|empty|slots|slot|where|with|without|tag|round|robin|by|label|block|top|bottom|north|east|south|west|left|right|front|back|null|side|redstone|level|levels|pulse|rising|falling))\\b"
     },
     "functions": {
       "name": "entity.name.function.sfml",

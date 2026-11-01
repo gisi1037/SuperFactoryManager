@@ -297,6 +297,19 @@ public class SFMLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements S
      * </p>
      */
     @Override
+    public T visitBreakStatement(SFMLParser.BreakStatementContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
     public T visitRedstoneOutputStatement(SFMLParser.RedstoneOutputStatementContext ctx) {
         return visitChildren(ctx);
     }

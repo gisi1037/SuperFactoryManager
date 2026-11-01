@@ -45,6 +45,11 @@ public final class VisualCapabilityAnalyzer {
     }
 
     private static void inspect(ParseTree tree, List<Blocker> blockers) {
+        if (tree instanceof SFMLParser.BreakStatementContext) {
+            blockers
+                .add(at(Kind.BREAK_STATEMENT, "BREAK currently requires the text editor", (ParserRuleContext) tree));
+            return;
+        }
         // Named redstone headers now have a complete graph root. Continue inspecting every body statement.
         if (tree instanceof SFMLParser.FunctionDefinitionContext) {
             blockers.add(

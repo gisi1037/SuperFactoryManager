@@ -204,6 +204,13 @@
       ],
       "description": "Explicit trigger/procedure action: set compatible connected GregTech ghost circuits to 1..24; 0/-1 clears. Uses native ghost configuration, never physical circuit transfer or guessed slots. Whole-machine labels only: no side/slot modifiers. Entire group is preflighted before writes. INTO declares matched/changed integer fields plus status string: complete, partial, unavailable or unsupported. Callback/work failures fault; already accepted configuration changes stay committed. Shares native action/query limits. Optional GregTech adapter; unsupported hosts are unchanged. Not an expression; permitted in triggers and void procedures.",
       "example": "setcircuit(label(\"machine\"), 5) into configured\nprint(configured.changed, configured.status)"
+    },
+    "break": {
+      "signatures": [
+        "break"
+      ],
+      "description": "Exit the innermost lexical counted/Java FOR, foreach or WHILE loop. Skips remaining body and Java FOR update; does not yield or roll back effects. Supported in triggers and player functions, including after WAIT. A function cannot break its caller loop. No arguments or labels. Outside-loop use is a compiler error. Text-only until a lossless Visual representation exists.",
+      "example": "every 20 ticks { for i = 0 to 10 { if (i == 2) { break } print(i) } }"
     }
   },
   "methods": {

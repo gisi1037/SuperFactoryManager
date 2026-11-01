@@ -700,6 +700,12 @@ public final class SyntaxRegistry {
             "LET $stock = LABEL(\"<label>\").contents()",
             "Read-only exact item groups and physical locations; missing or over-budget views fault");
         snippet(
+            "logic_break",
+            "Exit a loop with BREAK",
+            SnippetCategory.CONDITION,
+            "FOR $i = <first> TO <last> DO\n  IF ($i = <value>) THEN\n    BREAK\n  END\nEND",
+            "BREAK exits only the nearest loop, skips the Java FOR update and never yields or undoes completed actions");
+        snippet(
             "query_item_nbt",
             "Inspect item NBT heat and keys",
             SnippetCategory.QUERY,

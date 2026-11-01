@@ -48,7 +48,7 @@ public final class SourceLocation {
     }
 
     public RuntimeException annotate(RuntimeException failure) {
-        if (failure instanceof Continuation.Pause) return failure;
+        if (failure instanceof Continuation.Pause || failure instanceof LoopBreak) return failure;
         return SfmlRuntimeException.at(this, failure);
     }
 }

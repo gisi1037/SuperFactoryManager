@@ -442,6 +442,26 @@ public class SFMLBaseListener implements SFMLListener {
      * </p>
      */
     @Override
+    public void enterBreakStatement(SFMLParser.BreakStatementContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitBreakStatement(SFMLParser.BreakStatementContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
     public void enterRedstoneOutputStatement(SFMLParser.RedstoneOutputStatementContext ctx) {}
 
     /**

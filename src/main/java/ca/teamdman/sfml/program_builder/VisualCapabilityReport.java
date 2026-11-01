@@ -23,7 +23,8 @@ public final class VisualCapabilityReport {
         SOURCE_FIDELITY,
         TRANSFER_STATEMENT,
         WAIT_STATEMENT,
-        CIRCUIT_STATEMENT
+        CIRCUIT_STATEMENT,
+        BREAK_STATEMENT
     }
 
     public static final class Blocker {

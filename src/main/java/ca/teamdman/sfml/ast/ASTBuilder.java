@@ -378,6 +378,18 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
         return currentIf != null ? currentIf : new IfStatement(BoolFalse.INSTANCE, new Block(null), null);
     }
 
+    @Override
+    public ASTNode visitBreakStatement(SFMLParser.BreakStatementContext ctx) {
+        if (loopDepth == 0) throw new IllegalArgumentException(
+            "Line " + ctx.getStart()
+                .getLine()
+                + ", Col "
+                + ctx.getStart()
+                    .getCharPositionInLine()
+                + ": BREAK requires an enclosing loop in this function/trigger");
+        return BreakStatement.INSTANCE;
+    }
+
     private void beginLoop() {
         if (++loopDepth > 16) throw new IllegalArgumentException("Loop nesting exceeds 16");
         data.markUsed();
