@@ -1158,9 +1158,16 @@ proxy/cluster adapters and distinct proxy tiles sharing hidden backing storage
 need separate identity qualification. Do not treat their combined view totals
 as a proven physical network total.
 
-All new queries share provisional per-invocation limits across due triggers:
-1,024 labeled-position visits, 8,192 provider calls, 16,384 slot-work units and
-16,384 collection/dedup entry reservations. Slot-work includes returned sided
+All new queries share per-manager-invocation limits across due triggers. The
+default allowance is 4,096 labeled-position visits, 32,768 provider calls,
+65,536 slot-work units and 65,536 collection/dedup entry reservations.
+The server's `performance.queryBudgetMultiplier` in `config/superfactorymanager.cfg`
+defaults to 4 and accepts 1-16; 1 restores the original 1,024/8,192/16,384/16,384
+allowances. Restart the server or single-player game after changing it. Each
+invocation snapshots its limits; functions and transfers do not obtain fresh
+credit. Expression work, transfer action counts, data size and NBT limits stay
+unchanged. Raising the setting permits more work and may increase tick time;
+it is not a performance speedup. Slot-work includes returned sided
 indices (even duplicates/invalid entries) and stack reads. Limits are checked
 before callbacks, walks and retained-entry allocations. Budget exhaustion,
 invalid negative stack sizes and throwing providers fault rather than looking

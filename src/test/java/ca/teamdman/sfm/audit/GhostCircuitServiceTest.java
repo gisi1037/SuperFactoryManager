@@ -118,7 +118,7 @@ class GhostCircuitServiceTest {
     void exhaustedBudgetDoesNotBeginMutation() throws Exception {
         Setup setup = new Setup();
         QueryBudget budget = setup.context.getInvocationQueryBudget();
-        budget.chargeAllocation(QueryBudget.MAX_ALLOCATIONS - 6);
+        budget.chargeAllocation(budget.getAllocationLimit() - 6);
         assertThrows(IllegalArgumentException.class, () -> setup.service.set(SOURCE, 7));
         assertEquals(-1, setup.source.configuration);
     }

@@ -256,8 +256,8 @@ class SfmlContentsIntegrationTest {
                 + "SET $result = LEN($s) INPUT FROM \"source\" OUTPUT TO \"dest\" END");
         Memory state = new Memory(program);
         ProgramContext context = context(fixture, state);
-        context.getInvocationQueryBudget()
-            .chargeAllocation(QueryBudget.MAX_ALLOCATIONS);
+        QueryBudget budget = context.getInvocationQueryBudget();
+        budget.chargeAllocation(budget.getAllocationLimit());
         IllegalArgumentException failure = assertThrows(IllegalArgumentException.class, () -> program.tick(context));
         assertTrue(
             failure.getMessage()

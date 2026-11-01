@@ -18,6 +18,7 @@ import net.minecraftforge.fluids.IFluidHandler;
 
 import org.junit.jupiter.api.Test;
 
+import ca.teamdman.sfm.Config;
 import ca.teamdman.sfm.common.block.BlockCable;
 import ca.teamdman.sfm.common.network.CableNetwork;
 import ca.teamdman.sfm.common.program.ProgramContext;
@@ -143,68 +144,139 @@ class NativeTransferMachineScaleTest {
 
     @Test
     void repeatedBatchesShareInvocationBudgetAndConserveItemsOnExhaustion() throws Exception {
-        for (boolean selectionQueries : new boolean[] { false, true }) {
-            ScaleFixture fixture = new ScaleFixture();
-            QueryBudget shared = fixture.context.getInvocationQueryBudget();
-            IllegalArgumentException stopped = null;
-            int completed = 0;
-            for (int batch = 0; batch < 8; batch++) {
-                // Distinct input labels may resolve to the same physical provider, but do not get fresh budgets.
-                String sourceName = "input" + batch;
-                fixture.base.labels.addPosition(sourceName, SRC);
-                LabelReference source = LabelReference.literal(sourceName);
-                for (int slot = 0; slot < 6; slot++)
-                    fixture.sourceChest.setInventorySlotContents(slot, new ItemStack(INPUT, 1, slot));
-                int before = fixture.total();
-                try {
-                    LabelReference selected = LabelReference.literal("machine" + batch);
-                    if (selectionQueries) {
-                        assertTrue(fixture.context.available(source, ALL, shared));
-                        assertFalse(fixture.context.empty(source, ALL, shared));
-                        // Model findempty's ordered item-side scan, stopping at the first empty machine.
-                        for (int candidate = 0; candidate <= batch; candidate++) {
-                            LabelReference label = LabelReference.literal("machine" + candidate);
-                            boolean empty = fixture.context.empty(label, ALL, shared);
-                            assertEquals(candidate == batch, empty);
-                            if (empty) {
-                                selected = label;
-                                break;
+        int previousMultiplier = Config.queryBudgetMultiplier;
+        Config.queryBudgetMultiplier = 1;
+        try {
+            for (boolean selectionQueries : new boolean[] { false, true }) {
+                ScaleFixture fixture = new ScaleFixture();
+                QueryBudget shared = fixture.context.getInvocationQueryBudget();
+                IllegalArgumentException stopped = null;
+                int completed = 0;
+                for (int batch = 0; batch < 8; batch++) {
+                    // Distinct input labels may resolve to the same physical provider, but do not get fresh budgets.
+                    String sourceName = "input" + batch;
+                    fixture.base.labels.addPosition(sourceName, SRC);
+                    LabelReference source = LabelReference.literal(sourceName);
+                    for (int slot = 0; slot < 6; slot++)
+                        fixture.sourceChest.setInventorySlotContents(slot, new ItemStack(INPUT, 1, slot));
+                    int before = fixture.total();
+                    try {
+                        LabelReference selected = LabelReference.literal("machine" + batch);
+                        if (selectionQueries) {
+                            assertTrue(fixture.context.available(source, ALL, shared));
+                            assertFalse(fixture.context.empty(source, ALL, shared));
+                            // Model findempty's ordered item-side scan, stopping at the first empty machine.
+                            for (int candidate = 0; candidate <= batch; candidate++) {
+                                LabelReference label = LabelReference.literal("machine" + candidate);
+                                boolean empty = fixture.context.empty(label, ALL, shared);
+                                assertEquals(candidate == batch, empty);
+                                if (empty) {
+                                    selected = label;
+                                    break;
+                                }
                             }
                         }
+                        ItemTransferResult result = fixture
+                            .transfer("batch-" + batch + "-queries-" + selectionQueries, source, selected);
+                        assertEquals(6, result.getMoved());
+                        completed++;
+                    } catch (IllegalArgumentException failure) {
+                        assertTrue(
+                            failure.getMessage()
+                                .contains("budget exhausted"),
+                            failure.getMessage());
+                        assertTrue(
+                            failure.getMessage()
+                                .contains("slot work before transfer:"),
+                            failure.getMessage());
+                        assertTrue(
+                            failure.getMessage()
+                                .contains("destination: machine" + batch),
+                            failure.getMessage());
+                        stopped = failure;
+                    } finally {
+                        assertEquals(before, fixture.total());
+                        assertSame(shared, fixture.context.getInvocationQueryBudget());
                     }
-                    ItemTransferResult result = fixture
-                        .transfer("batch-" + batch + "-queries-" + selectionQueries, source, selected);
-                    assertEquals(6, result.getMoved());
-                    completed++;
-                } catch (IllegalArgumentException failure) {
-                    assertTrue(
-                        failure.getMessage()
-                            .contains("budget exhausted"),
-                        failure.getMessage());
-                    assertTrue(
-                        failure.getMessage()
-                            .contains("slot work before transfer:"),
-                        failure.getMessage());
-                    assertTrue(
-                        failure.getMessage()
-                            .contains("destination: machine" + batch),
-                        failure.getMessage());
-                    stopped = failure;
-                } finally {
-                    assertEquals(before, fixture.total());
-                    assertSame(shared, fixture.context.getInvocationQueryBudget());
+                    if (stopped != null) break;
                 }
-                if (stopped != null) break;
+                assertNotNull(stopped, "Eight batches must share the bounded invocation allowance");
+                System.out.println(
+                    "shared-batch-summary queries=" + selectionQueries
+                        + " completed="
+                        + completed
+                        + " budget="
+                        + counters(shared)
+                        + " failure="
+                        + stopped.getMessage());
             }
-            assertNotNull(stopped, "Eight batches must share the bounded invocation allowance");
-            System.out.println(
-                "shared-batch-summary queries=" + selectionQueries
-                    + " completed="
-                    + completed
-                    + " budget="
-                    + counters(shared)
-                    + " failure="
-                    + stopped.getMessage());
+        } finally {
+            Config.queryBudgetMultiplier = previousMultiplier;
+        }
+    }
+
+    @Test
+    void fourfoldBudgetCompletesEightSelectedBatchesWithinOneInvocation() throws Exception {
+        int previousMultiplier = Config.queryBudgetMultiplier;
+        Config.queryBudgetMultiplier = 4;
+        try {
+            ScaleFixture fixture = new ScaleFixture();
+            QueryBudget shared = fixture.context.getInvocationQueryBudget();
+            assertEquals(QueryBudget.MAX_SLOT_WORK * 4, shared.getSlotWorkLimit());
+            for (int batch = 0; batch < 8; batch++) {
+                LabelReference source = LabelReference.literal("input" + batch);
+                fixture.base.labels.addPosition("input" + batch, SRC);
+                for (int slot = 0; slot < 6; slot++)
+                    fixture.sourceChest.setInventorySlotContents(slot, new ItemStack(INPUT, 1, slot));
+                assertTrue(fixture.context.available(source, ALL, shared));
+                assertFalse(fixture.context.empty(source, ALL, shared));
+                LabelReference target = null;
+                for (int candidate = 0; candidate <= batch; candidate++) {
+                    LabelReference next = LabelReference.literal("machine" + candidate);
+                    if (fixture.context.empty(next, ALL, shared)) {
+                        target = next;
+                        break;
+                    }
+                }
+                assertNotNull(target);
+                int before = fixture.total();
+                ItemTransferResult result = fixture.transfer("scaled-batch-" + batch, source, target);
+                assertEquals(6, result.getMoved());
+                assertEquals(
+                    "COMPLETE",
+                    result.getStatus()
+                        .name());
+                assertEquals(before, fixture.total());
+                assertSame(shared, fixture.context.getInvocationQueryBudget());
+            }
+            assertEquals(48, fixture.total());
+            assertEquals(0, count(fixture.sourceChest));
+            for (Machine machine : fixture.machines) assertEquals(6, count(machine));
+            assertTrue(shared.getSlotWork() > QueryBudget.MAX_SLOT_WORK);
+            assertTrue(shared.getSlotWork() < shared.getSlotWorkLimit());
+        } finally {
+            Config.queryBudgetMultiplier = previousMultiplier;
+        }
+    }
+
+    @Test
+    void configurationChangesOnlyAffectNewInvocationBudgetOwners() throws Exception {
+        int previousMultiplier = Config.queryBudgetMultiplier;
+        try {
+            Config.queryBudgetMultiplier = 1;
+            ScaleFixture old = new ScaleFixture();
+            QueryBudget existing = old.context.getInvocationQueryBudget();
+            existing.chargeSlots(9);
+            Config.queryBudgetMultiplier = 4;
+            assertSame(existing, old.context.getInvocationQueryBudget());
+            assertEquals(QueryBudget.MAX_SLOT_WORK, existing.getSlotWorkLimit());
+            assertEquals(9, existing.getSlotWork());
+            QueryBudget fresh = new ScaleFixture().context.getInvocationQueryBudget();
+            assertEquals(QueryBudget.MAX_SLOT_WORK * 4, fresh.getSlotWorkLimit());
+            assertEquals(0, fresh.getSlotWork());
+            assertEquals(QueryBudget.MAX_SLOT_WORK, new QueryBudget().getSlotWorkLimit());
+        } finally {
+            Config.queryBudgetMultiplier = previousMultiplier;
         }
     }
 

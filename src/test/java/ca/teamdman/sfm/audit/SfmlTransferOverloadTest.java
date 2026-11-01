@@ -518,8 +518,8 @@ class SfmlTransferOverloadTest {
         Fixture fixture = new Fixture();
         fixture.source.setInventorySlotContents(0, stack(FIRST, 7, 0, null));
         ProgramContext context = context(fixture);
-        context.getInvocationQueryBudget()
-            .chargeProviders(QueryBudget.MAX_PROVIDER_CALLS);
+        QueryBudget budget = context.getInvocationQueryBudget();
+        budget.chargeProviders(budget.getProviderCallLimit());
         assertThrows(IllegalArgumentException.class, () -> context.transferItems(SOURCE, DEST, ALL));
         assertEquals(7, count(fixture.source));
         assertEquals(0, count(fixture.dest));

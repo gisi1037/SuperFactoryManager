@@ -268,8 +268,8 @@ public final class SfmlFluidTransferFixture {
 
     public static void workExhaustionFailsBeforeExtraction() throws Exception {
         Setup setup = new Setup(new TankTile(1000), new TankTile(0));
-        setup.context.getInvocationQueryBudget()
-            .chargeAllocation(QueryBudget.MAX_ALLOCATIONS - 3);
+        QueryBudget budget = setup.context.getInvocationQueryBudget();
+        budget.chargeAllocation(budget.getAllocationLimit() - 3);
         assertThrows(IllegalArgumentException.class, () -> setup.context.transferFluids(SOURCE, DEST, ALL, 1000));
         assertEquals(1000, setup.source.amount);
         assertEquals(0, setup.target.amount);
@@ -496,10 +496,10 @@ public final class SfmlFluidTransferFixture {
                 FluidStack result = super.drain(side, fluid, actual);
                 if (actual) {
                     QueryBudget owner = setup.context.getInvocationQueryBudget();
-                    owner.chargeAllocation(QueryBudget.MAX_ALLOCATIONS - owner.getAllocations());
-                    owner.chargeSlots(QueryBudget.MAX_SLOT_WORK - owner.getSlotWork());
-                    owner.chargeProviders(QueryBudget.MAX_PROVIDER_CALLS - owner.getProviderCalls());
-                    owner.chargePositions(QueryBudget.MAX_POSITIONS - owner.getPositions());
+                    owner.chargeAllocation(owner.getAllocationLimit() - owner.getAllocations());
+                    owner.chargeSlots(owner.getSlotWorkLimit() - owner.getSlotWork());
+                    owner.chargeProviders(owner.getProviderCallLimit() - owner.getProviderCalls());
+                    owner.chargePositions(owner.getPositionLimit() - owner.getPositions());
                 }
                 return result;
             }

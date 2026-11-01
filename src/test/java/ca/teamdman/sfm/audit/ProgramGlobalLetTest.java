@@ -203,8 +203,8 @@ class ProgramGlobalLetTest {
             "LET $first = 5 LET $count = LABEL(\"source\").count(ITEM(\"*\")) EVERY 20 TICKS DO END");
         AuditRegressionTest.Fixture fixture = new AuditRegressionTest.Fixture();
         ProgramContext context = context(fixture, null, 1);
-        context.getInvocationQueryBudget()
-            .chargeProviders(QueryBudget.MAX_PROVIDER_CALLS);
+        QueryBudget budget = context.getInvocationQueryBudget();
+        budget.chargeProviders(budget.getProviderCallLimit());
         assertThrows(IllegalArgumentException.class, () -> program.tick(context));
         assertFalse(
             context.getProgramGlobals(program)

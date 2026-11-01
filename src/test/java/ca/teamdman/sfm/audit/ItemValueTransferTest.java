@@ -359,9 +359,9 @@ class ItemValueTransferTest {
             source.setInventorySlotContents(0, stack(TRANSFER_ITEM, 9, 0, null));
             ProgramContext context = context(fixture);
             QueryBudget budget = context.getInvocationQueryBudget();
-            if (exhausted == 0) budget.chargeAllocation(QueryBudget.MAX_ALLOCATIONS);
-            if (exhausted == 1) budget.chargeProviders(QueryBudget.MAX_PROVIDER_CALLS);
-            if (exhausted == 2) budget.chargeSlots(QueryBudget.MAX_SLOT_WORK);
+            if (exhausted == 0) budget.chargeAllocation(budget.getAllocationLimit());
+            if (exhausted == 1) budget.chargeProviders(budget.getProviderCallLimit());
+            if (exhausted == 2) budget.chargeSlots(budget.getSlotWorkLimit());
             assertThrows(IllegalArgumentException.class, () -> context.transferItems(SOURCE, DEST, ALL, 5));
             assertEquals(0, source.extractions);
             assertEquals(9, count(source));

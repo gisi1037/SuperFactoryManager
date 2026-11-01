@@ -156,7 +156,8 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
     }
 
     public ca.teamdman.sfml.data.QueryBudget getInvocationQueryBudget() {
-        if (invocationQueryBudget == null) invocationQueryBudget = new ca.teamdman.sfml.data.QueryBudget();
+        if (invocationQueryBudget == null)
+            invocationQueryBudget = new ca.teamdman.sfml.data.QueryBudget(ca.teamdman.sfm.Config.queryBudgetMultiplier);
         return invocationQueryBudget;
     }
 

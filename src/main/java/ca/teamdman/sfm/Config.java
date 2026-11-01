@@ -9,6 +9,7 @@ public class Config {
     public static String greeting = "Super Factory Manager initialized";
     public static boolean exportLogsToFile = false;
     public static boolean showDiscordButton = true;
+    public static int queryBudgetMultiplier = 4;
 
     public static void synchronizeConfiguration(File configFile) {
         Configuration configuration = new Configuration(configFile);
@@ -24,6 +25,16 @@ public class Config {
             Configuration.CATEGORY_GENERAL,
             true,
             "Show the Discord button on the Factory Manager GUI");
+        queryBudgetMultiplier = configuration.getInt(
+            "queryBudgetMultiplier",
+            "performance",
+            4,
+            1,
+            ca.teamdman.sfml.data.QueryBudget.MAX_MULTIPLIER,
+            "Server-side inventory query/transfer work allowance per manager update. "
+                + "1 restores original limits; 4 allows 65536 slot-work units. Range 1-16. "
+                + "Scales position, provider-call, slot-work and allocation limits together. "
+                + "Higher values allow larger batches but can increase server tick time. Restart to apply.");
 
         if (configuration.hasChanged()) {
             configuration.save();

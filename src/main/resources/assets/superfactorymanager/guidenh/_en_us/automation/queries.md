@@ -61,7 +61,16 @@ Direct IInventory tiles and canonical vanilla chest pairs are supported. Repeate
 
 LABEL_REF and RESOURCE_SELECTOR values may live in locals, arrays and structs and pass through typed player functions. They cannot live in STATE, even nested in a container. Save an ordinary integer or boolean result if you need persistent observations.
 
-Queries, contents, transfers and typed redstone share per-manager-invocation limits across all due triggers: 1,024 label-position visits, 8,192 provider calls, 16,384 slot-work units and 16,384 collection/allocation reservations. Returned sided indices and deduplication also cost work. Provider exceptions, invalid stacks, overflow and exhausted budgets fault instead of appearing empty or unavailable. These limits cannot interrupt one external callback and do not guarantee a fixed tick duration. Ordinary HAS/INPUT/OUTPUT retain their own behavior.
+Queries, contents, transfers and typed redstone share one budget per manager
+invocation across all due triggers. Defaults are 4,096 label-position visits,
+32,768 provider calls, 65,536 slot-work units and 65,536 collection/allocation
+reservations. Server owners can adjust `performance.queryBudgetMultiplier`
+(default 4, range 1-16) in `config/superfactorymanager.cfg`, then restart.
+See [performance and limits](/reference/performance.md) for the base allowances.
+Returned sided indices and deduplication also cost work. Provider exceptions,
+invalid stacks, overflow and exhausted budgets fault instead of appearing empty
+or unavailable. These limits cannot interrupt one external callback and do not
+guarantee a fixed tick duration. Ordinary HAS/INPUT/OUTPUT retain their own behavior.
 
 Typed queries usually use Text. Self-contained receiver queries such as LABEL("chest").count(ITEM("*")) can also appear in Visual's Print expressions; variables, other function calls and data expressions in conditions still require Text. See [editor limits](/advanced/editors.md) and [PRINT and debugging](/reference/debugging.md).
 

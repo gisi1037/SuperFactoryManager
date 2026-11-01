@@ -228,15 +228,13 @@ class NamedRedstoneTriggerTest {
         Rig rig = new Rig("STATE $hits = 0 EVERY 20 TICKS DO SET $hits = $hits + 1 END " + risingBody());
         rig.port(SRC);
         ProgramContext context = rig.context(rig.tracker, rig.state);
-        context.getInvocationQueryBudget()
-            .chargeProviders(QueryBudget.MAX_PROVIDER_CALLS);
+        QueryBudget budget = context.getInvocationQueryBudget();
+        budget.chargeProviders(budget.getProviderCallLimit());
         assertThrows(IllegalArgumentException.class, () -> rig.program.tick(context));
         assertEquals(0, rig.value(0));
         rig.tick();
         assertEquals(1, rig.value(0));
-        assertTrue(
-            context.getInvocationQueryBudget()
-                .getProviderCalls() <= QueryBudget.MAX_PROVIDER_CALLS);
+        assertTrue(budget.getProviderCalls() <= budget.getProviderCallLimit());
     }
 
     @Test

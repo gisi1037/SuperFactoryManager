@@ -58,8 +58,8 @@ will fit in a tick or that a third-party callback can be interrupted.
 | Persistent declarations / expanded cells | 256 / 4,096 total cells. |
 | One string | 4,096 UTF-16 code units. |
 | Constructed string characters | 16,384 per invocation. |
-| Native query positions / provider calls | 1,024 / 8,192 per invocation. |
-| Native query slot-work / allocation units | 16,384 each per invocation. |
+| Native query positions / provider calls | Default 4,096 / 32,768 per invocation; server configurable. |
+| Native query slot-work / allocation units | Default 65,536 each per invocation; server configurable. |
 | One contents snapshot | At most 256 exact groups and 1,024 physical locations. |
 | One exact item's NBT identity | Depth 16, 1,024 tag nodes and 8,192 canonical bytes. |
 | Potentially mutating TRANSFER actions | 64 per invocation, shared by due triggers and loops; automatic amounts count, explicit zero is exempt. |
@@ -73,6 +73,16 @@ trigger is not reset for a later trigger, function or action. A 256-group
 headline limit does not guarantee a scan of 256 NBT-heavy variants will fit.
 Large scopes currently need narrower selections or program redesign; coherent
 stock paging/paced queries are not available yet.
+
+The server setting `performance.queryBudgetMultiplier` in
+`config/superfactorymanager.cfg` scales the four native query allowances together.
+Its default is 4; values 1-16 are supported. Value 1 restores the original
+1,024 positions, 8,192 provider calls and 16,384 slot-work/allocation units.
+Restart the server (or single-player game) after editing it. All due triggers,
+functions and actions still share one allowance per manager update. Other limits,
+including item NBT size, transfer action counts and expression work, stay fixed.
+Higher settings permit larger batches and can increase server tick time; they
+are not a throughput improvement or a fixed millisecond allowance.
 
 ## What a runtime limit means
 

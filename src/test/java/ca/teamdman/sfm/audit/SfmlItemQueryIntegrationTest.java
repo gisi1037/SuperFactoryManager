@@ -11,6 +11,7 @@ import ca.teamdman.sfm.common.network.CableNetwork;
 import ca.teamdman.sfm.common.program.ProgramContext;
 import ca.teamdman.sfml.ast.Program;
 import ca.teamdman.sfml.data.DataValue;
+import ca.teamdman.sfml.data.QueryBudget;
 import ca.teamdman.sfml.data.StateAccess;
 import ca.teamdman.sfml.program_builder.ProgramBuildResult;
 import ca.teamdman.sfml.program_builder.ProgramBuilder;
@@ -147,13 +148,15 @@ class SfmlItemQueryIntegrationTest {
     @Test
     void sharedQueryBudgetFaultsAcrossDueTriggersButResetsForNextInvocation() throws Exception {
         AuditRegressionTest.Fixture fixture = new AuditRegressionTest.Fixture();
-        fixture.add("large", AuditRegressionTest.SRC, new AuditRegressionTest.InventoryTile(4000));
         String trigger = " EVERY 20 TICKS DO LET $n = LABEL(\"large\").count(ITEM(\"*\")) SET $done = $done + 1 END";
         Program program = program("STATE $done = 0" + trigger + trigger + trigger);
         Memory state = new Memory(program);
-        IllegalArgumentException error = assertThrows(
-            IllegalArgumentException.class,
-            () -> program.tick(context(fixture, state, 20)));
+        ProgramContext firstContext = context(fixture, state, 20);
+        QueryBudget budget = firstContext.getInvocationQueryBudget();
+        // Two complete scans fit, including provider/header overhead; the third exhausts shared credit.
+        int slots = Math.min(budget.getProviderCallLimit() / 2, budget.getSlotWorkLimit() / 4) - 96;
+        fixture.add("large", AuditRegressionTest.SRC, new AuditRegressionTest.InventoryTile(slots));
+        IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () -> program.tick(firstContext));
         assertTrue(
             error.getMessage()
                 .contains("budget exhausted"),

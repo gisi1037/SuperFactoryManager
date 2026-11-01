@@ -186,7 +186,7 @@ public final class ItemTransferService {
                     + "; now: "
                     + budget.getSlotWork()
                     + "/"
-                    + QueryBudget.MAX_SLOT_WORK
+                    + budget.getSlotWorkLimit()
                     + "; source: "
                     + source.getName()
                     + "; destination: "
