@@ -77,6 +77,7 @@ public final class ItemTransferService {
             return new ItemTransferResult(requested, 0, Status.UNAVAILABLE);
         if (world.isRemote) throw new IllegalArgumentException("Item transfers require server-side execution");
         budget = context.getInvocationQueryBudget();
+        int slotWorkAtStart = budget.getSlotWork();
         filter = itemOrSelector;
         long moved = 0;
         boolean matched = false, requestedKnown = !all;
@@ -175,7 +176,22 @@ public final class ItemTransferService {
             unavailable = true;
         } catch (RuntimeException failure) {
             throw new IllegalArgumentException(
-                "Item transfer failed after moving " + moved + " of " + requested + " items: " + failure.getMessage(),
+                "Item transfer failed after moving " + moved
+                    + " of "
+                    + requested
+                    + " items: "
+                    + failure.getMessage()
+                    + " [slot work before transfer: "
+                    + slotWorkAtStart
+                    + "; now: "
+                    + budget.getSlotWork()
+                    + "/"
+                    + QueryBudget.MAX_SLOT_WORK
+                    + "; source: "
+                    + source.getName()
+                    + "; destination: "
+                    + destination.getName()
+                    + "]",
                 failure);
         }
         return new ItemTransferResult(

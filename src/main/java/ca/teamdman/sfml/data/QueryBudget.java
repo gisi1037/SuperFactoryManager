@@ -106,8 +106,8 @@ public final class QueryBudget {
     }
 
     private static int charge(int used, int amount, int limit, String kind) {
-        if (amount < 0 || amount > limit - used)
-            throw new IllegalArgumentException("Query " + kind + " budget exhausted");
+        if (amount < 0 || amount > limit - used) throw new IllegalArgumentException(
+            "Query " + kind + " budget exhausted (used " + used + ", requested " + amount + ", limit " + limit + ")");
         return used + amount;
     }
 

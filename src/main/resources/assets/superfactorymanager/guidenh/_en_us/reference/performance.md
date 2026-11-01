@@ -96,7 +96,7 @@ automatically. **Stop** preserves the sample; **Reset** clears it. Results inclu
 count, updates with a due trigger, average, p50/p95/p99 and maximum milliseconds.
 The collector starts off. Terminal commands `profile start 1200`, `profile status`,
 `profile stop` and `profile reset` control the same capture; start accepts
-1â€“4,096 updates. This does not measure whole-server TPS, per-instruction work,
+1Ã¢â‚¬â€œ4,096 updates. This does not measure whole-server TPS, per-instruction work,
 background compiler work or manual runs.
 
 ## Operator profiling
@@ -135,4 +135,9 @@ slots with a different item or metadata before trying their faces. Matching slot
 still require exact NBT and permission checks; query limits remain unchanged.
 A query-budget error is a per-run work limit: split a large batch across runs.
 Increasing the trigger interval reduces frequency, not the work in one run.
+For a loop that handles many containers, put `wait(1)` at the end of each
+iteration to continue on the next game tick with fresh work allowances. Locals
+and loop progress are preserved. This changes the batch timing explicitly;
+finished transfers are not repeated. A single expensive operation still needs
+to fit its allowance.
 Event-assisted availability remains separate performance work.

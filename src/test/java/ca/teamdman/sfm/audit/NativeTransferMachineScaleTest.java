@@ -11,6 +11,10 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.RegistrySimple;
 import net.minecraftforge.common.util.ForgeDirection;
+import net.minecraftforge.fluids.Fluid;
+import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fluids.FluidTankInfo;
+import net.minecraftforge.fluids.IFluidHandler;
 
 import org.junit.jupiter.api.Test;
 
@@ -19,11 +23,14 @@ import ca.teamdman.sfm.common.network.CableNetwork;
 import ca.teamdman.sfm.common.program.ProgramContext;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 import ca.teamdman.sfm.common.util.BlockPos;
+import ca.teamdman.sfml.ast.Program;
 import ca.teamdman.sfml.data.DataValue;
 import ca.teamdman.sfml.data.ItemTransferResult;
 import ca.teamdman.sfml.data.LabelReference;
 import ca.teamdman.sfml.data.QueryBudget;
 import ca.teamdman.sfml.data.ResourceSelector;
+import ca.teamdman.sfml.program_builder.ProgramBuildResult;
+import ca.teamdman.sfml.program_builder.ProgramBuilder;
 
 /** Bounded headless accounting probe; these inventory permissions do not emulate the GregTech implementation. */
 class NativeTransferMachineScaleTest {
@@ -132,6 +139,167 @@ class NativeTransferMachineScaleTest {
                 .name());
         assertEquals(0, count(fixture.sourceChest));
         assertEquals(1, count(shifted));
+    }
+
+    @Test
+    void repeatedBatchesShareInvocationBudgetAndConserveItemsOnExhaustion() throws Exception {
+        for (boolean selectionQueries : new boolean[] { false, true }) {
+            ScaleFixture fixture = new ScaleFixture();
+            QueryBudget shared = fixture.context.getInvocationQueryBudget();
+            IllegalArgumentException stopped = null;
+            int completed = 0;
+            for (int batch = 0; batch < 8; batch++) {
+                // Distinct input labels may resolve to the same physical provider, but do not get fresh budgets.
+                String sourceName = "input" + batch;
+                fixture.base.labels.addPosition(sourceName, SRC);
+                LabelReference source = LabelReference.literal(sourceName);
+                for (int slot = 0; slot < 6; slot++)
+                    fixture.sourceChest.setInventorySlotContents(slot, new ItemStack(INPUT, 1, slot));
+                int before = fixture.total();
+                try {
+                    LabelReference selected = LabelReference.literal("machine" + batch);
+                    if (selectionQueries) {
+                        assertTrue(fixture.context.available(source, ALL, shared));
+                        assertFalse(fixture.context.empty(source, ALL, shared));
+                        // Model findempty's ordered item-side scan, stopping at the first empty machine.
+                        for (int candidate = 0; candidate <= batch; candidate++) {
+                            LabelReference label = LabelReference.literal("machine" + candidate);
+                            boolean empty = fixture.context.empty(label, ALL, shared);
+                            assertEquals(candidate == batch, empty);
+                            if (empty) {
+                                selected = label;
+                                break;
+                            }
+                        }
+                    }
+                    ItemTransferResult result = fixture
+                        .transfer("batch-" + batch + "-queries-" + selectionQueries, source, selected);
+                    assertEquals(6, result.getMoved());
+                    completed++;
+                } catch (IllegalArgumentException failure) {
+                    assertTrue(
+                        failure.getMessage()
+                            .contains("budget exhausted"),
+                        failure.getMessage());
+                    assertTrue(
+                        failure.getMessage()
+                            .contains("slot work before transfer:"),
+                        failure.getMessage());
+                    assertTrue(
+                        failure.getMessage()
+                            .contains("destination: machine" + batch),
+                        failure.getMessage());
+                    stopped = failure;
+                } finally {
+                    assertEquals(before, fixture.total());
+                    assertSame(shared, fixture.context.getInvocationQueryBudget());
+                }
+                if (stopped != null) break;
+            }
+            assertNotNull(stopped, "Eight batches must share the bounded invocation allowance");
+            System.out.println(
+                "shared-batch-summary queries=" + selectionQueries
+                    + " completed="
+                    + completed
+                    + " budget="
+                    + counters(shared)
+                    + " failure="
+                    + stopped.getMessage());
+        }
+    }
+
+    @Test
+    void compiledBatchLoopWithWaitPreservesProgressAndUsesFreshInvocationBudgets() throws Exception {
+        ScaleFixture fixture = new ScaleFixture();
+        EmptyFluidChest source = new EmptyFluidChest();
+        fixture.base.world.tiles.put(SRC, source);
+        for (int i = 0; i < 8; i++) {
+            fixture.base.labels.addPosition("input" + i, SRC);
+            Machine machine = fixture.machines[i] = new EmptyFluidMachine();
+            machine.setInventorySlotContents(14, new ItemStack(INPUT, 0, 24));
+            fixture.base.world.tiles.put(new BlockPos(i + 1, 64, 1), machine);
+        }
+        ProgramBuildResult built = new ProgramBuilder(
+            "label_ref findempty() { for i = 0 to 7 { let candidate = label(\"machine\" + i); "
+                + "if (candidate.empty() && candidate.fempty()) { return candidate; } } return label(\"missing\"); } "
+                + "every 20 ticks { for i = 0 to 7 { let src = label(\"input\" + i); "
+                + "if (src.available() && !src.empty()) { let dest = findempty(); if (dest.available()) { "
+                + "transfer(src, dest); transferf(src, dest); setcircuit(dest, i + 1); } } wait(1); } "
+                + "INPUT FROM \"machines\" OUTPUT TO \"dest\" FORGET; }").build();
+        assertTrue(built.isSuccess(), built.getErrorMessage());
+        Program program = built.getProgram();
+        QueryBudget previous = null;
+        for (int step = 0; step <= 8; step++) {
+            if (step < 8) for (int slot = 0; slot < 6; slot++)
+                source.setInventorySlotContents(slot, new ItemStack(INPUT, 1, slot));
+            long tick = 20 + step;
+            fixture.base.world.time = tick;
+            ProgramContext live = new ProgramContext(
+                fixture.base.world,
+                fixture.context.getManager(),
+                fixture.context.getNetwork(),
+                fixture.base.labels,
+                tick,
+                false);
+            QueryBudget budget = live.getInvocationQueryBudget();
+            assertNotSame(previous, budget);
+            assertEquals(0, budget.getSlotWork());
+            program.tick(live);
+            System.out.println("wait-batch step=" + step + " budget=" + counters(budget));
+            assertEquals(0, count(source));
+            for (int i = 0; i < 8; i++) assertEquals(i <= step ? 6 : 0, count(fixture.machines[i]));
+            assertEquals(
+                step < 8 ? 1 : 0,
+                fixture.context.getManager()
+                    .getProgramExecution(program)
+                    .sleepingCount());
+            previous = budget;
+        }
+        assertEquals(0, count(fixture.chest));
+    }
+
+    /** Empty Forge fluid ports qualify fempty without inventing GT integration or real fluid movements. */
+    private interface EmptyFluidPort extends IFluidHandler {
+
+        @Override
+        default int fill(ForgeDirection side, FluidStack fluid, boolean commit) {
+            return 0;
+        }
+
+        @Override
+        default FluidStack drain(ForgeDirection side, FluidStack fluid, boolean commit) {
+            return null;
+        }
+
+        @Override
+        default FluidStack drain(ForgeDirection side, int amount, boolean commit) {
+            return null;
+        }
+
+        @Override
+        default boolean canFill(ForgeDirection side, Fluid fluid) {
+            return false;
+        }
+
+        @Override
+        default boolean canDrain(ForgeDirection side, Fluid fluid) {
+            return false;
+        }
+
+        @Override
+        default FluidTankInfo[] getTankInfo(ForgeDirection side) {
+            return new FluidTankInfo[] { new FluidTankInfo(null, 1000) };
+        }
+    }
+
+    private static final class EmptyFluidChest extends InventoryTile implements EmptyFluidPort {
+
+        EmptyFluidChest() {
+            super(6);
+        }
+    }
+
+    private static final class EmptyFluidMachine extends Machine implements EmptyFluidPort {
     }
 
     private static final class ScaleFixture {
