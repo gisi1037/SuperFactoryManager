@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import ca.teamdman.sfm.common.network.CableNetwork;
 import ca.teamdman.sfm.common.program.ProgramContext;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
+import ca.teamdman.sfml.data.SfmlRuntimeException;
 
 class ItemRecoveryTest {
 
@@ -60,7 +61,8 @@ class ItemRecoveryTest {
         };
         f.world.tiles.put(DST, destination);
 
-        assertThrows(IllegalStateException.class, () -> run(f, manager));
+        SfmlRuntimeException failure = assertThrows(SfmlRuntimeException.class, () -> run(f, manager));
+        assertInstanceOf(IllegalStateException.class, failure.getCause());
         NBTTagCompound record = recovery(manager);
         assertEquals(1, record.getInteger("version"));
         assertEquals("pending", record.getString("state"));
@@ -102,7 +104,8 @@ class ItemRecoveryTest {
             }
         };
         f.world.tiles.put(DST, destination);
-        assertThrows(IllegalStateException.class, () -> run(f, manager));
+        SfmlRuntimeException failure = assertThrows(SfmlRuntimeException.class, () -> run(f, manager));
+        assertInstanceOf(IllegalStateException.class, failure.getCause());
         assertEquals("uncertain", recovery(manager).getString("state"));
         assertEquals("destination insertion", recovery(manager).getString("stage"));
         assertEquals(1, count(destination));
@@ -128,7 +131,8 @@ class ItemRecoveryTest {
         };
         source.setInventorySlotContents(0, new ItemStack(ITEM));
         f.world.tiles.put(SRC, source);
-        assertThrows(IllegalStateException.class, () -> run(f, manager));
+        SfmlRuntimeException failure = assertThrows(SfmlRuntimeException.class, () -> run(f, manager));
+        assertInstanceOf(IllegalStateException.class, failure.getCause());
         assertEquals("uncertain", recovery(manager).getString("state"));
         assertEquals("extraction", recovery(manager).getString("stage"));
         assertEquals(0, count(source));
@@ -165,7 +169,8 @@ class ItemRecoveryTest {
                 return !extracted[0];
             }
         });
-        assertThrows(IllegalStateException.class, () -> run(f, manager));
+        SfmlRuntimeException failure = assertThrows(SfmlRuntimeException.class, () -> run(f, manager));
+        assertInstanceOf(IllegalStateException.class, failure.getCause());
         assertEquals("uncertain", recovery(manager).getString("state"));
         assertEquals("source rollback", recovery(manager).getString("stage"));
         assertEquals(1, count(source));

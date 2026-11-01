@@ -197,18 +197,30 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
             return new Block(Collections.emptyList());
         }
         List<Statement> statements = new ArrayList<>();
+        List<ca.teamdman.sfml.data.SourceLocation> locations = new ArrayList<>();
         data.pushScope();
         try {
             for (SFMLParser.StatementContext sCtx : ctx.statement()) {
                 ASTNode node = visit(sCtx);
                 if (node instanceof Statement) {
                     statements.add((Statement) node);
+                    String kind = sCtx.getChild(0)
+                        .getClass()
+                        .getSimpleName()
+                        .replace("Context", "");
+                    locations.add(
+                        new ca.teamdman.sfml.data.SourceLocation(
+                            sCtx.getStart()
+                                .getLine(),
+                            sCtx.getStart()
+                                .getCharPositionInLine(),
+                            kind));
                 }
             }
         } finally {
             data.popScope();
         }
-        return new Block(statements);
+        return new Block(statements, locations);
     }
 
     @Override

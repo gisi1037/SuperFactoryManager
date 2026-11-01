@@ -53,8 +53,8 @@ public final class StudioDebugTerminal {
     private boolean pendingPoll;
     private String deferred;
     private List<String> history = Collections.emptyList();
-    private List<String> result = Collections
-        .singletonList("Type help after connecting. Capture starts OFF on a fresh manager.");
+    private List<String> result = Collections.singletonList(
+        "Type help after connecting. Errors reads the manager's last runtime failure. Capture starts OFF.");
 
     public StudioDebugTerminal(TileEntityProgrammingStation station, UUID session, int window) {
         this.station = station;
@@ -105,17 +105,23 @@ public final class StudioDebugTerminal {
                 .addTooltipLine("View bounded PRINT history. Use capture on / capture off to change capture."));
         tools.child(button("Result", 47, 0, 44, () -> view(true)).height(17));
         tools.child(
-            button("Profile", 94, 0, 48, () -> request("profile status")).height(17)
+            button("Errors", 94, 0, 46, () -> request("error")).height(17)
+                .addTooltipLine(
+                    "Read the connected manager's last runtime failure. Reference-disk details are author-only."));
+        tools.child(
+            button("Profile", 143, 0, 48, () -> request("profile status")).height(17)
                 .addTooltipLine("Full server update timings. Commands: profile start [updates], stop, reset, status."));
-        tools.child(button("Copy", 145, 0, 40, this::copy).height(17));
         tools.child(
-            button("Start profile", 190, 0, 76, () -> request("profile start")).height(17)
+            button("Copy", 194, 0, 40, this::copy).height(17)
+                .setEnabledIf(widget -> dock.getArea().width >= 244));
+        tools.child(
+            button("Start profile", 237, 0, 76, () -> request("profile start")).height(17)
                 .setEnabledIf(widget -> dock.getArea().width >= 410));
         tools.child(
-            button("Stop", 269, 0, 40, () -> request("profile stop")).height(17)
+            button("Stop", 316, 0, 40, () -> request("profile stop")).height(17)
                 .setEnabledIf(widget -> dock.getArea().width >= 410));
         tools.child(
-            button("Reset", 312, 0, 42, () -> request("profile reset")).height(17)
+            button("Reset", 359, 0, 42, () -> request("profile reset")).height(17)
                 .setEnabledIf(widget -> dock.getArea().width >= 410));
         dock.child(tools);
         dockOutput = new StudioReadOnlyPane(input).left(4)

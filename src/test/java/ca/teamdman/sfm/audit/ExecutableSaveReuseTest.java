@@ -53,7 +53,7 @@ class ExecutableSaveReuseTest {
         assertEquals(1, cursor.nextIndex(5));
         fixture.manager.setRunning(false);
         ProgramEditSnapshot before = ProgramEditService.open(fixture.container);
-        String edited = "-- layout updated\n" + SOURCE + "\n-- sfm:blueprint:v2 changed-layout";
+        String edited = SOURCE + "\n-- layout updated\n-- sfm:blueprint:v2 changed-layout";
         ProgramEditService.SaveResult result = ProgramEditService.save(fixture.container, before, edited);
         assertTrue(result.accepted, result.message);
         assertSame(original, fixture.manager.getCompiledProgram());
@@ -87,6 +87,81 @@ class ExecutableSaveReuseTest {
     }
 
     @Test
+    void leadingCommentsAndWhitespaceRetainTheExecutableAndItsRuntimeState() throws Exception {
+        Fixture fixture = new Fixture(SOURCE);
+        Program original = fixture.manager.getCompiledProgram();
+        assertNull(fixture.manager.trySaveProgram("-- inserted header\n" + SOURCE));
+        assertSame(original, fixture.manager.getCompiledProgram());
+        Program shifted = fixture.manager.getCompiledProgram();
+        assertNull(fixture.manager.trySaveProgram("-- inserted header\n  " + SOURCE));
+        assertSame(shifted, fixture.manager.getCompiledProgram());
+    }
+
+    @Test
+    void formattingSavesMapManagerErrorsWithoutResettingProgramGlobals() throws Exception {
+        String fault = "STATE count = 0\nLET marker = 0\nEVERY 1 TICKS DO\n"
+            + "  marker = marker + 1\n  count = marker\n"
+            + "  OUTPUT 1 REDSTONE LEVEL TO label(\"signal\").slots(0,0)\nEND";
+        Fixture fixture = new Fixture(fault);
+        Program original = fixture.manager.getCompiledProgram();
+        fixture.manager.runOnceWithLogLevel(ca.teamdman.sfm.common.tileentity.LogLevel.OFF);
+        assertEquals(
+            1,
+            fixture.manager.getProgramState()
+                .read(0)
+                .asLong());
+        String formatted = "-- first\n-- second\n" + fault.replace("  OUTPUT", "    OUTPUT");
+        assertNull(fixture.manager.trySaveProgram(formatted));
+        assertSame(original, fixture.manager.getCompiledProgram());
+        fixture.manager.runOnceWithLogLevel(ca.teamdman.sfm.common.tileentity.LogLevel.OFF);
+        assertEquals(
+            2,
+            fixture.manager.getProgramState()
+                .read(0)
+                .asLong(),
+            "Formatting must preserve the live LET marker");
+        assertTrue(
+            fixture.manager.getRuntimeErrorSnapshot(null)
+                .contains("SFML line 8, column 5 | RedstoneOutputStatement"));
+        assertFalse(
+            fixture.manager.getRuntimeErrorSnapshot(null)
+                .toString()
+                .contains("Line 6, Col 2"));
+        assertNull(fixture.manager.trySaveProgram("-- third\n" + formatted));
+        assertSame(original, fixture.manager.getCompiledProgram());
+        fixture.manager.runOnceWithLogLevel(ca.teamdman.sfm.common.tileentity.LogLevel.OFF);
+        assertEquals(
+            3,
+            fixture.manager.getProgramState()
+                .read(0)
+                .asLong());
+        assertTrue(
+            fixture.manager.getRuntimeErrorSnapshot(null)
+                .contains("SFML line 9, column 5 | RedstoneOutputStatement"));
+    }
+
+    @Test
+    void mappedErrorLocationsRemainCorrectAfterStateResetOrLegacyChunkUnload() throws Exception {
+        String fault = "EVERY 1 TICKS DO\n  OUTPUT 1 REDSTONE LEVEL TO label(\"signal\").slots(0,0)\nEND";
+        for (boolean unload : new boolean[] { false, true }) {
+            Fixture fixture = new Fixture(fault);
+            Program original = fixture.manager.getCompiledProgram();
+            assertNull(fixture.manager.trySaveProgram("-- inserted header\n" + fault));
+            assertSame(original, fixture.manager.getCompiledProgram());
+            if (unload) {
+                fixture.manager.onChunkUnload();
+                fixture.manager.validate();
+            } else fixture.manager.resetProgramState();
+            fixture.manager.runOnceWithLogLevel(ca.teamdman.sfm.common.tileentity.LogLevel.OFF);
+            assertTrue(
+                fixture.manager.getRuntimeErrorSnapshot(null)
+                    .contains("SFML line 3, column 3 | RedstoneOutputStatement"),
+                fixture.manager.getRuntimeErrorSnapshot(null)
+                    .toString());
+        }
+    }
+
+    @Test
     void reuseStillReconcilesLiveStateAndRejectsOversizedCompleteDisks() throws Exception {
         String counter = "STATE $count = 0 EVERY 1 TICKS DO SET $count = $count + 1 END";
         Fixture fixture = new Fixture(counter);
@@ -95,7 +170,7 @@ class ExecutableSaveReuseTest {
         Program original = fixture.manager.getCompiledProgram();
         ProgramEditSnapshot before = ProgramEditService.open(fixture.container);
         ProgramEditService.SaveResult saved = ProgramEditService
-            .save(fixture.container, before, "-- layout\n" + counter);
+            .save(fixture.container, before, counter + "\n-- layout");
         assertTrue(saved.accepted, saved.message);
         assertSame(original, fixture.manager.getCompiledProgram());
         assertEquals(
@@ -118,7 +193,7 @@ class ExecutableSaveReuseTest {
             .setString("oversized", String.join("", Collections.nCopies(31000, "x")));
         long generation = oversized.manager.getDiskGeneration();
         long revision = ProgramDocument.read(oversized.manager.getDisk()).revision;
-        assertNotNull(oversized.manager.trySaveProgram("-- layout\n" + SOURCE));
+        assertNotNull(oversized.manager.trySaveProgram(SOURCE + "\n-- layout"));
         assertSame(installed, oversized.manager.getCompiledProgram());
         assertEquals(SOURCE, ItemDisk.getProgramString(oversized.manager.getDisk()));
         assertEquals(generation, oversized.manager.getDiskGeneration());

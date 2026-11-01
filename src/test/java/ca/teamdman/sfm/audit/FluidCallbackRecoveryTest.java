@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import ca.teamdman.sfm.common.network.CableNetwork;
 import ca.teamdman.sfm.common.program.ProgramContext;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
+import ca.teamdman.sfml.data.SfmlRuntimeException;
 
 /** Throwing providers may mutate before failing; preserve evidence without inventing ownership. */
 class FluidCallbackRecoveryTest {
@@ -381,8 +382,8 @@ class FluidCallbackRecoveryTest {
         fixture.world.tiles.put(SRC, source);
         fixture.world.tiles.put(DST, target);
         TileEntityManager manager = RecoveryFixtures.manager(fixture);
-        assertThrows(
-            IllegalStateException.class,
+        SfmlRuntimeException failure = assertThrows(
+            SfmlRuntimeException.class,
             () -> parse(CODE).tick(
                 new ProgramContext(
                     fixture.world,
@@ -391,6 +392,7 @@ class FluidCallbackRecoveryTest {
                     fixture.labels,
                     20,
                     false)));
+        assertInstanceOf(IllegalStateException.class, failure.getCause());
         assertFalse(manager.isRunning());
         return manager;
     }

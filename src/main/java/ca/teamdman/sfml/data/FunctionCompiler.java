@@ -273,6 +273,24 @@ public final class FunctionCompiler {
                                 statement,
                                 "Value functions permit only local data, typed control flow, WAIT and RETURN; use a void procedure for actions");
                         }
+                int index = commands.size() - 1;
+                Command command = commands.get(index);
+                SourceLocation location = new SourceLocation(
+                    statement.getStart()
+                        .getLine(),
+                    statement.getStart()
+                        .getCharPositionInLine(),
+                    statement.getChild(0)
+                        .getClass()
+                        .getSimpleName()
+                        .replace("Context", ""));
+                commands.set(index, runtime -> {
+                    try {
+                        return command.execute(runtime);
+                    } catch (RuntimeException failure) {
+                        throw location.annotate(failure);
+                    }
+                });
             }
         } finally {
             data.popScope();

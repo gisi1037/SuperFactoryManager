@@ -50,6 +50,7 @@ import ca.teamdman.sfml.ast.Program;
 import ca.teamdman.sfml.ast.ResourceIdSet;
 import ca.teamdman.sfml.ast.RoundRobin;
 import ca.teamdman.sfml.ast.SideQualifier;
+import ca.teamdman.sfml.data.SfmlRuntimeException;
 import ca.teamdman.sfml.program_builder.ProgramBuildResult;
 import ca.teamdman.sfml.program_builder.ProgramBuilder;
 import sun.misc.Unsafe;
@@ -610,10 +611,11 @@ public class AuditRegressionTest {
         manager.setInventorySlotContents(0, disk);
         Program program = parse(
             "EVERY 20 TICKS DO INPUT fluid:water FROM \"source\" OUTPUT 100 fluid:water TO \"dest\" END");
-        assertThrows(
-            IllegalStateException.class,
+        SfmlRuntimeException failure = assertThrows(
+            SfmlRuntimeException.class,
             () -> program
                 .tick(new ProgramContext(f.world, manager, new CableNetwork(f.world, MANAGER), f.labels, 20, false)));
+        assertInstanceOf(IllegalStateException.class, failure.getCause());
         assertFalse(manager.isRunning());
         NBTTagCompound recovery = disk.getTagCompound()
             .getCompoundTag("sfm:recovery_fluid");

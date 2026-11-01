@@ -11,6 +11,8 @@ public final class TerminalCommandCompletion {
     private static final List<String> COMMANDS = Arrays.asList(
         "help",
         "status",
+        "error",
+        "error clear",
         "state",
         "labels",
         "logs",

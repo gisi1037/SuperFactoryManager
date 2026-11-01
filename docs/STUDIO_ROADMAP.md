@@ -69,3 +69,14 @@ help, diagnostics and snippets follow the actual compiler.
 Qualification covers 1,726 headless tests (1,710 pass, 16 optional skips), compiler
 checked guides/snippets, formatting, Checkstyle and assembly. Native machine and
 cover compatibility remains a separate in-game qualification step.
+
+
+## Runtime failure diagnostics
+
+Manager and Studio terminals expose `error` / `error clear` and an Errors action.
+Runtime failures include the statement location, bounded function context and
+underlying cause even when PRINT capture and log recording are off. Reference
+program details remain restricted to source authors. Retained details are local
+to the loaded manager and clear on program replacement or unload; this does not
+add persistent logs or alter transfer permissions. Formatting-only saves preserve
+running state and map later failures to saved source coordinates.

@@ -132,7 +132,10 @@ class SfmlWaitTest {
         Run negative = new Run("EVERY 10 TICKS DO wait(-1) END");
         assertThrows(IllegalArgumentException.class, () -> negative.tick(10));
         Run overflow = new Run("EVERY 10 TICKS DO wait(9223372036854775807) END");
-        assertThrows(ArithmeticException.class, () -> overflow.tick(10));
+        ca.teamdman.sfml.data.SfmlRuntimeException failure = assertThrows(
+            ca.teamdman.sfml.data.SfmlRuntimeException.class,
+            () -> overflow.tick(10));
+        assertInstanceOf(ArithmeticException.class, failure.getCause());
         assertEquals(
             0,
             negative.manager.getProgramExecution(negative.program)

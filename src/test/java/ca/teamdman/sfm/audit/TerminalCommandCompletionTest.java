@@ -32,6 +32,19 @@ class TerminalCommandCompletionTest {
     }
 
     @Test
+    void retainedRuntimeErrorCommandCompletesWithoutChangingArguments() {
+        TerminalCommandCompletion completion = new TerminalCommandCompletion();
+        assertEquals("error", completion.complete("ER", false));
+        assertEquals("error clear", completion.complete("error", true));
+        assertEquals("error", completion.complete("error clear", false));
+        completion.reset();
+        assertEquals("error clear", completion.complete("error c", false));
+        assertEquals("error verbose", completion.complete("error verbose", false));
+        completion.reset();
+        assertEquals("error", completion.complete("err", false));
+    }
+
+    @Test
     void argumentsUnknownPrefixesAndOversizedTextAreNeverReplaced() {
         TerminalCommandCompletion completion = new TerminalCommandCompletion();
         for (String text : new String[] { "labels Input Chest", "state $counter", "logs 12", "unknown",

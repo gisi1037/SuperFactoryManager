@@ -75,10 +75,18 @@ shows diagnostic details; **Check** still checks the exact saved server revision
 ## Live manager terminal
 
 The bottom **Debug terminal** dock connects to an explicitly
-chosen nearby loaded manager using its X/Y/Z. Use `help`, `status`, `state`,
+chosen nearby loaded manager using its X/Y/Z. Use `help`, `status`, `error`, `state`,
 `labels` or `logs`. PRINT capture starts off; enable it explicitly to collect
 output from that manager. PRINT and command results have separate views with
 paging and Copy. Tab completes commands; Up/Down recall history.
+
+**Errors** reads the connected manager's retained runtime failure into the same
+dock. It does not check or run the open draft; use **Problems** for draft compiler
+errors. Runtime locations refer to the installed program revision. Reference-disk
+failure details are visible only to the verified source author.
+Use `error clear` to remove the retained failure without clearing PRINT or
+ordinary logs. Pause/Run retains it; source edits/resets, disk changes and manager
+unload clear it.
 
 The **Watch** dock reads initialized program-wide LET and STATE values from that
 manager. Trigger and function locals are unavailable after execution. Reference

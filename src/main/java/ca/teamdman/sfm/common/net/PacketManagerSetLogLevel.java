@@ -87,7 +87,7 @@ public class PacketManagerSetLogLevel implements IMessage {
                             message.z,
                             manager.getLogLevel()
                                 .name(),
-                            manager.getLogs()),
+                            manager.getDiagnosticLogs(player.getUniqueID())),
                         player);
                 }
             });

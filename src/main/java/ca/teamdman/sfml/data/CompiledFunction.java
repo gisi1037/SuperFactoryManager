@@ -174,7 +174,7 @@ public final class CompiledFunction {
             sleeping = true;
             throw pause;
         } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException("In function " + name + ": " + ex.getMessage());
+            throw SfmlRuntimeException.inFunction(name, ex);
         } finally {
             caller.leaveFunction(call, frame, sleeping);
         }

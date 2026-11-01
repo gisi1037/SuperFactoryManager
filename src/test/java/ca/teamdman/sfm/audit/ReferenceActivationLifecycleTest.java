@@ -8,17 +8,20 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.Consumer;
 
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTBase;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.network.play.server.S35PacketUpdateTileEntity;
 import net.minecraft.world.World;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import ca.teamdman.sfm.common.item.ItemDisk;
+import ca.teamdman.sfm.common.program.DebugTerminalService;
 import ca.teamdman.sfm.common.program.ProgramDiskData;
 import ca.teamdman.sfm.common.program.ProgramDocument;
 import ca.teamdman.sfm.common.program.ProgramStateStore;
@@ -26,15 +29,21 @@ import ca.teamdman.sfm.common.program.project.ExecutionReference;
 import ca.teamdman.sfm.common.program.project.PreparedExecution;
 import ca.teamdman.sfm.common.program.project.ProjectResult;
 import ca.teamdman.sfm.common.program.project.ProjectWorkspace;
+import ca.teamdman.sfm.common.tileentity.LogEntry;
 import ca.teamdman.sfm.common.tileentity.LogLevel;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 import ca.teamdman.sfml.ast.Program;
+import ca.teamdman.sfml.data.DataValue;
 import ca.teamdman.sfml.program_builder.ProgramBuilder;
 
 /** Controlled worker completions exercise live fences without filesystem reads or asynchronous timing assumptions. */
 class ReferenceActivationLifecycleTest {
 
     private static final String COUNTER = "STATE $count = 0 EVERY 1 TICKS DO SET $count = $count + 1 END";
+    private static final String PRIVATE_FAILURE = "state phase = 0;\n" + "integer private_runtime_name() {\n"
+        + "  return label(\"private_label_name\").count(item(\"*\"));\n"
+        + "}\n"
+        + "every 1 ticks { let private_result = private_runtime_name(); }";
     @TempDir
     Path temporary;
 
@@ -413,7 +422,9 @@ class ReferenceActivationLifecycleTest {
                     + "EVERY 1 TICKS DO LET $private_result = private_runtime_name(0) END");
             f.manager.runOnceWithLogLevel(LogLevel.TRACE);
             assertFalse(f.manager.isRunning());
-            assertEquals("Published program runtime error; manager paused", f.manager.getStatusMessage());
+            assertEquals(
+                "Published program runtime error; manager paused (Terminal: error)",
+                f.manager.getStatusMessage());
             assertFalse(logText(f.manager).contains("private_runtime_name"));
             assertFalse(logText(f.manager).contains("private_result"));
             f.manager.setLogLevel(LogLevel.DEBUG);
@@ -773,6 +784,371 @@ class ReferenceActivationLifecycleTest {
                 f.manager.canInspectVariables(nextAuthor),
                 "Closed/replaced world store revokes the old activation");
         }
+    }
+
+    @Test
+    void automaticAndManualFailuresRetainAuthorDetailsWithLoggingAndPrintCaptureOff() throws Exception {
+        UUID author = UUID.randomUUID(), bearer = UUID.randomUUID();
+        for (boolean manual : new boolean[] { false, true })
+            try (Fixture f = new Fixture(temporary.resolve("runtime-privacy-" + manual))) {
+                failPrivately(f, author, manual);
+                List<String> own = f.manager.getRuntimeErrorSnapshot(author);
+                assertTrue(
+                    String.join("\n", own)
+                        .contains("private_runtime_name"),
+                    own.toString());
+                assertTrue(
+                    String.join("\n", own)
+                        .contains("private_label_name"),
+                    own.toString());
+                assertTrue(
+                    own.get(0)
+                        .contains(manual ? "manual Run" : "scheduled run"));
+                assertTrue(own.size() <= 16);
+                assertTrue(
+                    own.stream()
+                        .allMatch(line -> line.length() <= 512));
+                assertEquals(own, DebugTerminalService.execute(f.manager, "error", author));
+                assertTrue(diagnosticText(f.manager, author).contains("private_runtime_name"));
+                assertFalse(f.manager.hasDebugOutputEnabled());
+                assertEquals(LogLevel.OFF, f.manager.getLogLevel());
+                NBTTagCompound diskBefore = (NBTTagCompound) f.manager.getDisk()
+                    .getTagCompound()
+                    .copy();
+                for (UUID actor : new UUID[] { null, bearer }) {
+                    List<String> denied = DebugTerminalService.execute(f.manager, "error", actor);
+                    assertTrue(
+                        String.join("", denied)
+                            .contains("author-only"),
+                        denied.toString());
+                    assertNoPrivateDiagnostic(denied.toString());
+                    assertNoPrivateDiagnostic(diagnosticText(f.manager, actor));
+                    assertNoPrivateDiagnostic(
+                        DebugTerminalService.execute(f.manager, "logs 15", actor)
+                            .toString());
+                    DebugTerminalService.execute(f.manager, "error clear", actor);
+                    assertEquals(
+                        own,
+                        f.manager.getRuntimeErrorSnapshot(author),
+                        "A bearer cannot erase author evidence");
+                }
+                assertEquals(
+                    diskBefore,
+                    f.manager.getDisk()
+                        .getTagCompound(),
+                    "Inspection never serializes or edits the disk");
+                List<LogEntry> projected = f.manager.getDiagnosticLogs(author);
+                projected.clear();
+                assertTrue(
+                    diagnosticText(f.manager, author).contains("private_runtime_name"),
+                    "Log projection is a snapshot");
+                assertSharedDiagnosticsRedacted(f.manager);
+                assertEquals(
+                    own,
+                    f.manager.getRuntimeErrorSnapshot(author),
+                    "Saving/packet snapshots do not erase the heap diagnostic");
+            }
+    }
+
+    @Test
+    void forgedOwnerMetadataCannotGrantRuntimeErrorInspectionOrClearing() throws Exception {
+        UUID author = UUID.randomUUID(), bearer = UUID.randomUUID();
+        try (Fixture f = new Fixture(temporary.resolve("runtime-forged-owner"))) {
+            failPrivately(f, author, false);
+            List<String> own = f.manager.getRuntimeErrorSnapshot(author);
+            NBTTagCompound disk = f.manager.getDisk()
+                .getTagCompound();
+            disk.setString("sourceOwner", bearer.toString());
+            disk.setString("owner", bearer.toString());
+            disk.setLong("ownerMost", bearer.getMostSignificantBits());
+            disk.setLong("ownerLeast", bearer.getLeastSignificantBits());
+            assertTrue(f.manager.canInspectVariables(author));
+            assertFalse(f.manager.canInspectVariables(bearer));
+            assertNoPrivateDiagnostic(
+                f.manager.getRuntimeErrorSnapshot(bearer)
+                    .toString());
+            assertNoPrivateDiagnostic(diagnosticText(f.manager, bearer));
+            assertFalse(f.manager.clearRuntimeError(bearer));
+            assertEquals(own, f.manager.getRuntimeErrorSnapshot(author));
+        }
+    }
+
+    @Test
+    void reentrantProviderDiskReplacementCannotPublishOldPrivateFailureAsLegacyDetails() throws Exception {
+        UUID author = UUID.randomUUID(), bearer = UUID.randomUUID();
+        for (boolean manual : new boolean[] { false, true })
+            try (Fixture f = new Fixture(temporary.resolve("runtime-reentrant-disk-" + manual))) {
+                ItemStack replacement = f.manager.getDisk()
+                    .copy();
+                NBTTagCompound legacy = new NBTTagCompound();
+                legacy.setString(ItemDisk.NBT_PROGRAM, COUNTER);
+                replacement.setTagCompound(legacy);
+                int[] callbacks = { 0 };
+                AuditRegressionTest.InventoryTile provider = new AuditRegressionTest.InventoryTile(1) {
+
+                    @Override
+                    public ItemStack getStackInSlot(int slot) {
+                        if (callbacks[0]++ == 0) f.manager.setInventorySlotContents(0, replacement);
+                        throw new IllegalStateException("private_reentrant_provider_cause");
+                    }
+                };
+                f.world.add("private_label_name", AuditRegressionTest.SRC, provider);
+                f.world.labels.writeToNBT(
+                    f.manager.getDisk()
+                        .getTagCompound());
+                f.tick();
+                f.complete(0, PRIVATE_FAILURE, author);
+                f.manager.setLogLevel(LogLevel.OFF);
+                f.manager.getDebugConsole()
+                    .setEnabled(false);
+                if (manual) f.manager.runOnceWithLogLevel(LogLevel.OFF);
+                else f.tick();
+                assertTrue(callbacks[0] > 0, "The real inventory-query callback must execute");
+                assertSame(replacement, f.manager.getDisk());
+                assertEquals(ProgramDiskData.Mode.LEGACY, ProgramDiskData.mode(f.manager.getDisk()));
+                assertFalse(f.manager.isRunning(), "The old private invocation really failed after replacement");
+                assertEquals(
+                    "Published program runtime error; manager paused (Terminal: error)",
+                    f.manager.getStatusMessage());
+                assertTrue(
+                    f.manager.canInspectVariables(null),
+                    "The replacement has ordinary legacy inspection rights");
+                for (UUID actor : new UUID[] { null, bearer, author }) {
+                    List<String> details = DebugTerminalService.execute(f.manager, "error", actor);
+                    assertTrue(
+                        details.toString()
+                            .contains("No retained runtime failure"),
+                        details.toString());
+                    assertNoPrivateDiagnostic(details.toString());
+                    assertFalse(
+                        details.toString()
+                            .contains("private_reentrant_provider_cause"));
+                    String logs = diagnosticText(f.manager, actor);
+                    assertNoPrivateDiagnostic(logs);
+                    assertFalse(logs.contains("private_reentrant_provider_cause"), logs);
+                }
+                assertSharedDiagnosticsRedacted(f.manager);
+                assertFalse(logText(f.manager).contains("private_reentrant_provider_cause"));
+            }
+    }
+
+    @Test
+    void runtimeErrorReadsCheckCurrentActivationWithoutWaitingForAnotherTick() throws Exception {
+        UUID author = UUID.randomUUID();
+        List<Mutation> mutations = new ArrayList<>();
+        mutations.add(
+            f -> f.manager.setInventorySlotContents(
+                0,
+                f.manager.getDisk()
+                    .copy()));
+        mutations.add(
+            f -> f.manager.getDisk()
+                .setTagCompound(
+                    (NBTTagCompound) f.manager.getDisk()
+                        .getTagCompound()
+                        .copy()));
+        mutations.add(
+            f -> f.manager.getDisk()
+                .getTagCompound()
+                .getCompoundTag(ProgramDocument.NBT_KEY)
+                .setLong("revision", 1));
+        mutations.add(
+            f -> f.manager.getDisk()
+                .getTagCompound()
+                .getCompoundTag(ProgramDiskData.NBT_REFERENCE)
+                .setString("grant", hex('c')));
+        mutations.add(
+            f -> f.manager.getDisk()
+                .getTagCompound()
+                .getCompoundTag(ProgramStateStore.NBT_KEY)
+                .setLong("revision", 999));
+        mutations.add(f -> f.manager.current = false);
+        mutations.add(f -> f.manager.workspace.close());
+        mutations.add(f -> f.world.world.tiles.put(f.manager.getBlockPos(), new TileEntityManager()));
+        mutations.add(f -> {
+            java.lang.reflect.Field plan = TileEntityManager.class.getDeclaredField("compiledProgram");
+            plan.setAccessible(true);
+            plan.set(
+                f.manager,
+                new ProgramBuilder(COUNTER).build()
+                    .getProgram());
+        });
+        mutations.add(f -> {
+            java.lang.reflect.Field generation = TileEntityManager.class.getDeclaredField("diskGeneration");
+            generation.setAccessible(true);
+            generation.setLong(f.manager, f.manager.getDiskGeneration() + 1);
+        });
+        int index = 0;
+        for (Mutation mutation : mutations)
+            try (Fixture f = new Fixture(temporary.resolve("runtime-stale-" + index++))) {
+                failPrivately(f, author, false);
+                assertTrue(
+                    f.manager.getRuntimeErrorSnapshot(author)
+                        .toString()
+                        .contains("private_runtime_name"));
+                mutation.apply(f);
+                assertNoPrivateDiagnostic(
+                    f.manager.getRuntimeErrorSnapshot(author)
+                        .toString());
+                assertNoPrivateDiagnostic(diagnosticText(f.manager, author));
+                assertNoPrivateDiagnostic(
+                    DebugTerminalService.execute(f.manager, "error", author)
+                        .toString());
+            }
+    }
+
+    @Test
+    void pauseSuccessfulRerunAndClearingSharedLogsRetainFailureUntilReplacementOrExplicitClear() throws Exception {
+        UUID author = UUID.randomUUID();
+        try (Fixture f = new Fixture(temporary.resolve("runtime-retained"))) {
+            f.tick();
+            f.complete(
+                0,
+                "state phase = 0;\n" + "integer private_first(integer value) { return 5 / value; }\n"
+                    + "integer private_second(integer value) { return 6 / value; }\n"
+                    + "every 1 ticks {\n"
+                    + "  if (phase == 0) { phase = 1; let result = private_first(0); }\n"
+                    + "  if (phase == 2) { phase = 3; let result = private_second(0); }\n}",
+                author);
+            f.tick();
+            List<String> first = f.manager.getRuntimeErrorSnapshot(author);
+            assertTrue(
+                first.toString()
+                    .contains("private_first"),
+                first.toString());
+            f.manager.setRunning(false);
+            f.tick();
+            assertEquals(first, f.manager.getRuntimeErrorSnapshot(author));
+            f.manager.clearLogs();
+            assertTrue(
+                f.manager.getLogs()
+                    .isEmpty());
+            assertEquals(first, f.manager.getRuntimeErrorSnapshot(author));
+            f.manager.setRunning(true);
+            f.tick();
+            assertTrue(f.manager.isRunning());
+            assertEquals(
+                first,
+                f.manager.getRuntimeErrorSnapshot(author),
+                "A successful retry does not discard the last failure");
+            f.manager.getProgramState()
+                .write(0, DataValue.integer(2));
+            f.tick();
+            List<String> second = f.manager.getRuntimeErrorSnapshot(author);
+            assertTrue(
+                second.toString()
+                    .contains("private_second"),
+                second.toString());
+            assertFalse(
+                second.toString()
+                    .contains("private_first"),
+                "New failure replaces the previous one");
+            assertTrue(
+                first.toString()
+                    .contains("private_first"),
+                "Previously returned snapshots remain stable");
+            DebugTerminalService.execute(f.manager, "error clear", author);
+            assertTrue(
+                f.manager.getRuntimeErrorSnapshot(author)
+                    .toString()
+                    .contains("No retained runtime failure"));
+            assertFalse(diagnosticText(f.manager, author).contains("private_second"));
+        }
+    }
+
+    @Test
+    void resetDiskChangeUnloadAndReloadDiscardRuntimeFailures() throws Exception {
+        UUID author = UUID.randomUUID();
+        List<Mutation> mutations = new ArrayList<>();
+        mutations.add(f -> f.manager.resetProgramState());
+        mutations.add(
+            f -> f.manager.setInventorySlotContents(
+                0,
+                f.manager.getDisk()
+                    .copy()));
+        mutations.add(f -> f.manager.onChunkUnload());
+        mutations.add(f -> f.manager.invalidate());
+        mutations.add(f -> {
+            NBTTagCompound saved = new NBTTagCompound();
+            f.manager.writeToNBT(saved);
+            assertNoPrivateDiagnostic(saved.toString());
+            f.manager.readFromNBT(saved);
+        });
+        int index = 0;
+        for (Mutation mutation : mutations)
+            try (Fixture f = new Fixture(temporary.resolve("runtime-clear-" + index++))) {
+                failPrivately(f, author, false);
+                mutation.apply(f);
+                assertNoPrivateDiagnostic(
+                    f.manager.getRuntimeErrorSnapshot(author)
+                        .toString());
+                assertNoPrivateDiagnostic(diagnosticText(f.manager, author));
+            }
+    }
+
+    @Test
+    void legacyRuntimeDetailsRemainAvailableWithoutPublishedAuthorAuthorityAndClearOnSourceEdit() throws Exception {
+        AuditRegressionTest.Fixture world = new AuditRegressionTest.Fixture();
+        TileEntityManager manager = RecoveryFixtures.manager(world);
+        manager.saveCodeAndRecompile(PRIVATE_FAILURE);
+        manager.setLogLevel(LogLevel.OFF);
+        manager.runOnceWithLogLevel(LogLevel.OFF);
+        assertTrue(
+            manager.getRuntimeErrorSnapshot(null)
+                .toString()
+                .contains("private_label_name"));
+        assertTrue(diagnosticText(manager, UUID.randomUUID()).contains("private_runtime_name"));
+        assertEquals(manager.getRuntimeErrorSnapshot(null), DebugTerminalService.execute(manager, "error"));
+        manager.saveCodeAndRecompile(COUNTER);
+        assertTrue(
+            manager.getRuntimeErrorSnapshot(null)
+                .toString()
+                .contains("No retained runtime failure"));
+    }
+
+    private static void failPrivately(Fixture fixture, UUID author, boolean manual) throws Exception {
+        fixture.tick();
+        fixture.complete(0, PRIVATE_FAILURE, author);
+        fixture.manager.setLogLevel(LogLevel.OFF);
+        fixture.manager.getDebugConsole()
+            .setEnabled(false);
+        if (manual) fixture.manager.runOnceWithLogLevel(LogLevel.OFF);
+        else fixture.tick();
+        assertFalse(fixture.manager.isRunning());
+        assertEquals(
+            "Published program runtime error; manager paused (Terminal: error)",
+            fixture.manager.getStatusMessage());
+    }
+
+    private static String diagnosticText(TileEntityManager manager, UUID actor) {
+        StringBuilder result = new StringBuilder();
+        for (LogEntry entry : manager.getDiagnosticLogs(actor)) result.append(entry.getMessage())
+            .append('\n');
+        return result.toString();
+    }
+
+    private static void assertNoPrivateDiagnostic(String text) {
+        for (String secret : new String[] { "private_runtime_name", "private_label_name", "private_result" })
+            assertFalse(text.contains(secret), text);
+    }
+
+    private static void assertSharedDiagnosticsRedacted(TileEntityManager manager) {
+        assertNoPrivateDiagnostic(manager.getStatusMessage());
+        assertNoPrivateDiagnostic(logText(manager));
+        assertNoPrivateDiagnostic(
+            manager.getRecentLogs(500)
+                .toString());
+        assertNoPrivateDiagnostic(
+            manager.getDebugConsole()
+                .snapshot()
+                .toString());
+        NBTTagCompound saved = new NBTTagCompound();
+        manager.writeToNBT(saved);
+        assertNoPrivateDiagnostic(saved.toString());
+        S35PacketUpdateTileEntity packet = (S35PacketUpdateTileEntity) manager.getDescriptionPacket();
+        assertNoPrivateDiagnostic(
+            packet.func_148857_g()
+                .toString());
     }
 
     private static final class ControlledManager extends TileEntityManager {

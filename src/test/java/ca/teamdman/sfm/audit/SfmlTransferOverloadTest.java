@@ -35,6 +35,7 @@ import ca.teamdman.sfml.data.ItemTransferResult;
 import ca.teamdman.sfml.data.LabelReference;
 import ca.teamdman.sfml.data.QueryBudget;
 import ca.teamdman.sfml.data.ResourceSelector;
+import ca.teamdman.sfml.data.SfmlRuntimeException;
 import ca.teamdman.sfml.data.StateAccess;
 import ca.teamdman.sfml.program_builder.ProgramBuildResult;
 import ca.teamdman.sfml.program_builder.ProgramBuilder;
@@ -308,6 +309,48 @@ class SfmlTransferOverloadTest {
     }
 
     @Test
+    void nativeAndLegacyTransfersDrainOnlyMachineOutputAndLeaveInputsAndGhostCircuitUntouched() throws Exception {
+        for (boolean nativeTransfer : new boolean[] { true, false }) {
+            Fixture fixture = new Fixture();
+            MachineInventory machine = new MachineInventory();
+            ItemStack input = stack(FIRST, 13, 0, "input");
+            ItemStack circuit = stack(SECOND, 0, 24, "ghost");
+            // A ghost is not stock: neither its identity nor its payload needs inspection.
+            circuit.getTagCompound()
+                .setByteArray("ghost_payload", new byte[QueryBudget.MAX_SLOT_WORK + 1]);
+            machine.setInventorySlotContents(0, input);
+            machine.setInventorySlotContents(1, circuit);
+            machine.setInventorySlotContents(2, stack(SECOND, 7, 0, null));
+            fixture.world.tiles.put(SRC, machine);
+            ProgramContext context = context(fixture);
+            // The visible-stock query includes insert-only inputs and excludes the zero-count circuit.
+            assertEquals(20, context.count(SOURCE, ALL.asSelector(), context.getInvocationQueryBudget()));
+            if (nativeTransfer) {
+                assertResult(context.transferItems(SOURCE, DEST, ALL), 20, 7, "PARTIAL");
+            } else {
+                program("EVERY 20 TICKS DO INPUT FROM \"source\" OUTPUT TO \"dest\" END").tick(context);
+            }
+            assertSame(input, machine.getStackInSlot(0));
+            assertEquals(13, input.stackSize);
+            assertSame(circuit, machine.getStackInSlot(1));
+            assertEquals(0, circuit.stackSize);
+            assertEquals(
+                QueryBudget.MAX_SLOT_WORK + 1,
+                circuit.getTagCompound()
+                    .getByteArray("ghost_payload").length);
+            assertNull(machine.getStackInSlot(2));
+            assertEquals(7, count(fixture.dest));
+            assertSame(
+                SECOND,
+                fixture.dest.getStackInSlot(0)
+                    .getItem());
+            assertEquals(20, count(machine) + count(fixture.dest));
+            assertTrue(machine.deniedInputChecks > 0);
+            assertEquals(0, machine.ghostExtractionChecks);
+        }
+    }
+
+    @Test
     void overlappingPhysicalInventoryCannotFeedItsOwnSelectedSourceSlots() throws Exception {
         Fixture fixture = new Fixture();
         fixture.source.setInventorySlotContents(0, stack(FIRST, 9, 0, null));
@@ -419,12 +462,13 @@ class SfmlTransferOverloadTest {
         assertEquals(7, count(fixture.dest));
         ProgramContext unauthorized = new ProgramContext(null, null, null, null, 20, false);
         unauthorized.beginDataInvocation(0, false);
-        assertThrows(
-            IllegalStateException.class,
+        SfmlRuntimeException failure = assertThrows(
+            SfmlRuntimeException.class,
             () -> program.getTriggers()
                 .get(0)
                 .getBlock()
                 .tick(unauthorized));
+        assertInstanceOf(IllegalStateException.class, failure.getCause());
         assertEquals(
             0,
             unauthorized.getInvocationQueryBudget()
@@ -572,6 +616,33 @@ class SfmlTransferOverloadTest {
         @Override
         public boolean canInsertItem(int slot, ItemStack stack, int side) {
             return side == visibleSide && slot == 1;
+        }
+    }
+
+    /** Headless permission model only; this is not a GregTech integration fixture. */
+    private static final class MachineInventory extends InventoryTile implements ISidedInventory {
+
+        int deniedInputChecks, ghostExtractionChecks;
+
+        MachineInventory() {
+            super(3);
+        }
+
+        @Override
+        public int[] getAccessibleSlotsFromSide(int side) {
+            return new int[] { 0, 1, 2 };
+        }
+
+        @Override
+        public boolean canExtractItem(int slot, ItemStack stack, int side) {
+            if (slot == 0) deniedInputChecks++;
+            if (slot == 1) ghostExtractionChecks++;
+            return slot == 2;
+        }
+
+        @Override
+        public boolean canInsertItem(int slot, ItemStack stack, int side) {
+            return slot == 0;
         }
     }
 

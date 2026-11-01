@@ -1238,6 +1238,8 @@ The terminal supports these commands:
 | --- | --- |
 | `help` | Show supported commands. |
 | `status` | Inspect the current manager status. |
+| `error` | Read the retained runtime failure, with its cause and source/function location when available. Reference-disk details are restricted to the verified source author. |
+| `error clear` | Clear that retained failure; does not clear PRINT history or ordinary engine logs. The same author restriction applies. |
 | `state` | Inspect bounded snapshots of live persistent STATE values. |
 | `state $name` | Inspect one persistent variable. |
 | `labels` | List the first 15 saved label names and their saved position-entry counts. |
@@ -1254,6 +1256,20 @@ not a connectivity or inventory-content query. Label/position results explicitly
 show the displayed count when truncated. Neither it nor `logs` scans world
 providers, flushes STATE or changes the log level/capture. Engine logs are those
 already retained at the configured log level; the command does not enable tracing.
+
+If the manager reports a runtime failure, click **Errors** on its Terminal page
+or type `error`. The details appear directly in the terminal's Results view;
+**Copy** copies them. This works without enabling PRINT capture or log recording.
+The failure is retained in the manager's memory rather than written to the disk.
+Use its line, column, function and cause to check the exact program revision
+installed in the manager; an unsaved Studio draft may have different line numbers.
+For a reference disk, only its verified source author can read those details.
+Other players still see a generic runtime-error status.
+The Logs view also includes retained runtime-failure details for an authorized
+source author, even when ordinary log recording is off.
+Pause and Run keep the retained failure until a new failure replaces it.
+`error clear`, a source edit/reset, disk replacement or manager unload clears it.
+Clearing ordinary Logs does not clear this separate diagnostic record.
 
 Use **Up/Down** in the command field to recall up to 32 submitted commands. Down
 past the newest restores the unfinished command you were typing. Consecutive

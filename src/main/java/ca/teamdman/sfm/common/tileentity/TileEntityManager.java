@@ -55,6 +55,12 @@ public class TileEntityManager extends TileEntity implements IInventory {
     private ca.teamdman.sfml.data.ProgramGlobals programGlobals;
     private Program executionProgram;
     private ca.teamdman.sfml.data.ProgramExecution programExecution;
+    private ca.teamdman.sfm.common.program.RuntimeDiagnostic runtimeDiagnostic;
+    private Program diagnosticProgram;
+    private ItemStack diagnosticDisk;
+    private long diagnosticDiskGeneration;
+    private ca.teamdman.sfm.common.program.RuntimeSourceMap runtimeSourceMap;
+    private Program runtimeSourceMapProgram;
 
     public ca.teamdman.sfml.data.ProgramExecution getProgramExecution(Program program) {
         if (executionProgram != program || programExecution == null) {
@@ -82,6 +88,11 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     private void clearProgramGlobals() {
+        clearRuntimeDiagnostic();
+        if (runtimeSourceMapProgram != compiledProgram) {
+            runtimeSourceMap = null;
+            runtimeSourceMapProgram = null;
+        }
         if (programExecution != null) programExecution.clear();
         programExecution = null;
         executionProgram = null;
@@ -144,6 +155,72 @@ public class TileEntityManager extends TileEntity implements IInventory {
         if (!canInspectVariables(actor)) return DebugTerminalService.variableAccessDenied();
         ca.teamdman.sfml.data.ProgramGlobals values = globalProgram == compiledProgram ? programGlobals : null;
         return DebugTerminalService.inspectVariables(programState, compiledProgram, values, requested);
+    }
+
+    private void clearRuntimeDiagnostic() {
+        runtimeDiagnostic = null;
+        diagnosticProgram = null;
+        diagnosticDisk = null;
+    }
+
+    private void recordRuntimeFailure(Exception failure, boolean manual, Program executingProgram,
+        ItemStack executingDisk, long executingGeneration) {
+        // A provider callback can replace the disk before throwing. Never rebind its private error to a new disk.
+        if (compiledProgram != executingProgram || diskStack != executingDisk
+            || diskGeneration != executingGeneration) {
+            clearRuntimeDiagnostic();
+            return;
+        }
+        ca.teamdman.sfm.common.program.RuntimeDiagnostic candidate;
+        try {
+            candidate = ca.teamdman.sfm.common.program.RuntimeDiagnostic.capture(
+                failure,
+                managerTick,
+                manual,
+                runtimeSourceMapProgram == executingProgram ? runtimeSourceMap : null);
+        } catch (RuntimeException unsafeProviderMessage) {
+            candidate = ca.teamdman.sfm.common.program.RuntimeDiagnostic.capture(
+                new IllegalStateException("Runtime diagnostic unavailable: exception message provider failed"),
+                managerTick,
+                manual);
+        }
+        if (compiledProgram != executingProgram || diskStack != executingDisk
+            || diskGeneration != executingGeneration) {
+            clearRuntimeDiagnostic();
+            return;
+        }
+        runtimeDiagnostic = candidate;
+        diagnosticProgram = executingProgram;
+        diagnosticDisk = executingDisk;
+        diagnosticDiskGeneration = executingGeneration;
+    }
+
+    private boolean hasCurrentRuntimeDiagnostic() {
+        return runtimeDiagnostic != null && diagnosticProgram == compiledProgram
+            && diagnosticDisk == diskStack
+            && diagnosticDiskGeneration == diskGeneration;
+    }
+
+    public List<String> getRuntimeErrorSnapshot(UUID actor) {
+        if (!canInspectVariables(actor)) return java.util.Collections.singletonList(
+            "Runtime error details are author-only for published programs; execution/copy permission is insufficient.");
+        return hasCurrentRuntimeDiagnostic() ? runtimeDiagnostic.lines()
+            : java.util.Collections
+                .singletonList("No retained runtime failure. Reproduce it on this build, then use error again.");
+    }
+
+    public boolean clearRuntimeError(UUID actor) {
+        if (!canInspectVariables(actor)) return false;
+        clearRuntimeDiagnostic();
+        return true;
+    }
+
+    /** Source-bearing details are projected per authenticated viewer, never placed in shared/exported logs. */
+    public List<LogEntry> getDiagnosticLogs(UUID actor) {
+        List<LogEntry> result = getLogs();
+        if (hasCurrentRuntimeDiagnostic() && canInspectVariables(actor)) for (String line : runtimeDiagnostic.lines())
+            result.add(new LogEntry(runtimeDiagnostic.timestamp(), LogLevel.ERROR, line));
+        return result;
     }
 
     public boolean hasDebugOutputEnabled() {
@@ -313,6 +390,9 @@ public class TileEntityManager extends TileEntity implements IInventory {
         context.setStateAccess(programState);
         long startNs = System.nanoTime();
         boolean privateProgram = referenceBinding != null;
+        Program executingProgram = compiledProgram;
+        ItemStack executingDisk = diskStack;
+        long executingGeneration = diskGeneration;
         try {
             tickCompiledProgram(context);
 
@@ -328,10 +408,11 @@ public class TileEntityManager extends TileEntity implements IInventory {
                 }
             }
         } catch (Exception e) {
+            recordRuntimeFailure(e, false, executingProgram, executingDisk, executingGeneration);
             isRunning = false;
             resetRedstoneTriggerTracker();
             markDirty();
-            statusMessage = privateProgram ? "Published program runtime error; manager paused"
+            statusMessage = privateProgram ? "Published program runtime error; manager paused (Terminal: error)"
                 : "Runtime error (paused): " + e.getMessage();
             log(
                 LogLevel.ERROR,
@@ -610,16 +691,20 @@ public class TileEntityManager extends TileEntity implements IInventory {
                 context.setStateAccess(programState);
                 long startNs = System.nanoTime();
                 boolean privateProgram = referenceBinding != null;
+                Program executingProgram = compiledProgram;
+                ItemStack executingDisk = diskStack;
+                long executingGeneration = diskGeneration;
                 try {
                     tickCompiledProgram(context);
                     long elapsedNs = System.nanoTime() - startNs;
                     double ms = elapsedNs / 1_000_000.0;
                     log(LogLevel.INFO, String.format("Manual run completed in %.2f ms", ms));
                 } catch (Exception e) {
+                    recordRuntimeFailure(e, true, executingProgram, executingDisk, executingGeneration);
                     isRunning = false;
                     resetRedstoneTriggerTracker();
                     markDirty();
-                    statusMessage = privateProgram ? "Published program runtime error; manager paused"
+                    statusMessage = privateProgram ? "Published program runtime error; manager paused (Terminal: error)"
                         : "Runtime error (paused): " + e.getMessage();
                     log(
                         LogLevel.ERROR,
@@ -803,6 +888,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     private void invalidateReferenceActivation() {
+        clearRuntimeDiagnostic();
         cancelReferenceRequest();
         referenceActivationGeneration = Math.incrementExact(referenceActivationGeneration);
         referenceRequest = null;
@@ -1122,6 +1208,12 @@ public class TileEntityManager extends TileEntity implements IInventory {
             candidateProgram = result.getProgram();
         }
         try {
+            ca.teamdman.sfm.common.program.RuntimeSourceMap candidateSourceMap = reuseExecutable
+                ? ca.teamdman.sfm.common.program.RuntimeSourceMap.remapForSave(
+                    runtimeSourceMapProgram == compiledProgram ? runtimeSourceMap : null,
+                    installedSource,
+                    newCode)
+                : null;
             flushProgramState();
             ItemStack candidateDisk = diskStack.copy();
             ca.teamdman.sfm.common.program.ProgramDocument.ensure(candidateDisk);
@@ -1139,6 +1231,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
             ProgramStateStore.validateCompleteDisk(candidateDisk);
             long nextGeneration = Math.incrementExact(diskGeneration);
             // No fallible compilation or schema reconciliation after publication.
+            clearRuntimeDiagnostic();
             diskStack = candidateDisk;
             diskGeneration = nextGeneration;
             compiledProgram = candidateProgram;
@@ -1148,6 +1241,8 @@ public class TileEntityManager extends TileEntity implements IInventory {
                 resetRedstoneTriggerTracker();
                 clearProgramGlobals();
             }
+            runtimeSourceMap = candidateSourceMap;
+            runtimeSourceMapProgram = candidateSourceMap == null ? null : candidateProgram;
             statusMessage = isRunning ? "Running" : "Program saved; paused";
             markDirty();
             return null;

@@ -6,7 +6,7 @@ navigation:
   parent: /reference/index.md
   keywords: ["print", "debug", "terminal", "error", "logs", "troubleshooting"]
 categories: ["sfm"]
-updated: "2026-10-30"
+updated: "2026-10-31"
 ---
 
 # Debugging and the terminal
@@ -17,6 +17,7 @@ reachable containers, meet an existing stock target or be blocked by recovery.
 ## A useful diagnosis order
 
 1. Check disk presence, compilation, running state and the current status.
+   If it reports a runtime error, open **Terminal → Errors** first.
 2. Inspect the disk's saved labels, not just the gun. Check case and coordinates.
 3. Check loaded chunks, the cable path and the actual block at each saved position.
 4. Test one known item, one source and one empty output before a larger route.
@@ -58,6 +59,8 @@ causes the ordinary program fault.
 | --- | --- |
 | `help` | Show supported commands. |
 | `status` | Show manager status, compilation and capture state. |
+| `error` | Read the last retained runtime failure, including its cause and source/function location when available. Reference-disk details are author-only. |
+| `error clear` | Clear the retained failure, with the same author restriction. PRINT and ordinary logs remain. |
 | `state` | Show bounded live persistent values. |
 | `state $cycles` | Inspect one persistent variable. |
 | `watch` / `watch $cycles` | Inspect initialized program-wide LET and STATE values, or one exact name. |
@@ -81,6 +84,23 @@ and values; execution-disk holders can still use profiling and deliberate PRINT
 output. Inspection does not initialize globals or flush STATE. `labels` lists
 saved bindings even if disconnected; it does not scan contents or test network
 connectivity. Truncated output says what was displayed.
+
+## Runtime failures
+
+Open the manager's **Terminal** page and click **Errors**, or enter `error`.
+The result stays in the main window. Use **Copy** to keep the details.
+You do not need PRINT capture or log recording enabled.
+
+Check the reported line, column, function and cause when available. The location
+belongs to the program installed in the manager, which can differ from your
+current Studio draft. The retained failure lives in manager memory, not on disk.
+For reference disks, only the verified source author can read the details;
+other players see a generic runtime-error status.
+Authors can also read the retained failure in **Logs**, even with ordinary
+recording off.
+Pause and Run retain it; a later failure replaces it. Use `error clear` to remove
+it explicitly. Editing/resetting the source, replacing the disk or unloading the
+manager also clears it. Clearing ordinary Logs leaves this separate record alone.
 
 ## Compile errors and common mistakes
 

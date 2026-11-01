@@ -283,7 +283,7 @@ public final class DataCompiler {
             if (!parser.statementCall) throw new IllegalArgumentException("Expected a player function call statement");
             return expressionPlan(node, source, line, column);
         } catch (IllegalArgumentException ex) {
-            throw error(line, column, ex.getMessage());
+            throw error(line, column, ex.getMessage(), ex);
         }
     }
 
@@ -312,13 +312,14 @@ public final class DataCompiler {
             }
             return expressionPlan(node, source, line, column);
         } catch (ArithmeticException ex) {
-            throw error(line, column, "Arithmetic overflow or division by zero");
+            throw error(line, column, "Arithmetic overflow or division by zero", ex);
         } catch (IllegalArgumentException ex) {
-            throw error(line, column, ex.getMessage());
+            throw error(line, column, ex.getMessage(), ex);
         }
     }
 
     private static DataExpression expressionPlan(final Node compiled, String source, int line, int column) {
+        SourceLocation location = new SourceLocation(line, column, "Expression");
         return new DataExpression() {
 
             @Override
@@ -332,9 +333,9 @@ public final class DataCompiler {
                     return runtime.isResumable() ? runtime.evaluate(this, () -> compiled.evaluate(runtime))
                         : compiled.evaluate(runtime);
                 } catch (ArithmeticException ex) {
-                    throw error(line, column, "Arithmetic overflow or division by zero");
-                } catch (IllegalArgumentException ex) {
-                    throw error(line, column, ex.getMessage());
+                    throw SfmlRuntimeException.at(location, "Arithmetic overflow or division by zero", ex);
+                } catch (RuntimeException ex) {
+                    throw location.annotate(ex);
                 }
             }
 
@@ -380,7 +381,7 @@ public final class DataCompiler {
             require(value.getType(), type);
             return new Assignment(binding, indices, value, line, column, target);
         } catch (IllegalArgumentException ex) {
-            throw error(line, column, ex.getMessage());
+            throw error(line, column, ex.getMessage(), ex);
         }
     }
 
@@ -448,6 +449,7 @@ public final class DataCompiler {
         private final DataExpression rhs;
         private final int line, column;
         private final String target;
+        private final SourceLocation location;
 
         private Assignment(Binding binding, List<Node> indices, DataExpression rhs, int line, int column,
             String target) {
@@ -457,6 +459,7 @@ public final class DataCompiler {
             this.line = line;
             this.column = column;
             this.target = target;
+            location = new SourceLocation(line, column, "Assignment");
         }
 
         public void execute(DataRuntime runtime) {
@@ -494,9 +497,9 @@ public final class DataCompiler {
                 for (int i = parents.length - 1; i >= 0; i--) replacement = parents[i].with(offsets[i], replacement);
                 binding.publish(runtime, replacement);
             } catch (ArithmeticException ex) {
-                throw error(line, column, "Arithmetic overflow");
-            } catch (IllegalArgumentException ex) {
-                throw error(line, column, ex.getMessage());
+                throw SfmlRuntimeException.at(location, "Arithmetic overflow", ex);
+            } catch (RuntimeException ex) {
+                throw location.annotate(ex);
             }
         }
 
@@ -542,6 +545,11 @@ public final class DataCompiler {
 
     private static IllegalArgumentException error(int line, int column, String message) {
         return new IllegalArgumentException("Line " + line + ", Col " + column + ": " + message);
+    }
+
+    private static IllegalArgumentException error(int line, int column, String message, RuntimeException cause) {
+        if (cause instanceof SfmlRuntimeException) return (SfmlRuntimeException) cause;
+        return new IllegalArgumentException("Line " + line + ", Col " + column + ": " + message, cause);
     }
 
     private static void require(DataType actual, DataType expected) {

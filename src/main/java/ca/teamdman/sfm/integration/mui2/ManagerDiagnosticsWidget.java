@@ -42,7 +42,7 @@ final class ManagerDiagnosticsWidget extends ParentWidget<ManagerDiagnosticsWidg
     private final TerminalCommandHistory history = new TerminalCommandHistory();
     private final TerminalCommandCompletion completion = new TerminalCommandCompletion();
     private List<String> terminalResult = Collections
-        .singletonList("Type help for commands. PRINT capture starts OFF.");
+        .singletonList("Type help for commands. Errors shows the last runtime failure. PRINT capture starts OFF.");
     private List<String> print = Collections.emptyList(),
         profile = Collections.singletonList("Record full manager update costs; no per-statement tracing."),
         watch = Collections.singletonList("Program globals and persistent variables are read-only snapshots.");
@@ -64,15 +64,18 @@ final class ManagerDiagnosticsWidget extends ParentWidget<ManagerDiagnosticsWidg
             () -> "Capture: " + (capture ? "ON" : "OFF"),
             0,
             0,
-            82,
+            74,
             () -> request("capture " + (capture ? "off" : "on"))).setEnabledIf(w -> page() == 3);
-        button(() -> printView ? "PRINT" : "Results", 84, 0, 56, () -> {
+        button(() -> printView ? "PRINT" : "Results", 76, 0, 50, () -> {
             printView = !printView;
             refreshOutput();
         }).setEnabledIf(w -> page() == 3);
-        button(() -> "Clear PRINT", 142, 0, 72, () -> request("clear")).setEnabledIf(w -> page() == 3);
-        button(() -> "Help", 216, 0, 38, () -> request("help")).setEnabledIf(w -> page() == 3);
-        button(() -> "Copy", 256, 0, 40, this::copy).setEnabledIf(w -> page() == 3);
+        button(() -> "Clear PRINT", 128, 0, 64, () -> request("clear")).setEnabledIf(w -> page() == 3);
+        button(() -> "Errors", 194, 0, 44, () -> request("error")).setEnabledIf(w -> page() == 3)
+            .addTooltipLine(
+                "Read the last runtime failure, including its line and function when available. Reference-disk details are author-only.");
+        button(() -> "Help", 240, 0, 28, () -> request("help")).setEnabledIf(w -> page() == 3);
+        button(() -> "Copy", 270, 0, 26, this::copy).setEnabledIf(w -> page() == 3);
         TextFieldWidget input = new TextFieldWidget() {
 
             @Override

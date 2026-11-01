@@ -51,7 +51,7 @@ public final class DebugTerminalService {
             case "help":
                 if (words.length != 1) break;
                 List<String> help = new ArrayList<>();
-                help.add("help | status | state [$name] | clear | capture on/off");
+                help.add("help | status | error [clear] | state [$name] | clear | capture on/off");
                 help.add("labels [exact name] | logs [1..15] | watch [$name]");
                 help.add("profile start [1..4096 updates] | profile stop/reset/status");
                 help.add("Profile is opt-in full server-update time including idle; default 1200 updates.");
@@ -80,6 +80,12 @@ public final class DebugTerminalService {
                 if (words.length > 2) break;
                 if (!manager.canInspectVariables(actor)) return variableAccessDenied();
                 return inspectState(manager.getProgramState(), words.length == 2 ? words[1] : null);
+            case "error":
+                if (words.length == 1) return manager.getRuntimeErrorSnapshot(actor);
+                if (words.length != 2 || !words[1].equalsIgnoreCase("clear")) break;
+                return Collections.singletonList(
+                    manager.clearRuntimeError(actor) ? "Retained runtime error cleared."
+                        : "Runtime error details are author-only for published programs.");
             case "watch":
                 if (words.length > 2) break;
                 return manager.getLiveVariableSnapshot(words.length == 2 ? words[1] : null, actor);
@@ -102,7 +108,7 @@ public final class DebugTerminalService {
                 }
                 if (count < 1 || count >= MAX_RESULT_LINES)
                     return Collections.singletonList("Log count must be from 1 to 15.");
-                return inspectLogs(manager, count);
+                return inspectLogs(manager, count, actor);
             case "clear":
                 if (words.length != 1) break;
                 console.clear();
@@ -261,8 +267,9 @@ public final class DebugTerminalService {
         return list.func_150303_d() == 11 || list.tagCount() == 0 && list.func_150303_d() == 0 ? list : null;
     }
 
-    private static List<String> inspectLogs(TileEntityManager manager, int count) {
-        List<LogEntry> entries = manager.getRecentLogs(count);
+    private static List<String> inspectLogs(TileEntityManager manager, int count, java.util.UUID actor) {
+        List<LogEntry> all = manager.getDiagnosticLogs(actor);
+        List<LogEntry> entries = all.subList(Math.max(0, all.size() - count), all.size());
         if (entries.isEmpty())
             return Collections.singletonList("No retained logs. Current log level: " + manager.getLogLevel() + ".");
         List<String> result = new ArrayList<>();
