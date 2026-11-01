@@ -69,8 +69,8 @@ trigger : EVERY interval (DO block END | LBRACE block RBRACE)           #TimerTr
         | EVERY REDSTONE (PULSE | RISING | FALLING) FROM labelAccess (DO block END | LBRACE block RBRACE) #NamedRedstoneTrigger
         ;
 
-interval: NUMBER? GLOBAL? (PLUS NUMBER)? (TICKS | TICK | SECONDS | SECOND)      # IntervalSpace
-        | NUMBER_WITH_G_SUFFIX (PLUS NUMBER)? (TICKS | TICK | SECONDS | SECOND) # IntervalNoSpace;
+interval: NUMBER? GLOBAL? (PLUS (NUMBER | LPAREN dataExpression RPAREN))? (TICKS | TICK | SECONDS | SECOND) # IntervalSpace
+        | NUMBER_WITH_G_SUFFIX (PLUS (NUMBER | LPAREN dataExpression RPAREN))? (TICKS | TICK | SECONDS | SECOND) # IntervalNoSpace;
 
 //
 // BLOCK STATEMENT

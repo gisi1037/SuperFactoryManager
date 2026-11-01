@@ -745,6 +745,18 @@ public final class SyntaxRegistry {
             "LET $bounded = CLAMP(<amount>, <minimum>, <maximum>)",
             "Bounds an integer inclusively; reversed bounds fault rather than being exchanged");
         snippet(
+            "data_random",
+            "RANDOM inclusive integer",
+            SnippetCategory.MATH,
+            "LET $phase = RANDOM(0, 19)",
+            "Draw at runtime, including both endpoints. A program-wide LET keeps one value per activation.");
+        snippet(
+            "trigger_staggered",
+            "Timer with random starting phase",
+            SnippetCategory.TRIGGER,
+            "EVERY 20 PLUS (RANDOM(0, 19)) TICKS DO\n  PRINT(\"running\")\nEND",
+            "Keep a 20-tick interval; sample one offset per manager execution state instead of rerolling every tick. Text editor only.");
+        snippet(
             "data_abs",
             "ABS integer magnitude",
             SnippetCategory.MATH,

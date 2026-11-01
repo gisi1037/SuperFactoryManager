@@ -210,6 +210,11 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
         }
 
         boolean isGlobal = ctx.GLOBAL() != null;
+        if (ctx.dataExpression() != null) return runtimeInterval(
+            ticks,
+            isGlobal,
+            ctx.dataExpression(),
+            ctx.SECONDS() != null || ctx.SECOND() != null);
         int offset = 0;
         TerminalNode secondNumNode = ctx.NUMBER(1);
         if (secondNumNode != null) {
@@ -243,6 +248,8 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
             ticks = Math.multiplyExact(ticks, 20);
         }
 
+        if (ctx.dataExpression() != null)
+            return runtimeInterval(ticks, true, ctx.dataExpression(), ctx.SECONDS() != null || ctx.SECOND() != null);
         int offset = 0;
         TerminalNode secondNumNode = ctx.NUMBER();
         if (secondNumNode != null) {
@@ -258,6 +265,21 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
 
         if (ticks <= 0) throw new IllegalArgumentException("Interval must be positive");
         return new Interval(ticks, true, offset);
+    }
+
+    private Interval runtimeInterval(int ticks, boolean global, SFMLParser.DataExpressionContext expression,
+        boolean seconds) {
+        String code = source(expression);
+        if (seconds) code = "(" + code + ") * 20";
+        int line = expression.getStart()
+            .getLine(),
+            column = expression.getStart()
+                .getCharPositionInLine();
+        return new Interval(
+            ticks,
+            global,
+            data.compileInstant(code, line, column),
+            new ca.teamdman.sfml.data.SourceLocation(line, column, "TimerOffset"));
     }
 
     @Override

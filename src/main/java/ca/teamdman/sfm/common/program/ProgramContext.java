@@ -120,12 +120,21 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
     private ca.teamdman.sfml.data.ProgramExecution programExecution;
 
     public ca.teamdman.sfml.data.ProgramExecution getProgramExecution(ca.teamdman.sfml.ast.Program program) {
-        if (manager != null) return manager.getProgramExecution(program);
+        if (manager != null) {
+            executionProgram = program;
+            programExecution = manager.getProgramExecution(program);
+            return programExecution;
+        }
         if (executionProgram != program || programExecution == null) {
             executionProgram = program;
             programExecution = new ca.teamdman.sfml.data.ProgramExecution();
         }
         return programExecution;
+    }
+
+    public int getTimerOffset(ca.teamdman.sfml.ast.TimerTrigger trigger) {
+        if (programExecution == null) throw new IllegalStateException("Runtime timer requires program execution state");
+        return programExecution.timerOffset(trigger);
     }
 
     public boolean isResumable() {

@@ -450,6 +450,15 @@ public final class SfmlCompletionCatalog {
             Context.EXPRESSION);
         add(
             entries,
+            "random",
+            "random(minimum: integer, maximum: integer) -> integer",
+            "random(<minimum>, <maximum>)",
+            "Draw a runtime integer from the inclusive range. Use program-wide LET for a once-per-activation value; STATE defaults cannot use RANDOM.",
+            "let $phase = random(0, 19)",
+            Kind.FUNCTION,
+            Context.EXPRESSION);
+        add(
+            entries,
             "min",
             "min(a: integer, b: integer) -> integer",
             "min(<a>, <b>)",

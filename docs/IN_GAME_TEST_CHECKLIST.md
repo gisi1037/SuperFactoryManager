@@ -464,3 +464,30 @@ existing operator recovery workflow; never erase recovery data to make a test pa
 - [ ] The top project selector must open a project dialog, not only refresh the
   sidebar. Its Transfer button and the sidebar's Transfer programs button must
   both open the saved-source export/import dialog without replacing current edits.
+
+
+## Staggered fixed-period timers and RANDOM
+
+Give two or more managers separate source/destination inventories and install the
+same program below. PRINT capture reports a chosen phase; each manager should move
+one item every 20 ticks on its own phase. Phases may collide. Existing unmodified
+programs must retain their timing. Header variables are snapshotted once, not a
+live interval control. Use the same phase for related triggers that need alignment.
+
+```sfml
+name "Staggered transfer"
+let phase = random(0, 19)
+every 20 plus (phase) ticks do
+  print("phase", phase)
+  input 1 from "source"
+  output to "dest"
+end
+```
+
+- [ ] Check separate managers/shared program and multiple trigger periods; no work
+  appears on extra ticks. Pause/resume retains the phase while RAM remains; reload
+  may pick a new phase. Test WAIT resume and trigger-level BREAK separately.
+- [ ] RANDOM accepts equal bounds, rejects reversed bounds and stays inside the
+  inclusive range. STATE defaults reject it; program-wide LET accepts it. Negative
+  or over-32-bit offsets fault with header coordinates. Visual refuses runtime
+  offset headers without discarding code. Check native/VS Code hover and insert.

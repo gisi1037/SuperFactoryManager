@@ -82,3 +82,15 @@ The input captures an allowance of eight. If the first output moves three, the s
 A runtime arithmetic, query or budget fault stops the invocation and pauses the manager. A failed assignment preserves its old value. Successful writes and transfers from earlier statements remain completed.
 
 Next: [Bitwise operators](bitwise.md). Related: [Functions](functions.md), [Loops](loops.md) and [Typed queries](/automation/queries.md).
+
+## Random values and staggered timers
+
+`random(minimum, maximum)` draws a runtime integer including both endpoints.
+Use `let phase = random(0, 19)` for one program-wide value, then
+`every 20 plus (phase) ticks do ... end` to keep a 20-tick period while spreading
+managers across starting ticks. Or use `random(0, 19)` directly inside PLUS.
+
+The offset is chosen once per manager execution state, not on each tick or run.
+It can be chosen again after reload/reset. STATE defaults cannot call RANDOM.
+Existing timers are unchanged. Runtime offset headers currently require Code mode.
+See the [complete language guide](/reference/index.md) for further syntax topics.

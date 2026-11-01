@@ -237,3 +237,8 @@ aggregate service work. Registry/world callbacks stay on the server thread.
 - Correctness-equivalent scaling: total/tail scan and transfer time, calls,
   allocations/GC, snapshot/index memory, index rebuild and concurrent authoring.
   Caps alone are not a tick-time guarantee or a numerical performance claim.
+
+RANDOM(minimum, maximum) is a runtime INTEGER primitive with inclusive signed
+64-bit bounds, never constant-folded or allowed in STATE defaults. A timer may
+use PLUS (RANDOM(0,19)) to choose one offset per manager execution state without
+changing its fixed period. Runtime-adjustable periods remain planned.

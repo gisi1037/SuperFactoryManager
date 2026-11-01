@@ -2561,3 +2561,43 @@ every 20 ticks {
 
 This prints4 and after loop. To limit an item batch, still specify its amount:
 BREAK prevents later iterations, not multiple items within one TRANSFER call.
+
+## Spread periodic work with a random starting offset
+
+Keep a fixed period and choose one starting offset for each manager:
+
+```sfml
+name "Staggered transfer"
+let phase = random(0, 19)
+every 20 plus (phase) ticks do
+  input 1 from "source"
+  output to "dest"
+end
+```
+
+The short form is `every 20 plus (random(0, 19)) ticks { ... }`.
+`random(minimum, maximum)` returns an integer with both bounds included. Equal
+bounds return that value; reversed bounds fault. It is evaluated at runtime,
+never while compiling. Use program-wide LET for a runtime initial value;
+STATE defaults must remain constant. Full signed 64-bit bounds are supported.
+
+The period remains 20 ticks. The parenthesized offset is evaluated once per
+manager execution state, after program-wide LET initialization. Managers sharing
+one compiled program keep independent offsets. Changing that variable later does
+not reschedule the timer. Pausing keeps the offset while execution state remains
+in memory; reloads, program replacement or execution resets can choose it again.
+
+Header expressions must return INTEGER, cannot WAIT, and cannot use REF effects.
+Offsets must be 0..2147483647 in ticks after unit conversion. Existing numeric
+PLUS offsets and ordinary timers are unchanged. GLOBAL/compact g still selects
+the world clock; ordinary timers use the manager clock. Seconds apply to the
+period and offset alike; use TICKS for tick-level staggering. A period of one tick
+cannot spread its repeated work across different ticks.
+
+Use the same program-wide phase value for related timers that should stay aligned.
+WAIT resumes the same activation without overlapping it; BREAK does not reroll the
+offset. No random draw or header evaluation occurs on idle eligibility polls.
+Random phases reduce clumping, but can collide; this is not a guaranteed load
+balancer or a reduction in the work performed. Interval changes/new random delays
+on each run remain separate future work. Runtime offset headers require Code mode;
+Visual refuses them rather than silently dropping scheduling behavior.

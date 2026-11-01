@@ -1,5 +1,10 @@
 {
   "functions": {
+    "random": {
+      "signatures": ["random(minimum: integer, maximum: integer) -> integer"],
+      "description": "Draw a runtime integer from the inclusive signed 64-bit range. Equal bounds return that value; reversed bounds fault. Never constant-folded. STATE defaults cannot use RANDOM; program-wide LET can keep one draw per activation. EVERY 20 PLUS (RANDOM(0, 19)) TICKS samples a manager-local starting offset once, preserving the 20-tick period.",
+      "example": "let phase = random(0, 19)"
+    },
     "label": {
       "signatures": [
         "label(name: string) -> label_ref"

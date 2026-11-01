@@ -12,6 +12,7 @@ public final class Program implements Statement {
     private final boolean dataFeatures;
     private final boolean waitFeatures;
     private final boolean dynamicLabels;
+    private final boolean runtimeTimerOffsets;
     private final int localCount;
     private final String name;
     private final String linkedSource;
@@ -101,8 +102,13 @@ public final class Program implements Statement {
         this.name = name != null ? name : "";
         this.triggers = triggers != null ? triggers : Collections.emptyList();
         List<NamedRedstoneTrigger> nativeTriggers = new java.util.ArrayList<>();
-        for (Trigger trigger : this.triggers)
+        boolean timerOffsets = false;
+        for (Trigger trigger : this.triggers) {
             if (trigger instanceof NamedRedstoneTrigger) nativeTriggers.add((NamedRedstoneTrigger) trigger);
+            if (trigger instanceof TimerTrigger && ((TimerTrigger) trigger).getInterval()
+                .hasRuntimeOffset()) timerOffsets = true;
+        }
+        runtimeTimerOffsets = timerOffsets;
         namedRedstoneTriggers = Collections.unmodifiableList(nativeTriggers);
         this.referencedLabels = referencedLabels != null ? referencedLabels : Collections.emptySet();
     }
@@ -161,6 +167,16 @@ public final class Program implements Statement {
                     throw failure;
                 }
                 dataStarted = true;
+            }
+        }
+        if (runtimeTimerOffsets) {
+            ca.teamdman.sfml.data.ProgramExecution execution = context.getProgramExecution(this);
+            if (!execution.hasTimerOffsets()) {
+                if (!dataStarted) {
+                    context.beginDataInvocation(localCount, stateSchema.size() > 0);
+                    dataStarted = true;
+                }
+                execution.initializeTimerOffsets(this, context.getDataRuntime());
             }
         }
         if (!namedRedstoneTriggers.isEmpty()) {

@@ -1056,6 +1056,8 @@ public final class DataCompiler {
             if (collection != null) return collection;
             for (Node argument : arguments) if (argument instanceof ReferenceArgument)
                 throw new IllegalArgumentException("REF arguments require a declared player function");
+            if (constantOnly && name.equalsIgnoreCase("RANDOM")) throw new IllegalArgumentException(
+                "RANDOM requires runtime; use a program-wide LET, not a STATE default");
             Node builtin = builtinCall(name, arguments);
             if (builtin != null) {
                 if (constantOnly) stateBuiltinCalls.add(name);
@@ -1243,7 +1245,7 @@ public final class DataCompiler {
         };
     }
 
-    /** Fixed-arity pure primitives share expression work without allocating a player call frame. */
+    /** Fixed-arity primitives share expression work without allocating a player call frame. */
     private static Node builtinCall(String name, List<Node> arguments) {
         String method = name.toUpperCase(Locale.ROOT);
         if (method.equals("TOTAL") || method.equals("STOCK") || method.equals("SHORTAGE"))
@@ -1256,6 +1258,7 @@ public final class DataCompiler {
                 break;
             case "MIN":
             case "MAX":
+            case "RANDOM":
                 arity = 2;
                 break;
             case "CLAMP":
@@ -1277,7 +1280,7 @@ public final class DataCompiler {
         }
         Node first = arguments.get(0), second = arity > 1 ? arguments.get(1) : null,
             third = arity > 2 ? arguments.get(2) : null;
-        return new Node(DataType.INTEGER, depth, constant) {
+        return new Node(DataType.INTEGER, depth, constant && !method.equals("RANDOM")) {
 
             @Override
             protected DataValue compute(DataRuntime runtime) {
@@ -1296,6 +1299,13 @@ public final class DataCompiler {
                 if (method.equals("ABS")) return DataValue.integer(x < 0 ? Math.negateExact(x) : x);
                 long y = second.evaluate(runtime)
                     .asLong();
+                if (method.equals("RANDOM")) {
+                    if (x > y) throw new IllegalArgumentException("RANDOM minimum exceeds maximum");
+                    if (x == y) return DataValue.integer(x);
+                    java.util.concurrent.ThreadLocalRandom random = java.util.concurrent.ThreadLocalRandom.current();
+                    if (y != Long.MAX_VALUE) return DataValue.integer(random.nextLong(x, y + 1));
+                    return DataValue.integer(x == Long.MIN_VALUE ? random.nextLong() : random.nextLong(x - 1, y) + 1);
+                }
                 if (method.equals("MIN")) return DataValue.integer(Math.min(x, y));
                 if (method.equals("MAX")) return DataValue.integer(Math.max(x, y));
                 long z = third.evaluate(runtime)

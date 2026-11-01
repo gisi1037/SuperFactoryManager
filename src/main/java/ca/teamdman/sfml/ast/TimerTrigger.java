@@ -24,7 +24,8 @@ public final class TimerTrigger implements Trigger {
     @Override
     public boolean shouldRun(ProgramContext context) {
         long currentTick = interval.isGlobal() ? context.getWorldTime() : context.getManagerTick();
-        return interval.matches(currentTick);
+        return interval.hasRuntimeOffset() ? interval.matches(currentTick, context.getTimerOffset(this))
+            : interval.matches(currentTick);
     }
 
     @Override

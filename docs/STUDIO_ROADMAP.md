@@ -194,3 +194,12 @@ and both axes; native pointer behavior remains a manual regression check.
 The top project selector now opens its project dialog instead of only refreshing
 the sidebar. A direct Transfer programs sidebar button also opens source archive
 export/import, preserving the current draft.
+
+## Runtime random values and fixed timer phases
+
+RANDOM(minimum,maximum) draws an inclusive INTEGER at runtime. EVERY 20 PLUS
+(RANDOM(0,19)) TICKS snapshots one phase per manager execution state and keeps
+the 20-tick period, including with WAIT/BREAK. Old numeric timers are unchanged.
+Runtime-offset headers stay text-only; native insertion/help and VS Code 0.3.9
+cover the API. Idle polls do not reroll. This is not a dynamic period or guaranteed
+load balancer; random phases can collide. Reload/reset can pick a new phase.

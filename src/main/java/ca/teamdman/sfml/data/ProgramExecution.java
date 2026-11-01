@@ -12,6 +12,33 @@ public final class ProgramExecution {
 
     public static final int MAX_SLEEPING_TRIGGERS = 64;
     private final Map<Trigger, Sleeping> sleeping = new IdentityHashMap<>();
+    private Map<ca.teamdman.sfml.ast.TimerTrigger, Integer> timerOffsets;
+
+    public boolean hasTimerOffsets() {
+        return timerOffsets != null;
+    }
+
+    public void initializeTimerOffsets(Program program, DataRuntime runtime) {
+        if (timerOffsets != null) return;
+        Map<ca.teamdman.sfml.ast.TimerTrigger, Integer> candidate = new IdentityHashMap<>();
+        for (Trigger trigger : program.getTriggers()) {
+            if (!(trigger instanceof ca.teamdman.sfml.ast.TimerTrigger)) continue;
+            ca.teamdman.sfml.ast.TimerTrigger timer = (ca.teamdman.sfml.ast.TimerTrigger) trigger;
+            if (timer.getInterval()
+                .hasRuntimeOffset())
+                candidate.put(
+                    timer,
+                    timer.getInterval()
+                        .resolveOffset(runtime));
+        }
+        timerOffsets = candidate;
+    }
+
+    public int timerOffset(ca.teamdman.sfml.ast.TimerTrigger trigger) {
+        Integer value = timerOffsets == null ? null : timerOffsets.get(trigger);
+        if (value == null) throw new IllegalStateException("Runtime timer offset was not initialized");
+        return value;
+    }
 
     private static final class Sleeping {
 
@@ -32,6 +59,7 @@ public final class ProgramExecution {
 
     public void clear() {
         sleeping.clear();
+        timerOffsets = null;
     }
 
     public void tick(Program program, ProgramContext context, int localCount, boolean needsState, boolean started) {

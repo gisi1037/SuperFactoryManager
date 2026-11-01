@@ -45,6 +45,17 @@ public final class VisualCapabilityAnalyzer {
     }
 
     private static void inspect(ParseTree tree, List<Blocker> blockers) {
+        if (tree instanceof SFMLParser.IntervalSpaceContext
+            && ((SFMLParser.IntervalSpaceContext) tree).dataExpression() != null
+            || tree instanceof SFMLParser.IntervalNoSpaceContext
+                && ((SFMLParser.IntervalNoSpaceContext) tree).dataExpression() != null) {
+            blockers.add(
+                at(
+                    Kind.DATA_EXPRESSION,
+                    "Runtime timer offsets currently require the text editor",
+                    (ParserRuleContext) tree));
+            return;
+        }
         if (tree instanceof SFMLParser.BreakStatementContext) {
             blockers
                 .add(at(Kind.BREAK_STATEMENT, "BREAK currently requires the text editor", (ParserRuleContext) tree));
@@ -152,6 +163,7 @@ public final class VisualCapabilityAnalyzer {
             case "MIN":
             case "MAX":
             case "CLAMP":
+            case "RANDOM":
             case "TOTAL":
             case "STOCK":
             case "SHORTAGE":
