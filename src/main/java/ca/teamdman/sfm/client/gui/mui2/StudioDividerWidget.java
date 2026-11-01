@@ -3,6 +3,9 @@ package ca.teamdman.sfm.client.gui.mui2;
 import java.util.function.BooleanSupplier;
 import java.util.function.IntConsumer;
 
+import org.lwjgl.input.Mouse;
+
+import com.cleanroommc.modularui.api.widget.IFocusedWidget;
 import com.cleanroommc.modularui.api.widget.Interactable;
 import com.cleanroommc.modularui.drawable.Rectangle;
 import com.cleanroommc.modularui.screen.viewport.ModularGuiContext;
@@ -10,7 +13,7 @@ import com.cleanroommc.modularui.theme.WidgetThemeEntry;
 import com.cleanroommc.modularui.widget.Widget;
 
 /** Resizes views only; the source, graph layout and inventory allocation stay unchanged. */
-final class StudioDividerWidget extends Widget<StudioDividerWidget> implements Interactable {
+final class StudioDividerWidget extends Widget<StudioDividerWidget> implements Interactable, IFocusedWidget {
 
     private final BooleanSupplier available;
     private final IntConsumer move;
@@ -33,8 +36,23 @@ final class StudioDividerWidget extends Widget<StudioDividerWidget> implements I
     }
 
     @Override
+    public boolean isFocused() {
+        return isValid() && getContext().isFocused(this);
+    }
+
+    @Override
+    public void onFocus(ModularGuiContext context) {}
+
+    @Override
+    public void onRemoveFocus(ModularGuiContext context) {
+        dragging = false;
+    }
+
+    @Override
     public Result onMousePressed(int button) {
         if (button != 0 || !available.getAsBoolean()) return Result.IGNORE;
+        // Resizing moves the thin handle away from the pointer. Focus captures its release outside it.
+        getContext().focus(this);
         dragging = true;
         lastPosition = position();
         return Result.SUCCESS;
@@ -56,7 +74,12 @@ final class StudioDividerWidget extends Widget<StudioDividerWidget> implements I
     }
 
     private void updateDrag() {
-        if (!dragging || !available.getAsBoolean()) return;
+        if (!dragging) return;
+        // Also recover from a release lost while switching windows or opening another panel.
+        if (!isFocused() || !available.getAsBoolean() || !Mouse.isCreated() || !Mouse.isButtonDown(0)) {
+            dragging = false;
+            return;
+        }
         int next = position();
         if (next == lastPosition) return;
         lastPosition = next;
@@ -65,7 +88,7 @@ final class StudioDividerWidget extends Widget<StudioDividerWidget> implements I
 
     @Override
     public boolean onMouseRelease(int button) {
-        updateDrag();
+        if (button != 0) return false;
         boolean wasDragging = dragging;
         dragging = false;
         return wasDragging;
