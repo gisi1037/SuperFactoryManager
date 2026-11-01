@@ -128,9 +128,13 @@ class FluidCallbackRecoveryTest {
         NBTTagCompound original = manager.preserveFluid(water(1000), SRC, ForgeDirection.NORTH, false, "test");
         ItemStack owner = manager.getDisk();
         ItemStack replacement = owner.copy();
-        replacement.getTagCompound().getCompoundTag("sfm:recovery_fluid").setString("recoveryId", "replacement");
-        NBTTagCompound replacementBefore = replacement.writeToNBT(new NBTTagCompound());
+        replacement.getTagCompound()
+            .getCompoundTag("sfm:recovery_fluid")
+            .setString("recoveryId", "replacement");
+        NBTTagCompound replacementBefore = (NBTTagCompound) replacement.writeToNBT(new NBTTagCompound())
+            .copy();
         RecoveryTank source = new RecoveryTank(0) {
+
             @Override
             public int fill(ForgeDirection side, FluidStack fluid, boolean actual) {
                 assertTrue(actual);
@@ -157,6 +161,7 @@ class FluidCallbackRecoveryTest {
         ItemStack owner = manager.getDisk();
         long generation = manager.getDiskGeneration();
         fixture.world.tiles.put(SRC, new RecoveryTank(0) {
+
             @Override
             public int fill(ForgeDirection side, FluidStack fluid, boolean actual) {
                 manager.setInventorySlotContents(0, owner.copy());
@@ -179,6 +184,7 @@ class FluidCallbackRecoveryTest {
         manager.preserveFluid(water(1000), SRC, ForgeDirection.NORTH, false, "test");
         int[] calls = { 0 };
         RecoveryTank source = new RecoveryTank(0) {
+
             @Override
             public int fill(ForgeDirection side, FluidStack fluid, boolean actual) {
                 if (++calls[0] == 1) manager.runOnceWithLogLevel(ca.teamdman.sfm.common.tileentity.LogLevel.OFF);
@@ -200,9 +206,14 @@ class FluidCallbackRecoveryTest {
             NBTTagCompound original = manager.preserveFluid(water(1000), SRC, ForgeDirection.NORTH, false, "test");
             NBTTagCompound savedInside = new NBTTagCompound();
             RecoveryTank source = new RecoveryTank(0) {
+
                 @Override
                 public int fill(ForgeDirection side, FluidStack fluid, boolean actual) {
                     manager.writeToNBT(savedInside);
+                    savedInside.setTag(
+                        "disk",
+                        savedInside.getCompoundTag("disk")
+                            .copy());
                     if (mutate) amount += 400;
                     throw new IllegalStateException("automatic return failed");
                 }
@@ -214,8 +225,13 @@ class FluidCallbackRecoveryTest {
             TileEntityManager restored = new TileEntityManager();
             restored.setWorldObj(fixture.world);
             restored.readFromNBT(savedInside);
-            assertEquals("uncertain", restored.getDisk().getTagCompound()
-                .getCompoundTag("sfm:recovery_fluid").getString("state"));
+            fixture.world.tiles.put(MANAGER, restored);
+            assertEquals(
+                "uncertain",
+                restored.getDisk()
+                    .getTagCompound()
+                    .getCompoundTag("sfm:recovery_fluid")
+                    .getString("state"));
             restored.updateEntity();
             assertEquals(mutate ? 400 : 0, source.amount);
         }
@@ -228,17 +244,26 @@ class FluidCallbackRecoveryTest {
             NBTTagCompound original = manager.preserveFluid(water(1000), SRC, ForgeDirection.NORTH, false, "test");
             NBTTagCompound savedInside = new NBTTagCompound();
             RecoveryTank source = new RecoveryTank(0) {
+
                 @Override
                 public int fill(ForgeDirection side, FluidStack fluid, boolean actual) {
                     manager.writeToNBT(savedInside);
+                    savedInside.setTag(
+                        "disk",
+                        savedInside.getCompoundTag("disk")
+                            .copy());
                     amount += accepted;
                     return accepted;
                 }
             };
             fixture.world.tiles.put(SRC, source);
             manager.updateEntity();
-            assertEquals("uncertain", savedInside.getCompoundTag("disk").getCompoundTag("tag")
-                .getCompoundTag("sfm:recovery_fluid").getString("state"));
+            assertEquals(
+                "uncertain",
+                savedInside.getCompoundTag("disk")
+                    .getCompoundTag("tag")
+                    .getCompoundTag("sfm:recovery_fluid")
+                    .getString("state"));
             assertEquals(accepted, source.amount);
             assertEquals(accepted < 1000, manager.hasPendingRecovery());
             if (accepted < 1000) {
@@ -252,6 +277,7 @@ class FluidCallbackRecoveryTest {
             TileEntityManager restored = new TileEntityManager();
             restored.setWorldObj(fixture.world);
             restored.readFromNBT(savedAfter);
+            fixture.world.tiles.put(MANAGER, restored);
             assertEquals(accepted < 1000, restored.hasPendingRecovery());
             fixture.world.tiles.put(SRC, new RecoveryTank(source.amount));
             restored.updateEntity();
@@ -260,13 +286,82 @@ class FluidCallbackRecoveryTest {
         }
     }
 
+    void automaticReturnRejectsOwnerChangedDuringHandlerLookup() throws Exception {
+        Fixture fixture = automaticFixture();
+        TileEntityManager manager = RecoveryFixtures.manager(fixture);
+        NBTTagCompound original = manager.preserveFluid(water(1000), SRC, ForgeDirection.NORTH, false, "test");
+        NBTTagCompound before = (NBTTagCompound) original.copy();
+        ItemStack replacement = manager.getDisk()
+            .copy();
+        NBTTagCompound replacementBefore = (NBTTagCompound) replacement.writeToNBT(new NBTTagCompound())
+            .copy();
+        RecoveryTank source = new RecoveryTank(0);
+        fixture.world.tiles.put(SRC, source);
+        java.util.Map<ca.teamdman.sfm.common.util.BlockPos, net.minecraft.tileentity.TileEntity> previous = fixture.world.tiles;
+        fixture.world.tiles = new java.util.HashMap<ca.teamdman.sfm.common.util.BlockPos, net.minecraft.tileentity.TileEntity>(
+            previous) {
+
+            private boolean changed;
+
+            @Override
+            public net.minecraft.tileentity.TileEntity get(Object key) {
+                if (!changed && SRC.equals(key)) {
+                    changed = true;
+                    manager.setInventorySlotContents(0, replacement);
+                }
+                return super.get(key);
+            }
+        };
+        manager.updateEntity();
+        assertEquals(0, source.amount);
+        assertEquals(before, original);
+        assertEquals(replacementBefore, replacement.writeToNBT(new NBTTagCompound()));
+    }
+
+    void automaticReturnCannotClearReplacedRecordOnSameDisk() throws Exception {
+        Fixture fixture = automaticFixture();
+        TileEntityManager manager = RecoveryFixtures.manager(fixture);
+        NBTTagCompound original = manager.preserveFluid(water(1000), SRC, ForgeDirection.NORTH, false, "test");
+        ItemStack owner = manager.getDisk();
+        long generation = manager.getDiskGeneration();
+        NBTTagCompound[] replaced = { null };
+        RecoveryTank source = new RecoveryTank(0) {
+
+            @Override
+            public int fill(ForgeDirection side, FluidStack fluid, boolean actual) {
+                NBTTagCompound copy = (NBTTagCompound) original.copy();
+                owner.getTagCompound()
+                    .setTag("sfm:recovery_fluid", copy);
+                replaced[0] = (NBTTagCompound) copy.copy();
+                return super.fill(side, fluid, actual);
+            }
+        };
+        fixture.world.tiles.put(SRC, source);
+        manager.updateEntity();
+        assertSame(owner, manager.getDisk());
+        assertEquals(generation, manager.getDiskGeneration());
+        assertEquals(
+            replaced[0],
+            owner.getTagCompound()
+                .getCompoundTag("sfm:recovery_fluid"));
+        assertEquals("uncertain", original.getString("state"));
+        manager.updateEntity();
+        assertEquals(1000, source.amount);
+    }
+
     /** Real-registry decoding yields Forge WATER rather than the headless TestFluid identity. */
     private static class RecoveryTank extends TankTile {
-        RecoveryTank(int amount) { super(amount); }
+
+        RecoveryTank(int amount) {
+            super(amount);
+        }
 
         @Override
         public int fill(ForgeDirection side, FluidStack fluid, boolean actual) {
-            if (fluid == null || !"water".equals(fluid.getFluid().getName())) return 0;
+            if (fluid == null || !"water".equals(
+                fluid.getFluid()
+                    .getName()))
+                return 0;
             int accepted = Math.min(10000 - amount, fluid.amount);
             if (actual) amount += accepted;
             return accepted;

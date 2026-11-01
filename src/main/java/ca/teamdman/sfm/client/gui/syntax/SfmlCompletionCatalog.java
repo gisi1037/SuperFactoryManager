@@ -349,6 +349,15 @@ public final class SfmlCompletionCatalog {
             Context.EXPRESSION);
         add(
             entries,
+            "fluid",
+            "fluid(\"name\" | \"*\") -> resource_selector",
+            "fluid(\"<fluid>\")",
+            "Select a Forge fluid name (water, lava or a mod's registered name), or every fluid with *. Use transferf/fqueries; amounts are mB.",
+            "let $water = fluid(\"water\")",
+            Kind.CONSTRUCTOR,
+            Context.EXPRESSION);
+        add(
+            entries,
             "min",
             "min(a: integer, b: integer) -> integer",
             "min(<a>, <b>)",
@@ -386,7 +395,7 @@ public final class SfmlCompletionCatalog {
         add(
             entries,
             "len",
-            "len(string | T[N] | item_contents | item_locations) -> integer",
+            "len(string | T[N] | item_contents | item_locations | fluid_contents) -> integer",
             "len(<values>)",
             "Count outer sequence entries or Unicode code points in a string; captured contents are not rescanned.",
             "let $value = len([1, 2])",
@@ -422,12 +431,49 @@ public final class SfmlCompletionCatalog {
         add(
             entries,
             "transfer",
-            "transfer(source, destination [, selector | item_key [, amount]]) [into $result]",
+            "transfer(source, destination [, amount | selector | item_key [, amount]]) [into $result]",
             "transfer(<source>, <destination>)",
-            "Trigger statement: omit selector to move all items; omit amount to use visible stock. Optional INTO captures moved/remaining/status. No expression return value.",
+            "Item action: a third integer limits all items; a third selector/key uses matching stock. Four arguments require a selector/key then amount. Optional INTO captures progress. No fluids or expression return value.",
             "transfer(label(\"inputs\"), label(\"outputs\"))",
             Kind.STATEMENT,
             Context.TRIGGER_STATEMENT);
+        add(
+            entries,
+            "transferf",
+            "transferf(source, destination [, amount | selector | fluid_key [, amount]]) [into $result]",
+            "transferf(<source>, <destination>)",
+            "Fluid action in mB. Two arguments move all visible stock; a third integer caps all fluids. A fluid selector/key filters stock; a fourth integer caps it. Exact keys preserve NBT matching. Capacity and side permissions apply.",
+            "transferf(label(\"supply\"), label(\"tank\"), 1000)",
+            Kind.STATEMENT,
+            Context.TRIGGER_STATEMENT);
+        method(
+            entries,
+            "favailable",
+            "$label.favailable([fluid]) -> boolean",
+            "$<label>.favailable()",
+            "True only for an entirely available fluid-handler group. Unavailable is not empty. Side selection is supported; item slot selection is invalid.",
+            "label(\"tank\").favailable()");
+        method(
+            entries,
+            "fempty",
+            "$label.fempty([fluid]) -> boolean",
+            "$<label>.fempty()",
+            "True if the complete available tank group contains zero matching mB; false for missing/incomplete groups. Optional FLUID selector.",
+            "label(\"tank\").fempty()");
+        method(
+            entries,
+            "fcount",
+            "$label.fcount([fluid]) -> integer",
+            "$<label>.fcount()",
+            "Count matching millibuckets once per physical tank. Defaults to all fluids; unavailable/ambiguous groups fault.",
+            "label(\"tank\").fcount(fluid(\"water\"))");
+        method(
+            entries,
+            "fcontents",
+            "$label.fcontents([fluid]) -> fluid_contents",
+            "$<label>.fcontents()",
+            "Immutable per-tank rows: fluid (exact NBT key), id, amount (mB), dimension, x/y/z, tank, sideMask. Not a reservation; unavailable groups fault.",
+            "label(\"tank\").fcontents()");
         add(
             entries,
             "print",

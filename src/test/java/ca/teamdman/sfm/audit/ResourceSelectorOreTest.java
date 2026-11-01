@@ -72,6 +72,16 @@ class ResourceSelectorOreTest {
         invoke("confirmedAutomaticReturnRestoresOnlyKnownRemainderAcrossSaveReload");
     }
 
+    @Test
+    void automaticReturnRejectsOwnerChangedDuringHandlerLookup() throws Throwable {
+        invoke("automaticReturnRejectsOwnerChangedDuringHandlerLookup");
+    }
+
+    @Test
+    void automaticReturnCannotClearReplacedRecordOnSameDisk() throws Throwable {
+        invoke("automaticReturnCannotClearReplacedRecordOnSameDisk");
+    }
+
     private static LaunchClassLoader isolated;
     private static Class<?> fixture;
 

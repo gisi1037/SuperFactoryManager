@@ -3,6 +3,22 @@ package ca.teamdman.sfml.data;
 /** Observation boundary injected by the server execution context; expressions own no world objects. */
 public interface DataQueries {
 
+    default long fluidCount(LabelReference source, ResourceSelector selector, QueryBudget budget) {
+        throw new UnsupportedOperationException("Fluid observations require a native fluid query service");
+    }
+
+    default boolean fluidEmpty(LabelReference source, ResourceSelector selector, QueryBudget budget) {
+        throw new UnsupportedOperationException("Fluid observations require a native fluid query service");
+    }
+
+    default boolean fluidAvailable(LabelReference source, ResourceSelector selector, QueryBudget budget) {
+        throw new UnsupportedOperationException("Fluid observations require a native fluid query service");
+    }
+
+    default FluidContents fluidContents(LabelReference source, ResourceSelector selector, QueryBudget budget) {
+        throw new UnsupportedOperationException("Fluid observations require a native fluid query service");
+    }
+
     long count(LabelReference source, ResourceSelector selector, QueryBudget budget);
 
     boolean empty(LabelReference source, ResourceSelector selector, QueryBudget budget);

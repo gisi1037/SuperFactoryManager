@@ -687,7 +687,7 @@ END
 
 This prints15 when capture is enabled. Supported signature types are `INTEGER`,
 `BOOLEAN`, `STRING`, `LABEL_REF`, `RESOURCE_SELECTOR`, `ITEM_KEY`,
-`ITEM_CONTENTS`, `ITEM_LOCATIONS`, fixed arrays such as
+`ITEM_CONTENTS`, `ITEM_LOCATIONS`, `FLUID_KEY`, `FLUID_CONTENTS`, fixed arrays such as
 `INTEGER[3]` and structural records such as `{count: INTEGER, name: STRING}`.
 Types and collection shapes must match exactly. Functions can also return arrays,
 structs and handles. Handles still cannot be stored in persistent STATE.
@@ -1841,9 +1841,123 @@ production pack, SRG list access, lifecycle and scaling checks remain open.
 [Full contracts and next work](STANDARD_LIBRARY.md).
 
 
+### Fluid methods and transfers
+
+Items and fluids have separate APIs. `transfer` and `.contents()`, `.count()`,
+`.empty()` and `.available()` keep their item behavior. For fluids use:
+
+| Operation | Meaning |
+| --- | --- |
+| `transferf(src, dest)` | Move all currently visible source fluids. |
+| `transferf(src, dest, amount)` | Move up to this many mB across all fluids. |
+| `transferf(src, dest, fluid("water"))` | Move all matching water. |
+| `transferf(src, dest, fluid("water"), amount)` | Move up to this many mB of water. |
+| `$tank.favailable([selector])` | True when the entire selected tank group is available. |
+| `$tank.fempty([selector])` | True when an available group has no matching fluid. |
+| `$tank.fcount([selector])` | Count matching mB; an unavailable group faults. |
+| `$tank.fcontents([selector])` | Capture immutable per-tank records; unavailable groups fault. |
+
+**1000 mB = one bucket.** `fluid("*")` selects every fluid; a quoted literal
+such as `fluid("water")` or `fluid("lava")` is an exact Forge registry name,
+not a modern namespaced name unless the mod actually registered it that way.
+Fluid selectors match all NBT variants of that fluid. Each query defaults to
+`fluid("*")` when its selector is omitted. Item/ore selectors are invalid here.
+
+```sfml
+name "Supply a tank"
+every 20 ticks do
+  let $source = label("supply")
+  let $destination = label("machine").side("up")
+  if ($source.favailable() and $destination.favailable()) then
+    transferf($source, $destination, fluid("water"), 1000) into $sent
+    print($sent.moved, "mB", $sent.remaining, $sent.status)
+  end
+end
+```
+
+`into $result` has the same requested/moved/remaining/status fields as item
+transfers, with quantities in mB. Amounts are nonnegative aggregate limits,
+not per container, tank, face or fluid type. Omitting the amount takes a finite
+snapshot of matching visible stock; it does not keep draining a refilling source.
+Capacity, permissions and live revalidation can prevent moving some of it.
+An explicit zero accesses no tank providers. Automatic zero requires observation.
+
+`fcontents()` returns a `FLUID_CONTENTS` sequence of nonempty matching tank rows:
+`fluid` (an exact `FLUID_KEY` including NBT), `id`, `amount` (mB), `dimension`,
+`x`, `y`, `z`, `tank` and `sideMask`. These origins are advisory, not authority
+or reservations. `len`, indexing and `for ... in` work on the captured sequence;
+item-specific `total`/`stock` do not. Pass a row's `.fluid` to `transferf` to
+match exactly that fluid/NBT variant. Fluid keys support `==`, `=` and `!=`.
+Neither keys nor snapshots can be persisted with `state`.
+
+```sfml
+every 20 ticks do
+  let $source = label("supply")
+  let $rows = $source.fcontents()
+  for $row in $rows do
+    print($row.id, $row.amount)
+  end
+  if (len($rows) > 0) then
+    transferf($source, label("output"), $rows[0].fluid, 1000)
+  end
+end
+```
+
+Initial support is loaded, connected, direct Forge `IFluidHandler` tiles. A
+missing/unloaded/unsupported member makes the whole group unavailable, never
+empty. `favailable` and `fempty` then return false; `fcount`/`fcontents` fault.
+Provider exceptions and exhausted budgets always fault rather than reporting
+empty. Selected physical faces must expose equivalent ordered tank views, so
+one tank is not counted six times. Empty face views are ignored; incompatible
+nonempty views need an explicit `.side("north")` (or another physical face).
+Opaque/no-view handlers are unavailable. Generic tanks do not accept `.slots()`.
+Multiblock/proxy adapters and real-pack machine-specific behavior still require
+qualification; no universal proxy alias detection is claimed.
+
+All item and fluid actions share the 64-action invocation allowance and existing
+work budgets. Source handlers cannot also receive fluid in the same request.
+Pairs are synchronous within the current tick, with simulation and bounded
+commit/recovery work; the whole program/group is not transactional. Uncertain
+drain/fill ownership is journaled to the disk and pauses execution, without a
+blind retry or rollback. A known refused rollback retains the owned remainder.
+Legacy `input`/`output fluid:*` behavior is unchanged.
+
+### Checking readiness without blocking a tick
+
+There is no `wait 20` or asynchronous/yielding function. `while (...) do` executes
+in the current invocation and shares a finite loop budget; it cannot wait for
+the next game tick. Read readiness once and check again from a scheduled trigger.
+Pass outer handles explicitly and return a boolean on every function path:
+
+```sfml
+let $plasmaoutput = label("plasmaoutput")
+let $coolantoutput = label("coolantoutput")
+let $phase = 1
+
+function ready($key: integer, $plasma: label_ref, $coolant: label_ref) returns boolean do
+  if ($key == 1) then
+    return $plasma.fempty()
+  end
+  if ($key == 2) then
+    return $coolant.fempty()
+  end
+  return false
+end
+
+every 20 ticks do
+  if (ready($phase, $plasmaoutput, $coolantoutput)) then
+    print("Ready for the next step", $phase)
+    -- Put the actions and phase change for that step here.
+  end
+end
+```
+
+This checks once per second at 20 TPS. A false result skips that `if` body;
+it does not pause the rest of the trigger. For item containers use `.empty()`.
+
 ### Value-driven item transfers
 
-The standalone item action has three forms. Source and destination are LABEL_REF
+The standalone item action has four forms. Source and destination are LABEL_REF
 values; the optional item is an exact ITEM_KEY or broad RESOURCE_SELECTOR:
 
 ```sfml
@@ -1851,14 +1965,18 @@ every 20 ticks do
   let $source = label("inputs")
   let $destination = label("assembly")
   transfer($source, $destination)
+  transfer($source, $destination, 16)
   transfer($source, $destination, item("minecraft:iron_ingot"))
   transfer($source, $destination, item("minecraft:iron_ingot"), 16) into $result
   print($result.moved, $result.remaining, $result.status)
 end
 ```
 
-Two arguments select all items, equivalent to ITEM("*"); three select all stock
-matching the supplied item key/selector. An omitted amount is a finite snapshot
+Two arguments select all items, equivalent to ITEM("*"). A third integer is an
+aggregate item-count limit, equivalent to `TRANSFER(src, dest, ITEM("*"), amount)`.
+A third item key/selector instead selects all matching stock. The overload is
+chosen by the expression's static type; integer variables and arithmetic work.
+An omitted amount is a finite snapshot
 of matching visible source stock during preflight, across the selected label
 group/faces/slots. Extraction restrictions may prevent moving some of that stock.
 The same bounded engine makes one attempt; it does not wait, retry indefinitely

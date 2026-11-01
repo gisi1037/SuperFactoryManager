@@ -50,7 +50,9 @@ public final class DataCompiler {
             || name.equalsIgnoreCase("LABEL")
             || name.equalsIgnoreCase("ITEM")
             || name.equalsIgnoreCase("ORE")
-            || name.equalsIgnoreCase("TRANSFER"))
+            || name.equalsIgnoreCase("FLUID")
+            || name.equalsIgnoreCase("TRANSFER")
+            || name.equalsIgnoreCase("TRANSFERF"))
             throw new IllegalArgumentException("Reserved built-in function: " + name);
         if (names.size() > 16) throw new IllegalArgumentException("Function parameters exceed 16");
         if (functions.containsKey(name)) throw new IllegalArgumentException("Duplicate function: " + name);
@@ -505,7 +507,8 @@ public final class DataCompiler {
             require(left.type, right.type);
             if (left.type != DataType.INTEGER && left.type != DataType.BOOLEAN
                 && left.type != DataType.STRING
-                && left.type != DataType.ITEM_KEY)
+                && left.type != DataType.ITEM_KEY
+                && left.type != DataType.FLUID_KEY)
                 throw new IllegalArgumentException("Collection equality is not supported");
         } else if (concatenate) {
             require(right.type, DataType.STRING);
@@ -532,6 +535,10 @@ public final class DataCompiler {
                 }
                 if (equality && left.type == DataType.ITEM_KEY) {
                     boolean same = runtime.sameItem(a.asItemIdentity(), b.asItemIdentity());
+                    return DataValue.bool(operator.equals("!=") ? !same : same);
+                }
+                if (equality && left.type == DataType.FLUID_KEY) {
+                    boolean same = runtime.sameFluid(a.asFluidIdentity(), b.asFluidIdentity());
                     return DataValue.bool(operator.equals("!=") ? !same : same);
                 }
                 if (left.type == DataType.STRING) {
@@ -659,8 +666,9 @@ public final class DataCompiler {
     private static Node query(Node receiver, Node selector, String method) {
         require(receiver.type, DataType.LABEL_REF);
         require(selector.type, DataType.RESOURCE_SELECTOR);
-        DataType result = method.equals("CONTENTS") ? DataType.ITEM_CONTENTS
-            : method.equals("COUNT") ? DataType.INTEGER : DataType.BOOLEAN;
+        DataType result = method.equals("FCONTENTS") ? DataType.FLUID_CONTENTS
+            : method.equals("CONTENTS") ? DataType.ITEM_CONTENTS
+                : method.equals("COUNT") || method.equals("FCOUNT") ? DataType.INTEGER : DataType.BOOLEAN;
         return new Node(result, 1 + Math.max(receiver.depth, selector.depth), false) {
 
             @Override
@@ -670,6 +678,10 @@ public final class DataCompiler {
                 ResourceSelector resource = selector.evaluate(runtime)
                     .asSelector();
                 runtime.work(1);
+                if (method.equals("FCONTENTS")) return runtime.fluidContents(label, resource);
+                if (method.equals("FCOUNT")) return DataValue.integer(runtime.fluidCount(label, resource));
+                if (method.equals("FEMPTY")) return DataValue.bool(runtime.fluidEmpty(label, resource));
+                if (method.equals("FAVAILABLE")) return DataValue.bool(runtime.fluidAvailable(label, resource));
                 if (method.equals("CONTENTS")) return runtime.contents(label, resource);
                 if (method.equals("COUNT")) return DataValue.integer(runtime.count(label, resource));
                 if (method.equals("EMPTY")) return DataValue.bool(runtime.empty(label, resource));
@@ -1134,7 +1146,11 @@ public final class DataCompiler {
                         }
                         if (!method.equals("COUNT") && !method.equals("EMPTY")
                             && !method.equals("AVAILABLE")
-                            && !method.equals("CONTENTS"))
+                            && !method.equals("CONTENTS")
+                            && !method.equals("FCOUNT")
+                            && !method.equals("FEMPTY")
+                            && !method.equals("FAVAILABLE")
+                            && !method.equals("FCONTENTS"))
                             throw new IllegalArgumentException("Unsupported label query: " + member);
                         if (constantOnly)
                             throw new IllegalArgumentException("STATE defaults cannot perform live label queries");
@@ -1142,7 +1158,9 @@ public final class DataCompiler {
                         if (peek(")")) {
                             if (method.equals("COUNT"))
                                 throw new IllegalArgumentException("count requires exactly one resource selector");
-                            selector = literal(DataValue.selector(ResourceSelector.item("*")));
+                            selector = literal(
+                                DataValue.selector(
+                                    method.startsWith("F") ? ResourceSelector.fluid("*") : ResourceSelector.item("*")));
                         } else selector = expression();
                         if (peek(","))
                             throw new IllegalArgumentException("Label query requires exactly one resource selector");
@@ -1210,7 +1228,9 @@ public final class DataCompiler {
             }
             if (accept("(")) {
                 String constructor = token.toUpperCase(Locale.ROOT);
-                if (!constructor.equals("LABEL") && !constructor.equals("ITEM") && !constructor.equals("ORE")) {
+                if (!constructor.equals("LABEL") && !constructor.equals("ITEM")
+                    && !constructor.equals("ORE")
+                    && !constructor.equals("FLUID")) {
                     List<Node> arguments = new ArrayList<>();
                     if (!peek(")")) do {
                         arguments.add(expression());
@@ -1233,7 +1253,8 @@ public final class DataCompiler {
                 return literal(
                     DataValue.selector(
                         constructor.equals("ORE") ? ResourceSelector.ore(string.asString())
-                            : ResourceSelector.item(string.asString())));
+                            : constructor.equals("FLUID") ? ResourceSelector.fluid(string.asString())
+                                : ResourceSelector.item(string.asString())));
             }
             if (token.startsWith("$")) return variable(token.substring(1), constantOnly);
             if (token.startsWith("\"")) return literal(stringLiteral(token));

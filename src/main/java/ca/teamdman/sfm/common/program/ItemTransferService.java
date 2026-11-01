@@ -53,6 +53,9 @@ public final class ItemTransferService {
             || filter.getType() != DataType.ITEM_KEY && filter.getType() != DataType.RESOURCE_SELECTOR)
             throw new IllegalArgumentException(
                 "Item transfer requires source/destination labels and an item key or selector");
+        if (filter.getType() == DataType.RESOURCE_SELECTOR && filter.asSelector()
+            .getKind() == ca.teamdman.sfml.data.ResourceSelector.Kind.FLUID)
+            throw new IllegalArgumentException("A fluid selector requires a fluid transfer");
     }
 
     public ItemTransferResult transfer(LabelReference source, LabelReference destination, DataValue itemOrSelector,

@@ -21,7 +21,7 @@ public final class StudioTransferArguments {
 
         SOURCE("source", "Source"),
         DESTINATION("destination", "Destination"),
-        ITEM("resource", "Item filter"),
+        ITEM("resource", "Resource filter / amount"),
         AMOUNT("amount", "Amount");
 
         public final String key, title;

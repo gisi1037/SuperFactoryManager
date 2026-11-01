@@ -72,7 +72,7 @@ class SfmlTypedDataTest {
             "ITEM(\"minecraft:iron_*\")",
             "ITEM(\"#ore:ingotIron\")",
             "ITEM(\"minecraft:iron_ingot{tag:1}\")",
-            "FLUID(\"water\")",
+            "FLUID(\"water\" + \"\")",
             "ORE(\"ingotIron\" + \"\")",
             "\"source\".count(ITEM(\"*\"))",
             "LABEL(\"source\").count(\"minecraft:iron_ingot\")",
@@ -88,6 +88,7 @@ class SfmlTypedDataTest {
         assertThrows(IllegalArgumentException.class, () -> compiler.compile("LABEL($name)", 1, 0));
         assertThrows(IllegalArgumentException.class, () -> compiler.compile("ITEM($name)", 1, 0));
         assertThrows(IllegalArgumentException.class, () -> compiler.compile("ORE($name)", 1, 0));
+        assertThrows(IllegalArgumentException.class, () -> compiler.compile("FLUID($name)", 1, 0));
     }
 
     @Test

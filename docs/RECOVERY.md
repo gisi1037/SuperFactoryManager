@@ -103,3 +103,25 @@ passed the command sequence and an orderly restart using synthetic evidence:
 exactly one inactive receipt persisted, stock/STATE were unchanged, and distant
 source/target regions were not generated. This does not qualify real tank failures,
 crash atomicity or two-player authority timing. See [reliability qualification](../integration/evidence/reliability-qualification-2026-10-28.json).
+
+
+### Automatic source-return callback ownership (2026-10-31)
+
+Automatic fluid return now journals the original recovery record as uncertain
+before invoking an actual provider fill. Reentrant recovery and saves made inside
+that callback therefore cannot replay an in-flight offer. Disk identity, disk
+generation (including A-to-B-to-A), loaded manager/world and recovery-record
+identity are checked before filling and before accepting its result. A changed
+owner keeps the original evidence quarantined and does not clear or debit the
+replacement disk. A confirmed zero/partial result restores only the known pending
+remainder; a full result clears only the still-current original record.
+
+Five deep-snapshot regressions failed against the unchanged production baseline:
+replacement-record deletion, ABA ownership, reentrant double fill, and pending
+inside-callback save evidence for normal/throwing fills. The fix passed these plus
+handler-lookup replacement and same-disk record-replacement checks. The existing
+isolated Forge fixture supplies real fluid NBT decoding without changing global
+headless registries. A stable290/JDK25 Gradle checkpoint passed 67 methods across
+the isolated Forge and adjacent fluid/item recovery suites (zero failures, errors
+or skips). This is headless callback/NBT qualification, not a live tank, whole-pack,
+performance or crash-atomicity certification. No deployment was performed.

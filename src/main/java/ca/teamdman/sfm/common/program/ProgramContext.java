@@ -196,6 +196,44 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
         return itemQueries().contents(source, selector, budget);
     }
 
+    @Override
+    public long fluidCount(ca.teamdman.sfml.data.LabelReference source, ca.teamdman.sfml.data.ResourceSelector selector,
+        ca.teamdman.sfml.data.QueryBudget budget) {
+        return new FluidTransferService(this).count(source, selector, budget);
+    }
+
+    @Override
+    public boolean fluidEmpty(ca.teamdman.sfml.data.LabelReference source,
+        ca.teamdman.sfml.data.ResourceSelector selector, ca.teamdman.sfml.data.QueryBudget budget) {
+        return new FluidTransferService(this).empty(source, selector, budget);
+    }
+
+    @Override
+    public boolean fluidAvailable(ca.teamdman.sfml.data.LabelReference source,
+        ca.teamdman.sfml.data.ResourceSelector selector, ca.teamdman.sfml.data.QueryBudget budget) {
+        return new FluidTransferService(this).available(source, selector, budget);
+    }
+
+    @Override
+    public ca.teamdman.sfml.data.FluidContents fluidContents(ca.teamdman.sfml.data.LabelReference source,
+        ca.teamdman.sfml.data.ResourceSelector selector, ca.teamdman.sfml.data.QueryBudget budget) {
+        return new FluidTransferService(this).contents(source, selector, budget);
+    }
+
+    public ca.teamdman.sfml.data.ItemTransferResult transferFluids(ca.teamdman.sfml.data.LabelReference source,
+        ca.teamdman.sfml.data.LabelReference destination, ca.teamdman.sfml.data.DataValue filter, long amount) {
+        FluidTransferService.validateArguments(source, destination, filter, amount);
+        if (amount != 0) beginNativeItemAction();
+        return new FluidTransferService(this).transfer(source, destination, filter, amount, false);
+    }
+
+    public ca.teamdman.sfml.data.ItemTransferResult transferFluids(ca.teamdman.sfml.data.LabelReference source,
+        ca.teamdman.sfml.data.LabelReference destination, ca.teamdman.sfml.data.DataValue filter) {
+        FluidTransferService.validateArguments(source, destination, filter, 0);
+        beginNativeItemAction();
+        return new FluidTransferService(this).transfer(source, destination, filter, 0, true);
+    }
+
     public ca.teamdman.sfml.data.ItemTransferResult transferItems(ca.teamdman.sfml.data.LabelReference source,
         ca.teamdman.sfml.data.LabelReference destination, ca.teamdman.sfml.data.DataValue itemOrSelector, long amount) {
         ItemTransferService.validateArguments(source, destination, itemOrSelector, amount);
@@ -215,10 +253,10 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
         if (manager == null || manager.getDisk() == null
             || !(manager.getDisk()
                 .getItem() instanceof ca.teamdman.sfm.common.item.ItemDisk))
-            throw new IllegalStateException("Native item transfers require an active recovery disk");
-        if (manager.hasPendingRecovery()) throw new IllegalStateException("Item transfer paused: pending recovery");
+            throw new IllegalStateException("Native transfers require an active recovery disk");
+        if (manager.hasPendingRecovery()) throw new IllegalStateException("Transfer paused: pending recovery");
         if (nativeItemActions >= MAX_NATIVE_ITEM_ACTIONS)
-            throw new IllegalArgumentException("Native item transfer action limit exceeded");
+            throw new IllegalArgumentException("Native transfer action limit exceeded");
         nativeItemActions++;
     }
 

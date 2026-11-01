@@ -22,6 +22,7 @@ public final class TransferStatement implements Statement {
     public static final DataType RESULT_TYPE;
     private static final Map<ItemTransferResult.Status, DataValue> STATUSES;
     private static final DataValue ALL_ITEMS = DataValue.selector(ResourceSelector.item("*"));
+    private static final DataValue ALL_FLUIDS = DataValue.selector(ResourceSelector.fluid("*"));
     static {
         Map<String, DataType> fields = new LinkedHashMap<>();
         fields.put("requested", DataType.INTEGER);
@@ -40,12 +41,22 @@ public final class TransferStatement implements Statement {
 
     private final DataExpression source, destination, item, amount;
     private final DataCompiler.Binding result;
+    private final boolean fluids;
 
     public TransferStatement(List<DataExpression> arguments, DataCompiler.Binding result) {
+        this(arguments, result, false);
+    }
+
+    public TransferStatement(List<DataExpression> arguments, DataCompiler.Binding result, boolean fluids) {
+        this.fluids = fluids;
         source = arguments.get(0);
         destination = arguments.get(1);
-        item = arguments.size() > 2 ? arguments.get(2) : null;
-        amount = arguments.size() > 3 ? arguments.get(3) : null;
+        // Resolve the third-argument overload once from its static type, without evaluating it.
+        boolean amountOnly = arguments.size() == 3 && arguments.get(2)
+            .getType()
+            .equals(DataType.INTEGER);
+        item = arguments.size() > 2 && !amountOnly ? arguments.get(2) : null;
+        amount = amountOnly ? arguments.get(2) : arguments.size() > 3 ? arguments.get(3) : null;
         this.result = result;
     }
 
@@ -54,7 +65,7 @@ public final class TransferStatement implements Statement {
         DataRuntime runtime = context.getDataRuntime();
         DataValue from = source.evaluate(runtime);
         DataValue to = destination.evaluate(runtime);
-        DataValue selected = item == null ? ALL_ITEMS : item.evaluate(runtime);
+        DataValue selected = item == null ? fluids ? ALL_FLUIDS : ALL_ITEMS : item.evaluate(runtime);
         long requested = amount == null ? 0
             : amount.evaluate(runtime)
                 .asLong();
@@ -83,13 +94,17 @@ public final class TransferStatement implements Statement {
 
     private ItemTransferResult transfer(ProgramContext context, DataValue from, DataValue to, DataValue selected,
         long requested) {
+        if (fluids) {
+            return amount == null ? context.transferFluids(from.asLabel(), to.asLabel(), selected)
+                : context.transferFluids(from.asLabel(), to.asLabel(), selected, requested);
+        }
         return amount == null ? context.transferItems(from.asLabel(), to.asLabel(), selected)
             : context.transferItems(from.asLabel(), to.asLabel(), selected, requested);
     }
 
     @Override
     public String toString() {
-        return "TRANSFER (" + source
+        return (fluids ? "TRANSFERF (" : "TRANSFER (") + source
             + ", "
             + destination
             + (item == null ? "" : ", " + item)

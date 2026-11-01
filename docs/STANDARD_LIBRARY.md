@@ -12,6 +12,7 @@ ship as versioned standard libraries after A4's library/build contracts land.
 | Handles | LABEL(literal), ITEM(literal), .side(literal), .slots(first,last) | Existing |
 | Ore matching | ORE(literal) as RESOURCE_SELECTOR | This candidate; exact name only |
 | Stock observations | .available([selector]), .empty([selector]), .count(selector) | Existing; access/visible stock, not transferable capacity |
+| Fluid observations | FLUID(literal), .favailable([selector]), .fempty([selector]), .fcount([selector]), .fcontents([selector]) | Direct Forge handlers; mB; exact keys and qualified side views; pack qualification pending |
 | Signal observations | .redstone(), .powered(), .redstoneAvailable() | Existing |
 | Diagnostics | PRINT(values...), terminal state/log commands | Existing |
 | Assertions | ASSERT(condition,message), structured diagnostic fields | Planned |
@@ -20,7 +21,7 @@ ship as versioned standard libraries after A4's library/build contracts land.
 | Item identity | Exact registry ID + metadata + canonical NBT key; selector matching and ore membership inspection | ITEM_KEY candidate implemented; further selector/ore-inspection helpers planned |
 | Inventory scans | .contents([selector]), exact grouped items and physical origins | Candidate implemented; direct inventories/chest pairs, headless qualification |
 | Capacity/access | canInsert, canExtract, acceptedAmount, missing(targetStock) | Planned qualified simulations; full/empty are distinct from permission |
-| Logistics | TOTAL(contents/locations), STOCK(contents,exactKey), SHORTAGE(required,available); TRANSFER(src,dest[,keyOrSelector[,amount]]) [INTO result] | Candidate; explicit statement action, further policies/helpers planned |
+| Logistics | TOTAL(contents/locations), STOCK(contents,exactKey), SHORTAGE(required,available); TRANSFER(src,dest[,keyOrSelector[,amount]]) or TRANSFER(src,dest,amount) [INTO result] | Item-only explicit statement action; separate TRANSFERF(src,dest[,amount or fluid/key[,amount]]) for mB fluid movement |
 | Recipes | Find candidates by output+recipe map, inspect requirements/results, choose recipe, resolve machine maps | Planned server catalog |
 | NEI authoring | Use selected recipe in station/editor, validate server descriptor, insert query/template | Planned optional client adapter |
 

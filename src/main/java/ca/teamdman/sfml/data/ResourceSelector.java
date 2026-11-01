@@ -4,12 +4,13 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.oredict.OreDictionary;
 
-/** Prevalidated item-domain selector. Matching never enumerates the item or ore registries. */
+/** Prevalidated resource selector. Matching never enumerates resource registries. */
 public final class ResourceSelector {
 
     public enum Kind {
         ITEM,
-        ORE
+        ORE,
+        FLUID
     }
 
     private static final ResourceSelector ALL_ITEMS = new ResourceSelector(Kind.ITEM, "*");
@@ -36,6 +37,21 @@ public final class ResourceSelector {
         return new ResourceSelector(Kind.ORE, name);
     }
 
+    /** Exact Forge fluid registry name, or '*' for every fluid; amounts are millibuckets. */
+    public static ResourceSelector fluid(String name) {
+        if (name == null || name.length() > 256 || !(name.equals("*") || name.matches("[A-Za-z0-9_.:/-]+")))
+            throw new IllegalArgumentException("FLUID needs an exact Forge fluid name or '*'");
+        return new ResourceSelector(Kind.FLUID, name);
+    }
+
+    public boolean matchesFluid(net.minecraftforge.fluids.FluidStack stack) {
+        return kind == Kind.FLUID && stack != null
+            && stack.getFluid() != null
+            && (id.equals("*") || id.equals(
+                stack.getFluid()
+                    .getName()));
+    }
+
     public Kind getKind() {
         return kind;
     }
@@ -50,6 +66,7 @@ public final class ResourceSelector {
     }
 
     public boolean matches(ItemStack stack, QueryBudget budget) {
+        if (kind == Kind.FLUID) return false;
         if (stack == null || stack.getItem() == null) return false;
         if (kind == Kind.ORE) {
             // Read memberships afresh: registrations may arrive after this selector was compiled.

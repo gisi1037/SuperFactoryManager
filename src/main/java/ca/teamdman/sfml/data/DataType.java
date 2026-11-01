@@ -19,7 +19,9 @@ public final class DataType {
         STRUCT,
         ITEM_KEY,
         ITEM_CONTENTS,
-        ITEM_LOCATIONS
+        ITEM_LOCATIONS,
+        FLUID_KEY,
+        FLUID_CONTENTS
     }
 
     public static final DataType INTEGER = new DataType(
@@ -70,6 +72,18 @@ public final class DataType {
         0,
         Collections.emptyList(),
         Collections.emptyList());
+    public static final DataType FLUID_KEY = new DataType(
+        Kind.FLUID_KEY,
+        null,
+        0,
+        Collections.emptyList(),
+        Collections.emptyList());
+    public static final DataType FLUID_CONTENTS = new DataType(
+        Kind.FLUID_CONTENTS,
+        fluidRow(),
+        0,
+        Collections.emptyList(),
+        Collections.emptyList());
     private final Kind kind;
     private final DataType element;
     private final int length, cells, depth;
@@ -89,7 +103,9 @@ public final class DataType {
         boolean persistent = kind != Kind.LABEL_REF && kind != Kind.RESOURCE_SELECTOR
             && kind != Kind.ITEM_KEY
             && kind != Kind.ITEM_CONTENTS
-            && kind != Kind.ITEM_LOCATIONS;
+            && kind != Kind.ITEM_LOCATIONS
+            && kind != Kind.FLUID_KEY
+            && kind != Kind.FLUID_CONTENTS;
         StringBuilder out = new StringBuilder(kind.name());
         if (kind == Kind.ARRAY) {
             persistent = element.persistable;
@@ -100,7 +116,7 @@ public final class DataType {
                 .append(':')
                 .append(element.signature)
                 .append(']');
-        } else if (kind == Kind.ITEM_CONTENTS || kind == Kind.ITEM_LOCATIONS) {
+        } else if (kind == Kind.ITEM_CONTENTS || kind == Kind.ITEM_LOCATIONS || kind == Kind.FLUID_CONTENTS) {
             // A sequence type describes one invocation-owned handle, not a padded fixed array.
             // Construction separately charges the actual rows, scalar cells and child references.
             nesting = element.depth + 1;
@@ -148,6 +164,15 @@ public final class DataType {
         return struct(fields);
     }
 
+    private static DataType fluidRow() {
+        Map<String, DataType> fields = new TreeMap<>();
+        fields.put("fluid", FLUID_KEY);
+        fields.put("id", STRING);
+        for (String name : new String[] { "amount", "dimension", "x", "y", "z", "tank", "sideMask" })
+            fields.put(name, INTEGER);
+        return struct(fields);
+    }
+
     public static DataType struct(Map<String, DataType> fields) {
         TreeMap<String, DataType> sorted = new TreeMap<>(fields);
         for (String name : sorted.keySet()) if (!name.matches("[A-Za-z_][A-Za-z0-9_]*"))
@@ -170,7 +195,9 @@ public final class DataType {
 
     /** Fixed arrays and the two immutable native observation sequences support index/LEN/FOR. */
     public boolean isSequence() {
-        return kind == Kind.ARRAY || kind == Kind.ITEM_CONTENTS || kind == Kind.ITEM_LOCATIONS;
+        return kind == Kind.ARRAY || kind == Kind.ITEM_CONTENTS
+            || kind == Kind.ITEM_LOCATIONS
+            || kind == Kind.FLUID_CONTENTS;
     }
 
     public DataType getElementType() {

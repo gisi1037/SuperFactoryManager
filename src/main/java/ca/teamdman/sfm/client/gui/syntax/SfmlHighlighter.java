@@ -131,7 +131,8 @@ public final class SfmlHighlighter {
             return isNamedRedstoneEdge(tokens, index) ? Style.FLOW : Style.LABEL;
         if (type == SFMLLexer.FUNCTION || type == SFMLLexer.RETURNS || type == SFMLLexer.RETURN)
             return isFunctionFlow(tokens, index, functionNames) ? Style.FLOW : Style.LABEL;
-        if (type == SFMLLexer.TRANSFER) return Style.LABEL; // Calls were already classified above.
+        if (type == SFMLLexer.TRANSFER || type == SFMLLexer.TRANSFERF) return Style.LABEL; // Calls were already
+                                                                                           // classified above.
         if (type == SFMLLexer.INTO) {
             int before = previousVisible(tokens, index), after = nextVisible(tokens, index);
             return before >= 0 && tokens.get(before)
@@ -159,6 +160,7 @@ public final class SfmlHighlighter {
             case SFMLLexer.SLASH:
                 return Style.RESOURCE;
             case SFMLLexer.TRANSFER:
+            case SFMLLexer.TRANSFERF:
             case SFMLLexer.INPUT:
             case SFMLLexer.OUTPUT:
             case SFMLLexer.FORGET:
@@ -271,7 +273,11 @@ public final class SfmlHighlighter {
                 .getType();
         String name = token.getText()
             .toUpperCase(Locale.ROOT);
-        if (name.equals("COUNT") || name.equals("EMPTY")
+        if (name.equals("FCOUNT") || name.equals("FEMPTY")
+            || name.equals("FAVAILABLE")
+            || name.equals("FCONTENTS")
+            || name.equals("COUNT")
+            || name.equals("EMPTY")
             || name.equals("AVAILABLE")
             || name.equals("CONTENTS")
             || name.equals("REDSTONE")
@@ -279,7 +285,8 @@ public final class SfmlHighlighter {
             || name.equals("REDSTONEAVAILABLE")
             || name.equals("SIDE")
             || name.equals("SLOTS")) return previous == SFMLLexer.DOT;
-        return (name.equals("LABEL") || name.equals("ITEM") || name.equals("ORE") || name.equals("PRINT"))
+        return (name.equals("FLUID") || name.equals(
+            "TRANSFERF") || name.equals("LABEL") || name.equals("ITEM") || name.equals("ORE") || name.equals("PRINT"))
             && previous != SFMLLexer.DOT
             && !isResourcePart(tokens, index);
     }
@@ -294,7 +301,9 @@ public final class SfmlHighlighter {
             || word.equals("RESOURCE_SELECTOR")
             || word.equals("ITEM_KEY")
             || word.equals("ITEM_CONTENTS")
-            || word.equals("ITEM_LOCATIONS"))) return false;
+            || word.equals("ITEM_LOCATIONS")
+            || word.equals("FLUID_KEY")
+            || word.equals("FLUID_CONTENTS"))) return false;
         return context.functionHeader[index];
     }
 
@@ -379,6 +388,7 @@ public final class SfmlHighlighter {
         return type == SFMLLexer.IDENTIFIER || type == SFMLLexer.RISING
             || type == SFMLLexer.FALLING
             || type == SFMLLexer.TRANSFER
+            || type == SFMLLexer.TRANSFERF
             || type == SFMLLexer.INTO;
     }
 
@@ -497,6 +507,7 @@ public final class SfmlHighlighter {
     private static boolean isIdentifier(int type) {
         switch (type) {
             case SFMLLexer.TRANSFER:
+            case SFMLLexer.TRANSFERF:
             case SFMLLexer.INTO:
             case SFMLLexer.IDENTIFIER:
             case SFMLLexer.LET:

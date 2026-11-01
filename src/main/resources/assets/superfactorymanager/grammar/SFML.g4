@@ -214,7 +214,7 @@ label           : (identifier)  #RawLabel
 
 emptyslots      : EMPTY (SLOTS | SLOT) IN ;
 
-identifier : (IDENTIFIER | TRANSFER | INTO | LET | SET | STATE | PRINT | FUNCTION | RETURNS | RETURN | FOR | WHILE | STEP | RISING | FALLING | REDSTONE | LEVEL | LEVELS | GLOBAL | SECOND | SECONDS | TOP | BOTTOM | LEFT | RIGHT | FRONT | BACK) ;
+identifier : (IDENTIFIER | TRANSFER | TRANSFERF | INTO | LET | SET | STATE | PRINT | FUNCTION | RETURNS | RETURN | FOR | WHILE | STEP | RISING | FALLING | REDSTONE | LEVEL | LEVELS | GLOBAL | SECOND | SECONDS | TOP | BOTTOM | LEFT | RIGHT | FRONT | BACK) ;
 
 // Typed data expressions. Multiplication retains the legacy wildcard token.
 stateDeclaration : STATE VARIABLE EQ_SYMBOL dataExpression;
@@ -222,7 +222,7 @@ dataDeclaration : LET VARIABLE EQ_SYMBOL dataExpression;
 dataAssignment : SET? dataTarget EQ_SYMBOL dataExpression;
 printStatement : PRINT LPAREN dataExpression (COMMA dataExpression)* RPAREN;
 // Actions are statements: no transfer can hide inside a predicate or ordinary function call.
-transferStatement : TRANSFER LPAREN dataExpression COMMA dataExpression
+transferStatement : (TRANSFER | TRANSFERF) LPAREN dataExpression COMMA dataExpression
                     (COMMA dataExpression (COMMA dataExpression)?)? RPAREN (INTO VARIABLE)?;
 dataTarget : VARIABLE (DOT dataName | LBRACKET dataExpression RBRACKET)*;
 dataExpression : dataOr;
@@ -247,7 +247,7 @@ dataPrimary : NUMBER | STRING | VARIABLE | TRUE | FALSE | LPAREN dataExpression 
             | LBRACE (dataField (COMMA dataField)* COMMA?)? RBRACE;
 dataField : dataName COLON dataExpression;
 // All legacy keyword spellings are legal fixed field names.
-dataName : IDENTIFIER | TRANSFER | INTO | LET | SET | STATE | PRINT | FUNCTION | RETURNS | RETURN | IF | THEN | ELSE | HAS | OVERALL | SOME | ONE | LONE
+dataName : IDENTIFIER | TRANSFER | TRANSFERF | INTO | LET | SET | STATE | PRINT | FUNCTION | RETURNS | RETURN | IF | THEN | ELSE | HAS | OVERALL | SOME | ONE | LONE
          | TRUE | FALSE | NOT | AND | OR | GT | LT | EQ | LE | GE | FROM | TO | INPUT | OUTPUT
          | WHERE | SLOTS | SLOT | RETAIN | EACH | EXCEPT | FORGET | EMPTY | IN | WITHOUT | WITH
          | TAG | ROUND | ROBIN | BY | LABEL | BLOCK | TOP | BOTTOM | NORTH | EAST | SOUTH | WEST
@@ -266,6 +266,7 @@ number: NUMBER ;
 
 // DATA STATEMENTS
 TRANSFER : T R A N S F E R;
+TRANSFERF : T R A N S F E R F;
 INTO : I N T O;
 FUNCTION : F U N C T I O N;
 RETURNS : R E T U R N S;

@@ -298,11 +298,12 @@ public final class StudioNodeProperties {
                     String key = type == Type.PRINT ? "expression" + i
                         : new String[] { "source", "destination", "resource", "amount" }[i];
                     String name = type == Type.PRINT ? "Message / expression " + (i + 1)
-                        : new String[] { "Source", "Destination", "Item selector", "Amount" }[i];
+                        : new String[] { "Source", "Destination", "Resource filter / amount", "Amount" }[i];
                     String help = type == Type.PRINT
                         ? "One expression; quote literal messages. Argument order is retained."
-                        : i < 2 ? "LABEL expression, including optional .side() and .slots() restrictions."
-                            : i == 2 ? "Item selector expression, e.g. ITEM(\"minecraft:iron_ingot\")."
+                        : i < 2 ? "LABEL expression; .side() selects a face, while .slots() applies only to items."
+                            : i == 2
+                                ? "Resource selector/key for matching stock, or (with three arguments) an integer amount; TRANSFERF uses mB."
                                 : "Integer expression. Omitted amounts keep the existing automatic-stock behavior.";
                     result.add(new Field(key, name, help, FieldType.EXPRESSION, arguments.get(i), clause));
                 }

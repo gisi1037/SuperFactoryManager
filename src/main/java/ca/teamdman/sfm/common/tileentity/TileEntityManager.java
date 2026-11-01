@@ -19,6 +19,7 @@ import net.minecraft.network.NetworkManager;
 import net.minecraft.network.Packet;
 import net.minecraft.network.play.server.S35PacketUpdateTileEntity;
 import net.minecraft.tileentity.TileEntity;
+import net.minecraft.world.World;
 
 import ca.teamdman.sfm.Config;
 import ca.teamdman.sfm.common.diagnostics.ManagerPhaseProfiler;
@@ -410,6 +411,17 @@ public class TileEntityManager extends TileEntity implements IInventory {
     /** Unknown callback ownership is evidence only and must never be automatically replayed. */
     public NBTTagCompound preserveFluid(net.minecraftforge.fluids.FluidStack fluid, BlockPos source,
         net.minecraftforge.common.util.ForgeDirection side, boolean uncertain, String stage) {
+        return fluidRecord(fluid, source, side, uncertain, stage, true);
+    }
+
+    /** Fence reentrant execution before native fluid callbacks; successful commits clear this journal. */
+    public NBTTagCompound journalFluidTransfer(net.minecraftforge.fluids.FluidStack fluid, BlockPos source,
+        net.minecraftforge.common.util.ForgeDirection side) {
+        return fluidRecord(fluid, source, side, true, "extraction", false);
+    }
+
+    private NBTTagCompound fluidRecord(net.minecraftforge.fluids.FluidStack fluid, BlockPos source,
+        net.minecraftforge.common.util.ForgeDirection side, boolean uncertain, String stage, boolean pause) {
         if (fluid == null || fluid.amount <= 0) throw new IllegalArgumentException("Positive recovery fluid required");
         requireRecoverySpace();
         NBTTagCompound entry = new NBTTagCompound();
@@ -429,7 +441,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
         entry.setInteger("sourceDimension", worldObj.provider.dimensionId);
         diskStack.getTagCompound()
             .setTag(RECOVERY_FLUID, entry);
-        setRunning(false);
+        if (pause) setRunning(false);
         markDirty();
         return entry;
     }
@@ -476,15 +488,28 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     private boolean recoverFluid(NBTTagCompound entry) {
-        if (entry.getInteger("sourceDimension") != worldObj.provider.dimensionId) return true;
+        ItemStack owner = diskStack;
+        long generation = diskGeneration;
+        World world = worldObj;
+        if (entry.getInteger("sourceDimension") != world.provider.dimensionId) return true;
         BlockPos pos = new BlockPos(
             entry.getInteger("sourceX"),
             entry.getInteger("sourceY"),
             entry.getInteger("sourceZ"));
         net.minecraftforge.fluids.IFluidHandler source = ca.teamdman.sfm.common.inventory.InventoryUtils
-            .getFluidHandler(worldObj, pos);
+            .getFluidHandler(world, pos);
         net.minecraftforge.fluids.FluidStack fluid = net.minecraftforge.fluids.FluidStack.loadFluidStackFromNBT(entry);
         if (source == null || fluid == null) return true;
+        // Handler lookup may itself reenter recovery or replace the disk.
+        if (!fluidRecoveryOwnerCurrent(owner, generation, world, entry) || entry.getBoolean("recoveryBlocked")
+            || entry.hasKey("state") && !"pending".equals(entry.getString("state"))) return true;
+        String previousStage = entry.getString("stage");
+        // Persist uncertainty before a provider can fill, reenter, save, or throw.
+        entry.setBoolean("recoveryBlocked", true);
+        entry.setString("state", "uncertain");
+        entry.setString("stage", "automatic source return");
+        markDirty();
+        if (!fluidRecoveryOwnerCurrent(owner, generation, world, entry)) return true;
         int returned = Math.max(
             0,
             Math.min(
@@ -493,14 +518,34 @@ public class TileEntityManager extends TileEntity implements IInventory {
                     net.minecraftforge.common.util.ForgeDirection.getOrientation(entry.getInteger("sourceSide")),
                     fluid.copy(),
                     true)));
+        if (!fluidRecoveryOwnerCurrent(owner, generation, world, entry)) {
+            statusMessage = "Fluid recovery owner changed; original record remains uncertain";
+            return true;
+        }
         fluid.amount -= returned;
         if (fluid.amount == 0) {
-            diskStack.getTagCompound()
+            owner.getTagCompound()
                 .removeTag(RECOVERY_FLUID);
             statusMessage = "Recovered fluid; restart manager";
-        } else fluid.writeToNBT(entry);
-        if (returned > 0) markDirty();
+        } else {
+            fluid.writeToNBT(entry);
+            entry.setBoolean("recoveryBlocked", false);
+            entry.setString("state", "pending");
+            entry.setString("stage", previousStage);
+        }
+        // Even a zero fill must persist restoration of the known pending record.
+        markDirty();
         return true;
+    }
+
+    private boolean fluidRecoveryOwnerCurrent(ItemStack owner, long generation, World world, NBTTagCompound entry) {
+        return worldObj == world && !isInvalid()
+            && getBlockPos().getTileEntity(world) == this
+            && diskStack == owner
+            && diskGeneration == generation
+            && owner.hasTagCompound()
+            && owner.getTagCompound()
+                .getCompoundTag(RECOVERY_FLUID) == entry;
     }
 
     public void runOnceWithLogLevel(LogLevel level) {

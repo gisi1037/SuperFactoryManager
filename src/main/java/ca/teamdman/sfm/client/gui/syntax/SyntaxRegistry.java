@@ -87,6 +87,12 @@ public final class SyntaxRegistry {
             "transfer(label(\"<src>\"), label(\"<dst>\"))",
             "One bounded attempt for all currently visible source items; append INTO $result to inspect progress");
         snippet(
+            "io_transfer_amount",
+            "Transfer an item count",
+            SnippetCategory.IO,
+            "transfer(label(\"<src>\"), label(\"<dst>\"), <amount>)",
+            "Move up to one total item count across all matching source inventories; items only");
+        snippet(
             "io_transfer_selected_all",
             "Transfer all matching items",
             SnippetCategory.IO,
@@ -107,6 +113,30 @@ public final class SyntaxRegistry {
                 + "IF (LEN($stock) > 0) THEN\n  TRANSFER ($source, LABEL(\"<dst>\"), $stock[0].item, <amount>) INTO $result\n"
                 + "  PRINT($result.moved, $result.remaining, $result.status)\nEND",
             "Exact ID, metadata and NBT identity; captured quantities are observations rather than reservations");
+        snippet(
+            "io_transferf_all",
+            "Transfer all fluids",
+            SnippetCategory.IO,
+            "transferf(label(\"<src>\"), label(\"<dst>\"))",
+            "One bounded attempt for all visible source fluids; amounts are mB");
+        snippet(
+            "io_transferf_amount",
+            "Transfer a fluid amount",
+            SnippetCategory.IO,
+            "transferf(label(\"<src>\"), label(\"<dst>\"), <amount>)",
+            "One aggregate millibucket cap across all source fluids");
+        snippet(
+            "io_transferf_selected",
+            "Transfer a selected fluid",
+            SnippetCategory.IO,
+            "transferf(label(\"<src>\"), label(\"<dst>\"), fluid(\"water\"), <amount>)",
+            "Exact Forge fluid registry name, broad over NBT; use a captured fluid key to require exact NBT");
+        snippet(
+            "query_fluids",
+            "Inspect fluid tanks",
+            SnippetCategory.QUERY,
+            "LET $tank = LABEL(\"<src>\")\nIF ($tank.favailable()) THEN\n  PRINT($tank.fcount(), $tank.fempty(), $tank.fcontents())\nEND",
+            "Fresh complete-group fluid observations, in mB. Missing tanks are never treated as empty");
         snippet(
             "io_basic",
             "INPUT / OUTPUT",

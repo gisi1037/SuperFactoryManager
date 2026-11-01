@@ -636,13 +636,16 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
 
     @Override
     public ASTNode visitTransferStatement(SFMLParser.TransferStatementContext ctx) {
+        boolean fluids = ctx.TRANSFERF() != null;
         List<DataExpression> arguments = new ArrayList<>();
         for (SFMLParser.DataExpressionContext argument : ctx.dataExpression()) arguments.add(expression(argument));
         DataType[] expected = { DataType.LABEL_REF, DataType.LABEL_REF, null, DataType.INTEGER };
         for (int i = 0; i < arguments.size(); i++) {
             DataType actual = arguments.get(i)
                 .getType();
-            boolean valid = expected[i] == null ? actual == DataType.ITEM_KEY || actual == DataType.RESOURCE_SELECTOR
+            boolean valid = expected[i] == null
+                ? actual == (fluids ? DataType.FLUID_KEY : DataType.ITEM_KEY) || actual == DataType.RESOURCE_SELECTOR
+                    || arguments.size() == 3 && actual.equals(DataType.INTEGER)
                 : actual.equals(expected[i]);
             if (!valid) throw new IllegalArgumentException(
                 "Line " + ctx.getStart()
@@ -650,7 +653,7 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
                     + ", Col "
                     + ctx.getStart()
                         .getCharPositionInLine()
-                    + ": Invalid TRANSFER argument "
+                    + (fluids ? ": Invalid TRANSFERF argument " : ": Invalid TRANSFER argument ")
                     + (i + 1));
         }
         return new TransferStatement(
@@ -660,7 +663,8 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
                     ctx.VARIABLE()
                         .getText()
                         .substring(1),
-                    TransferStatement.RESULT_TYPE));
+                    TransferStatement.RESULT_TYPE),
+            fluids);
     }
 
     @Override

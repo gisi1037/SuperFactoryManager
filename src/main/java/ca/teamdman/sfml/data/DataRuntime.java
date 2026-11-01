@@ -64,6 +64,29 @@ public final class DataRuntime {
         return left.matches(right, budget.queries);
     }
 
+    public boolean sameFluid(FluidIdentity left, FluidIdentity right) {
+        if (budget.queries == null) budget.queries = new QueryBudget();
+        return left.matches(right, budget.queries);
+    }
+
+    public DataValue fluidContents(LabelReference label, ResourceSelector selector) {
+        QueryBudget owner = queryBudget();
+        return queries.fluidContents(label, selector, owner)
+            .materialize(owner, this);
+    }
+
+    public long fluidCount(LabelReference label, ResourceSelector selector) {
+        return queries.fluidCount(label, selector, queryBudget());
+    }
+
+    public boolean fluidEmpty(LabelReference label, ResourceSelector selector) {
+        return queries.fluidEmpty(label, selector, queryBudget());
+    }
+
+    public boolean fluidAvailable(LabelReference label, ResourceSelector selector) {
+        return queries.fluidAvailable(label, selector, queryBudget());
+    }
+
     public long count(LabelReference label, ResourceSelector selector) {
         QueryBudget budget = queryBudget();
         return queries.count(label, selector, budget);

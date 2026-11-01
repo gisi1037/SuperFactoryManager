@@ -24,7 +24,7 @@ An SFM program describes when to run, which connected blocks to observe, and whe
 - [Redstone](/automation/redstone.md): manager pulses and named Redstone Ports.
 - [FORGET](/automation/forget.md): end an input stage within a trigger.
 
-Ordinary INPUT/OUTPUT supports items and Forge fluids. Typed item queries, contents and TRANSFER currently operate on items. Redstone has its own input, event and output behavior. These interfaces are related, but their selectors, access checks and results differ; each chapter identifies the differences.
+Ordinary INPUT/OUTPUT supports items and Forge fluids. Typed item queries, contents and TRANSFER operate on items. [Fluid methods and TRANSFERF](/automation/fluid-methods.md) provide a separate mB API for tanks. Redstone has its own input, event and output behavior. These interfaces are related, but their selectors, access checks and results differ; each chapter identifies the differences.
 
 Use Text for the full language. Visual offers timer, pulse, input, output, condition, forget, signal, transfer and print nodes. Transfer and Print have a bounded self-contained expression subset; unsupported source is preserved by refusing a lossy import. [Editor details](/start/editors.md) explain how to choose a front end. Locals, STATE, loops and player functions are covered in [the language chapters](/language/index.md).
 

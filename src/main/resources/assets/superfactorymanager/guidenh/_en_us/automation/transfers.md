@@ -23,7 +23,7 @@ every 20 ticks do
 end
 ```
 
-Two arguments select all items. Three arguments select all stock matching the supplied ITEM_KEY or RESOURCE_SELECTOR. An omitted amount snapshots matching visible source stock across the selected group/faces/slots; extraction restrictions can prevent moving some of it. This makes one bounded attempt, never waits for destination capacity, and moves items only. Later statements observe stock remaining after earlier transfers.
+Two arguments select all items. A third integer limits the total item count, equivalent to `TRANSFER(src,dest,ITEM("*"),amount)`. A third ITEM_KEY or RESOURCE_SELECTOR instead selects all matching stock. An omitted amount snapshots matching visible source stock across the selected group/faces/slots; extraction restrictions can prevent moving some of it. This makes one bounded attempt, never waits for destination capacity, and moves items only. Fluids use separate [TRANSFERF and fluid queries](/automation/fluid-methods.md), or legacy INPUT/OUTPUT with `fluid:*`. Fluid quantities are millibuckets (1000 mB = one bucket). Later statements observe stock remaining after earlier transfers.
 
 The four-argument form explicitly supplies a nonnegative integer maximum:
 
@@ -53,7 +53,7 @@ Automatic amounts report the real observed stock as requested. If endpoint prefl
 
 Provider exceptions, exhausted work budgets and recovery uncertainty fault execution. They are not normal status values. If a later operation faults, earlier confirmed transfers remain committed. A partial result may reflect capacity, supply, refusal or a later access change; it is not a promise that every endpoint was available throughout.
 
-The amount is one aggregate cap across the matching variants and containers in the request. It is not multiplied by blocks or resources. Negative amounts fault. An explicit four-argument zero request completes without accessing native providers; an automatic zero is known only after preflight. Arguments evaluate once from left to right. One shared input label can contain several source containers; no origin array is required to pull from the group.
+The amount is one aggregate cap across the matching variants and containers in the request. It is not multiplied by blocks or resources. Negative amounts fault. An explicit zero request completes without accessing native providers; an automatic zero is known only after preflight. Arguments evaluate once from left to right. One shared input label can contain several source containers; no origin array is required to pull from the group.
 
 ITEM selects all metadata/NBT variants of an exact item ID; ORE selects an ore category. An ITEM_KEY obtained from [contents](/automation/contents.md) selects one exact metadata/NBT variant:
 
@@ -69,7 +69,7 @@ EVERY 20 TICKS DO
 END
 ```
 
-Snapshots are advisory. Each request resolves current network membership, loaded providers, side/slot visibility and identity, then rechecks around provider callbacks. The initial provider scope is direct inventories and canonical vanilla chest pairs; unqualified proxy adapters are unavailable. This statement moves items only. Use ordinary INPUT/OUTPUT for supported Forge fluid routing.
+Snapshots are advisory. Each request resolves current network membership, loaded providers, side/slot visibility and identity, then rechecks around provider callbacks. The initial provider scope is direct inventories and canonical vanilla chest pairs; unqualified proxy adapters are unavailable. This statement moves items only. Use [TRANSFERF](/automation/fluid-methods.md) or ordinary INPUT/OUTPUT for supported Forge fluid routing.
 
 A physical slot selected as a source cannot also be an output during that request, even if it was empty at the start. This prevents inserted items feeding later source reads and inflating moved totals. Disjoint selected slot ranges within one inventory can participate. Overlapping labels do not waive this exclusion.
 

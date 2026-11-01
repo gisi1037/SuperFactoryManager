@@ -149,7 +149,7 @@ public final class VisualCapabilityAnalyzer {
     private static boolean playerCall(SFMLParser.FunctionCallContext context) {
         String name = context.functionName()
             .getText();
-        return !name.equalsIgnoreCase("LABEL") && !name.equalsIgnoreCase("ITEM");
+        return !name.equalsIgnoreCase("LABEL") && !name.equalsIgnoreCase("ITEM") && !name.equalsIgnoreCase("FLUID");
     }
 
     private static void inspectCalls(ParseTree tree, List<Blocker> blockers) {

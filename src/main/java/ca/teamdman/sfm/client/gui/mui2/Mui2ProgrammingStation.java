@@ -2508,25 +2508,29 @@ public final class Mui2ProgrammingStation {
                         .name("studio_transfer_argument_add")
                         .overlay(
                             IKey.dynamic(
-                                () -> draft.transferArgumentCount() == 2 ? "Add item filter"
+                                () -> draft.transferArgumentCount() == 2 ? "Add filter / count"
                                     : draft.transferArgumentCount() == 3 ? "Add amount" : "All roles added")
                                 .color(0xffe7e8eb)));
             section.child(
                 new TextWidget<>(
-                    IKey.dynamic(() -> draft.transferArgumentCount() == 2 ? "All items" : "Matching items")).left(0)
-                        .right(0)
-                        .top(24)
-                        .height(12)
-                        .color(0xffb0b3bb));
+                    IKey.dynamic(
+                        () -> draft.transferArgumentCount() == 2 ? "All resources"
+                            : draft.transferArgumentCount() == 3 ? "Third: filter or amount" : "Matching resources"))
+                                .left(0)
+                                .right(0)
+                                .top(24)
+                                .height(12)
+                                .color(0xffb0b3bb));
             section.child(
                 new TextWidget<>(
                     IKey.dynamic(
-                        () -> draft.transferArgumentCount() < 4 ? "Amount: automatic (available stock)"
-                            : "Amount: explicit; zero moves nothing")).left(0)
-                                .right(0)
-                                .top(38)
-                                .height(12)
-                                .color(0xff868b96));
+                        () -> draft.transferArgumentCount() == 3 ? "Integer amount caps the request"
+                            : draft.transferArgumentCount() == 2 ? "Amount: automatic (available stock)"
+                                : "Amount: explicit; zero moves nothing")).left(0)
+                                    .right(0)
+                                    .top(38)
+                                    .height(12)
+                                    .color(0xff868b96));
             section.child(
                 new TextWidget<>("Blank fields block Apply.").left(0)
                     .right(0)
@@ -2580,7 +2584,8 @@ public final class Mui2ProgrammingStation {
                         "Only a bare LABEL(\"...\") or ITEM(\"...\") is eligible; other expressions stay manual."));
                 if (optional) row.child(
                     listButton(
-                        argument.role == StudioTransferArguments.Role.AMOUNT ? "Remove amount" : "Remove item filter",
+                        argument.role == StudioTransferArguments.Role.AMOUNT ? "Remove amount"
+                            : "Remove resource filter",
                         116,
                         () -> editable() && fieldDraft == draft && position == draft.transferArgumentCount() - 1,
                         () -> {
@@ -2596,7 +2601,8 @@ public final class Mui2ProgrammingStation {
                             .top(0)
                             .height(14)
                             .name("studio_transfer_argument_remove_" + argument.id)
-                            .addTooltipLine("Remove amount before item filter. Source and destination are required."));
+                            .addTooltipLine(
+                                "Remove amount before resource filter. Source and destination are required."));
                 section.child(row);
             }
             if (list.isValid()) list.scheduleResize();

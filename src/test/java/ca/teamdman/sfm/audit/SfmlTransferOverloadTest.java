@@ -69,6 +69,111 @@ class SfmlTransferOverloadTest {
     }
 
     @Test
+    void integerThirdArgumentLimitsMixedItemsAndReportsOneAggregateRequest() throws Exception {
+        Fixture fixture = new Fixture();
+        fixture.source.setInventorySlotContents(0, stack(FIRST, 3, 1, "a"));
+        fixture.source.setInventorySlotContents(1, stack(SECOND, 9, 2, "b"));
+        Program program = program(
+            "STATE $r = {requested:0,moved:0,remaining:0,status:\"\"} EVERY 20 TICKS DO " + "LET $amount = 2 + 3 "
+                + PREFIX
+                + ", $amount) INTO $sent SET $r = $sent END");
+        Memory memory = new Memory(program);
+        ProgramContext context = context(fixture);
+        context.setStateAccess(memory);
+        program.tick(context);
+        assertEquals(
+            5,
+            memory.value.get("requested")
+                .asLong());
+        assertEquals(
+            5,
+            memory.value.get("moved")
+                .asLong());
+        assertEquals(
+            0,
+            memory.value.get("remaining")
+                .asLong());
+        assertEquals(
+            "complete",
+            memory.value.get("status")
+                .asString());
+        assertEquals(7, count(fixture.source));
+        assertEquals(5, count(fixture.dest));
+        assertEquals(
+            "a",
+            fixture.dest.getStackInSlot(0)
+                .getTagCompound()
+                .getString("name"));
+        assertEquals(
+            "b",
+            fixture.dest.getStackInSlot(1)
+                .getTagCompound()
+                .getString("name"));
+    }
+
+    @Test
+    void integerThirdArgumentKeepsExplicitZeroNegativeAndPartialSemantics() throws Exception {
+        Fixture fixture = new Fixture();
+        fixture.source.setInventorySlotContents(0, stack(FIRST, 3, 0, null));
+        ProgramContext zero = context(fixture);
+        program("EVERY 20 TICKS DO " + PREFIX + ", 0) END").tick(zero);
+        assertEquals(
+            0,
+            zero.getInvocationQueryBudget()
+                .getProviderCalls());
+        assertEquals(3, count(fixture.source));
+        ProgramContext negative = context(fixture);
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> program("EVERY 20 TICKS DO " + PREFIX + ", -1) END").tick(negative));
+        assertEquals(
+            0,
+            negative.getInvocationQueryBudget()
+                .getProviderCalls());
+        assertEquals(3, count(fixture.source));
+        Program limited = program(
+            "STATE $r = {requested:0,moved:0,remaining:0,status:\"\"} EVERY 20 TICKS DO " + PREFIX
+                + ", 8) INTO $sent SET $r = $sent END");
+        Memory memory = new Memory(limited);
+        ProgramContext context = context(fixture);
+        context.setStateAccess(memory);
+        limited.tick(context);
+        assertEquals(
+            8,
+            memory.value.get("requested")
+                .asLong());
+        assertEquals(
+            3,
+            memory.value.get("moved")
+                .asLong());
+        assertEquals(
+            5,
+            memory.value.get("remaining")
+                .asLong());
+        assertEquals(
+            "partial",
+            memory.value.get("status")
+                .asString());
+    }
+
+    @Test
+    void integerThirdArgumentEvaluatesExactlyOnceAfterBothEndpoints() throws Exception {
+        Fixture fixture = new Fixture();
+        fixture.source.setInventorySlotContents(0, stack(FIRST, 7, 0, null));
+        List<Integer> order = new ArrayList<>();
+        List<DataExpression> arguments = Arrays.asList(
+            argument(0, DataValue.label(SOURCE), order),
+            argument(1, DataValue.label(DEST), order),
+            argument(2, DataValue.integer(4), order));
+        ProgramContext context = context(fixture);
+        context.beginDataInvocation(0, false);
+        new TransferStatement(arguments, null).tick(context);
+        assertEquals(Arrays.asList(0, 1, 2), order);
+        assertEquals(4, count(fixture.dest));
+        assertEquals(3, count(fixture.source));
+    }
+
+    @Test
     void twoArgumentsMoveMixedItemsAndVariantsWithAnObservedNumericRequest() throws Exception {
         Fixture fixture = new Fixture();
         fixture.source.setInventorySlotContents(0, stack(FIRST, 3, 1, "a"));
@@ -246,7 +351,7 @@ class SfmlTransferOverloadTest {
 
     @Test
     void allAritiesExecuteWithoutIntoAndRoundTripWithOrWithoutAResult() throws Exception {
-        for (String arguments : Arrays.asList("", ", ITEM(\"*\")", ", ITEM(\"*\"), 2")) {
+        for (String arguments : Arrays.asList("", ", ITEM(\"*\")", ", ITEM(\"*\"), 2", ", 2")) {
             for (String result : Arrays.asList("", " INTO $sent")) {
                 Fixture fixture = new Fixture();
                 fixture.source.setInventorySlotContents(0, stack(FIRST, 7, 0, null));
@@ -382,7 +487,8 @@ class SfmlTransferOverloadTest {
             "TRANSFER ()",
             "TRANSFER (LABEL(\"source\"))",
             "TRANSFER (7, LABEL(\"dest\"))",
-            PREFIX + ", 7)",
+            PREFIX + ", TRUE)",
+            PREFIX + ", 7, 2)",
             PREFIX + ", ITEM(\"*\"), TRUE)",
             PREFIX + ", ITEM(\"*\"), 1, 2)",
             "LET $x = " + PREFIX + ")")) {

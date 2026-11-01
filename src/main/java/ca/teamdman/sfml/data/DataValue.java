@@ -39,6 +39,9 @@ public final class DataValue {
         else if (type == DataType.ITEM_KEY) {
             retained = ((ItemIdentity) opaque).getRetainedCharacters();
             opaqueBytes = ((ItemIdentity) opaque).getRetainedOpaqueBytes();
+        } else if (type == DataType.FLUID_KEY) {
+            retained = ((FluidIdentity) opaque).getRetainedCharacters();
+            opaqueBytes = ((FluidIdentity) opaque).getRetainedOpaqueBytes();
         }
         if (children != null) for (DataValue child : children) {
             characters = Math.addExact(characters, child.stringCharacterCount);
@@ -113,6 +116,16 @@ public final class DataValue {
     public static DataValue itemIdentity(ItemIdentity item) {
         if (item == null) throw new IllegalArgumentException("Item identity required");
         return new DataValue(DataType.ITEM_KEY, 0, null, null, 0, 0, item);
+    }
+
+    public static DataValue fluidIdentity(FluidIdentity fluid) {
+        if (fluid == null) throw new IllegalArgumentException("Fluid identity required");
+        return new DataValue(DataType.FLUID_KEY, 0, null, null, 0, 0, fluid);
+    }
+
+    public FluidIdentity asFluidIdentity() {
+        if (type != DataType.FLUID_KEY) throw new IllegalArgumentException("Fluid identity required");
+        return (FluidIdentity) opaque;
     }
 
     /** Eager, immutable rows; owner verification and all budgets precede our row/array allocation. */
@@ -204,7 +217,8 @@ public final class DataValue {
     /** Only the bounded materializer may adopt fresh sequence arrays. Public collection() stays fixed-shape. */
     static DataValue ownedSequence(DataType type, DataValue[] values) {
         int limit = type == DataType.ITEM_CONTENTS ? ItemContents.MAX_GROUPS
-            : type == DataType.ITEM_LOCATIONS ? ItemContents.MAX_LOCATIONS : -1;
+            : type == DataType.ITEM_LOCATIONS ? ItemContents.MAX_LOCATIONS
+                : type == DataType.FLUID_CONTENTS ? FluidContents.MAX_ROWS : -1;
         if (limit < 0 || values.length > limit) throw new IllegalArgumentException("Invalid item observation sequence");
         for (DataValue value : values) if (value == null || !type.getElementType()
             .equals(value.type)) throw new IllegalArgumentException("Observation row type mismatch");
@@ -241,7 +255,7 @@ public final class DataValue {
     }
 
     public DataValue with(int index, DataValue replacement) {
-        if (type == DataType.ITEM_CONTENTS || type == DataType.ITEM_LOCATIONS)
+        if (type == DataType.ITEM_CONTENTS || type == DataType.ITEM_LOCATIONS || type == DataType.FLUID_CONTENTS)
             throw new IllegalArgumentException("Item observation sequences are immutable");
         DataValue old = get(index);
         if (!old.type.equals(replacement.type)) throw new IllegalArgumentException("Assignment type/shape mismatch");
@@ -271,6 +285,7 @@ public final class DataValue {
             ItemIdentity item = asItemIdentity();
             return "ITEM_KEY(" + quote(item.getRegistryId()) + ", " + item.getMetadata() + ")";
         }
+        if (type == DataType.FLUID_KEY) return "FLUID_KEY(" + quote(asFluidIdentity().getId()) + ")";
         if (type == DataType.LABEL_REF || type == DataType.RESOURCE_SELECTOR) return opaque.toString();
         StringBuilder out = new StringBuilder(type.isSequence() ? "[" : "{");
         for (int i = 0; i < children.length; i++) {

@@ -110,7 +110,9 @@ refuses before replacing it with a partial graph.
 
 Transfer represents the existing two-, three- and four-argument item action
 without `INTO`. Its fields edit fixed source/destination roles and explicitly
-add/remove optional item/amount suffixes. Print has one field per expression,
+add/remove optional filter/count suffixes. The third expression may be an item
+filter or an integer count; a fourth amount requires an item filter in the third
+position. Print has one field per expression,
 in source order (one to eight), with Add/Remove controls. Quote literal messages.
 Both nodes accept self-contained literals, arithmetic, `LABEL`/`ITEM`
 constructors and compiler-supported receiver methods such as `.slots()` and
@@ -488,13 +490,14 @@ for Text editing. Compiler syntax, type and visual-capability checks still apply
 
 ## Transfer overload controls
 
-**Transfer Fields** keeps Source and Destination required. **Add item filter**
+**Transfer Fields** keeps Source and Destination required. **Add filter / count**
 adds the third argument, then **Add amount** adds the fourth. New fields start
 blank and block Apply until completed. Remove amount before removing the item
 filter; required roles cannot be removed. No default expression is inserted.
 
-Two arguments transfer all available items. Three transfer matching items. Both
-use the existing finite stock snapshot. Four use an explicit integer amount:
+Two arguments transfer all available items. A third selector transfers matching
+stock using the existing finite snapshot; a third integer caps all items.
+Four arguments use a selector and an explicit integer amount:
 **zero moves nothing**, and removing the amount restores automatic stock. Fields
 shows which mode is pending. Apply checks all roles and commits once; pending
 edits do not transfer anything. Cancel, copied recovery and Undo/Redo preserve

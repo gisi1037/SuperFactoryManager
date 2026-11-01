@@ -196,7 +196,7 @@
     },
     "methods": {
       "name": "support.function.sfml",
-      "match": "(?<=\\.)(?i:contents|count|empty|available|side|slots|redstoneAvailable|redstone|powered)\\b(?=\\s*\\()"
+      "match": "(?<=\\.)(?i:contents|count|empty|available|fcontents|fcount|fempty|favailable|side|slots|redstoneAvailable|redstone|powered)\\b(?=\\s*\\()"
     },
     "properties": {
       "name": "variable.other.property.sfml",
@@ -204,7 +204,7 @@
     },
     "builtins": {
       "name": "support.function.sfml",
-      "match": "(?i:\\b(?:label|item|ore|min|max|clamp|abs|len|total|stock|shortage|print|transfer))\\b(?=\\s*\\()"
+      "match": "(?i:\\b(?:label|item|ore|fluid|min|max|clamp|abs|len|total|stock|shortage|print|transfer|transferf))\\b(?=\\s*\\()"
     },
     "resources": {
       "patterns": [
@@ -224,7 +224,7 @@
     },
     "types": {
       "name": "storage.type.sfml",
-      "match": "(?i:\\b(?:integer|boolean|string|label_ref|resource_selector|item_key|item_contents|item_locations))\\b"
+      "match": "(?i:\\b(?:integer|boolean|string|label_ref|resource_selector|item_key|item_contents|item_locations|fluid_key|fluid_contents))\\b"
     },
     "word-operators": {
       "name": "keyword.operator.word.sfml",
@@ -232,7 +232,7 @@
     },
     "keywords": {
       "name": "keyword.control.sfml",
-      "match": "(?i:\\b(?:print|transfer|name|let|set|state|every|global|g|tick|ticks|second|seconds|do|end|if|then|else|for|while|step|in|into|function|returns|return|input|output|from|to|forget|retain|each|except|has|overall|some|one|lone|empty|slots|slot|where|with|without|tag|round|robin|by|label|block|top|bottom|north|east|south|west|left|right|front|back|null|side|redstone|level|levels|pulse|rising|falling))\\b"
+      "match": "(?i:\\b(?:print|transfer|transferf|name|let|set|state|every|global|g|tick|ticks|second|seconds|do|end|if|then|else|for|while|step|in|into|function|returns|return|input|output|from|to|forget|retain|each|except|has|overall|some|one|lone|empty|slots|slot|where|with|without|tag|round|robin|by|label|block|top|bottom|north|east|south|west|left|right|front|back|null|side|redstone|level|levels|pulse|rising|falling))\\b"
     },
     "functions": {
       "name": "entity.name.function.sfml",

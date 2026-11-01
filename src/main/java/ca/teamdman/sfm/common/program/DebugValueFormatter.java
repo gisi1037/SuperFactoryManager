@@ -156,6 +156,14 @@ public final class DebugValueFormatter {
                 text(item.getRegistryId(), true);
                 add(", " + item.getMetadata() + ")");
                 return;
+            case FLUID_KEY:
+                add("FLUID_KEY(");
+                text(
+                    value.asFluidIdentity()
+                        .getId(),
+                    true);
+                add(")");
+                return;
             default:
                 if (depth >= MAX_DEPTH) {
                     add("...");

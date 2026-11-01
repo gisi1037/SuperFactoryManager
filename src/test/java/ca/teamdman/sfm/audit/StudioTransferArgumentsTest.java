@@ -41,6 +41,27 @@ import ca.teamdman.sfml.program_builder.ProgramBuilder;
 
 class StudioTransferArgumentsTest {
 
+    @Test
+    void amountOnlyThirdArgumentKeepsItsSpanAndRoundTripsWithoutASelector() {
+        String clause = "tRaNsFeR( LABEL(\"source\") ,\tLABEL(\"dest\"), 2 + 3 )";
+        Node node = node(clause);
+        StudioFieldDraft draft = draft(node);
+        assertEquals(clause, apply(draft, node));
+        UUID third = row(draft, Role.ITEM);
+        draft.setTransferArgument(third, "7");
+        String changed = apply(draft, node);
+        assertEquals(clause.replace("2 + 3", "7"), changed);
+        assertEquals("7", new StudioFieldDraft(draft).transferArgumentValue(third));
+        assertNull(StudioFieldPicker.transferRowTarget(draft, third));
+        ProgramBuildResult built = new ProgramBuilder(program(changed)).buildWithSyntax();
+        assertTrue(built.isSuccess(), built.getErrorMessage());
+        String visual = BlueprintCompiler.generate(BlueprintCompiler.importText(program(changed)));
+        assertTrue(
+            new ProgramBuilder(visual).build()
+                .isSuccess());
+        assertEquals(clause, node.clause());
+    }
+
     private static final UUID PROJECT = new UUID(20, 1037);
     private static final String TWO = "tRaNsFeR( LABEL(\"source\") ,\t LABEL(\"dest\")  )";
     private static final String UNICODE = "\u03c0\uD83C\uDFED";
@@ -249,6 +270,11 @@ class StudioTransferArgumentsTest {
         assertThrows(IllegalArgumentException.class, () -> apply(draft, node));
         draft.setTransferArgument(row(draft, Role.SOURCE), "LABEL(\"source\")");
         draft.addTransferArgument("1");
+        assertTrue(
+            new ProgramBuilder(program(apply(draft, node))).build()
+                .isSuccess());
+        // With four arguments the third must still be a selector, not another amount.
+        draft.addTransferArgument("2");
         assertThrows(IllegalArgumentException.class, () -> apply(draft, node));
     }
 

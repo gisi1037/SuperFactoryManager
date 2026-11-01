@@ -6,6 +6,12 @@ preserve their source and explain why they require Code.
 
 ## Available now
 
+- Separate fluid API: `transferf(source, destination)` and optional mB amount or
+  fluid selector/exact key, plus `favailable`, `fempty`, `fcount` and `fcontents`.
+  Compiler help, insert snippets and GuideNH cover all forms. Direct Forge tank
+  observations and recovery are regression-tested; pack-specific tank/cover and
+  proxy qualification remains separate.
+
 - Code, Visual and Split views; syntax highlighting, comments, undo/redo,
   searchable insertion helpers, compiler diagnostics, projects and templates.
 - Graph/source navigation by node identity and UTF-16 source spans, including

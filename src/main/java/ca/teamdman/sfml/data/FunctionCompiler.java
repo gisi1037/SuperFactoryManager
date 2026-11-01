@@ -87,6 +87,12 @@ public final class FunctionCompiler {
                 case "ITEM_KEY":
                     type = DataType.ITEM_KEY;
                     break;
+                case "FLUID_KEY":
+                    type = DataType.FLUID_KEY;
+                    break;
+                case "FLUID_CONTENTS":
+                    type = DataType.FLUID_CONTENTS;
+                    break;
                 case "ITEM_CONTENTS":
                     type = DataType.ITEM_CONTENTS;
                     break;

@@ -119,6 +119,8 @@ public final class ItemQueryService implements DataQueries {
         boolean stock, ContentsCollector collector) {
         if (source == null || selector == null || budget == null || access == null)
             throw new IllegalArgumentException("Typed query arguments are required");
+        if (selector.getKind() == ResourceSelector.Kind.FLUID)
+            throw new IllegalArgumentException("Item queries do not accept FLUID selectors");
         World world = context.getWorld();
         if (world == null || context.getNetwork() == null) return Observation.UNAVAILABLE;
         if (world.isRemote) throw new IllegalArgumentException("Typed queries require server-side execution");

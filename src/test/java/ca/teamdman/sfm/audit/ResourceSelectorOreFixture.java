@@ -75,6 +75,14 @@ public final class ResourceSelectorOreFixture {
         new FluidCallbackRecoveryTest().confirmedAutomaticReturnRestoresOnlyKnownRemainderAcrossSaveReload();
     }
 
+    public static void automaticReturnRejectsOwnerChangedDuringHandlerLookup() throws Exception {
+        new FluidCallbackRecoveryTest().automaticReturnRejectsOwnerChangedDuringHandlerLookup();
+    }
+
+    public static void automaticReturnCannotClearReplacedRecordOnSameDisk() throws Exception {
+        new FluidCallbackRecoveryTest().automaticReturnCannotClearReplacedRecordOnSameDisk();
+    }
+
     public static void registerFixtures() throws ReflectiveOperationException {
         configureServerLogging();
         // OreDictionary initializes vanilla recipes: initialize their real inputs before first use.

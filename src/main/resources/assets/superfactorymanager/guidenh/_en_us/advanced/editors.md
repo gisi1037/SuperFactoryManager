@@ -75,7 +75,9 @@ Visual opens only source it can represent without dropping instructions.
 Transfer supports the existing two-, three- and four-argument item actions
 without `INTO`; Print supports one to eight expressions. Studio Fields has
 explicit Transfer suffix controls and Print Add/Remove rows. Typing into an
-existing field never silently changes the overload.
+  existing field selects the overload by type: a third integer limits all items;
+  a third item filter selects matching stock. Four arguments require a filter
+  followed by an integer amount.
 
 Transfer, Print and If predicates support self-contained expressions using
 literals, arithmetic, `LABEL`/`ITEM` constructors and receiver methods such as
@@ -242,8 +244,9 @@ rows do not run. Cancel keeps source untouched. Complex expressions beyond the
 editor's nesting/chain budget remain intact for Text editing. Syntax, type and
 visual-capability checks still apply when you Apply.
 
-**Transfer Fields** always requires Source and Destination. Use **Add item
-filter**, then **Add amount**, to choose a matching item and an explicit count.
+**Transfer Fields** always requires Source and Destination. Use **Add filter /
+count** for an item filter or total integer count. **Add amount** adds a fourth
+argument when the third is an item filter.
 New fields start blank; complete them before Apply. Remove amount before the
 item filter. Source and Destination cannot be removed.
 

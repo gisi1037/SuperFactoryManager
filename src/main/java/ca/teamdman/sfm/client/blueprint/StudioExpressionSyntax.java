@@ -111,6 +111,8 @@ public final class StudioExpressionSyntax {
         String instruction = name.toUpperCase(java.util.Locale.ROOT);
         if (clause && (tokens.size() < 4 || tokens.get(0)
             .getType() != wrapper
+            && !(wrapper == SFMLLexer.TRANSFER && tokens.get(0)
+                .getType() == SFMLLexer.TRANSFERF)
             || tokens.get(1)
                 .getType() != SFMLLexer.LPAREN))
             throw new IllegalArgumentException("Use one " + instruction + " clause");
