@@ -67,6 +67,23 @@ Saved labels can remain after a block is replaced. Check the block now occupying
 that position before restarting. `FORGET` clears active input registrations;
 it does not delete saved labels.
 
+## Inspect the network
+
+Open the manager's **Network** tab. Search names, labels or coordinates, and use
+**All / Items / Fluids** to filter the list. **Refresh** reads cached discovery;
+**Rebuild network** explicitly discovers cable connections again.
+
+The list includes unlabeled connected blocks and saved positions that are now
+missing, unloaded or disconnected. An **unconfirmed** row means discovery is
+stale. A listed inventory does not guarantee that a particular face allows a
+transfer. This view reads metadata, not item contents or fluid amounts.
+
+Use **Next / Previous** to browse. Filtering can produce an empty page with more
+candidates still ahead. Large networks may show a partial index. A page request
+inspects at most 128 candidates and returns up to eight rows; a snapshot lasts
+30 seconds of game time. Refresh after it expires. These limits keep browsing
+bounded without loading chunks or repeatedly scanning the whole network.
+
 ## Labels as typed values
 
 `LABEL("Input chest")` creates a `LABEL_REF` selection for typed queries and

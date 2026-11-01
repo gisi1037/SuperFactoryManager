@@ -55,6 +55,7 @@ public final class ManagerMui2Screen extends ModularScreen implements ProgramEdi
     private Mui2BlueprintEditor visual;
     private final ManagerConsoleBody body;
     private final ManagerDiagnosticsWidget diagnostics;
+    private final ManagerNetworkWidget network;
     private IPanelHandler active;
     private ProgramEditSession pasteSession;
     private String pasteDraft;
@@ -72,7 +73,20 @@ public final class ManagerMui2Screen extends ModularScreen implements ProgramEdi
         diagnostics = new ManagerDiagnosticsWidget(manager, body, body::token);
         body.child(
             diagnostics.widthRel(1f)
-                .heightRel(1f));
+                .heightRel(1f)
+                .setEnabledIf(widget -> body.page() >= 3));
+        network = new ManagerNetworkWidget(
+            manager.xCoord,
+            manager.yCoord,
+            manager.zCoord,
+            body::token,
+            () -> openPage("rebuild", body.token()),
+            () -> openPage("config", body.token()),
+            () -> openPage("discord", body.token()));
+        body.child(
+            network.widthRel(1f)
+                .heightRel(1f)
+                .setEnabledIf(widget -> body.page() == 2));
         pages.put("text", IPanelHandler.simple(mainPanel, (parent, player) -> {
             String recovered = pasteDraft != null ? pasteDraft : takeDraft();
             pasteDraft = null;
@@ -247,6 +261,7 @@ public final class ManagerMui2Screen extends ModularScreen implements ProgramEdi
     @Override
     public void onUpdate() {
         super.onUpdate();
+        network.tick();
         if (active != null && !active.isPanelOpen()) closePage();
         if (text != null) text.tick();
         if (visual != null) visual.tick();
@@ -276,6 +291,7 @@ public final class ManagerMui2Screen extends ModularScreen implements ProgramEdi
         if (text != null) text.cancel();
         if (visual != null) visual.cancel();
         diagnostics.close();
+        network.close();
         if (pasteSession != null) pasteSession.state.cancel();
         super.onClose();
     }
@@ -306,6 +322,10 @@ public final class ManagerMui2Screen extends ModularScreen implements ProgramEdi
 
     public void receiveDebugTerminal(PacketDebugTerminalReply reply) {
         diagnostics.receive(reply);
+    }
+
+    public void receiveNetworkReply(ca.teamdman.sfm.common.net.PacketManagerNetworkReply reply) {
+        network.receive(reply);
     }
 
     private void retainDraft() {

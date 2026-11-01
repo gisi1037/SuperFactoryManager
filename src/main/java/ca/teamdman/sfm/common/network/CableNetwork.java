@@ -81,6 +81,7 @@ public final class CableNetwork {
     private final Set<BlockPos> cables = new HashSet<>();
     private final Set<BlockPos> peripherals = new HashSet<>();
     private long lastScanTime = -1;
+    private long snapshotRevision;
 
     public CableNetwork(World world, BlockPos managerPos) {
         this.world = world;
@@ -127,6 +128,7 @@ public final class CableNetwork {
             updateTopologyFootprint(visited);
         }
         lastScanTime = world.getTotalWorldTime();
+        snapshotRevision++;
         version = version(world);
         // Refresh every 21 ticks on a stable position-based phase instead of aligning
         // every newly loaded manager. The first refresh can be earlier; invalidations
@@ -211,6 +213,25 @@ public final class CableNetwork {
             scan();
         }
         return Collections.unmodifiableSet(peripherals);
+    }
+
+    /** Inspection only: this view never triggers discovery or changes the runtime refresh deadline. */
+    public Set<BlockPos> peekPeripherals() {
+        return Collections.unmodifiableSet(peripherals);
+    }
+
+    public long getLastScanTime() {
+        return lastScanTime;
+    }
+
+    /** Changes only when discovery actually runs, including a same-tick explicit rebuild/scan. */
+    public long getSnapshotRevision() {
+        return snapshotRevision;
+    }
+
+    /** Reports cache freshness without refreshing it or subscribing to native topology events. */
+    public boolean isSnapshotCurrent() {
+        return lastScanTime >= 0 && !needsScan();
     }
 
     public Set<BlockPos> getCables() {

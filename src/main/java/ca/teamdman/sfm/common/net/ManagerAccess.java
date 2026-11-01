@@ -9,6 +9,25 @@ public final class ManagerAccess {
 
     private ManagerAccess() {}
 
+    /** Read-only tools must reject unloaded/foreign-world managers before vanilla container checks can look them up. */
+    public static TileEntityManager getLoaded(EntityPlayer player, int x, int y, int z,
+        ca.teamdman.sfm.common.gui.ManagerControlToken token) {
+        if (!PlayerUiAccess.isLive(player) || !(player.openContainer instanceof ManagerEditContext)) return null;
+        TileEntityManager manager = ((ManagerEditContext) player.openContainer).getManager();
+        if (manager == null || manager.xCoord != x
+            || manager.yCoord != y
+            || manager.zCoord != z
+            || manager.getWorldObj() == null
+            || player.worldObj != manager.getWorldObj()
+            || manager.isInvalid()
+            || !manager.getWorldObj()
+                .blockExists(x, y, z)
+            || manager.getWorldObj()
+                .getTileEntity(x, y, z) != manager)
+            return null;
+        return get(player, x, y, z, token);
+    }
+
     public static TileEntityManager get(EntityPlayer player, int x, int y, int z,
         ca.teamdman.sfm.common.gui.ManagerControlToken token) {
         TileEntityManager manager = get(player, x, y, z);

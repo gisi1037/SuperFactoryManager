@@ -137,3 +137,19 @@ and runtime bounds, but cannot implicitly capture root state or private names.
 Runtime diagnostics preserve library coordinates. Source restoration returns the
 root program only, and linked pretty-printing never flattens private modules.
 Cross-player sharing, module constants and nested imports remain separate work.
+
+## Network inspection and function execution
+
+The Manager Network tab now provides read-only search and item/fluid filters
+over cached discovery and saved label positions, including unlabeled and
+unavailable blocks. Explicit bounded paging never loads chunks, reads stock or
+rebuilds discovery automatically. Snapshot freshness and partial indexes are
+visible; cable label editing remains separate work.
+
+Functions proven unable to WAIT no longer allocate their own continuation
+bookkeeping inside sleeping callers. Direct/transitive WAIT, including WAIT(0),
+retains resumable execution. Configured call/depth/work limits stay enforced;
+reduced allocation charges can allow more work within the allocation allowance.
+An opt-in benchmark separates compilation and actual scheduled execution for
+equivalent inline and immutable-library programs. Synthetic results are not a
+full-pack throughput guarantee. Native/full-pack qualification remains separate.

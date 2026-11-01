@@ -408,6 +408,10 @@ public final class DataRuntime {
 
     /** Check every bound before allocating a fresh, manager-independent call frame. */
     DataRuntime enterFunction(int localCount) {
+        return enterFunction(localCount, true);
+    }
+
+    DataRuntime enterFunction(int localCount, boolean maySuspend) {
         work(1);
         if (budget.calls >= MAX_FUNCTION_CALLS) throw new IllegalArgumentException("Function call budget exhausted");
         if (budget.depth >= MAX_FUNCTION_DEPTH) throw new IllegalArgumentException("Function call depth exceeds 16");
@@ -420,7 +424,7 @@ public final class DataRuntime {
         DataRuntime frame = new DataRuntime(state, localCount, queries, budget);
         frame.functionFrame = true;
         frame.globals = globals; // Only explicit ref arguments may name caller globals in compiled functions.
-        if (isResumable()) frame.enableContinuation(gameTick);
+        if (maySuspend && isResumable()) frame.enableContinuation(gameTick);
         return frame;
     }
 
@@ -436,9 +440,14 @@ public final class DataRuntime {
     }
 
     DataRuntime functionFrame(Object call, int localCount, DataValue[] arguments, DataReference[] refs) {
+        return functionFrame(call, localCount, arguments, refs, true);
+    }
+
+    DataRuntime functionFrame(Object call, int localCount, DataValue[] arguments, DataReference[] refs,
+        boolean maySuspend) {
         DataRuntime frame = isResumable() ? continuation.call(call) : null;
         if (frame == null) {
-            frame = enterFunction(localCount);
+            frame = enterFunction(localCount, maySuspend);
             try {
                 for (int i = 0; i < arguments.length; i++) {
                     if (refs != null && refs[i] != null) frame.bindReference(i, refs[i]);

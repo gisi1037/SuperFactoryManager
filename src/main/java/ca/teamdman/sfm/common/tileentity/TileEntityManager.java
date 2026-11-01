@@ -264,6 +264,11 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     private CableNetwork cableNetwork = null;
 
+    /** Read-only inspection must not construct, rebuild or refresh the runtime discovery cache. */
+    public CableNetwork getCachedCableNetwork() {
+        return cableNetwork;
+    }
+
     // Logging & Diagnostics
     private LogLevel logLevel = LogLevel.OFF;
     private final List<LogEntry> logs = new ArrayList<>();

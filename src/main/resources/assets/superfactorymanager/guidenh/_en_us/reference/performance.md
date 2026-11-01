@@ -158,3 +158,10 @@ of building and sorting intermediate collections. These reduce allocation while
 preserving fresh reads and validation of every selected provider. Count/empty
 queries still inspect their selected stock, including later-provider errors.
 Fluid tank snapshots also avoid oversized temporary lists for small tank views.
+
+Compiled functions proven unable to WAIT execute without their own suspension
+bookkeeping, even when the caller can sleep. Functions that can directly or
+indirectly WAIT keep resumable frames, including WAIT(0). Call, depth and work
+limits remain enforced. Fewer continuation allocations also consume less of the
+allocation allowance; an allocation-limited program may now fit more useful work.
+This is not a guarantee about whole-pack tick time.

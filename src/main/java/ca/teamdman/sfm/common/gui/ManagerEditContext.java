@@ -3,6 +3,7 @@ package ca.teamdman.sfm.common.gui;
 import java.util.UUID;
 
 import ca.teamdman.sfm.common.net.PacketProgramEditReply;
+import ca.teamdman.sfm.common.program.ManagerNetworkBrowser;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 
 /** Editing authority belongs to the live server container, independently of its GUI framework. */
@@ -11,6 +12,12 @@ public interface ManagerEditContext {
     TileEntityManager getManager();
 
     State getEditState();
+
+    default ManagerNetworkBrowser.Session getNetworkBrowserSession() {
+        State state = getEditState();
+        if (state.networkBrowser == null) state.networkBrowser = new ManagerNetworkBrowser.Session();
+        return state.networkBrowser;
+    }
 
     default UUID getEditSessionId() {
         return getEditState().sessionId;
@@ -35,5 +42,6 @@ public interface ManagerEditContext {
 
         private final UUID sessionId = UUID.randomUUID();
         private PacketProgramEditReply reply;
+        private ManagerNetworkBrowser.Session networkBrowser;
     }
 }

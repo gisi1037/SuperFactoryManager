@@ -34,6 +34,34 @@ import io.netty.buffer.Unpooled;
 class AuthoringAuthorityTest {
 
     @Test
+    void metadataAuthorityRejectsUnloadedForeignAndReplacedManagersBeforeContainerLookup() throws Exception {
+        Fixture fixture = new Fixture();
+        TileEntityManager manager = RecoveryFixtures.manager(fixture);
+        FakePlayer player = allocate(FakePlayer.class);
+        player.worldObj = fixture.world;
+        player.inventory = new InventoryPlayer(player);
+        player.posX = manager.xCoord + .5;
+        player.posY = manager.yCoord + .5;
+        player.posZ = manager.zCoord + .5;
+        ContainerManager window = new ContainerManager(player.inventory, manager);
+        window.windowId = 42;
+        player.openContainer = window;
+        ManagerControlToken token = new ManagerControlToken(window.getEditSessionId(), manager.getDiskGeneration(), 42);
+        assertSame(manager, ManagerAccess.getLoaded(player, manager.xCoord, manager.yCoord, manager.zCoord, token));
+        fixture.world.unloaded.add(MANAGER);
+        assertNull(ManagerAccess.getLoaded(player, manager.xCoord, manager.yCoord, manager.zCoord, token));
+        fixture.world.unloaded.clear();
+        fixture.world.tiles.remove(MANAGER);
+        assertNull(ManagerAccess.getLoaded(player, manager.xCoord, manager.yCoord, manager.zCoord, token));
+        fixture.world.tiles.put(MANAGER, manager);
+        player.worldObj = new Fixture().world;
+        assertNull(ManagerAccess.getLoaded(player, manager.xCoord, manager.yCoord, manager.zCoord, token));
+        player.worldObj = fixture.world;
+        manager.invalidate();
+        assertNull(ManagerAccess.getLoaded(player, manager.xCoord, manager.yCoord, manager.zCoord, token));
+    }
+
+    @Test
     void queuedLoggingAuthorityRejectsReplacementDiskReopenedWindowAndDeadPlayer() throws Exception {
         Fixture fixture = new Fixture();
         TileEntityManager manager = RecoveryFixtures.manager(fixture);

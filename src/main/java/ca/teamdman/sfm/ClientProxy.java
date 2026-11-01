@@ -122,6 +122,17 @@ public class ClientProxy extends CommonProxy {
     }
 
     @Override
+    public void receiveManagerNetworkReply(final ca.teamdman.sfm.common.net.PacketManagerNetworkReply reply) {
+        Minecraft.getMinecraft()
+            .func_152344_a(() -> {
+                com.cleanroommc.modularui.screen.ModularScreen screen = com.cleanroommc.modularui.screen.ModularScreen
+                    .getCurrent();
+                if (screen instanceof ca.teamdman.sfm.integration.mui2.ManagerMui2Screen)
+                    ((ca.teamdman.sfm.integration.mui2.ManagerMui2Screen) screen).receiveNetworkReply(reply);
+            });
+    }
+
+    @Override
     public void receiveDebugTerminal(final ca.teamdman.sfm.common.net.PacketDebugTerminalReply reply) {
         Minecraft.getMinecraft()
             .func_152344_a(() -> {

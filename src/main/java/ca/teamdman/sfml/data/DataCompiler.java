@@ -163,6 +163,10 @@ public final class DataCompiler {
         Set<CompiledFunction> complete = new HashSet<>();
         Set<CompiledFunction> visiting = new HashSet<>();
         for (CompiledFunction function : functions.values()) validateFunction(function, complete, visiting);
+        // Publish the proof only after every body and the complete transitive graph have validated.
+        // Partially assembled/manual plans keep their conservative default.
+        for (CompiledFunction function : functions.values()) if (!function.isSealed()) return;
+        for (CompiledFunction function : functions.values()) function.finalizeSuspension();
     }
 
     private void validateFunction(CompiledFunction function, Set<CompiledFunction> complete,

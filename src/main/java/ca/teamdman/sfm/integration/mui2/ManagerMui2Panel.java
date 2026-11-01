@@ -20,7 +20,6 @@ import com.cleanroommc.modularui.widgets.SlotGroupWidget;
 import com.cleanroommc.modularui.widgets.TextWidget;
 import com.cleanroommc.modularui.widgets.slot.ItemSlot;
 
-import ca.teamdman.sfm.Config;
 import ca.teamdman.sfm.SuperFactoryManager;
 import ca.teamdman.sfm.common.gui.ManagerControlToken;
 import ca.teamdman.sfm.common.gui.ManagerEditContext;
@@ -125,7 +124,7 @@ public final class ManagerMui2Panel {
                 .pos(8, ManagerMachineLayout.CONTENT_TOP)
                 .widthRelOffset(1f, -16)
                 .bottom(ManagerMachineLayout.INVENTORY_RESERVE)
-                .setEnabledIf(widget -> body.page() >= 3));
+                .setEnabledIf(widget -> body.page() >= 2));
         IPanelHandler[] expanded = { null };
         expanded[0] = IPanelHandler.simple(panel, (parent, player) -> {
             ModularPanel detail = new ModularPanel("sfm_manager_activity") {
@@ -275,30 +274,6 @@ public final class ManagerMui2Panel {
                     75 + i / 4 * 18,
                     72).setEnabledIf(widget -> body.page() == 1));
         }
-        panel.child(
-            IKey.str("Live network browser: planned")
-                .asWidget()
-                .color(0xffb7bcc5)
-                .pos(8, 64)
-                .height(12)
-                .setEnabledIf(widget -> body.page() == 2));
-        panel.child(
-            IKey.str("Saved labels do not prove loaded inventory access.")
-                .asWidget()
-                .color(0xffb7bcc5)
-                .pos(8, 79)
-                .height(10)
-                .scale(.75f)
-                .setEnabledIf(widget -> body.page() == 2));
-        panel.child(
-            button(manager, syncManager, controlToken, "rebuild", () -> "Rebuild network", diskPresent, 8, 96, 104)
-                .setEnabledIf(widget -> body.page() == 2));
-        panel.child(
-            button(manager, syncManager, controlToken, "config", () -> "Server limits", () -> true, 115, 96, 90)
-                .setEnabledIf(widget -> body.page() == 2));
-        if (Config.showDiscordButton) panel.child(
-            button(manager, syncManager, controlToken, "discord", () -> "Discord", () -> true, 208, 96, 70)
-                .setEnabledIf(widget -> body.page() == 2));
         panel.child(
             new TextWidget<>("Inventory").leftRel(.5f)
                 .bottom(85)

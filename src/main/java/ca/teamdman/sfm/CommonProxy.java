@@ -82,6 +82,8 @@ public class CommonProxy {
 
     public void receiveManagerLogs(ca.teamdman.sfm.common.net.PacketManagerLogs reply) {}
 
+    public void receiveManagerNetworkReply(ca.teamdman.sfm.common.net.PacketManagerNetworkReply reply) {}
+
     public void receiveDebugTerminal(ca.teamdman.sfm.common.net.PacketDebugTerminalReply reply) {}
 
     public void receiveStationReply(ca.teamdman.sfm.common.net.PacketStationReply reply) {}

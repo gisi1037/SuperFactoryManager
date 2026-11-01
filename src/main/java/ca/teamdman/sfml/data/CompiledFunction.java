@@ -69,6 +69,8 @@ public final class CompiledFunction {
     private Body body;
     private int localCount;
     private boolean mayWait;
+    // A manually assembled or not-yet-validated plan always takes the conservative path.
+    private boolean maySuspend = true;
     private boolean mayMutateReferences;
 
     void markWait() {
@@ -81,6 +83,19 @@ public final class CompiledFunction {
 
     public boolean mayWait() {
         return mayWait;
+    }
+
+    public boolean maySuspend() {
+        return maySuspend;
+    }
+
+    boolean isSealed() {
+        return body != null;
+    }
+
+    void finalizeSuspension() {
+        if (body == null) throw new IllegalStateException("Function is not sealed");
+        maySuspend = mayWait;
     }
 
     void inheritWait() {
@@ -192,8 +207,7 @@ public final class CompiledFunction {
     }
 
     DataValue invoke(DataRuntime caller, DataValue[] arguments, DataReference[] references, Object call) {
-        DataRuntime frame = references == null ? caller.functionFrame(call, localCount, arguments)
-            : caller.functionFrame(call, localCount, arguments, references);
+        DataRuntime frame = caller.functionFrame(call, localCount, arguments, references, maySuspend);
         boolean sleeping = false;
         try {
             DataValue value = body.execute(frame);

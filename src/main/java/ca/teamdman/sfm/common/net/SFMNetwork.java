@@ -38,5 +38,15 @@ public final class SFMNetwork {
             Side.SERVER);
         WRAPPER
             .registerMessage(PacketStationDebugReply.Handler.class, PacketStationDebugReply.class, id++, Side.CLIENT);
+        WRAPPER.registerMessage(
+            PacketManagerNetworkRequest.Handler.class,
+            PacketManagerNetworkRequest.class,
+            id++,
+            Side.SERVER);
+        WRAPPER.registerMessage(
+            PacketManagerNetworkReply.Handler.class,
+            PacketManagerNetworkReply.class,
+            id++,
+            Side.CLIENT);
     }
 }
