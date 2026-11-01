@@ -217,6 +217,20 @@
     "body": "[${1:1}, ${2:2}, ${3:3}]$0",
     "description": "Insert a fixed array of values with matching types."
   },
+  "Dynamic array complete program": {
+    "prefix": "dynamicarray",
+    "body": [
+      "every ${1:20} ticks {",
+      "  let ${2:values} = array(\"${3:integer}\");",
+      "  push(ref ${2:values}, ${4:1});",
+      "  let ${5:last} = pop(ref ${2:values});",
+      "  let ${6:seeded} = array([${5:last}, ${7:2}]);",
+      "  print(${5:last}, len(${2:values}), len(${6:seeded}));",
+      "  $0",
+      "}"
+    ],
+    "description": "Complete RAM-only dynamic-array example with typed empty construction, PUSH/POP REF effects and explicit fixed-array conversion."
+  },
   "Struct literal": {
     "prefix": "struct",
     "body": "{${1:count}: ${2:0}, ${3:ready}: ${4:false}}$0",

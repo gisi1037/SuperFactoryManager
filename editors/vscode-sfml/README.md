@@ -22,7 +22,7 @@ Install the packaged extension from the repository's `editors/vscode-sfml`
 directory:
 
 ```sh
-code --install-extension dist/sfml-language-0.3.0.vsix
+code --install-extension dist/sfml-language-0.3.2.vsix
 ```
 
 You can also select **Extensions: Install from VSIX…** in the Command Palette and
@@ -34,7 +34,7 @@ choose that file. Reload VS Code if prompted.
   strings, comments, types, function calls and operators, including bitwise
   operators and `!=`.
 - Bracket and quote pairing, `--` line comments, indentation and block folding.
-- 52 lowercase snippets with editable tab stops. Type a prefix and select the
+- 53 lowercase snippets with editable tab stops. Type a prefix and select the
   snippet from completion, or use **Insert Snippet**. Tab moves between fields.
 - A dedicated variable color for plain names and optional `$names`, with dark/light/high-contrast defaults.
   Comments and string contents are excluded. Set `sfml.variableHighlighting.enabled`
@@ -55,7 +55,8 @@ Useful prefixes include `every`, `everyglobal`, `pulse`, `redstonetrigger`,
 `transfer4`, `transferamount`, `transferf2`, `transferf3`, `transferf4`,
 `transferfamount`, `into` and `pedestals`.
 `side` and `slots` append restrictions to a typed label handle; `array`, `struct`
-and `string` insert data literals.
+and `string` insert data literals. `dynamicarray` inserts one complete program
+using typed empty construction, fixed-array conversion, `push` and `pop`.
 
 Snippets are building blocks: insert declarations, expressions and statements in
 their appropriate contexts and replace example labels with labels from your
@@ -85,7 +86,7 @@ receive STATE references explicitly from a trigger or void procedure rather than
 acquiring them implicitly. Native actions still belong in triggers or void
 procedures. Disabled PRINT skips argument evaluation, including any REF calls.
 
-Function return types can also be fixed arrays or structs. For example,
+Function parameter and return types can also be fixed arrays, dynamic arrays or structs. For example,
 `label_ref[2]` means exactly two label handles:
 
 ```sfml
@@ -101,12 +102,73 @@ every 20 ticks {
 }
 ```
 
-Use `functionlabels` to insert this function shape. A different returned array
-length is a type error; unsized `label_ref[]` is not a supported type. Struct
-returns declare their fields, such as
+Use `functionlabels` to insert this fixed-array function shape. A different
+returned fixed-array length is a type error. `label_ref[]` declares a dynamic
+array whose length belongs to its value; `integer[][2]` is a dynamic array of
+fixed pairs, while `integer[2][]` is two dynamic integer arrays. Neither shape
+implicitly converts to the other. Struct returns declare their fields, such as
 `{ready: boolean, amount: integer} inspect() { return {ready: true, amount: 0}; }`.
 Captured `item_contents` and `fluid_contents` are native snapshot sequences,
 rather than fixed arrays; both support indexing, `len(...)` and `for ... in ...`.
+
+Dynamic arrays have one exact element type, including nested array/struct types.
+`array("integer")` creates a typed empty `integer[]`; the quoted type is a
+compile-time literal of at most 1024 characters and depth 32, and cannot be `void`.
+`array([1, 2])` explicitly converts a fixed array to a dynamic value. `array(...)`
+also copies dynamic arrays and captured contents/location sequences, preserving
+their exact element type. An untyped `[]` remains invalid. Function signatures can use `integer[]`, including
+`ref integer[] values` for a writable parameter.
+
+`push(ref values, value)` is a standalone `void` operation. `pop(ref values)`
+removes and returns the last element, and faults when empty. Both require an
+explicit writable reference to a dynamic array. The length is bounded to 256
+outer entries and the whole retained value to 4096 logical cells, including
+nested children; work, allocation and retained text/opaque payload budgets also
+apply. All values containing dynamic arrays are RAM-only and cannot be `state`.
+Arrays retain immutable value-copy semantics: mutations install an outer
+replacement, while ordinary copies retain their previous contents. Push/pop,
+extend, insert and removeAt walk the replacement's outer entries in O(n).
+
+The remaining collection helpers use the same element types and work limits:
+
+| Call | Result and behavior |
+| --- | --- |
+| `extend(ref values, sequence)` | `void`; append a same-element fixed/dynamic array or captured native sequence in order. An empty source changes nothing. |
+| `insert(ref values, index, item)` | `void`; insert before index `0..len(values)`, inclusive. |
+| `removeAt(ref values, index)` | Return the removed element; index must be `0..len(values)-1`. |
+| `clear(ref values)` | `void`; preserve the element type and remove all entries. Clearing an empty array changes nothing. |
+| `peek(values)` | Return the last element without mutation; empty sequences fault. |
+| `contains(values, item)` | Return whether an exact typed element deeply matches. |
+| `indexOf(values, item)` | Return the first matching zero-based index, or `-1`. |
+
+Mutators require dynamic arrays and explicit writable `ref` targets. The three
+readers accept fixed/dynamic arrays and captured native sequences by value.
+Membership compares nested values, label names plus side/slot restrictions, and
+exact item/fluid NBT keys. Its deep comparisons consume shared work limits; this
+does not add collection equality to `==` or `!=`. Empty `extend` and `clear`
+operations do not change the root's structural epoch.
+
+The `dynamicarray` snippet inserts this complete program:
+
+```sfml
+every 20 ticks {
+  let values = array("integer");
+  push(ref values, 1);
+  let last = pop(ref values);
+  let seeded = array([last, 2]);
+  print(last, len(values), len(seeded));
+}
+```
+
+Whole-array references remain valid across replacement. Captured indexed
+references and assignments can become stale after structural replacement,
+including a same-length replacement, an ABA change (change away and back), or a
+direct whole-root rebind of a value containing dynamic arrays. Invalidation is
+conservative across the root, so nested or sibling indexed references may also
+fault. A successful writer refreshes its own captured reference. RHS effects
+already committed before a stale assignment fault are not rolled back. As with
+other REF effects, collection mutations cannot run in program-wide LET initializers or
+named-redstone subscription expressions.
 
 All keywords accept upper, lower or mixed case. Variables, field names, labels,
 item IDs and OreDictionary names retain their own case-sensitive identities.
@@ -196,7 +258,7 @@ npm test
 npm run package
 ```
 
-The package is written to `dist/sfml-language-0.3.0.vsix`. Open this extension
+The package is written to `dist/sfml-language-0.3.2.vsix`. Open this extension
 directory in VS Code and press **F5** to try it in an Extension Development Host.
 The runtime has no external JavaScript dependencies and performs no program
 execution or network requests.

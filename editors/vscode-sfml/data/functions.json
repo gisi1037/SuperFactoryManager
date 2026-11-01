@@ -22,6 +22,77 @@
       "description": "Construct an OreDictionary filter from one exact, case-sensitive quoted source literal of 1–256 ASCII letters, digits or underscores. Registered alternatives and wildcard metadata registrations are supported. Unknown names match nothing and do not register a new ore category. No ore: prefix, pattern or computed string is accepted. This is a RESOURCE_SELECTOR, not an exact ITEM_KEY; the constructor name ignores case.",
       "example": "let iron = ore(\"ingotIron\")"
     },
+    "array": {
+      "signatures": [
+        "array(\"type literal\") -> T[]",
+        "array(values: sequence<T>) -> T[]"
+      ],
+      "description": "Construct a RAM-only dynamic array with one exact element type. A quoted compile-time type literal such as array(\"integer\") creates a typed empty integer[]; fixed/dynamic dimensions and struct element types are supported, but VOID is not. The literal is limited to 1024 characters and type depth 32. Any sequence value can be explicitly copied: fixed/dynamic arrays or captured ITEM_CONTENTS/ITEM_LOCATIONS/FLUID_CONTENTS, preserving the exact element type. No implicit fixed/dynamic conversion is performed, and an untyped [] remains invalid. Dynamic length is a value property, with at most 256 outer entries and 4096 actual retained logical cells including nested children. Dynamic-containing values cannot be persistent STATE. Values are immutable copies; construction/replacement walks the outer entries in O(n), under shared work/allocation and retained payload limits. Constructor name ignores case.",
+      "example": "let values = array(\"integer\")\nlet seeded = array([1, 2])"
+    },
+    "push": {
+      "signatures": [
+        "push(ref values: T[], value: T) -> void"
+      ],
+      "description": "Append one exact-type element through an explicit writable REF dynamic-array target. This VOID operation is a standalone statement, not a value expression. It installs an immutable replacement in O(n) outer entries; ordinary value copies keep their prior contents. Maximum length is 256 and actual retained logical cells are limited to 4096, with shared work/allocation and retained payload limits. Fixed arrays and STATE are not accepted; the element type never changes. Whole-array references stay valid, but captured indexed references/assignments can become stale after structural replacement, including a same-length or ABA replacement or whole-root rebind. Invalidation is conservative across the dynamic-containing root, so sibling indexed references may also fault; a successful writer refreshes itself. Earlier RHS effects are not rolled back by a stale assignment fault. REF effects cannot run in program-wide LET initializers or named-redstone subscription expressions. Operation name ignores case.",
+      "example": "let values = array(\"integer\")\npush(ref values, 7)"
+    },
+    "pop": {
+      "signatures": [
+        "pop(ref values: T[]) -> T"
+      ],
+      "description": "Remove and return the final element through an explicit writable REF dynamic-array target. An empty array faults. The result has the array's exact element type; fixed arrays and STATE are not accepted. The operation installs an immutable replacement in O(n) outer entries, leaving ordinary value copies unchanged, under the 256-entry/4096-actual-cell and shared work/allocation/retained payload limits. Whole-array references remain valid. Captured indexed references or assignments can fault after structural replacement, including same-length replacement, ABA changes and whole-root rebinds; conservative root-wide invalidation can affect siblings too. A successful writer refreshes itself. A stale assignment fault does not roll back RHS effects already committed. REF effects cannot run in program-wide LET initializers or named-redstone subscription expressions. Operation name ignores case.",
+      "example": "let values = array([1, 2])\nlet last = pop(ref values)"
+    },
+    "extend": {
+      "signatures": [
+        "extend(ref values: T[], sequence: sequence<T>) -> void"
+      ],
+      "description": "Append every captured source entry in order through an explicit writable REF dynamic-array target. The source may be a fixed/dynamic array or native contents/location sequence with exactly the same element type. This VOID operation is a standalone statement. An empty source is a no-op and does not change the structural epoch. Otherwise it installs an immutable O(n) outer replacement under the 256-entry/4096-actual-cell and shared work/allocation/retained payload limits; ordinary copies remain unchanged. Structural replacement can invalidate captured indexed references across the dynamic-containing root, including siblings and ABA/rebind changes; whole-array refs stay valid and a successful writer refreshes itself. A stale assignment fault does not roll back committed RHS effects. REF effects cannot run in program-wide LET initializers or named-redstone subscription expressions. Operation name ignores case.",
+      "example": "let values = array([1])\nextend(ref values, [2, 3])"
+    },
+    "insert": {
+      "signatures": [
+        "insert(ref values: T[], index: integer, value: T) -> void"
+      ],
+      "description": "Insert one exact-type element before a zero-based index through an explicit writable REF dynamic-array target. The index must be in 0..len(values), inclusive; insertion at len(values) appends. This VOID operation is a standalone statement. It installs an immutable O(n) outer replacement, shifting later entries, under the 256-entry/4096-actual-cell and shared work/allocation/retained payload limits. Ordinary copies remain unchanged. Structural replacement can invalidate indexed references across the root, including siblings and same-length/ABA/rebind changes; whole-array refs remain valid and a successful writer refreshes itself. Stale assignment faults do not undo committed RHS effects. REF effects cannot run in program-wide LET initializers or named-redstone subscription expressions. Operation name ignores case.",
+      "example": "let values = array([1, 3])\ninsert(ref values, 1, 2)"
+    },
+    "removeat": {
+      "signatures": [
+        "removeAt(ref values: T[], index: integer) -> T"
+      ],
+      "description": "Remove and return the exact-type element at a zero-based index through an explicit writable REF dynamic-array target. The index must be in 0..len(values)-1; empty arrays and negative/out-of-range indices fault. It installs an immutable O(n) outer replacement, shifting later entries, under shared work/allocation and the normal 256-entry/4096-actual-cell/retained payload limits. Ordinary copies keep their prior contents. Structural replacement can invalidate indexed references across the root, including siblings and same-length/ABA/rebind changes; whole-array refs remain valid and a successful writer refreshes itself. A stale assignment fault does not undo committed RHS effects. REF effects cannot run in program-wide LET initializers or named-redstone subscription expressions. Operation name ignores case.",
+      "example": "let values = array([1, 2, 3])\nlet removed = removeAt(ref values, 1)"
+    },
+    "clear": {
+      "signatures": [
+        "clear(ref values: T[]) -> void"
+      ],
+      "description": "Replace a writable REF dynamic array with a typed empty value, preserving its exact element type. This VOID operation is a standalone statement. Clearing an empty array is a no-op and does not change the structural epoch. Ordinary copies retain their contents; replacement uses immutable value semantics and shared work/allocation/retained payload limits. Structural replacement can invalidate captured indexed references across the dynamic-containing root, including siblings and same-length/ABA/rebind changes; whole-array refs stay valid and a successful writer refreshes itself. A stale assignment fault does not roll back committed RHS effects. REF effects cannot run in program-wide LET initializers or named-redstone subscription expressions. Operation name ignores case.",
+      "example": "let values = array([1, 2])\nclear(ref values)"
+    },
+    "peek": {
+      "signatures": [
+        "peek(values: sequence<T>) -> T"
+      ],
+      "description": "Return the final captured element without changing the sequence. Accepts fixed/dynamic arrays and native ITEM_CONTENTS/ITEM_LOCATIONS/FLUID_CONTENTS sequences by value, not REF, and returns their exact element type. An empty sequence faults. Does not rescan inventories or install a structural replacement. Shared expression work limits apply. Operation name ignores case.",
+      "example": "let values = [1, 2]\nlet last = peek(values)"
+    },
+    "contains": {
+      "signatures": [
+        "contains(values: sequence<T>, item: T) -> boolean"
+      ],
+      "description": "Return whether any captured sequence element deeply matches an item of exactly the declared element type. Accepts fixed/dynamic arrays and native ITEM_CONTENTS/ITEM_LOCATIONS/FLUID_CONTENTS by value, not REF. Empty sequences return false. Membership compares exact typed values: case-sensitive strings, complete label names/side/slot restrictions, selector kinds and exact item/fluid NBT keys, with recursive array/struct contents. The scan and deep comparisons consume shared work limits without rescanning inventories. This membership rule does not add collection equality to == or !=. Operation name ignores case.",
+      "example": "let values = [{count: 1}, {count: 2}]\nprint(contains(values, {count: 2}))"
+    },
+    "indexof": {
+      "signatures": [
+        "indexOf(values: sequence<T>, item: T) -> integer"
+      ],
+      "description": "Return the first zero-based captured index whose element deeply matches an item of exactly the declared element type, or -1 if absent, including an empty sequence. Accepts fixed/dynamic arrays and native ITEM_CONTENTS/ITEM_LOCATIONS/FLUID_CONTENTS by value, not REF. Matching uses exact typed values, including case-sensitive strings, complete label side/slot restrictions, selector kinds, exact item/fluid NBT keys and recursive array/struct contents. The scan and comparisons consume shared work limits without rescanning inventories. This membership rule does not add collection equality to == or !=. Operation name ignores case.",
+      "example": "let values = [4, 7, 4]\nprint(indexOf(values, 4))"
+    },
     "min": {
       "signatures": [
         "min(a: integer, b: integer) -> integer"
@@ -53,12 +124,13 @@
     "len": {
       "signatures": [
         "len(values: T[N]) -> integer",
+        "len(values: T[]) -> integer",
         "len(text: string) -> integer",
         "len(contents: item_contents) -> integer",
         "len(locations: item_locations) -> integer",
         "len(contents: fluid_contents) -> integer"
       ],
-      "description": "Return the outer entry count of a fixed array or a captured native ITEM_CONTENTS/ITEM_LOCATIONS/FLUID_CONTENTS sequence, including zero. For a string, return its Unicode code-point count rather than UTF-8 bytes or displayed grapheme clusters. Does not rescan inventories. The built-in name ignores case; an exact-name player function takes precedence.",
+      "description": "Return the outer entry count of a fixed or dynamic array or a captured native ITEM_CONTENTS/ITEM_LOCATIONS/FLUID_CONTENTS sequence, including zero. A dynamic array's logical length belongs to its value, not its T[] type. For a string, return its Unicode code-point count rather than UTF-8 bytes or displayed grapheme clusters. Does not rescan inventories. The built-in name ignores case; an exact-name player function takes precedence.",
       "example": "let stock = label(\"inputs\").contents()\nif (len(stock) > 0) then\n  print(stock[0].total)\nend"
     },
     "total": {

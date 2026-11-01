@@ -1,10 +1,7 @@
 package ca.teamdman.sfml.data;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.function.Function;
 
 import org.antlr.v4.runtime.ParserRuleContext;
@@ -73,66 +70,7 @@ public final class FunctionCompiler {
     }
 
     private DataType type(SFMLParser.DataTypeContext context) {
-        DataType type;
-        if (context.dataName() != null) {
-            String name = context.dataName()
-                .getText()
-                .toUpperCase(Locale.ROOT);
-            switch (name) {
-                case "VOID":
-                    type = DataType.VOID;
-                    break;
-                case "INTEGER":
-                    type = DataType.INTEGER;
-                    break;
-                case "BOOLEAN":
-                    type = DataType.BOOLEAN;
-                    break;
-                case "STRING":
-                    type = DataType.STRING;
-                    break;
-                case "LABEL_REF":
-                    type = DataType.LABEL_REF;
-                    break;
-                case "RESOURCE_SELECTOR":
-                    type = DataType.RESOURCE_SELECTOR;
-                    break;
-                case "ITEM_KEY":
-                    type = DataType.ITEM_KEY;
-                    break;
-                case "FLUID_KEY":
-                    type = DataType.FLUID_KEY;
-                    break;
-                case "FLUID_CONTENTS":
-                    type = DataType.FLUID_CONTENTS;
-                    break;
-                case "ITEM_CONTENTS":
-                    type = DataType.ITEM_CONTENTS;
-                    break;
-                case "ITEM_LOCATIONS":
-                    type = DataType.ITEM_LOCATIONS;
-                    break;
-                default:
-                    throw fail(context, "Unknown function type: " + name);
-            }
-        } else {
-            Map<String, DataType> fields = new LinkedHashMap<>();
-            for (SFMLParser.TypeFieldContext field : context.typeField()) {
-                String name = field.dataName()
-                    .getText();
-                if (fields.put(name, type(field.dataType())) != null)
-                    throw fail(field, "Duplicate type field: " + name);
-            }
-            type = DataType.struct(fields);
-        }
-        // Dimensions are written outermost first: INTEGER[3][2] is three rows of two values.
-        for (int i = context.NUMBER()
-            .size() - 1; i >= 0; i--) type = DataType.array(
-                type,
-                Integer.parseInt(
-                    context.NUMBER(i)
-                        .getText()));
-        return type;
+        return DataTypeParser.fromSyntax(context);
     }
 
     private Body block(SFMLParser.BlockContext context) {

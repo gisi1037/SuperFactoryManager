@@ -150,6 +150,10 @@ public final class VisualCapabilityAnalyzer {
             case "TOTAL":
             case "STOCK":
             case "SHORTAGE":
+            case "ARRAY":
+            case "PEEK":
+            case "CONTAINS":
+            case "INDEXOF":
                 return false;
             default:
                 return true;

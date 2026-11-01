@@ -8,6 +8,7 @@ public final class ProgramGlobals implements StateAccess {
     public static final int MAX_GLOBALS = 256, MAX_CELLS = 4096, MAX_CHARACTERS = 16384, MAX_OPAQUE_BYTES = 262144;
     private final DataType[] types;
     private final DataValue[] values;
+    private long[] generations;
     private int cells, characters, opaqueBytes;
     private boolean initialized;
 
@@ -39,6 +40,19 @@ public final class ProgramGlobals implements StateAccess {
 
     @Override
     public void write(int slot, DataValue value) {
+        write(
+            slot,
+            value,
+            value != null && value.getType()
+                .containsDynamicArray());
+    }
+
+    public long generation(int slot) {
+        if (slot < 0 || slot >= values.length) throw new IllegalArgumentException("Invalid program global slot");
+        return generations == null ? 0 : generations[slot];
+    }
+
+    public void write(int slot, DataValue value, boolean structural) {
         if (value == null || !types[slot].equals(value.getType()))
             throw new IllegalArgumentException("Program global type/shape mismatch");
         if (value.getRetainedCellCount() > MAX_CELLS || value.getRetainedCharacters() > MAX_CHARACTERS
@@ -50,10 +64,16 @@ public final class ProgramGlobals implements StateAccess {
             + value.getRetainedCharacters();
         int nextOpaque = opaqueBytes - (old == null ? 0 : old.getRetainedOpaqueBytes())
             + value.getRetainedOpaqueBytes();
+        boolean createGenerations = generations == null && (structural || types[slot].containsDynamicArray());
+        if (createGenerations) nextOpaque = Math.addExact(nextOpaque, 16 + values.length * 8);
+        long nextGeneration = structural ? Math.addExact(generation(slot), 1L) : generation(slot);
         if (nextCells > MAX_CELLS || nextCharacters > MAX_CHARACTERS || nextOpaque > MAX_OPAQUE_BYTES)
             throw new IllegalArgumentException("Program global retained-value budget exceeded");
         // Publish only after every bound passed. Immutable shared values require no deep copy.
+        long[] nextGenerations = createGenerations ? new long[values.length] : generations;
         values[slot] = value;
+        generations = nextGenerations;
+        if (structural) generations[slot] = nextGeneration;
         cells = nextCells;
         characters = nextCharacters;
         opaqueBytes = nextOpaque;

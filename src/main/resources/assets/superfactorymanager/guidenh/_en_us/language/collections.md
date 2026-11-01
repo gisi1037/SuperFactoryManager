@@ -10,7 +10,8 @@ updated: "2026-10-30"
 
 # Arrays and structs
 
-Arrays hold a fixed number of values with one identical type and shape. Structs group values under fixed field names. Combine them to describe batches, settings or jobs.
+Array literals hold a fixed number of values with one identical type and shape.
+Explicit dynamic arrays can grow and shrink in RAM; see below. Structs group values under fixed field names. Combine them to describe batches, settings or jobs.
 
 ```sfml
 NAME "Independent collection values"
@@ -69,3 +70,76 @@ A record such as `{item: "minecraft:iron_ingot", count: 8}` is ordinary data. Ed
 Typed query handles and snapshots are also immutable. They may be held in locals, passed to functions and nested inside local collections. Collections containing any handle or snapshot cannot be persistent `STATE`. Use the supported query methods to inspect them; their types and capabilities differ from ordinary arrays and structs.
 
 Next: [Strings](strings.md). Related: [Variables and state](variables.md), [Loops](loops.md) and [Typed queries](/automation/queries.md).
+
+
+## Dynamic arrays (RAM only)
+
+`integer[]` is a growable integer array; `integer[3]` still means exactly three
+integers. Construct an empty array explicitly with `array("integer")`,
+`array("label_ref")`, or another constant type string. `array(sequence)` converts
+an existing fixed array, dynamic array or contents snapshot explicitly. Bare `[]`
+still cannot infer an element type. No implicit fixed/dynamic conversion occurs.
+
+```sfml
+integer[] makeValues() {
+  let values = array("integer")
+  push(ref values, 2)
+  extend(ref values, [4, 6])
+  return values
+}
+
+every 20 ticks {
+  let values = makeValues()
+  insert(ref values, 0, 1)
+  let last = pop(ref values)
+  let first = removeAt(ref values, 0)
+  print(first, last, peek(values), contains(values, 4), indexOf(values, 4))
+  clear(ref values)
+}
+```
+
+| Function | Result |
+| --- | --- |
+| `push(ref values, value)` | Append one element; no return value. |
+| `extend(ref values, sequence)` | Append same-type elements; no return value. |
+| `insert(ref values, index, value)` | Insert at index `0..len(values)`; no return value. |
+| `pop(ref values)` | Remove and return the last element. |
+| `removeAt(ref values, index)` | Remove and return the indexed element. |
+| `clear(ref values)` | Remove all elements; no return value. |
+| `peek(sequence)` | Read the last element without removing it. |
+| `contains(sequence, value)` | Exact typed membership. |
+| `indexOf(sequence, value)` | First zero-based match, or `-1`. |
+
+Mutation requires a writable dynamic array and explicit REF. Pure readers accept
+fixed/dynamic arrays and native sequences. Element types must match exactly.
+Membership compares nested values, label names plus side/slot restrictions, and
+exact metadata/NBT item/fluid keys. This does not add `==` for labels/collections.
+Empty POP/PEEK and invalid indexes fault without changing the target. CLEAR on an
+empty array and EXTEND by an empty sequence are no-ops. Other already evaluated
+argument effects remain committed if a later check fails.
+
+Arrays have at most 256 outer elements and 4,096 retained cells, with existing
+character/opaque/work/allocation/WAIT limits. They use immutable replacement:
+append/insert/remove/extend are O(n), not amortized constant time. Cumulative work
+can fault before the size limit. Ordinary assignment/parameters keep value-copy
+semantics; REF is the explicit way to change another binding.
+
+Structural changes invalidate captured indexed references and assignment paths,
+including across WAIT, same-length replacement and remove/reinsert cycles.
+Invalidation is conservatively per root, so sibling indexed references may also
+fault. Whole-array references remain usable; the successful indexed writer is
+refreshed, while forwarded aliases can become stale. Ordinary scalar element
+updates preserve other indexed references. FOREACH retains its original snapshot.
+
+Dynamic arrays are RAM-only in LET/parameters/returns, including nested arrays
+and structs; STATE rejects them until its variable-length codec/budgets exist.
+Native mutation calls and wrappers with REF effects cannot run in STATE defaults,
+program-wide LET initializers or named-redstone subscriptions. Pure ARRAY
+construction is allowed in program-wide LET. Mutations belong in triggers or
+function execution. Disabled PRINT still skips argument evaluation, so perform
+required POP/remove operations in assignments before printing.
+
+Visual supports ARRAY and the pure readers in expressions; collection mutation
+calls currently require Code. Fixed arrays, ordinary Visual variables and loops
+retain their existing behavior. `reserve`/capacity and persistent dynamic arrays
+remain future work.

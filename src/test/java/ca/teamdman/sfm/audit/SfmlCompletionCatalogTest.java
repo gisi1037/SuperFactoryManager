@@ -76,7 +76,7 @@ class SfmlCompletionCatalogTest {
             else assertEquals(Context.EXPRESSION, entry.getContext());
         }
         assertEquals(expected, actual);
-        assertEquals(30, actual.size());
+        assertEquals(40, actual.size());
     }
 
     @Test
@@ -202,10 +202,7 @@ class SfmlCompletionCatalogTest {
     @Test
     void searchIsBoundedCaseInsensitiveAndDoesNotRewriteTemplatesOrStrings() {
         Snapshot snapshot = SfmlCompletionCatalog.scan(null);
-        assertEquals(
-            1,
-            SfmlCompletionCatalog.search(snapshot, "ABS integer", 30)
-                .size());
+        // Descriptions of additional helpers can match the same words; the exact builtin stays first.
         assertEquals(
             "abs",
             SfmlCompletionCatalog.search(snapshot, "ABS integer", 30)

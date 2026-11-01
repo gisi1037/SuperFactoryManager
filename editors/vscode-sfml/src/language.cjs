@@ -53,8 +53,9 @@ function analyze(text) {
     } else if (tokens[j]?.kind === 'word' && typeNames.has(tokens[j].text.toLowerCase())) j++;
     else return -1;
     while (tokens[j]?.text === '[') {
-      if (tokens[j + 1]?.kind !== 'number' || tokens[j + 2]?.text !== ']') return -1;
-      j += 3;
+      j++;
+      if (tokens[j]?.kind === 'number') j++;
+      if (tokens[j++]?.text !== ']') return -1;
     }
     return j;
   }

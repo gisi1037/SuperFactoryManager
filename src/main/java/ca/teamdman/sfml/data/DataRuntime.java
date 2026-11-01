@@ -9,6 +9,7 @@ public final class DataRuntime {
     private StateAccess state;
     private ProgramGlobals globals;
     private final DataValue[] locals;
+    private long[] localGenerations;
     private DataReference[] references;
     private DataQueries queries;
     public static final int MAX_LOOP_STEPS = 1024;
@@ -107,6 +108,7 @@ public final class DataRuntime {
 
     public void retain(Continuation.Bounds bounds) {
         bounds.entry();
+        if (localGenerations != null) bounds.opaque(16 + localGenerations.length * 8);
         for (DataValue value : locals) bounds.value(value);
         if (references != null)
             for (DataReference reference : references) if (reference != null) reference.retain(bounds);
@@ -277,7 +279,26 @@ public final class DataRuntime {
     }
 
     void publishGlobal(int slot, DataValue value) {
-        requireGlobals().write(slot, value);
+        publishGlobal(
+            slot,
+            value,
+            value.getType()
+                .containsDynamicArray());
+    }
+
+    void publishGlobal(int slot, DataValue value, boolean structural) {
+        requireGlobals().write(slot, value, structural);
+    }
+
+    public long globalGeneration(int slot) {
+        return requireGlobals().generation(slot);
+    }
+
+    /** Ref parameters report the generation of their caller's root, not their local parameter slot. */
+    public long generation(boolean persistent, int slot) {
+        if (persistent) return 0;
+        if (references != null && references[slot] != null) return references[slot].generation(this);
+        return localGenerations == null ? 0 : localGenerations[slot];
     }
 
     private ProgramGlobals requireGlobals() {
@@ -291,12 +312,41 @@ public final class DataRuntime {
     }
 
     void publish(boolean persistent, int slot, DataValue value) {
+        publish(
+            persistent,
+            slot,
+            value,
+            value.getType()
+                .containsDynamicArray());
+    }
+
+    void publish(boolean persistent, int slot, DataValue value, boolean structural) {
         if (persistent) {
             if (!value.getType()
                 .isPersistable()) throw new IllegalArgumentException("STATE cannot persist opaque handles");
             requireState().write(slot, value);
-        } else if (references != null && references[slot] != null) references[slot].publish(this, value);
-        else locals[slot] = value;
+        } else if (references != null && references[slot] != null) references[slot].publish(this, value, structural);
+        else {
+            if (structural || value.getType()
+                .containsDynamicArray()) ensureLocalGenerations();
+            publishLocal(locals, localGenerations, slot, value, structural);
+        }
+    }
+
+    private long[] ensureLocalGenerations() {
+        if (localGenerations == null) {
+            allocate(locals.length);
+            localGenerations = new long[locals.length];
+        }
+        return localGenerations;
+    }
+
+    /** Both direct writes and captured local references publish through the same shared epoch cells. */
+    static void publishLocal(DataValue[] cells, long[] generations, int slot, DataValue value, boolean structural) {
+        if (structural && generations == null) throw new IllegalStateException("Structural write requires generations");
+        long next = structural ? Math.addExact(generations[slot], 1L) : 0;
+        cells[slot] = value;
+        if (structural) generations[slot] = next;
     }
 
     /** References retain addresses or local value cells, never a live runtime/provider. */
@@ -304,9 +354,13 @@ public final class DataRuntime {
         DataReference root;
         if (binding.kind == DataCompiler.BindingKind.LOCAL) {
             root = references != null && references[binding.slot] != null ? references[binding.slot]
-                : DataReference.local(locals, binding.slot, binding.type);
+                : DataReference.local(
+                    locals,
+                    binding.type.containsDynamicArray() ? ensureLocalGenerations() : localGenerations,
+                    binding.slot,
+                    binding.type);
         } else root = DataReference.addressed(binding.kind, binding.slot, binding.type);
-        DataReference selected = root.select(path);
+        DataReference selected = root.select(this, path);
         selected.read(this); // Validate the captured path before entering the callee or running effects.
         return selected;
     }

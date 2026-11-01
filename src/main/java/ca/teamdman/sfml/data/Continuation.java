@@ -33,6 +33,12 @@ public final class Continuation {
         void visit(Consumer<DataValue> values);
     }
 
+    /** Compiler-owned snapshots may retain bounded primitive paths as well as data values. */
+    public interface RetainedState {
+
+        void retain(Bounds bounds);
+    }
+
     private static final class Frame {
 
         final Map<Object, Frame> children = new IdentityHashMap<>();
@@ -186,6 +192,7 @@ public final class Continuation {
             bounds.entry();
             if (evaluation.value instanceof DataValue) bounds.value((DataValue) evaluation.value);
             else if (evaluation.value instanceof DataReference) ((DataReference) evaluation.value).retain(bounds);
+            else if (evaluation.value instanceof RetainedState) ((RetainedState) evaluation.value).retain(bounds);
             else if (evaluation.value instanceof RetainedValues)
                 ((RetainedValues) evaluation.value).visit(bounds::value);
             else if (evaluation.value instanceof int[]) bounds.opaque(16 + ((int[]) evaluation.value).length * 4);

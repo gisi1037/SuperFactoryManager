@@ -548,6 +548,78 @@ one replacement root. A failed assignment changes nothing in that binding.
 Assignments and transfers that completed before a later fault remain completed;
 the whole trigger is not a rollback transaction.
 
+### Dynamic arrays (RAM only)
+
+`integer[]` is a growable integer array; `integer[3]` still means exactly three
+integers. Construct an empty array explicitly with `array("integer")`,
+`array("label_ref")`, or another constant type string. `array(sequence)` converts
+an existing fixed array, dynamic array or contents snapshot explicitly. Bare `[]`
+still cannot infer an element type. No implicit fixed/dynamic conversion occurs.
+
+```sfml
+integer[] makeValues() {
+  let values = array("integer")
+  push(ref values, 2)
+  extend(ref values, [4, 6])
+  return values
+}
+
+every 20 ticks {
+  let values = makeValues()
+  insert(ref values, 0, 1)
+  let last = pop(ref values)
+  let first = removeAt(ref values, 0)
+  print(first, last, peek(values), contains(values, 4), indexOf(values, 4))
+  clear(ref values)
+}
+```
+
+| Function | Result |
+| --- | --- |
+| `push(ref values, value)` | Append one element; no return value. |
+| `extend(ref values, sequence)` | Append same-type elements; no return value. |
+| `insert(ref values, index, value)` | Insert at index `0..len(values)`; no return value. |
+| `pop(ref values)` | Remove and return the last element. |
+| `removeAt(ref values, index)` | Remove and return the indexed element. |
+| `clear(ref values)` | Remove all elements; no return value. |
+| `peek(sequence)` | Read the last element without removing it. |
+| `contains(sequence, value)` | Exact typed membership. |
+| `indexOf(sequence, value)` | First zero-based match, or `-1`. |
+
+Mutation requires a writable dynamic array and explicit REF. Pure readers accept
+fixed/dynamic arrays and native sequences. Element types must match exactly.
+Membership compares nested values, label names plus side/slot restrictions, and
+exact metadata/NBT item/fluid keys. This does not add `==` for labels/collections.
+Empty POP/PEEK and invalid indexes fault without changing the target. CLEAR on an
+empty array and EXTEND by an empty sequence are no-ops. Other already evaluated
+argument effects remain committed if a later check fails.
+
+Arrays have at most 256 outer elements and 4,096 retained cells, with existing
+character/opaque/work/allocation/WAIT limits. They use immutable replacement:
+append/insert/remove/extend are O(n), not amortized constant time. Cumulative work
+can fault before the size limit. Ordinary assignment/parameters keep value-copy
+semantics; REF is the explicit way to change another binding.
+
+Structural changes invalidate captured indexed references and assignment paths,
+including across WAIT, same-length replacement and remove/reinsert cycles.
+Invalidation is conservatively per root, so sibling indexed references may also
+fault. Whole-array references remain usable; the successful indexed writer is
+refreshed, while forwarded aliases can become stale. Ordinary scalar element
+updates preserve other indexed references. FOREACH retains its original snapshot.
+
+Dynamic arrays are RAM-only in LET/parameters/returns, including nested arrays
+and structs; STATE rejects them until its variable-length codec/budgets exist.
+Native mutation calls and wrappers with REF effects cannot run in STATE defaults,
+program-wide LET initializers or named-redstone subscriptions. Pure ARRAY
+construction is allowed in program-wide LET. Mutations belong in triggers or
+function execution. Disabled PRINT still skips argument evaluation, so perform
+required POP/remove operations in assignments before printing.
+
+Visual supports ARRAY and the pure readers in expressions; collection mutation
+calls currently require Code. Fixed arrays, ordinary Visual variables and loops
+retain their existing behavior. `reserve`/capacity and persistent dynamic arrays
+remain future work.
+
 ### Strings and item-stack records
 
 Strings support `+` concatenation with another string and `=` / `EQ` equality.
@@ -791,7 +863,7 @@ every 20 ticks {
 This stores fifteen and prints it when capture is enabled. Signature types are
 `integer`, `boolean`, `string`, `label_ref`, `resource_selector`, `item_key`,
 `item_contents`, `item_locations`, `fluid_key`, `fluid_contents`, fixed arrays
-such as `integer[3]`, and records such as `{count: integer, name: string}`.
+such as `integer[3]`, RAM-only dynamic arrays such as `integer[]`, and records such as `{count: integer, name: string}`.
 Argument and return shapes must match exactly. `void` is a procedure return type,
 not a parameter, variable or collection type. Handles/snapshots cannot persist
 in STATE, even when a function returns them.
@@ -971,7 +1043,7 @@ Redstone OUTPUT also accepts a parenthesized INTEGER expression, evaluated once
 before target selection or writes. Dynamic levels must be 0-15; an invalid value
 faults before that statement writes. Historic literal levels still clamp to 0-15.
 Functions and loops are described above. Dynamic trigger intervals, resource IDs,
-growable arrays, recursion and runtime cadence setters remain future work.
+persistent dynamic arrays, recursion and runtime cadence setters remain future work.
 
 ### STATE follows the program disk
 

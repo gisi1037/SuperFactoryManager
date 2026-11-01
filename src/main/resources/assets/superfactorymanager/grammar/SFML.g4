@@ -49,7 +49,8 @@ functionDefinition : FUNCTION functionName LPAREN (functionParameter (COMMA func
 functionName : dataName (DOT dataName)*;
 functionParameter : REF? (variableName COLON dataType | dataType variableName);
 variableName : VARIABLE | IDENTIFIER;
-dataType : (dataName | LBRACE (typeField (COMMA typeField)*)? RBRACE) (LBRACKET NUMBER RBRACKET)*;
+dataType : (dataName | LBRACE (typeField (COMMA typeField)*)? RBRACE) typeDimension*;
+typeDimension : LBRACKET NUMBER? RBRACKET;
 typeField : dataName COLON dataType;
 functionCall : functionName LPAREN (functionArgument (COMMA functionArgument)*)? RPAREN;
 functionArgument : REF dataTarget | dataExpression;

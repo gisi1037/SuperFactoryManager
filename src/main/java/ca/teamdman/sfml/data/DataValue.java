@@ -57,6 +57,7 @@ public final class DataValue {
             retained = Math.addExact(retained, child.retainedCharacters);
             opaqueBytes = Math.addExact(opaqueBytes, child.retainedOpaqueBytes);
         }
+        validateDynamicBounds(type, cells, retained, opaqueBytes);
         this.type = type;
         this.opaque = opaque;
         this.scalar = scalar;
@@ -72,6 +73,7 @@ public final class DataValue {
     /** Ancestor copies already know every aggregate from the replaced child's cached delta. */
     private DataValue(DataType type, DataValue[] children, int characters, int nbtBytes, int cells, int retained,
         int opaqueBytes) {
+        validateDynamicBounds(type, cells, retained, opaqueBytes);
         this.type = type;
         this.scalar = 0;
         this.children = children;
@@ -193,6 +195,37 @@ public final class DataValue {
         return new DataValue(type, 0, values.toArray(new DataValue[0]));
     }
 
+    /** Length is a value property; the explicit dynamic type also permits a typed empty value. */
+    public static DataValue dynamicArray(DataType type, DataValue[] values) {
+        if (values == null || values.length > ExpressionLimits.MAX_CONTAINER_WIDTH)
+            throw new IllegalArgumentException("Collection width exceeds 256");
+        // Validate the copy, so later caller mutations cannot change either contents or validated element types.
+        return ownedDynamicArray(type, values.clone());
+    }
+
+    /** Compiler/runtime callers may transfer ownership only of a fresh, unshared child array. */
+    static DataValue ownedDynamicArray(DataType type, DataValue[] values) {
+        validateDynamicElements(type, values);
+        return new DataValue(type, 0, values);
+    }
+
+    private static void validateDynamicElements(DataType type, DataValue[] values) {
+        if (type == null || type.getKind() != DataType.Kind.DYNAMIC_ARRAY)
+            throw new IllegalArgumentException("Dynamic array type required");
+        if (values == null || values.length > ExpressionLimits.MAX_CONTAINER_WIDTH)
+            throw new IllegalArgumentException("Collection width exceeds 256");
+        for (DataValue value : values) if (value == null || !type.getElementType()
+            .equals(value.type)) throw new IllegalArgumentException("Dynamic array element type mismatch");
+    }
+
+    /** A dynamic descendant can grow independently of the fixed shape's minimum type cell count. */
+    private static void validateDynamicBounds(DataType type, int cells, int characters, int opaqueBytes) {
+        if (type.containsDynamicArray()
+            && (cells > ProgramGlobals.MAX_CELLS || characters > ProgramGlobals.MAX_CHARACTERS
+                || opaqueBytes > ProgramGlobals.MAX_OPAQUE_BYTES))
+            throw new IllegalArgumentException("Dynamic array retained-value budget exceeded");
+    }
+
     public static DataValue struct(Map<String, DataValue> values) {
         TreeMap<String, DataType> types = new TreeMap<>();
         for (Map.Entry<String, DataValue> entry : values.entrySet()) types.put(entry.getKey(), entry.getValue().type);
@@ -265,7 +298,8 @@ public final class DataValue {
         if (type == DataType.ITEM_CONTENTS || type == DataType.ITEM_LOCATIONS || type == DataType.FLUID_CONTENTS)
             throw new IllegalArgumentException("Item observation sequences are immutable");
         DataValue old = get(index);
-        if (!old.type.equals(replacement.type)) throw new IllegalArgumentException("Assignment type/shape mismatch");
+        if (replacement == null || !old.type.equals(replacement.type))
+            throw new IllegalArgumentException("Assignment type/shape mismatch");
         DataValue[] copy = children.clone();
         copy[index] = replacement;
         // Ancestor updates use cached payload deltas; they never scan nested string contents.

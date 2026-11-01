@@ -74,6 +74,10 @@ public final class CompiledFunction {
         mayWait = true;
     }
 
+    void markReferenceMutation() {
+        mayMutateReferences = true;
+    }
+
     public boolean mayWait() {
         return mayWait;
     }

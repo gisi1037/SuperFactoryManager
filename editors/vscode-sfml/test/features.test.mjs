@@ -29,6 +29,44 @@ test('hover distinguishes selectors, snapshots and exact NBT keys', () => {
   assert.equal(hover(analyze('$a.contains()'), 5), undefined);
 });
 
+test('dynamic-array hovers describe exact element types, REF effects and structural invalidation', () => {
+  assert.deepEqual(hover(analyze('array("integer")'), 1).signatures,
+    ['array("type literal") -> T[]', 'array(values: sequence<T>) -> T[]']);
+  assert.match(hover(analyze('len(values)'), 1).signatures.join('\n'), /len\(values: T\[\]\)/);
+  const push = hover(analyze('PUSH(ref values, 1)'), 1);
+  const pop = hover(analyze('pop(ref values)'), 1);
+  assert.deepEqual(push.signatures, ['push(ref values: T[], value: T) -> void']);
+  assert.deepEqual(pop.signatures, ['pop(ref values: T[]) -> T']);
+  assert.match(push.description, /256/);
+  assert.match(pop.description, /4096/);
+  assert.match(push.description, /same-length or ABA/);
+  assert.match(pop.description, /whole-root rebind/);
+  assert.equal(hover(analyze('"array(\\"integer\\")" -- push(ref values, 1)'), 2), undefined);
+});
+
+test('collection helper hovers distinguish dynamic mutators from exact typed sequence readers', () => {
+  const signatures = {
+    extend: 'extend(ref values: T[], sequence: sequence<T>) -> void',
+    insert: 'insert(ref values: T[], index: integer, value: T) -> void',
+    removeat: 'removeAt(ref values: T[], index: integer) -> T',
+    clear: 'clear(ref values: T[]) -> void',
+    peek: 'peek(values: sequence<T>) -> T',
+    contains: 'contains(values: sequence<T>, item: T) -> boolean',
+    indexof: 'indexOf(values: sequence<T>, item: T) -> integer'
+  };
+  for (const [name, signature] of Object.entries(signatures))
+    assert.deepEqual(hover(analyze(name.toUpperCase() + '()'), 1).signatures, [signature]);
+  assert.match(catalog.functions.array.description, /Any sequence/);
+  assert.match(catalog.functions.extend.description, /empty source is a no-op/);
+  assert.match(catalog.functions.clear.description, /does not change the structural epoch/);
+  assert.match(catalog.functions.peek.description, /empty sequence faults/);
+  assert.match(catalog.functions.contains.description, /NBT keys/);
+  assert.match(catalog.functions.contains.description, /does not add collection equality/);
+  assert.match(catalog.functions.indexof.description, /first zero-based/);
+  assert.match(catalog.functions.indexof.description, /-1/);
+  assert.equal(hover(analyze('$source.contains()'), 10), undefined);
+});
+
 test('hover ignores comments, strings, fields and identifiers that are not calls', () => {
   for (const source of ['-- transfer()', '"transfer()"', '$transfer', '$row.total']) {
     const offset = source.search(/transfer|min|total/);
@@ -67,6 +105,20 @@ test('typed brace functions support spaced parameters, structs, arrays, void and
   assert.equal(hover(result, source.indexOf('integer[2]') + 1), undefined);
 });
 
+test('dynamic, fixed and nested struct dimensions retain complete function and parameter hovers', () => {
+  const source = 'integer[][2] rows.copy(ref integer[][2] values, {tags: string[], fixed: integer[2]} row) { return values; }\n'
+    + '{rows: {value: integer}[][2]}[] records(ref {rows: {value: integer}[][2]}[] values) { return values; }\n'
+    + 'function legacy(ref values: integer[2][]) returns integer[2][] do return values end\n'
+    + 'every 20 ticks { rows.copy(ref pairs, record); records(ref entries); legacy(ref groups); }';
+  const result = analyze(source);
+  assert.equal(result.functions.size, 3);
+  assert.match(hover(result, source.lastIndexOf('rows.copy') + 6).signatures[0], /^integer\[\]\[2\] rows.copy/);
+  assert.match(hover(result, source.lastIndexOf('records') + 1).signatures[0], /^\{rows: \{value: integer\}\[\]\[2\]\}\[\] records/);
+  assert.match(hover(result, source.lastIndexOf('legacy') + 1).signatures[0], /returns integer\[2\]\[\]/);
+  assert.deepEqual(hover(result, source.indexOf('return values') + 8).signatures, ['ref integer[][2] values']);
+  assert.match(hover(result, source.indexOf('return values') + 8).description, /Reference parameter/);
+});
+
 test('legacy blocks, loop bindings, result declarations and shadowing remain visible only in scope', () => {
   const source = 'let amount = 1\nevery 20 ticks do\n'
     + 'if (true) then let amount = 2 print(amount) else print(amount) end\n'
@@ -82,7 +134,8 @@ test('legacy blocks, loop bindings, result declarations and shadowing remain vis
 });
 
 test('partial headers and hostile nesting stay presentation-only without throwing', () => {
-  for (const source of ['void f(integer', 'integer[2] f({x: integer', 'function f(x: integer) returns',
+  for (const source of ['void f(integer', 'integer[2] f({x: integer', 'integer[][ f(ref integer[] values)',
+    'function f(x: integer) returns',
     '{x:'.repeat(2000) + 'integer' + '}'.repeat(2000)]) {
     assert.doesNotThrow(() => analyze(source));
   }
@@ -169,5 +222,12 @@ test('the Node client communicates with the actual Java compiler', {skip: !proce
     assert.match(errors[0].message, /Unknown variable/);
     assert.ok((await compiler.check('a', 'every 20 ticks do let $n = 1 $n = true end')).length > 0);
     assert.deepEqual(await compiler.check('a', 'let $n = 0 every 20 ticks do $n = $n + 1 end'), []);
+    assert.deepEqual(await compiler.check('a', 'every 20 ticks { let values = array("integer"); '
+      + 'push(ref values, 1); let last = pop(ref values); let seeded = array([last, 2]); '
+      + 'print(last, len(values), len(seeded)); }'), []);
+    assert.deepEqual(await compiler.check('a', 'every 20 ticks { let values = array([1, 2]); '
+      + 'extend(ref values, [3]); insert(ref values, 1, 9); let removed = removeAt(ref values, 0); '
+      + 'print(peek(values), contains(values, 9), indexOf(values, 9), removed); clear(ref values); '
+      + 'extend(ref values, array("integer")); let rows = array(label("source").contents()); }'), []);
   } finally { compiler.dispose(); }
 });

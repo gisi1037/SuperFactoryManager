@@ -656,6 +656,96 @@ public final class SfmlCompletionCatalog {
             "$<label>.redstoneAvailable()",
             "Whether every selected native Redstone Port and face is loaded and readable. Missing/incomplete access returns false; no slot restrictions.",
             "label(\"signal\").redstoneAvailable()");
+        add(
+            entries,
+            "array",
+            "array(\"type\" | sequence) -> T[]",
+            "array(\"<type>\")",
+            "Create a typed empty dynamic array or explicitly convert an array. Homogeneous, RAM-only, at most 256 elements and 4096 retained cells.",
+            "let values = array(\"integer\")",
+            Kind.CONSTRUCTOR,
+            Context.EXPRESSION);
+        add(
+            entries,
+            "push",
+            "push(ref values: T[], value: T) -> void",
+            "push(ref <values>, <value>)",
+            "Append through an explicit writable reference. O(n) immutable replacement; structural changes invalidate captured indexed references. No persistent STATE arrays.",
+            "let values = array(\"integer\"); push(ref values, 1)",
+            Kind.STATEMENT,
+            Context.TRIGGER_STATEMENT);
+        add(
+            entries,
+            "pop",
+            "pop(ref values: T[]) -> T",
+            "pop(ref <values>)",
+            "Remove and return the last element through REF. Empty arrays fault without changing the target. Evaluated effects are not rolled back by a later failure.",
+            "let values = array([1]); let last = pop(ref values)",
+            Kind.FUNCTION,
+            Context.EXPRESSION);
+        add(
+            entries,
+            "extend",
+            "extend(ref values: T[], other: sequence<T>) -> void",
+            "extend(ref <values>, <other>)",
+            "Append a captured same-element sequence through REF. Empty extension is a no-op; width, retention and work limits apply.",
+            "let values = array([1]); extend(ref values, [2, 3])",
+            Kind.STATEMENT,
+            Context.TRIGGER_STATEMENT);
+        add(
+            entries,
+            "insert",
+            "insert(ref values: T[], index: integer, value: T) -> void",
+            "insert(ref <values>, <index>, <value>)",
+            "Insert at a zero-based index from zero through LEN(values), shifting later elements. Structural invalidation rules apply.",
+            "let values = array([1]); insert(ref values, 0, 2)",
+            Kind.STATEMENT,
+            Context.TRIGGER_STATEMENT);
+        add(
+            entries,
+            "removeat",
+            "removeAt(ref values: T[], index: integer) -> T",
+            "removeAt(ref <values>, <index>)",
+            "Remove and return one element; later elements shift left. Invalid indices fault without mutation.",
+            "let values = array([1, 2]); let removed = removeAt(ref values, 0)",
+            Kind.FUNCTION,
+            Context.EXPRESSION);
+        add(
+            entries,
+            "clear",
+            "clear(ref values: T[]) -> void",
+            "clear(ref <values>)",
+            "Replace a dynamic array with an empty array of the same type. Already empty arrays are unchanged.",
+            "let values = array([1]); clear(ref values)",
+            Kind.STATEMENT,
+            Context.TRIGGER_STATEMENT);
+        add(
+            entries,
+            "peek",
+            "peek(values: sequence<T>) -> T",
+            "peek(<values>)",
+            "Return the last captured element without removing it. Empty sequences fault.",
+            "let last = peek([1, 2])",
+            Kind.FUNCTION,
+            Context.EXPRESSION);
+        add(
+            entries,
+            "contains",
+            "contains(values: sequence<T>, value: T) -> boolean",
+            "contains(<values>, <value>)",
+            "Bounded exact typed membership, including nested values, label restrictions and exact item/fluid keys. Does not add collection equality operators.",
+            "let found = contains([1, 2], 2)",
+            Kind.FUNCTION,
+            Context.EXPRESSION);
+        add(
+            entries,
+            "indexof",
+            "indexOf(values: sequence<T>, value: T) -> integer",
+            "indexOf(<values>, <value>)",
+            "First zero-based exact-value match, or -1 if absent. Reads the sequence snapshot under work limits.",
+            "let index = indexOf([1, 2], 2)",
+            Kind.FUNCTION,
+            Context.EXPRESSION);
         return Collections.unmodifiableList(entries);
     }
 

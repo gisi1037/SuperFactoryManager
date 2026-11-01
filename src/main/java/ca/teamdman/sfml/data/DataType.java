@@ -22,7 +22,8 @@ public final class DataType {
         ITEM_CONTENTS,
         ITEM_LOCATIONS,
         FLUID_KEY,
-        FLUID_CONTENTS
+        FLUID_CONTENTS,
+        DYNAMIC_ARRAY
     }
 
     /** Return marker only; never a variable, field, parameter, or stored value type. */
@@ -99,7 +100,7 @@ public final class DataType {
     private final List<String> names;
     private final List<DataType> fields;
     private final String signature;
-    private final boolean persistable;
+    private final boolean persistable, containsDynamicArray;
 
     private DataType(Kind kind, DataType element, int length, List<String> names, List<DataType> fields) {
         if (length < 0 || length > 256) throw new IllegalArgumentException("Collection width exceeds 256");
@@ -109,21 +110,30 @@ public final class DataType {
         this.names = Collections.unmodifiableList(new ArrayList<>(names));
         this.fields = Collections.unmodifiableList(new ArrayList<>(fields));
         int count = 1, nesting = 1;
+        boolean dynamic = kind == Kind.DYNAMIC_ARRAY;
         boolean persistent = kind != Kind.VOID && kind != Kind.LABEL_REF
             && kind != Kind.RESOURCE_SELECTOR
             && kind != Kind.ITEM_KEY
             && kind != Kind.ITEM_CONTENTS
             && kind != Kind.ITEM_LOCATIONS
             && kind != Kind.FLUID_KEY
-            && kind != Kind.FLUID_CONTENTS;
+            && kind != Kind.FLUID_CONTENTS
+            && kind != Kind.DYNAMIC_ARRAY;
         StringBuilder out = new StringBuilder(kind.name());
         if (kind == Kind.ARRAY) {
             persistent = element.persistable;
+            dynamic = element.containsDynamicArray;
             count = Math.addExact(1, Math.multiplyExact(length, element.cells));
             nesting = element.depth + 1;
             out.append('[')
                 .append(length)
                 .append(':')
+                .append(element.signature)
+                .append(']');
+        } else if (kind == Kind.DYNAMIC_ARRAY) {
+            // Length belongs to a value. The type retains a handle-sized minimum and an exact element type.
+            nesting = element.depth + 1;
+            out.append('[')
                 .append(element.signature)
                 .append(']');
         } else if (kind == Kind.ITEM_CONTENTS || kind == Kind.ITEM_LOCATIONS || kind == Kind.FLUID_CONTENTS) {
@@ -135,6 +145,7 @@ public final class DataType {
             for (int i = 0; i < fields.size(); i++) {
                 DataType type = fields.get(i);
                 persistent &= type.persistable;
+                dynamic |= type.containsDynamicArray;
                 count = Math.addExact(count, type.cells);
                 nesting = Math.max(nesting, type.depth + 1);
                 out.append(names.get(i))
@@ -150,12 +161,19 @@ public final class DataType {
         depth = nesting;
         signature = out.toString();
         persistable = persistent;
+        containsDynamicArray = dynamic;
     }
 
     public static DataType array(DataType element, int length) {
         if (element == null || element == VOID)
             throw new IllegalArgumentException("Non-void array element type required");
         return new DataType(Kind.ARRAY, element, length, Collections.emptyList(), Collections.emptyList());
+    }
+
+    public static DataType dynamicArray(DataType element) {
+        if (element == null || element == VOID)
+            throw new IllegalArgumentException("Non-void array element type required");
+        return new DataType(Kind.DYNAMIC_ARRAY, element, 0, Collections.emptyList(), Collections.emptyList());
     }
 
     private static DataType locationRow() {
@@ -205,9 +223,14 @@ public final class DataType {
         return persistable;
     }
 
-    /** Fixed arrays and the two immutable native observation sequences support index/LEN/FOR. */
+    public boolean containsDynamicArray() {
+        return containsDynamicArray;
+    }
+
+    /** Fixed/dynamic arrays and immutable native observation sequences support index/LEN/FOR. */
     public boolean isSequence() {
-        return kind == Kind.ARRAY || kind == Kind.ITEM_CONTENTS
+        return kind == Kind.ARRAY || kind == Kind.DYNAMIC_ARRAY
+            || kind == Kind.ITEM_CONTENTS
             || kind == Kind.ITEM_LOCATIONS
             || kind == Kind.FLUID_CONTENTS;
     }

@@ -142,6 +142,26 @@ public class SFMLBaseListener implements SFMLListener {
      * </p>
      */
     @Override
+    public void enterTypeDimension(SFMLParser.TypeDimensionContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitTypeDimension(SFMLParser.TypeDimensionContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
     public void enterTypeField(SFMLParser.TypeFieldContext ctx) {}
 
     /**

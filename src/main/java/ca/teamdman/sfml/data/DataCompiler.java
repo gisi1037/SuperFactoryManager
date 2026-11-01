@@ -295,7 +295,9 @@ public final class DataCompiler {
                 try {
                     DataValue value = node.evaluate(new DataRuntime(null, 0));
                     int cells = value.getType()
-                        .getCellCount();
+                        .containsDynamicArray() ? value.getRetainedCellCount()
+                            : value.getType()
+                                .getCellCount();
                     if (cells > 16384 - constantCells)
                         throw new IllegalArgumentException("Constant pool exceeds 16384 cells");
                     constantCells += cells;
@@ -366,7 +368,7 @@ public final class DataCompiler {
                     type = type.getFieldType(index);
                 } else {
                     parser.expect("[");
-                    if (type.getKind() != DataType.Kind.ARRAY)
+                    if (type.getKind() != DataType.Kind.ARRAY && type.getKind() != DataType.Kind.DYNAMIC_ARRAY)
                         throw new IllegalArgumentException("Index requires an array");
                     Node index = parser.expression();
                     require(index.type, DataType.INTEGER);
@@ -430,6 +432,15 @@ public final class DataCompiler {
             else runtime.publish(persistent, slot, value);
         }
 
+        void publish(DataRuntime runtime, DataValue value, boolean structural) {
+            if (kind == BindingKind.GLOBAL) runtime.publishGlobal(slot, value, structural);
+            else runtime.publish(persistent, slot, value, structural);
+        }
+
+        long generation(DataRuntime runtime) {
+            return kind == BindingKind.GLOBAL ? runtime.globalGeneration(slot) : runtime.generation(persistent, slot);
+        }
+
         /** Compiler-owned action results reserve publication before the action can change the world. */
         public void writeActionResult(DataRuntime runtime, Supplier<DataValue> action) {
             if (kind != BindingKind.LOCAL) throw new IllegalArgumentException("Action results require a fresh local");
@@ -472,10 +483,11 @@ public final class DataCompiler {
         }
 
         private void executePath(DataRuntime runtime) {
-            int[] offsets = runtime.evaluate(this, () -> {
+            Object captured = runtime.evaluate(this, () -> {
                 if (runtime.isResumable()) runtime.allocate(indices.size() + 1);
                 int[] path = new int[indices.size()];
                 DataValue cursor = binding.read(runtime);
+                boolean dynamic = false;
                 for (int i = 0; i < indices.size(); i++) {
                     long index = indices.get(i)
                         .evaluate(runtime)
@@ -484,11 +496,22 @@ public final class DataCompiler {
                     if (index < 0 || index >= cursor.size())
                         throw new IllegalArgumentException("Index out of range: " + index);
                     path[i] = (int) index;
+                    dynamic |= cursor.getType()
+                        .getKind() == DataType.Kind.DYNAMIC_ARRAY;
                     cursor = cursor.get(path[i]);
                 }
-                return path;
+                if (!dynamic) return path; // Keep the existing fixed-array allocation and retention costs.
+                runtime.allocate(1);
+                return new CapturedPath(path, binding.generation(runtime));
             });
             DataValue replacement = rhs.evaluate(runtime);
+            int[] offsets;
+            if (captured instanceof CapturedPath) {
+                CapturedPath dynamic = (CapturedPath) captured;
+                if (dynamic.generation != binding.generation(runtime))
+                    throw new IllegalArgumentException("Indexed assignment invalidated by structural array change");
+                offsets = dynamic.offsets;
+            } else offsets = (int[]) captured;
             // RHS REF calls and waits can change sibling fields; publish into the current root.
             DataValue cursor = binding.read(runtime);
             DataValue[] parents = new DataValue[offsets.length];
@@ -502,7 +525,27 @@ public final class DataCompiler {
             runtime.allocate(cells);
             runtime.work(1);
             for (int i = parents.length - 1; i >= 0; i--) replacement = parents[i].with(offsets[i], replacement);
-            binding.publish(runtime, replacement);
+            binding.publish(
+                runtime,
+                replacement,
+                rhs.getType()
+                    .containsDynamicArray());
+        }
+
+        private static final class CapturedPath implements Continuation.RetainedState {
+
+            final int[] offsets;
+            final long generation;
+
+            CapturedPath(int[] offsets, long generation) {
+                this.offsets = offsets;
+                this.generation = generation;
+            }
+
+            @Override
+            public void retain(Continuation.Bounds bounds) {
+                bounds.opaque(48 + offsets.length * 4);
+            }
         }
 
         @Override
@@ -925,6 +968,8 @@ public final class DataCompiler {
         // Preserve exact-name player functions; defaults fill only otherwise unresolved names.
         CompiledFunction function = functions.get(name);
         if (function == null) {
+            Node collection = collectionCall(name, arguments, constantOnly, statement);
+            if (collection != null) return collection;
             for (Node argument : arguments) if (argument instanceof ReferenceArgument)
                 throw new IllegalArgumentException("REF arguments require a declared player function");
             Node builtin = builtinCall(name, arguments);
@@ -981,6 +1026,118 @@ public final class DataCompiler {
         if (currentFunction != null) currentFunction.calls(function);
         else rootCalls.add(function);
         return callPlan(function, arguments, depth);
+    }
+
+    /** Native collections keep value copies; only explicit REF can publish a changed array. */
+    private Node collectionCall(String name, List<Node> arguments, boolean constantOnly, boolean statement) {
+        String method = name.toUpperCase(Locale.ROOT);
+        if (method.equals("ARRAY")) {
+            if (constantOnly) stateBuiltinCalls.add(name);
+            return arrayConstructor(arguments);
+        }
+        DynamicArrayFunctions.Operation operation = DynamicArrayFunctions.Operation.parse(method);
+        if (operation == null) return null;
+        if (arguments.size() != operation.arity)
+            throw new IllegalArgumentException(method + " requires " + operation.arity + " arguments");
+        Node target = arguments.get(0);
+        if (operation.mutates) {
+            if (!(target instanceof ReferenceArgument))
+                throw new IllegalArgumentException(method + " requires REF and a writable dynamic array");
+            if (target.type.getKind() != DataType.Kind.DYNAMIC_ARRAY) throw new IllegalArgumentException(
+                method + " requires a dynamic array; use ARRAY to convert fixed arrays");
+            if (operation.isVoid && !statement)
+                throw new IllegalArgumentException(method + " requires a standalone call statement");
+            if (constantOnly || globalInitializer || instantExpression) throw new IllegalArgumentException(
+                "Collection REF effects are not allowed in defaults, global initializers or subscriptions");
+            if (currentFunction != null) currentFunction.markReferenceMutation();
+        } else {
+            if (target instanceof ReferenceArgument)
+                throw new IllegalArgumentException(method + " takes a value, not REF");
+            if (!target.type.isSequence())
+                throw new IllegalArgumentException(method + " requires an array or contents sequence");
+            if (constantOnly) stateBuiltinCalls.add(name);
+        }
+        for (int i = 1; i < arguments.size(); i++) if (arguments.get(i) instanceof ReferenceArgument)
+            throw new IllegalArgumentException(method + " takes only its first argument by REF");
+        DataType element = target.type.getElementType();
+        switch (operation) {
+            case PUSH:
+            case CONTAINS:
+            case INDEXOF:
+                require(arguments.get(1).type, element);
+                break;
+            case INSERT:
+                require(arguments.get(1).type, DataType.INTEGER);
+                require(arguments.get(2).type, element);
+                break;
+            case REMOVEAT:
+                require(arguments.get(1).type, DataType.INTEGER);
+                break;
+            case EXTEND:
+                if (!arguments.get(1).type.isSequence())
+                    throw new IllegalArgumentException("EXTEND requires a sequence");
+                require(arguments.get(1).type.getElementType(), element);
+                break;
+            default:
+                break;
+        }
+        DataType result = operation.isVoid ? DataType.VOID
+            : operation == DynamicArrayFunctions.Operation.CONTAINS ? DataType.BOOLEAN
+                : operation == DynamicArrayFunctions.Operation.INDEXOF ? DataType.INTEGER : element;
+        int depth = 1;
+        boolean constant = !operation.mutates;
+        for (Node argument : arguments) {
+            depth = Math.max(depth, argument.depth + 1);
+            constant &= argument.constant;
+        }
+        return new Node(result, depth, constant) {
+
+            @Override
+            protected DataValue compute(DataRuntime runtime) {
+                DataReference reference = operation.mutates ? ((ReferenceArgument) target).resolve(runtime) : null;
+                DataValue array = reference == null ? target.evaluate(runtime) : null;
+                runtime.allocate(arguments.size() - 1);
+                DataValue[] extra = new DataValue[arguments.size() - 1];
+                for (int i = 0; i < extra.length; i++) extra[i] = arguments.get(i + 1)
+                    .evaluate(runtime);
+                // Mutating arguments can WAIT or change the target; observe its current value after them.
+                if (reference != null) array = reference.read(runtime);
+                return DynamicArrayFunctions.apply(operation, array, extra, reference, runtime);
+            }
+        };
+    }
+
+    private static boolean collectionStatement(String name) {
+        DynamicArrayFunctions.Operation operation = DynamicArrayFunctions.Operation.parse(name);
+        return operation != null && operation.mutates;
+    }
+
+    private static Node arrayConstructor(List<Node> arguments) {
+        if (arguments.size() != 1) throw new IllegalArgumentException("ARRAY requires a type string or an array");
+        Node source = arguments.get(0);
+        if (source instanceof ReferenceArgument) throw new IllegalArgumentException("ARRAY takes a value, not REF");
+        if (source.type == DataType.STRING) {
+            if (!source.constant) throw new IllegalArgumentException("ARRAY type must be a constant type string");
+            DataType element = DataTypeParser.parse(
+                source.evaluate(new DataRuntime(null, 0))
+                    .asString());
+            return literal(DataValue.ownedDynamicArray(DataType.dynamicArray(element), new DataValue[0]));
+        }
+        if (!source.type.isSequence())
+            throw new IllegalArgumentException("ARRAY requires a type string or a sequence value");
+        DataType type = DataType.dynamicArray(source.type.getElementType());
+        return new Node(type, source.depth + 1, source.constant) {
+
+            @Override
+            protected DataValue compute(DataRuntime runtime) {
+                DataValue input = source.evaluate(runtime);
+                runtime.work(input.size() + 1);
+                runtime.allocate(input.size() + 1);
+                DataValue[] values = new DataValue[input.size()];
+                for (int i = 0; i < values.length; i++) values[i] = input.get(i);
+                return DataValue.ownedDynamicArray(type, values);
+            }
+        };
     }
 
     /** Fixed-arity pure primitives share expression work without allocating a player call frame. */
@@ -1440,7 +1597,7 @@ public final class DataCompiler {
                     } while (accept(","));
                     expect(")");
                     boolean statement = callStatement && nesting == 1 && peek("<EOF>");
-                    if (statement && functions.containsKey(token)) statementCall = true;
+                    if (statement && (functions.containsKey(token) || collectionStatement(token))) statementCall = true;
                     return functionCall(token, arguments, constantOnly, statement);
                 }
                 String argument = take();
@@ -1498,7 +1655,7 @@ public final class DataCompiler {
                     selected = selected.getFieldType(index);
                 } else {
                     expect("[");
-                    if (selected.getKind() != DataType.Kind.ARRAY)
+                    if (selected.getKind() != DataType.Kind.ARRAY && selected.getKind() != DataType.Kind.DYNAMIC_ARRAY)
                         throw new IllegalArgumentException("REF indexing requires an array");
                     Node index = expression();
                     require(index.type, DataType.INTEGER);

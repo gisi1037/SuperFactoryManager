@@ -95,6 +95,20 @@ public interface SFMLListener extends ParseTreeListener {
     void exitDataType(SFMLParser.DataTypeContext ctx);
 
     /**
+     * Enter a parse tree produced by {@link SFMLParser#typeDimension}.
+     *
+     * @param ctx the parse tree
+     */
+    void enterTypeDimension(SFMLParser.TypeDimensionContext ctx);
+
+    /**
+     * Exit a parse tree produced by {@link SFMLParser#typeDimension}.
+     *
+     * @param ctx the parse tree
+     */
+    void exitTypeDimension(SFMLParser.TypeDimensionContext ctx);
+
+    /**
      * Enter a parse tree produced by {@link SFMLParser#typeField}.
      * 
      * @param ctx the parse tree

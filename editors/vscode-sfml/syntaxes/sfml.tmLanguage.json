@@ -115,7 +115,7 @@
         },
         {
           "name": "meta.function.declaration.sfml",
-          "begin": "(?i:\\b(void|integer|boolean|string|label_ref|resource_selector|item_key|item_contents|item_locations|fluid_key|fluid_contents))(?=(?:\\s*\\[\\s*[0-9]+\\s*\\])*\\s+[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*\\s*\\()",
+          "begin": "(?i:\\b(void|integer|boolean|string|label_ref|resource_selector|item_key|item_contents|item_locations|fluid_key|fluid_contents))(?=(?:\\s*\\[\\s*[0-9]*\\s*\\])*\\s+[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*\\s*\\()",
           "beginCaptures": {
             "1": {
               "name": "storage.type.sfml"
@@ -134,7 +134,7 @@
         },
         {
           "name": "meta.function.declaration.sfml",
-          "begin": "(?=\\{[^\\r\\n]*\\}(?:\\s*\\[\\s*[0-9]+\\s*\\])*\\s+[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*\\s*\\()",
+          "begin": "(?=\\{[^\\r\\n]*\\}(?:\\s*\\[\\s*[0-9]*\\s*\\])*\\s+[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*\\s*\\()",
           "end": "(?=\\()",
           "patterns": [
             {
@@ -265,7 +265,7 @@
     },
     "builtins": {
       "name": "support.function.sfml",
-      "match": "(?i:\\b(?:label|item|ore|fluid|min|max|clamp|abs|len|total|stock|shortage|print|transfer|transferf|wait|setcircuit))\\b(?=\\s*\\()"
+      "match": "(?i:\\b(?:label|item|ore|fluid|array|push|pop|extend|insert|removeat|clear|peek|contains|indexof|min|max|clamp|abs|len|total|stock|shortage|print|transfer|transferf|wait|setcircuit))\\b(?=\\s*\\()"
     },
     "resources": {
       "patterns": [

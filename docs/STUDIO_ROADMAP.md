@@ -6,6 +6,13 @@ preserve their source and explain why they require Code.
 
 ## Available now
 
+- RAM-only dynamic `T[]` arrays use explicit ARRAY construction/conversion,
+  REF mutation helpers and bounded immutable replacements. Fixed `T[N]` stays
+  unchanged. Captured indexed references/assignments reject structural changes
+  across WAIT; fixed-only path costs are retained. Native helper/Studio/VS Code
+  documentation follows the compiler. Dynamic STATE and reserve/capacity remain
+  separate follow-ups; growth is O(n), not amortized constant time.
+
 - Visual supports program/local LET, STATE, assignment, counted FOR, array FOR
   and WHILE, including scoped expressions and known built-ins. Loop BODY/AFTER
   roles remain acyclic; declarations are separate ordered roots. Full source

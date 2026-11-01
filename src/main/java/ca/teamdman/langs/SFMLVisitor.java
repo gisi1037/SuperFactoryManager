@@ -62,6 +62,14 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     T visitDataType(SFMLParser.DataTypeContext ctx);
 
     /**
+     * Visit a parse tree produced by {@link SFMLParser#typeDimension}.
+     *
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitTypeDimension(SFMLParser.TypeDimensionContext ctx);
+
+    /**
      * Visit a parse tree produced by {@link SFMLParser#typeField}.
      * 
      * @param ctx the parse tree
