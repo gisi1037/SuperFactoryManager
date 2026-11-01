@@ -5,13 +5,17 @@ navigation:
   position: 60
   keywords: ["sfml", "arrays", "structs", "collections"]
 categories: ["sfm", "language"]
-updated: "2026-10-30"
+updated: "2026-11-01"
 ---
 
 # Arrays and structs
 
 Array literals hold a fixed number of values with one identical type and shape.
 Explicit dynamic arrays can grow and shrink in RAM; see below. Structs group values under fixed field names. Combine them to describe batches, settings or jobs.
+
+Jump to [fixed-array indexes](#array-indexes-and-length),
+[struct fields](#fields-and-nested-updates), [dynamic helpers](#dynamic-arrays),
+[reference safety](#mutation-and-reference-safety) or [a saved queue](#a-saved-work-queue).
 
 ```sfml
 NAME "Independent collection values"
@@ -35,7 +39,11 @@ END
 
 Use brackets for zero-based indexes. In `[4, 8, 16]`, index `0` is four and index `2` is sixteen. Use `LEN($array)` to count outer elements. A nested array's outer length does not count every value inside it.
 
-Indexes must be integers in range. Negative or out-of-range indexes fault; arrays do not clamp, wrap or grow. An array initialized with three entries must always hold exactly three entries of the same element type. `[1, TRUE]` is invalid. An empty array has no inferable element type and is rejected.
+Indexes must be integers in range. Negative or out-of-range indexes fault; an
+indexed assignment never clamps, wraps or grows an array. A fixed array
+initialized with three entries must always hold exactly three entries of the same
+element type. `[1, TRUE]` is invalid. Bare `[]` has no inferable element type and
+is rejected; explicit dynamic arrays can start empty.
 
 ```text
 LET $batches = [4, 8, 16]
@@ -68,9 +76,6 @@ For a nested assignment, indexes and the path are evaluated and validated before
 A record such as `{item: "minecraft:iron_ingot", count: 8}` is ordinary data. Editing it does not create or modify a Minecraft item stack. Its string field cannot substitute for a static resource selector in `INPUT` or `OUTPUT`.
 
 Typed query handles and snapshots are also immutable. They may be held in locals, passed to functions and nested inside local collections. Collections containing any handle or snapshot cannot be persistent `STATE`. Use the supported query methods to inspect them; their types and capabilities differ from ordinary arrays and structs.
-
-Next: [Strings](strings.md). Related: [Variables and state](variables.md), [Loops](loops.md) and [Typed queries](/automation/queries.md).
-
 
 ## Dynamic arrays
 
@@ -110,6 +115,8 @@ every 20 ticks {
 | `contains(sequence, value)` | Exact typed membership. |
 | `indexOf(sequence, value)` | First zero-based match, or `-1`. |
 
+## Mutation and reference safety
+
 Mutation requires a writable dynamic array and explicit REF. Pure readers accept
 fixed/dynamic arrays and native sequences. Element types must match exactly.
 Membership compares nested values, label names plus side/slot restrictions, and
@@ -124,12 +131,18 @@ append/insert/remove/extend are O(n), not amortized constant time. Cumulative wo
 can fault before the size limit. Ordinary assignment/parameters keep value-copy
 semantics; REF is the explicit way to change another binding.
 
-Structural changes invalidate captured indexed references and assignment paths,
-including across WAIT, same-length replacement and remove/reinsert cycles.
-Invalidation is conservatively per root, so sibling indexed references may also
-fault. Whole-array references remain usable; the successful indexed writer is
-refreshed, while forwarded aliases can become stale. Ordinary scalar element
-updates preserve other indexed references. FOREACH retains its original snapshot.
+| Change | Effect on existing references |
+| --- | --- |
+| Ordinary scalar element update | Other indexed references stay valid. |
+| Structural edit or dynamic-array replacement | Captured indexed references and assignment paths can become stale, even after same-length replacement or remove/reinsert. |
+| Edit through an indexed writer | The successful writer refreshes; forwarded aliases may become stale. |
+| Whole-array reference | Remains usable after structural edits. |
+
+Invalidation is conservatively per root, so a sibling indexed reference may also
+fault. WAIT preserves a reference, but does not protect it from these changes.
+Array FOR keeps its original snapshot even if the source is resized.
+
+## Persistence and editor support
 
 Dynamic arrays can also live in STATE if every nested element is an integer,
 boolean, string or collection of those types. Handles and query snapshots remain
@@ -146,17 +159,47 @@ Visual supports ARRAY and the pure readers in expressions; collection mutation
 calls currently require Code. Fixed arrays, ordinary Visual variables and loops
 retain their existing behavior. `reserve`/capacity remains future work.
 
+## A saved work queue
+
+**Setup:** connect three source chests named `chest1`, `chest2`, `chest3` and an
+output named `dest`. Put eight items in each source and leave room in dest.
+The queue stores strings; LABEL reconstructs a current selection when needed.
+
 ```sfml
-name "Saved queue"
-state pending = array("integer")
-every 20 ticks do
-  if (len(pending) < 8) then
-    push(ref pending, 1)
-  end
-end
+name "Saved chest queue"
+state pending = array(["chest1", "chest2", "chest3"])
+every 20 ticks {
+  if (len(pending) > 0) {
+    let source = label(pending[0])
+    transfer(source, label("dest"), 8) into sent
+    if (sent.moved > 0) {
+      let completed = removeAt(ref pending, 0)
+      print("Completed", completed, "left", len(pending))
+    }
+  }
+}
 ```
+
+**Expected:** the first three successful runs move up to eight items from each
+source in order, then stop. An unavailable/empty source or full output keeps the
+current job queued. A positive partial transfer completes this example's job;
+store a remaining quantity in each job record if a job must deliver an exact total.
+
+```mermaid
+flowchart TD
+  Q["Read first queued label"] --> A["Attempt up to 8 items"]
+  A -->|"moved greater than zero"| R["Remove first job"]
+  A -->|"no movement"| K["Keep job for next run"]
+```
+
+Saving preserves the remaining queue; changing its default does not refill it.
+Use Reset state deliberately to restore the initial three jobs. As with other
+STATE, queue changes and external inventories do not share an atomic crash save.
 
 STATE lives in heap while running and is encoded at save/disk lifecycle boundaries,
 not after every push. Saved length survives default-only edits. Changing an element
 type or switching between fixed and dynamic requires a state reset. Epochs and
 sleeping calls remain RAM-only; reloading does not restore a WAIT or reference.
+
+Next: [Strings](strings.md). Related: [Variables and state](variables.md),
+[Loops](loops.md) and [Typed queries](/automation/queries.md).

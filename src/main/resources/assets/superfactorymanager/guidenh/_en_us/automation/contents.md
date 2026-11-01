@@ -5,7 +5,7 @@ navigation:
   position: 60
   keywords: ["sfm", "contents", "item key", "nbt", "locations", "snapshot"]
 categories: ["sfm", "automation"]
-updated: "2026-10-30"
+updated: "2026-11-01"
 ---
 # Contents and exact item keys
 
@@ -27,6 +27,17 @@ END
 ```
 
 A complete available empty view produces zero groups. Missing, incomplete, unsupported or over-budget views fault the whole query. No partial stock is returned. The scan moves nothing and reserves nothing.
+
+```mermaid
+flowchart TD
+  I["Live labelled inventories"] -->|"contents: capture once"| G["Exact variant groups"]
+  G --> K["item: ID + metadata + NBT"]
+  G --> T["total: observed quantity"]
+  G --> L["locations: physical slots and amounts"]
+```
+
+The snapshot separates identity, quantity and origin. Later inventory changes
+do not edit these captured values; TRANSFER still rechecks the live source.
 
 Every group has these exact, case-sensitive fields:
 

@@ -5,12 +5,20 @@ navigation:
   position: 20
   keywords: ["sfml", "loops", "for", "while", "budgets"]
 categories: ["sfm", "language"]
-updated: "2026-10-31"
+updated: "2026-11-01"
 ---
 
 # Loops
 
-Use counted `FOR` for an integer range, array `FOR` to inspect a sequence, and `WHILE` when a condition decides whether another iteration is needed. All run within finite shared budgets.
+Choose a loop by what controls the next step. All forms share finite work budgets.
+
+| Task | Form |
+| --- | --- |
+| Visit an inclusive integer range | [Counted FOR](#range-and-snapshot-rules) |
+| Visit captured values in order | [Array FOR](#range-and-snapshot-rules) |
+| Use a mutable counter or get index/value pairs | [Indexed forms](#indexed-loop-forms) |
+| Repeat while a condition stays true | WHILE; [wait](#transfers-inside-loops) if machines need time to advance |
+| Stop a loop or trigger early | [BREAK](#exit-early-with-break) |
 
 ```sfml
 NAME "Loop examples"
@@ -45,7 +53,11 @@ Array `FOR` evaluates its source once and visits the resulting immutable snapsho
 
 ## Scope
 
-The iteration variable is local to the loop and read-only, including any array or struct members. Copy it into a `LET` local if you need to change a value. It cannot shadow a visible name and is unavailable after `END`.
+Counted-FOR counters and array-FOR element/index binders are local and read-only,
+including any array or struct members. Copy an element into a LET local to edit
+the copy. These binders cannot shadow a visible name and leave scope after the
+loop. A LET declared in a Java-style FOR initializer is instead mutable; see
+[indexed forms](#indexed-loop-forms).
 
 Body locals are initialized afresh each iteration. A loop body may `SET` visible outer locals and state. `BREAK` exits the innermost loop. `CONTINUE` is unsupported. Brace-delimited loop bodies are supported. In a function, `RETURN` can exit a loop and the function together.
 
@@ -60,8 +72,6 @@ Loop nesting is limited to 16. Every executed statement in a loop also consumes 
 Each executed `INPUT` registers an independent captured allowance. These accumulate until `FORGET` or trigger end. An input outside the loop retains one allowance across repeated outputs. Up to 256 input registrations executed within loops are allowed per invocation; `FORGET` does not reset that cumulative count.
 
 A budget fault stops execution while retaining earlier state writes and completed transfers. Loops do not yield between extraction and insertion/recovery. These bounds prevent an endless SFML loop, but do not impose a fixed duration on an inventory scan or a third-party callback.
-
-Next: [Functions](functions.md). Related: [Collections](collections.md) and [Expressions](expressions.md).
 
 A loop without WAIT executes within the current invocation. `wait(n)` inside a
 loop suspends that trigger/function stack and preserves its cursor; it lets game
@@ -140,5 +150,8 @@ every 20 ticks {
 }
 ```
 
-This prints4 and after loop. To limit an item batch, still specify its amount:
+This prints `4` and `after loop`. To limit an item batch, still specify its amount:
 BREAK prevents later iterations, not multiple items within one TRANSFER call.
+
+Next: [Functions](functions.md). Related: [Collections](collections.md) and
+[Expressions](expressions.md).

@@ -6,7 +6,7 @@ navigation:
   parent: /reference/index.md
   keywords: ["supported", "planned", "sfml", "nei", "recipe", "nbt"]
 categories: ["sfm"]
-updated: "2026-10-30"
+updated: "2026-11-01"
 ---
 
 # Feature status
@@ -35,6 +35,8 @@ different.
   grouped item snapshots with physical origins.
 - Standalone item TRANSFER and fluid TRANSFERF actions with confirmed progress
   results; separate fcount/fempty/favailable/fcontents observations use mB.
+- Read-only NBT paths on captured item keys, plus exact metadata/NBT comparison.
+- Same-owner functions-only libraries pinned to exact published revisions.
 - Private Programming Station drafts with remembered projects, revision validation,
   immutable root-source builds and reference-disk imprinting.
 - A normal Manager inventory with inline diagnostics, live variable watches and

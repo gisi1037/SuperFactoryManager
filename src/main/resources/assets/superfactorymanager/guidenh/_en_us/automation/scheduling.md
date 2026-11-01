@@ -5,11 +5,17 @@ navigation:
   position: 130
   keywords: ["sfm", "every", "timer", "global", "ticks"]
 categories: ["sfm", "automation"]
-updated: "2026-10-31"
+updated: "2026-11-01"
 ---
 # Scheduling
 
 A program may start with NAME, followed by its declarations and triggers. A timer trigger uses `every ... { ... }` or `EVERY ... DO ... END`. Keywords ignore case; labels and data names retain their case. Whitespace helps readability, while the grammar determines where statements end. `--` starts a comment through the end of the line.
+
+Choose a [manager timer](#manager-timers), [world-time timer](#global-timers) or
+[WAIT between steps](#waiting-between-steps). Signals use separate
+[redstone triggers](/automation/redstone.md).
+
+## Manager timers
 
 ```sfml
 NAME "Two rates"
@@ -29,6 +35,8 @@ One second means twenty game ticks. Server lag can make twenty ticks take more t
 
 Ordinary timers follow the manager's saved running-tick counter. It advances while a valid running program is processed. Paused time, invalid-program time and recovery-blocked time do not advance that counter. Unloading a manager does not queue every missed execution for a burst of catch-up transfers.
 
+## Global timers
+
 GLOBAL timers follow world time instead:
 
 ```sfml
@@ -41,11 +49,13 @@ END
 
 This trigger is due when world time minus two is nonnegative and divisible by twenty. PLUS uses the interval's units: `EVERY 5 GLOBAL PLUS 1 SECONDS` means a 100-tick interval with a 20-tick offset. `20G` is an alternate spelling for `20 GLOBAL`. Keep the header order shown above.
 
+## Execution order and discovery
+
 Due triggers run in source order. Statements inside them also run in source order. An earlier transfer or STATE write is visible to later work in that invocation. Each trigger starts with an independent empty active INPUT list; declarations and allowances from one trigger never feed another trigger.
 
 Changing the interval requires editing source. WAIT suspends the current trigger without blocking the server; there is no dynamic-interval setter or background worker statement. [Redstone triggers](/automation/redstone.md) provide event-oriented alternatives. Pause, reload and edge-baseline rules are described there.
 
-Cable discovery's periodic refresh is separate from EVERY. Its freshness window does not turn a 20-tick program into a 21-tick program. [Labels and networks](/start/labels.md) explain connection discovery.
+Cable discovery's periodic refresh is separate from EVERY. Its freshness window does not turn a 20-tick program into a 21-tick program. [Labels and networks](/advanced/labels.md) explain connection discovery.
 
 ## Waiting between steps
 

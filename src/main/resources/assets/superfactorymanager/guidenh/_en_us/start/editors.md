@@ -6,14 +6,15 @@ navigation:
   parent: /start/index.md
   keywords: ["editor", "visual", "code", "undo", "save", "text"]
 categories: ["sfm"]
-updated: "2026-10-30"
+updated: "2026-11-01"
 ---
 
 # Choose an editor
 
-All SFM programs use **SFML**. Choose the view that helps you write it.
+All SFM programs use **SFML**. You can keep using the manager's Text editor;
+a Programming Station is optional.
 
-## Copy or write code
+## Text: paste or write a program
 
 Open **Manager > Program > Edit code** for an ordinary source disk.
 Paste a program, then choose **Save & Close** and wait for confirmation.
@@ -21,30 +22,28 @@ Paste a program, then choose **Save & Close** and wait for confirmation.
 **Ctrl+Z** undoes an edit. **F4** jumps to the first compile error.
 Saving and pressing **Start** are separate steps.
 
-## Build a simple graph
+## Visual: connect a simple route
 
-Open **Program > Visual**. Add a Timer, Input and Output, then connect their
-execution pins in that order. Edit each node's clause and apply it.
+Start with the [first transfer](first-transfer.md) program installed. Open
+**Manager > Program > Visual** to see it as nodes in this execution order:
 
-A basic route is **Timer → Input → Output**. Every executable node must connect to a
-trigger before saving; program-wide declarations stand separately. The detailed [Visual instructions](/advanced/editors.md)
-explain pins, node fields and controls.
+**Timer → Input → Output**
 
-Visual also supports variable declarations, assignments and counted/array/while
-loops. Program-wide declarations have no wires; loop BODY repeats, then AFTER
-continues. Player functions, WAIT and other unsupported constructs require text.
-If Visual cannot represent the whole program, it keeps the source intact.
-Transfer and Print steps are also available for simple item routes and messages.
-See the advanced editor page for their supported expression subset.
+The timer starts the route, Input selects the source, and Output attempts the
+move. Select a node to edit its clause and apply the change. Keep the execution
+pins connected in that order, then save.
 
-## Keep projects in Studio
+**Expected:** the saved route still stocks `dest` at one, just as the Text
+program did. If Visual cannot represent a program, it preserves the source;
+continue in Text. See [Visual controls](/advanced/editors.md) when you need them.
+
+## Studio: save named projects
 
 <BlockImage id="superfactorymanager:programmingStation" scale="3" />
 
-The [Programming Station](station.md) has **Visual**, **Split** and **Code**
-views and saves named projects. It has no player inventory while open.
+The [Programming Station](station.md) keeps named projects and offers
+**Visual / Split / Code** views. Choose it when you want to keep reusable source.
+It opens a separate full-screen editor without player inventory slots.
 
-A published reference disk runs an immutable build. Change its project in
-Studio and imprint a fresh disk to deploy a different build.
-
-More: [editor controls and save recovery](/advanced/editors.md).
+Next: [change your route](change-route.md), or [save a Studio project](station.md).
+Need help? [Nothing moving?](troubleshooting.md).

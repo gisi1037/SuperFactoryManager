@@ -5,7 +5,7 @@ navigation:
   position: 10
   keywords: ["sfml", "functions", "parameters", "return", "defaults"]
 categories: ["sfm", "language"]
-updated: "2026-10-31"
+updated: "2026-11-01"
 ---
 
 # Functions
@@ -48,7 +48,8 @@ every 20 ticks {
 This stores fifteen and prints it when capture is enabled. Signature types are
 `integer`, `boolean`, `string`, `label_ref`, `resource_selector`, `item_key`,
 `item_contents`, `item_locations`, `fluid_key`, `fluid_contents`, fixed arrays
-such as `integer[3]`, and records such as `{count: integer, name: string}`.
+such as `integer[3]`, dynamic arrays such as `integer[]`, and records such as
+`{count: integer, name: string}`.
 Argument and return shapes must match exactly. `void` is a procedure return type,
 not a parameter, variable or collection type. Handles/snapshots cannot persist
 in STATE, even when a function returns them.
@@ -152,8 +153,13 @@ use the invocation's bounded label snapshot. Functions receive no direct world
 or Java access. See [Waiting between steps](/automation/scheduling.md) for suspended
 calls, frozen operands and fresh observations after a wait.
 
+For functions shared between programs, Studio can publish your own
+[functions-only library](/advanced/libraries.md) and insert an import pinned to
+its exact revision. Libraries cannot implicitly access a root program's STATE
+or globals; pass values or explicit REF arguments.
+
 Direct/indirect recursion, duplicate names, overloading, optional/variadic
-parameters, imports and extension methods are unsupported. Constructor/action
+parameters, nested library imports and extension methods are unsupported. Constructor/action
 names and boolean operator spellings are reserved. RETURN belongs inside a
 function. Use Text/Studio for definitions and calls; Visual refuses unsupported
 constructs without rewriting their source.

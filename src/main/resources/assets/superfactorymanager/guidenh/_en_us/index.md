@@ -7,7 +7,7 @@ navigation:
   recommend: 1
   required_mod: superfactorymanager
 categories: ["sfm"]
-updated: "2026-10-30"
+updated: "2026-11-01"
 item_ids: ["superfactorymanager:manager"]
 ---
 
@@ -28,8 +28,8 @@ You will move one item and keep the destination stocked at one.
 
 **[Advanced guide](/advanced/index.md)**
 
-Find routing rules, variables, functions, queries and the complete Studio
-workflow when you need them.
+Try [three small changes to your route](/start/change-route.md), or find routing
+rules, variables, functions, queries and the complete Studio workflow in Advanced.
 
 **[Nothing moving?](/start/troubleshooting.md)** Follow the short checklist.
 

@@ -5,7 +5,7 @@ navigation:
   position: 50
   keywords: ["sfm", "transfer", "moved", "remaining", "status"]
 categories: ["sfm", "automation"]
-updated: "2026-10-31"
+updated: "2026-11-01"
 ---
 # Value-driven item transfers
 
@@ -16,12 +16,26 @@ name "Transfer shorthand forms"
 every 20 ticks do
   let $source = label("inputs")
   let $destination = label("assembly")
-  transfer($source, $destination)
-  transfer($source, $destination, item("minecraft:iron_ingot"))
+  -- One selected request. Replace it with another form from the table below.
   transfer($source, $destination, item("minecraft:iron_ingot"), 16) into $result
   print($result.moved, $result.remaining, $result.status)
 end
 ```
+
+**Setup:** label a source chest `inputs` and an empty chest `assembly`; put
+twenty iron ingots in the source. Open **Manager > Terminal** and enable
+**PRINT capture** before starting to see the result fields.
+**Expected:** the first run moves sixteen,
+leaving four. The next run moves the remaining four and reports `partial`.
+
+Choose one form per request:
+
+| Form | Request |
+| --- | --- |
+| `transfer(source, destination)` | All currently visible items. |
+| `transfer(source, destination, 16)` | Up to sixteen items across all variants. |
+| `transfer(source, destination, item("minecraft:iron_ingot"))` | All visible iron ingots. |
+| `transfer(source, destination, item("minecraft:iron_ingot"), 16)` | Up to sixteen iron ingots. |
 
 Two arguments select all items. A third integer limits the total item count, equivalent to `TRANSFER(src,dest,ITEM("*"),amount)`. A third ITEM_KEY or RESOURCE_SELECTOR instead selects all matching stock. An omitted amount snapshots matching visible source stock across the selected group/faces/slots; extraction restrictions can prevent moving some of it. This makes one bounded attempt, never waits for destination capacity, and moves items only. Fluids use separate [TRANSFERF and fluid queries](/automation/fluid-methods.md), or legacy INPUT/OUTPUT with `fluid:*`. Fluid quantities are millibuckets (1000 mB = one bucket). Later statements observe stock remaining after earlier transfers.
 

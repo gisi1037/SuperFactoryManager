@@ -5,12 +5,16 @@ navigation:
   position: 30
   keywords: ["sfm", "redstone", "pulse", "rising", "falling", "port", "signal"]
 categories: ["sfm", "automation"]
-updated: "2026-10-30"
+updated: "2026-11-01"
 item_ids: ["superfactorymanager:redstonePort"]
 ---
 # Redstone
 
 SFM has two input paths: the manager's own observed power, and named native Redstone Ports connected to its network. Bare REDSTONE and an unnamed pulse use manager/legacy input. Named queries and FROM triggers address native ports. They do not automatically combine into one signal.
+
+Choose [manager pulses](#manager-level-and-pulse), [native port reads](#native-redstone-port),
+[named edges](#named-rising-and-falling-triggers) or [signal output](#emitting-signals).
+For a complete small setup, try the [remote gate](#switch-a-remote-output-with-an-input).
 
 ## Manager level and pulse
 
@@ -87,11 +91,56 @@ END
 
 RISING is an alias for PULSE in a named trigger. Zero-to-positive is rising; positive-to-zero is falling. Other positive-level changes are neither. Named native ports maintain counters from neighbor notifications, so a short notified pulse may be observed after it has ended. Several changes coalesce: each matching trigger runs at most once per manager invocation, and both rising and falling triggers can run for a short pulse. Reading an edge does not consume it for another trigger or manager. One held-high port does not hide another port's edge in the same label group.
 
-All named-trigger eligibility is captured before any trigger body executes. A body that changes an input can make an event eligible on the next invocation, while a later typed query already sees the new reading. Idle subscriptions use cached counters. Before an edge is delivered, every member is freshly validated. Missing/unavailable members suppress the whole group, and valid members' observed counters still advance. Budget failures fault the snapshot before any trigger body runs.
+### When an edge is delivered
 
-First observation, replacement, unload/reload, pause/resume, recovery and recompilation establish new baselines without replaying old edges. Disconnect/reconnect also rebases. Relevant network edits, covered chunk gaps, manager-neighbor notifications and changes with unknown locations conservatively rebase; an edit in the subscribed network may discard a pending edge even if a particular path survives. Unrelated edits preserve pending edges. Periodic discovery refresh by itself does not rebase, and ordinary signal changes do not invalidate the network.
+| Situation | Result |
+| --- | --- |
+| Start of an invocation | Eligibility for all named triggers is captured before any trigger body runs. |
+| A body changes an input | A later query can see it now; the new event can become eligible next invocation. |
+| Any selected member is missing/unavailable | The whole group is suppressed; valid members' observed counters still advance. |
+| Edge-snapshot budget fails | Execution faults before any trigger body runs. |
 
-Reliable capture requires neighbor notifications. Unnotified transitions and edges across connection gaps cannot be reconstructed. Named triggers reject round robin, slot selections, relative faces and NULL SIDE. Use Text until matching visual nodes exist.
+Idle subscriptions use cached counters. Every member is freshly validated before
+an edge is delivered. Events are observations, not a durable queue.
+
+### When edge history resets
+
+| Change | Effect |
+| --- | --- |
+| First observation, replacement, unload/reload, pause/resume, recovery or recompile | Establish a baseline without replaying old edges. |
+| Disconnect/reconnect, relevant network edits or covered chunk gaps | Rebase; a pending edge may be discarded even if a particular cable path survives. |
+| Manager-neighbor notifications or changes with unknown locations | Conservatively rebase. |
+| Unrelated edits or periodic discovery refresh alone | Preserve pending edges. |
+
+Ordinary signal changes do not invalidate the network.
+
+Reliable capture requires neighbor notifications. Unnotified transitions and edges
+across connection gaps cannot be reconstructed. Named triggers reject round robin,
+slot selections, relative faces and NULL SIDE. Visual's
+[Port edge node](/advanced/editors.md) edits named RISING/PULSE/FALLING triggers;
+its separate Pulse node watches the manager input.
+
+## Switch a remote output with an input
+
+**Setup:** connect two Redstone Ports, labelled `sensor` and `emit`. Put a lever
+against the sensor's north face and a redstone lamp against the emitter's east
+face. Start with the lever off. Give the manager time to establish its baseline,
+then switch the lever on and off.
+
+```sfml
+name "Remote signal gate"
+every redstone rising from "sensor" north side do
+  output 15 redstone level to "emit" east side
+end
+every redstone falling from "sensor" north side do
+  output 0 redstone level to "emit" east side
+end
+```
+
+**Expected:** the lamp switches on after the rising event and off after the
+falling event. A lever already on when the program starts is a baseline, not a
+new edge. This example latches the last output; it does not continuously copy
+the input while the manager is stopped.
 
 ## Emitting signals
 

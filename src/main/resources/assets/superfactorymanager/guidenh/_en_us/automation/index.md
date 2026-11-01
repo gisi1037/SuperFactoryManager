@@ -5,7 +5,7 @@ navigation:
   position: 100
   keywords: ["sfm", "automation", "routing"]
 categories: ["sfm", "automation"]
-updated: "2026-10-30"
+updated: "2026-11-01"
 ---
 # Automation
 
@@ -20,8 +20,10 @@ An SFM program describes when to run, which connected blocks to observe, and whe
 - [Item queries](/automation/queries.md): use typed label handles for live observations.
 - [Contents snapshots](/automation/contents.md): inspect exact variants and physical origins.
 - [Value-driven transfers](/automation/transfers.md): move a computed amount and inspect its result.
+- [Fluid methods and transfers](/automation/fluid-methods.md): observe tanks and move millibuckets.
 - [Stock helpers](/automation/stock.md): total snapshots and calculate shortages.
 - [Redstone](/automation/redstone.md): manager pulses and named Redstone Ports.
+- [Ghost circuits](/reference/functions.md): configure supported GregTech machines with SETCIRCUIT.
 - [FORGET](/automation/forget.md): end an input stage within a trigger.
 
 Ordinary INPUT/OUTPUT supports items and Forge fluids. Typed item queries, contents and TRANSFER operate on items. [Fluid methods and TRANSFERF](/automation/fluid-methods.md) provide a separate mB API for tanks. Redstone has its own input, event and output behavior. These interfaces are related, but their selectors, access checks and results differ; each chapter identifies the differences.

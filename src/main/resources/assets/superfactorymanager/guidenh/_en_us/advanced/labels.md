@@ -6,7 +6,7 @@ navigation:
   parent: /advanced/index.md
   keywords: ["labels", "labelgun", "names", "network", "multiple containers"]
 categories: ["sfm"]
-updated: "2026-10-31"
+updated: "2026-11-01"
 ---
 
 # Labels and cable networks
@@ -32,25 +32,59 @@ a deliberate master copy. Editing the gun later does not automatically edit the
 disk. If you replace the gun while its menu is open, reopen the menu for the new
 gun before changing anything.
 
-## Spelling and group behavior
+## Route from a group of chests
+
+Give two single source chests the same label, `supply`, and give an empty
+destination the label `dest`. Connect all three, then push the gun's table to
+the Manager. The preview illustrates shared label membership and intended item
+flow; it does not assign labels or move items in your world.
+
+<GameScene width="260" height="180" interactive={true}>
+  <Block id="superfactorymanager:manager" x="0" y="0" z="0" />
+  <Block id="superfactorymanager:cable" x="1" y="0" z="0" />
+  <Block id="minecraft:chest" x="2" y="0" z="0" />
+  <Block id="superfactorymanager:cable" x="1" y="0" z="1" />
+  <Block id="minecraft:chest" x="1" y="0" z="2" />
+  <Block id="superfactorymanager:cable" x="1" y="0" z="-1" />
+  <Block id="minecraft:chest" x="1" y="0" z="-2" />
+  <TextAnnotation pos="0.5 1.2 0.5" text="Manager" color="#B4D89B" />
+  <TextAnnotation pos="2.5 1.2 0.5" text="supply: A" color="#66CCFF" />
+  <TextAnnotation pos="1.5 1.2 2.5" text="supply: B" color="#66CCFF" />
+  <TextAnnotation pos="1.5 1.2 -1.5" text="dest" color="#FFCC66" />
+  <LineAnnotation from="2.5 1.1 0.5" to="1.5 1.1 -1.5" arrow="end" color="#66CCFF" />
+  <LineAnnotation from="1.5 1.1 2.5" to="1.5 1.1 -1.5" arrow="end" color="#66CCFF" />
+</GameScene>
+
+Put eight iron ingots in each source chest. Copy this complete program:
+
+```sfml
+name "One shared supply group"
+every 20 ticks {
+  input 8 item:minecraft:iron_ingot from "supply"
+  output retain 8 item:minecraft:iron_ingot to "dest"
+}
+```
+
+**Expected:** after a successful due run, dest has eight iron ingots and supply
+has eight remaining in total. The program does not promise an equal draw from
+both source chests. Further runs leave dest at eight. The quantity is shared
+across the group; [EACH and RETAIN](/automation/quantities.md) changes its scope.
+
+## Spell literal names exactly
 
 Labels are case-sensitive. SFML keywords ignoring case does not make `Input`
 the same label as `input`. Quote every literal label, including simple names.
 Unquoted names now mean variable references; older programs must convert.
 There is no compatibility fallback from an unknown variable to a label:
 
-```sfml
-NAME "Quoted labels"
-EVERY 20 TICKS DO
-  INPUT FROM "Input chest"
-  OUTPUT TO "Finished goods"
-END
+```text
+input from "Input chest"
+output to "Finished goods"
 ```
 
 When several containers share a name, they form the selection for that clause.
-Amounts normally apply across the selection; [EACH and RETAIN](/automation/quantities.md)
-change how limits are divided. A name is not a promise that the group contains
-only one container. [Contents snapshots](/automation/contents.md) record physical
+Amounts normally apply across the selection. A name is not a promise that the
+group contains only one container. [Contents snapshots](/automation/contents.md) record physical
 origins and deduplicate aliases rather than counting the same chest slot twice.
 
 ## Connectivity and replacement

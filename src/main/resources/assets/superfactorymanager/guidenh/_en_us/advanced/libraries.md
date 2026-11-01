@@ -56,6 +56,19 @@ build contains the exact library source it was checked with. Editing Utilities
 or publishing another revision cannot change this build or a running manager.
 Choose a new import revision and build again when you want to update.
 
+```mermaid
+flowchart TD
+  L["Save Utilities"] --> P["Publish exact library revision"]
+  P --> I["Insert pinned import into program"]
+  I --> B["Save, Check, publish program build"]
+  B --> D["Imprint fresh disk; run in manager"]
+```
+
+**Expected:** the imported example sets `answer` to 42. The running build keeps
+that result if you later edit `twice`; select the new revision and publish a new
+program build to deploy the change. See [Studio](/advanced/studio.md) for the
+disk and publication controls.
+
 ## Rules to remember
 
 - This first library feature supports **your own functions-only libraries**.

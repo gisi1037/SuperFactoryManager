@@ -6,16 +6,24 @@ navigation:
   parent: /reference/index.md
   keywords: ["api", "builtin", "min", "max", "len", "total", "stock", "shortage"]
 categories: ["sfm"]
-updated: "2026-10-31"
+updated: "2026-11-01"
 ---
 
 # Default functions
 
-These tables list the current typed data API. `INTEGER` is signed 64-bit,
+Look up a callable name here, then follow its topic link for setup and examples.
+`INTEGER` is signed 64-bit,
 `BOOLEAN` is true/false, and `STRING` is text. Built-in names ignore case.
 Exact-name player functions take precedence over ordinary built-in calls; avoid
 reusing built-in names so a program remains easy to read. LABEL, ITEM, ORE and
 TRANSFER are reserved boundaries.
+
+- [Choose labels and resources](#constructors-and-selections): LABEL, ITEM, ORE and FLUID.
+- [Calculate an amount or length](#arithmetic-and-size): MIN, MAX, CLAMP, ABS and LEN.
+- [Observe items](#inventory-observations) or [fluids](#fluid-observations).
+- [Calculate stock and shortages](#stock-calculations): TOTAL, STOCK and SHORTAGE.
+- [Build or search arrays](#arrays-and-sequences), or [read captured NBT](#captured-item-nbt).
+- [Read signals](#signal-observations), [wait between steps](#wait) or [set a ghost circuit](#ghost-circuits).
 
 ## Constructors and selections
 
@@ -43,9 +51,9 @@ registering a new ore category. See [selectors](/automation/selectors.md) and
 | `MAX(a, b)` | Larger of two integers. |
 | `CLAMP(value, low, high)` | Value limited to inclusive integer bounds; reversed bounds fault. |
 | `ABS(value)` | Absolute integer value; the minimum signed value faults because its positive counterpart cannot fit. |
-| `LEN(array)` | Number of outer fixed-array entries. |
+| `LEN(array)` | Number of outer fixed or dynamic array entries. |
 | `LEN(string)` | Unicode code-point count, not UTF-8 bytes or displayed grapheme clusters. |
-| `LEN(contents)` / `LEN(locations)` | Actual captured sequence length, including zero. |
+| `LEN(contents)` / `LEN(locations)` | Actual item/fluid snapshot or location sequence length, including zero. |
 
 ## Inventory observations
 
@@ -63,6 +71,62 @@ Visibility is separate from extraction permission or insertion capacity. There
 is no current `.full()`, `.canInsert()` or `.canExtract()` method. An unavailable
 view does not prove emptiness; use the [query contract](/automation/queries.md).
 Snapshots are observations rather than reservations.
+
+## Fluid observations
+
+| Call | Returns | Meaning |
+| --- | --- | --- |
+| `$label.favailable([selector])` | BOOLEAN | Whether the complete selected tank group can be observed. |
+| `$label.fempty([selector])` | BOOLEAN | Whether an available group has no matching fluid. |
+| `$label.fcount([selector])` | INTEGER | Matching visible amount in mB; unavailable groups fault. |
+| `$label.fcontents([selector])` | FLUID_CONTENTS | Immutable nonempty tank rows, including exact fluid/NBT keys. |
+
+Square brackets here mean an optional argument. Omit the selector for all fluids,
+or pass `FLUID("water")`. **1000 mB = one bucket.** Missing groups make
+favailable/fempty false. These methods accept fluid selectors, not ITEM/ORE.
+See [fluid methods and TRANSFERF](/automation/fluid-methods.md).
+
+## Arrays and sequences
+
+| Call | Result |
+| --- | --- |
+| `ARRAY("integer")` | Empty typed dynamic array; other supported type strings work too. |
+| `ARRAY(sequence)` | Explicit dynamic-array copy of a fixed/dynamic array or native sequence. |
+| `PUSH(REF values, value)` | Append one element. |
+| `EXTEND(REF values, sequence)` | Append same-type elements. |
+| `INSERT(REF values, index, value)` | Insert at an index from zero through LEN. |
+| `POP(REF values)` | Remove and return the last element. |
+| `REMOVEAT(REF values, index)` | Remove and return one indexed element. |
+| `CLEAR(REF values)` | Remove all elements. |
+| `PEEK(sequence)` | Read the last element. |
+| `CONTAINS(sequence, value)` | Test exact typed membership. |
+| `INDEXOF(sequence, value)` | First zero-based match, or -1. |
+
+PUSH/EXTEND/INSERT/CLEAR return no value. Mutations require an explicit writable
+dynamic-array REF; fixed arrays and native snapshots stay read-only in size.
+PEEK/CONTAINS/INDEXOF accept fixed/dynamic arrays and native sequences. Empty
+POP/PEEK and invalid indices fault. All arrays remain bounded. See
+[arrays, mutation and saved queues](/language/collections.md).
+
+## Captured item NBT
+
+Use an exact `ITEM_KEY`, such as `group.item` from `.contents()`.
+An ITEM selector has no captured tags. All paths below are optional JSON Pointers;
+omitting the path selects the root.
+
+| Method on a key | Result |
+| --- | --- |
+| `.hasnbt(path)` | Whether a captured tag exists. |
+| `.nbttype(path)` | Exact type name, or `"missing"`. |
+| `.nbtinteger(path)` | Signed byte/short/int/long value. |
+| `.nbtstring(path)` | String tag value. |
+| `.nbttext(path)` | Scalar display text, including float/double. |
+| `.nbtkeys(path)` | Sorted immediate compound keys as dynamic string[]. |
+| `.nbtlength(path)` | Container entries, or UTF-16 code units for a string. |
+
+Wrong-type and missing typed reads fault. These methods inspect the immutable
+snapshot, without rescanning or writing a live stack. See
+[read item NBT](/advanced/nbt.md) for paths, bounds and discovery.
 
 ## Stock calculations
 
@@ -104,11 +168,13 @@ value-returning function body. TRANSFERF is the corresponding fluid action in mB
 Item/fluid `INPUT` and `OUTPUT`, redstone `OUTPUT` and `FORGET` also remain action
 statements for triggers and void procedures. Value functions can use data/query
 calls, bounded loops, local/parameter assignments, direct STATE reads and WAIT;
-they cannot perform world actions or mutate STATE. Void procedures can update
+they cannot perform world actions or directly assign STATE. Void procedures can update
 STATE directly. Program-wide LET and caller locals still need explicit arguments.
-Parameters are values unless a void procedure explicitly declares REF and its
-caller supplies a matching REF target. Those writes update the caller immediately. There are no current
-recipe-query, dynamic interval, append or substring defaults. String plus integer
+Parameters are values unless a value function or void procedure explicitly
+declares REF and its caller supplies a matching REF target. Those writes update
+the caller immediately. A trigger or void procedure can explicitly pass STATE
+by REF; a value function cannot directly acquire a STATE reference.
+There are no current recipe-query, dynamic interval or substring defaults. String plus integer
 concatenation uses signed decimal text; it does not provide general conversion.
 
 ## WAIT
@@ -133,12 +199,19 @@ as `label("assembler")`, with no `.side(...)` or `.slots(...)` restriction.
 Values 1 through 24 select a circuit; **0 or -1 clears it**. Other values fault.
 This is a configuration action, not a physical item transfer into a guessed slot.
 
+**Setup:** connect and label one supported GregTech machine `assembler`, with its
+ghost circuit initially cleared. Enable PRINT capture to inspect the result.
+
 ```sfml
 every 20 ticks {
   setcircuit(label("assembler"), 5) into configured;
   print(configured.matched, configured.changed, configured.status);
 }
 ```
+
+**Expected:** the first successful run selects configuration 5 and reports one
+changed machine. Later successful runs report one matched and zero changed.
+Unsupported machines report a status rather than receiving a physical circuit.
 
 INTO is optional. Its record has integer `matched` and `changed` fields and a
 string `status`: `complete`, `partial`, `unavailable` or `unsupported`. Counts
