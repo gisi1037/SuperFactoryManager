@@ -6,7 +6,7 @@ navigation:
   parent: /index.md
   keywords: ["tutorial", "setup", "beginner"]
 categories: ["sfm"]
-updated: "2026-10-30"
+updated: "2026-11-01"
 ---
 
 # Getting started
@@ -22,10 +22,12 @@ Your first goal is small: **one chest supplies one item to another chest**.
 2. **[Name the chests](labels.md)** — save source and destination labels.
 3. **[Run your first program](first-transfer.md)** — copy, save and check the result.
 
-Then choose your next step:
+**Stuck? [Nothing moving?](troubleshooting.md)** checks the first route.
 
-- [Choose an editor](editors.md) for text or visual nodes.
-- [Save a Studio project](station.md) to keep reusable source.
-- [Fix a stopped route](troubleshooting.md) if the first transfer does not work.
+## After it works
 
-The [Advanced guide](/advanced/index.md) holds the detailed rules and API reference.
+- [Change your route](change-route.md): try a small batch, item filter or stock target.
+- [Choose an editor](editors.md): keep using Text, try Visual, or save Studio projects.
+
+The [Advanced guide](/advanced/index.md) holds the detailed routing rules,
+language and API reference.

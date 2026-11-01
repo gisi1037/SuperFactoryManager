@@ -5,11 +5,14 @@ navigation:
   position: 120
   keywords: ["sfm", "input", "output", "transfer", "quota"]
 categories: ["sfm", "automation"]
-updated: "2026-10-30"
+updated: "2026-11-01"
 ---
 # INPUT and OUTPUT
 
 INPUT registers a source declaration for later OUTPUT statements in the current trigger. It does not immediately extract a chest into a hidden inventory. OUTPUT attempts real transfers from the active inputs, subject to source and destination filters, remaining allowances, capacity and machine access rules.
+
+**Setup:** put sixteen iron ingots in `supply`, five in `priority`, and leave
+`overflow` empty. Connect and label all three chests.
 
 ```sfml
 NAME "Priority then overflow"
@@ -18,6 +21,15 @@ EVERY 20 TICKS DO
   OUTPUT RETAIN 8 item:minecraft:iron_ingot TO "priority"
   OUTPUT item:minecraft:iron_ingot TO "overflow"
 END
+```
+
+**Expected after one run:** supply has zero, priority has eight, and overflow has
+thirteen. Both outputs spend the same sixteen-item allowance, in source order:
+
+```mermaid
+flowchart TD
+  S["supply: 16 iron ingots"] -->|"first: 3 items"| P["priority: 5 becomes 8"]
+  S -->|"then: remaining 13"| O["overflow: 0 becomes 13"]
 ```
 
 The priority output fills toward eight existing-plus-new ingots. Overflow then uses what remains of the same sixteen-ingot input allowance. If priority receives three, overflow can receive at most thirteen. OUTPUT keeps the input declaration active; successful movement consumes its allowance across later outputs. Another output does not renew that allowance.

@@ -6,7 +6,7 @@ navigation:
   parent: /start/index.md
   keywords: ["first", "beginner", "tutorial", "chest", "retain"]
 categories: ["sfm"]
-updated: "2026-10-31"
+updated: "2026-11-01"
 ---
 
 # Your first transfer
@@ -36,7 +36,7 @@ The arrow shows the intended transfer; the preview does not move real items.
 Open the manager, choose **Program > Edit code**, and paste this complete program:
 
 ```sfml
-NAME "First transfer"
+name "First transfer"
 every 20 ticks {
   input from "source";
   output retain 1 to "dest";
@@ -48,22 +48,18 @@ Choose **Save & Close**, wait for confirmation, then press **Start** if paused.
 **Expected:** after the timer runs, `source` has **7**, and `dest` has **1**.
 Remove the destination item. The next due run replaces it, leaving **6** in source.
 
-Braces group statements; semicolons are optional. The older DO/END spelling
-also works. Literal labels always need quotes. See the [language overview](/language/index.md)
-for a reusable procedure with variables and persistent progress.
-
 ## Understand the result
 
-`INPUT` chooses the source. `OUTPUT` attempts the move.
-`RETAIN 1` keeps the destination's total at **one**. If it already has one,
-nothing moves. Change it to `OUTPUT TO "dest"` to move all
-eligible stock the destination can accept.
+`input` selects the source; it leaves the items there until `output`
+attempts the move. `retain 1` keeps the destination's total at **one**. If it already has one,
+nothing moves. It also leaves any existing excess in place.
 
-`EVERY 20 TICKS` normally runs once per game second. Lag can make a game second
+`every 20 ticks` normally runs once per game second. Lag can make a game second
 take longer in real time.
 
 ## If nothing moves
 
 Follow [Nothing moving?](troubleshooting.md).
 
-Next: [choose an editor](editors.md), or try [more routing rules](/automation/index.md).
+**Next: [change your route](change-route.md)** with a small batch, an item filter
+or a different stock target. You can also [choose an editor](editors.md).

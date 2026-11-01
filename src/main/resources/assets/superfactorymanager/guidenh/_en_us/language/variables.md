@@ -5,7 +5,7 @@ navigation:
   position: 70
   keywords: ["sfml", "variables", "state", "let", "set"]
 categories: ["sfm", "language"]
-updated: "2026-10-31"
+updated: "2026-11-01"
 ---
 
 # Variables and persistent state
@@ -72,11 +72,23 @@ EVERY 20 TICKS DO
 END
 ```
 
-State names are visible to all triggers and cannot be shadowed by their locals. Completed writes are visible to later statements and other due triggers in source order. Player functions can read STATE directly. Only void procedures can write STATE from a function body; value-returning functions cannot. Program-wide LET and caller locals still require explicit arguments. Ordinary parameters remain values: changing one does not change the caller's binding. Void procedures may instead declare explicit REF parameters and receive writable targets via REF arguments.
+State names are visible to all triggers and cannot be shadowed by their locals.
+Completed writes are visible to later statements and other due triggers in source
+order. Player functions can read STATE directly. Void procedures may assign it
+directly; value functions cannot. Either kind of function may update a received
+REF parameter. A trigger or void procedure must explicitly pass STATE by REF;
+a value function cannot acquire that reference directly. See
+[reference parameters](functions.md) for examples.
+
+Program-wide LET and caller locals still require explicit arguments. Ordinary
+parameters remain values: changing one does not change the caller's binding.
 
 State belongs to the program disk. It survives pause/resume, moving the disk between managers and ordinary world save/reload. Copying a disk creates an independent snapshot. Updates are kept in memory and saved at persistence or disk movement boundaries; each `SET` does not write the disk immediately. State and external inventories do not share an atomic save transaction, so a counter cannot guarantee exactly-once delivery after a process crash.
 
-Only integers, booleans, strings and collections made entirely from those values persist. `LABEL_REF`, `RESOURCE_SELECTOR`, `ITEM_KEY`, `ITEM_CONTENTS` and `ITEM_LOCATIONS` values cannot go in `STATE`, including inside arrays or structs. Keep handles and query snapshots in local or program-wide LET bindings.
+Only integers, booleans, strings and collections made entirely from those values
+persist, including dynamic arrays of those types. Label/selector handles,
+item/fluid keys and contents/location snapshots cannot go in STATE, even nested
+inside arrays or structs. Keep those in local or program-wide LET bindings.
 
 ## Editing state declarations
 
@@ -89,7 +101,11 @@ State identity is its case-sensitive name and complete type/shape.
 | Add a declaration | Initialize it from its default. |
 | Remove a declaration | Drop its value. Adding that name later starts from its default. |
 | Rename a declaration | Remove the old name and initialize the new one, with a warning. |
-| Change type, array length or struct shape | Reject activation and require an explicit state reset. |
+| Change scalar/element type, fixed-array length or struct shape | Reject activation and require an explicit state reset. |
+
+A dynamic array's current length is data, not part of its type. Growing or
+shrinking it with supported helpers does not require a reset. Changing only a
+dynamic-array default keeps the saved contents, just like another default edit.
 
 Invalid source or incompatible state is not executed. Preserve a copy of important source before restructuring state. Use **Program > Reset state** to reset persistent variables to current defaults. This keeps source, labels and layout, clears program-wide memory and pauses the manager. Inspect the result before choosing **Start**. Recovery-blocked disks reject the reset. **Reset disk** clears program/labels and is a different operation.
 

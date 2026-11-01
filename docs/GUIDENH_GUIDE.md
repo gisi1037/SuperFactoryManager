@@ -8,7 +8,7 @@ fences with GuideNH's public renderer registry, keeping their SFML label and cop
 behavior without guessing another language. There is no hard GuideNH dependency
 or server integration; without GuideNH the book assets are unused.
 
-The book has 41 pages split into a short **Getting started** path and an
+The book has 47 pages split into a short **Getting started** path and an
 **Advanced** hub. Beginners build a network, name two chests and run one small
 transfer before choosing an editor or saving a Studio project. A short
 troubleshooting page keeps initial diagnosis separate from the full reference.
@@ -36,29 +36,34 @@ Each UTF-8 page has YAML frontmatter, one H1, navigation title/parent/position,
 search keywords and an updated date. Rooted links such as `/language/loops.md`
 stay inside the SFM guide namespace. Higher sibling positions appear first.
 The root and hardware/label/station/redstone pages index the relevant SFM items.
-The hardware and first-transfer pages contain annotated five-block interactive
-GameScenes; the transfer scene also shows its direction. Native item icons and
+Four annotated interactive GameScenes explain the initial network, first transfer,
+grouped labels and physical faces. Eight native Mermaid flowcharts explain
+routing allowances, snapshots, queues, libraries, deployment and graph pins. Native item icons and
 block previews identify equipment without screenshot dependencies. The layout
 uses the pinned GuideNH example book's short sections and native visual elements;
 the packaged DefaultGuide home was also checked for its simple navigation style.
 
 Complete programs use `sfml` fences. Fragments, commands and proposed syntax use
-`text` fences. Code blocks offer a copy button. The optional SFML renderer gives
+`text` fences; explanatory flowcharts use explicit `mermaid` fences. Code blocks offer a copy button. The optional SFML renderer gives
 complete programs an explicit SFML header and preserves source text; it does not
 claim native GuideNH SFML syntax highlighting. MUI2 remains the
 implementation used by SFM's own editable GUI surfaces.
 
 ## Build and validate
 
-From the workspace parent, using the project's pinned JDK wrapper:
+From the workspace root, using the project's pinned JDK wrapper:
 
 ```powershell
-& "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" -NoProfile -ExecutionPolicy Bypass -File scripts/gradle.ps1 test spotlessCheck checkstyleMain checkstyleTest assemble guideNhPack
+& "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" -NoProfile -ExecutionPolicy Bypass -File scripts/gradle.ps1 test spotlessCheck checkstyleMain checkstyleTest assemble guideNhPack --no-configuration-cache
 ```
+
+`GuideNhTutorialOutcomeTest` executes the actual first-transfer, batching and
+stock-target programs against ordinary inventory fixtures and checks their printed
+counts. This is headless inventory evidence, not full-pack qualification.
 
 `GuideNhBookTest` compiles every complete SFML example and checks page/parent
 reachability, local links, item IDs, item-shortcut uniqueness and explicit fence
-languages. The corpus retains 58 complete SFML programs. The book resource
+languages. The corpus contains 74 complete SFML programs and eight native Mermaid flowcharts. The book resource
 directory is an explicit test input, so edits invalidate cached corpus results.
 
 `GuideNhNativeParsingTest` is optional. Pass the exact installed GuideNH JAR and,
@@ -67,11 +72,12 @@ to use its runtime Markdown/MDX parser and bundled safe YAML parser. These are
 validation-only file inputs, not SFM dependencies:
 
 ```powershell
-& "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" -NoProfile -ExecutionPolicy Bypass -File scripts/gradle.ps1 test --tests '*GuideNh*' '-PguideNhJar=C:/absolute/path/to/guidenh-1.3.53.jar' '-PguideNhRuntimeJar=C:/absolute/path/to/jvmdowngrader-java-api-1.3.5-downgraded-8.jar'
+& "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" -NoProfile -ExecutionPolicy Bypass -File scripts/gradle.ps1 test --tests '*GuideNh*' '-PguideNhJar=C:/absolute/path/to/guidenh-1.3.53.jar' '-PguideNhRuntimeJar=C:/absolute/path/to/jvmdowngrader-java-api-2.0.1-downgraded-8.jar' --no-configuration-cache
 ```
 
-The native check verifies frontmatter, code preservation, registered corpus tag
-names, item/block previews, scene blocks and endpoint/direction annotations. It deliberately
+The native check verifies frontmatter, preserved code/diagram text, registered tags,
+item/block previews, bounded scene coordinates and endpoint annotations. It also
+uses the pinned native FlowchartParser to validate linked graph nodes. It deliberately
 does not execute scenes or initialize renderer/world code. It is syntax/structure
 evidence, not a substitute for in-game rendering, search or copy-button QA.
 The production GuideNH JAR uses SRG Minecraft names; directly invoking its

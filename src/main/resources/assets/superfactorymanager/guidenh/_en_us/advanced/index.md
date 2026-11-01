@@ -6,7 +6,7 @@ navigation:
   parent: /index.md
   keywords: ["advanced", "reference", "api", "studio"]
 categories: ["sfm"]
-updated: "2026-10-31"
+updated: "2026-11-01"
 ---
 
 # Advanced guide
@@ -40,3 +40,4 @@ complete examples, diagnostics, recovery, performance limits and feature status.
 - [Read item NBT](nbt.md): inspect captured heat, wear and other typed tags.
 - [Labels and cable networks](labels.md): gun controls, grouped selections and
   connection rules.
+- [Recipes and cable shapes](hardware.md): progression, conversions and saved-item rules.

@@ -50,11 +50,12 @@ class GuideNhNativeParsingTest {
                 .sorted()
                 .collect(Collectors.toList());
         }
-        assertEquals(41, pages.size(), "Unexpected guide corpus size");
+        assertTrue(pages.size() >= 43, "Retain the full guide corpus");
         int navigationCount = 0;
         int sfmlCount = 0;
         int imageCount = 0;
         int blockImageCount = 0;
+        int sceneCount = 0, diagramCount = 0;
         List<URL> nativeClasspath = new ArrayList<>();
         nativeClasspath.add(
             jar.toUri()
@@ -120,18 +121,16 @@ class GuideNhNativeParsingTest {
                         String tag = parser.name(element);
                         assertTrue(TAGS.contains(tag), "Unknown MDX tag: " + tag);
                         if ("ItemImage".equals(tag)) {
-                            assertTrue(
-                                parser.attribute(element, "id")
-                                    .startsWith("superfactorymanager:"),
-                                "Expected SFM item icon");
+                            assertAssetId(parser.attribute(element, "id"));
                             imageCount++;
                         }
                         if ("BlockImage".equals(tag)) {
-                            assertTrue(
-                                parser.attribute(element, "id")
-                                    .startsWith("superfactorymanager:"),
-                                "Expected SFM block preview");
+                            assertAssetId(parser.attribute(element, "id"));
                             blockImageCount++;
+                        }
+                        if ("GameScene".equals(tag)) {
+                            assertScene(parser, element);
+                            sceneCount++;
                         }
                     }
                     if ("start/hardware.md".equals(relative) || "start/first-transfer.md".equals(relative)) {
@@ -154,17 +153,6 @@ class GuideNhNativeParsingTest {
                         }
                         assertEquals(hardware ? 0 : 1, arrows.size(), "Transfer direction arrow required");
                         if (!hardware) assertEquals("end", parser.attribute(arrows.get(0), "arrow"));
-                    } else {
-                        for (Object element : elements) {
-                            assertNotEquals(
-                                "GameScene",
-                                parser.name(element),
-                                "Unexpected scene outside hardware page");
-                            assertNotEquals(
-                                "Block",
-                                parser.name(element),
-                                "Unexpected scene block outside hardware page");
-                        }
                     }
 
                     // Compare every fence with native Code literals: braces, structs, and angle brackets stay verbatim.
@@ -188,7 +176,13 @@ class GuideNhNativeParsingTest {
                             parser.codeType.getField("value")
                                 .get(code),
                             "Code contents changed during native MDX parsing");
-                        if ("sfml".equals(language)) sfmlCount++;
+                        if ("sfml".equals(language)) {
+                            sfmlCount++;
+                        }
+                        if ("mermaid".equals(language)) {
+                            assertFlowchart(loader, expected);
+                            diagramCount++;
+                        }
                     }
                     assertEquals(fenceIndex, codeNodes.size(), "Unexpected native Code nodes");
                 } catch (Throwable failure) {
@@ -197,10 +191,87 @@ class GuideNhNativeParsingTest {
                 }
             }
         }
-        assertEquals(41, navigationCount, "Every page must supply navigation");
-        assertEquals(58, sfmlCount, "Every complete program must remain a native sfml Code node");
-        assertEquals(12, imageCount, "Tutorial and reference item icons must remain native MDX elements");
-        assertEquals(3, blockImageCount, "Home/editor/station block previews must remain native MDX elements");
+        assertEquals(pages.size(), navigationCount, "Every page must supply navigation");
+        assertTrue(sfmlCount >= 58, "Retain complete tutorial coverage");
+        assertTrue(imageCount >= 12, "Retain useful item icons");
+        assertTrue(blockImageCount >= 3, "Retain equipment previews");
+        assertTrue(sceneCount >= 4, "Include spatial explanations beyond the two setup scenes");
+        assertTrue(diagramCount >= 2, "Include explanatory Studio/editor workflow diagrams");
+    }
+
+    private static void assertAssetId(String id) {
+        assertTrue(
+            id.matches("(?:superfactorymanager|minecraft):[A-Za-z0-9_./-]+"),
+            "Known book asset namespace: " + id);
+    }
+
+    private static void assertScene(NativeParser parser, Object scene) throws Exception {
+        int width = Integer.parseInt(parser.attribute(scene, "width"));
+        int height = Integer.parseInt(parser.attribute(scene, "height"));
+        assertTrue(width >= 160 && width <= 320 && height >= 100 && height <= 240, "Compact scene size");
+        Set<String> positions = new HashSet<>();
+        int blocks = 0, labels = 0;
+        for (Object child : parser.descendants(scene)) {
+            if (!parser.elementType.isInstance(child)) continue;
+            String tag = parser.name(child);
+            if ("Block".equals(tag)) {
+                assertAssetId(parser.attribute(child, "id"));
+                String pos = "";
+                for (String axis : new String[] { "x", "y", "z" }) {
+                    int coordinate = Integer.parseInt(parser.attribute(child, axis));
+                    assertTrue(Math.abs(coordinate) <= 16, "Keep demonstration coordinates bounded");
+                    pos += coordinate + ",";
+                }
+                assertTrue(positions.add(pos), "Two scene blocks occupy the same position");
+                blocks++;
+            } else if ("TextAnnotation".equals(tag)) {
+                assertFalse(
+                    parser.attribute(child, "text")
+                        .trim()
+                        .isEmpty(),
+                    "Scene label text");
+                assertVector(parser.attribute(child, "pos"));
+                labels++;
+            } else if ("LineAnnotation".equals(tag)) {
+                assertVector(parser.attribute(child, "from"));
+                assertVector(parser.attribute(child, "to"));
+            }
+        }
+        assertTrue(blocks >= 1 && labels >= 2, "Scenes need labelled faces/endpoints, not decoration alone");
+    }
+
+    private static void assertVector(String vector) {
+        String[] coordinates = vector.trim()
+            .split("\\s+");
+        assertEquals(3, coordinates.length, "Scene position must have three coordinates");
+        for (String coordinate : coordinates) assertTrue(Double.isFinite(Double.parseDouble(coordinate)));
+    }
+
+    private static void assertFlowchart(ClassLoader loader, String source) throws Exception {
+        Class<?> type = loader.loadClass("com.hfstudio.guidenh.guide.internal.mermaid.flowchart.FlowchartParser");
+        Object graph = type.getMethod("parse", String.class)
+            .invoke(null, source);
+        Map<?, ?> nodes = (Map<?, ?>) graph.getClass()
+            .getMethod("getNodes")
+            .invoke(graph);
+        List<?> edges = (List<?>) graph.getClass()
+            .getMethod("getEdges")
+            .invoke(graph);
+        assertTrue(nodes.size() >= 2 && !edges.isEmpty(), "Workflow diagram needs linked steps");
+        for (Object edge : edges) {
+            assertTrue(
+                nodes.containsKey(
+                    edge.getClass()
+                        .getMethod("getFrom")
+                        .invoke(edge)),
+                "Missing diagram source");
+            assertTrue(
+                nodes.containsKey(
+                    edge.getClass()
+                        .getMethod("getTo")
+                        .invoke(edge)),
+                "Missing diagram destination");
+        }
     }
 
     private static void assertHardwareScene(NativeParser parser, List<Object> elements) throws Exception {

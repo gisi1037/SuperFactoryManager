@@ -5,11 +5,15 @@ navigation:
   position: 70
   keywords: ["sfm", "label", "item", "ore", "count", "available", "empty"]
 categories: ["sfm", "automation"]
-updated: "2026-10-31"
+updated: "2026-11-01"
 ---
 # Typed item queries
 
 Typed queries read current item stock without moving or reserving it. LABEL creates a LABEL_REF for a disk label group; ITEM and ORE create RESOURCE_SELECTOR values. Constructor and method names ignore case, while label names and registry/ore identifiers match exactly.
+
+Use [constructors](#choose-a-label-and-filter) to select stock,
+[the query table](#choose-an-observation) to choose a read, or
+[numbered labels](#numbered-labels) to select a group in a loop.
 
 ```sfml
 NAME "Read before moving"
@@ -23,9 +27,13 @@ EVERY 20 TICKS DO
 END
 ```
 
+## Choose a label and filter
+
 LABEL accepts a STRING expression, including a variable or `"chest" + index`. ITEM, ORE and FLUID still require quoted source literals. LABEL names must be nonempty, have no surrounding whitespace and fit within 256 characters. ITEM accepts `"*"` or an exact `namespace:name` up to 256 characters. It includes every metadata/NBT variant of that item. ITEM does not support the `item:` prefix, metadata suffixes, glob patterns, NBT filters or fluids. A valid unknown item ID matches nothing.
 
 ORE accepts an exact case-sensitive OreDictionary name of 1–256 ASCII letters, digits or underscores, for example `ORE("ingotIron")`. No `ore:` prefix, wildcard or computed name is accepted. Forge wildcard-metadata ore registrations work. An unknown name matches nothing and does not create a registry entry.
+
+## Choose an observation
 
 | Query | Result |
 | --- | --- |
@@ -39,6 +47,8 @@ ORE accepts an exact case-sensitive OreDictionary name of 1–256 ASCII letters,
 Count requires one RESOURCE_SELECTOR. Available, empty and contents accept zero or one selector. There is no implicit string-to-selector conversion. The no-argument forms refer only to visible items: they do not inspect fluids, empty fluid tanks, free space or machine insertion capacity. Supplying a filter to available does not change its access-only meaning; an available group may have zero matching stock.
 
 Default access is all ordinary slots, or the deduplicated union of valid slots exposed by the six faces of an ISidedInventory. Duplicate faces/indices count once; invalid indices are ignored. Visible stock is counted even when extraction is refused. Zero-sized inventories and entirely hidden selections are unavailable, rather than confirmed empty. There are no current `canExtract`, `canInsert`, accepted-amount or capacity methods. Those permissions are checked by an actual transfer; available and empty do not substitute for them.
+
+## Restrict a view
 
 Restrict observations using immutable handle methods:
 
@@ -55,11 +65,23 @@ END
 
 These methods affect this handle only. They do not alter an ordinary INPUT/OUTPUT statement naming chest_in. [Sides and slots](/automation/sides-slots.md) explains literal side names, inclusive bounds, replacement behavior and combined chest ordering.
 
-Queries use the invocation's bounded label membership snapshot and resolve loaded providers when executed, so later observations can see earlier transfers in the same trigger. A resumed WAIT invocation obtains current label membership/providers. Available is one observation; a subsequent count can still fault if the provider changes. Arguments evaluate once, receiver first. Short-circuiting can avoid a count when availability is false, but does not reserve access for later.
+## Freshness and provider support
+
+| Situation | What the query observes |
+| --- | --- |
+| Another query in the same invocation | The same bounded label membership snapshot, with loaded providers read at execution time. |
+| A transfer happened earlier | A later query can observe the changed stock. |
+| WAIT resumes | Current label membership and providers. |
+| `available()` succeeded earlier | No reservation; a later count may still fault if the provider changed. |
+
+Arguments evaluate once, receiver first. Short-circuiting can skip a count when
+availability is false, but does not guarantee later access.
 
 Direct IInventory tiles and canonical vanilla chest pairs are supported. Repeated direct provider objects and labelled chest halves are counted once. Uncertain unloaded chest adjacency makes access unavailable without loading chunks. Proxy/cluster adapters and distinct proxy tiles hiding shared storage need separate support; do not assume their combined counts represent unique physical stock.
 
 LABEL_REF and RESOURCE_SELECTOR values may live in locals, arrays and structs and pass through typed player functions. They cannot live in STATE, even nested in a container. Save an ordinary integer or boolean result if you need persistent observations.
+
+## Work limits and editor support
 
 Queries, contents, transfers and typed redstone share one budget per manager
 invocation across all due triggers. Defaults are 4,096 label-position visits,

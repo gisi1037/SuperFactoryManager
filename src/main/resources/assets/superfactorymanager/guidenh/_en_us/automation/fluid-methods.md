@@ -5,11 +5,16 @@ navigation:
   position: 55
   keywords: ["sfm", "transferf", "fluid", "tank", "fempty", "fcount", "millibuckets"]
 categories: ["sfm", "automation"]
-updated: "2026-10-31"
+updated: "2026-11-01"
 ---
 # Fluid methods and transfers
 
 Use `transferf` for tanks. **1000 mB is one bucket.** Item `transfer` stays unchanged.
+
+**Setup:** connect two supported Forge tanks and label them `supply` and
+`machine`. Put at least 2000 mB of water in supply and leave room in machine.
+Enable PRINT capture to inspect movement. If a tank has different face views,
+select a known working face with `.side("up")` or another physical direction.
 
 ```sfml
 name "Supply a tank"
@@ -22,6 +27,10 @@ every 20 ticks do
   end
 end
 ```
+
+**Expected:** each successful run moves up to 1000 mB and prints the moved amount
+and status. The example keeps supplying water; it does not maintain a target
+stock. A full or refusing tank can move less.
 
 | Form | Action |
 | --- | --- |

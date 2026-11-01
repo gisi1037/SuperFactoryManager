@@ -103,8 +103,10 @@ class GuideNhBookTest {
                     line.trim()
                         .equals("```sfml")
                         || line.trim()
-                            .equals("```text"),
-                    "Explicit SFML program or text-fragment language required: " + page + ": " + line);
+                            .equals("```text")
+                        || line.trim()
+                            .equals("```mermaid"),
+                    "Explicit SFML program, text fragment or native Mermaid diagram required: " + page + ": " + line);
                 fenceCount++;
             }
             assertEquals(0, fenceCount % 2, "Paired code fences: " + page);

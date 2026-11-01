@@ -6,7 +6,7 @@ navigation:
   parent: /reference/index.md
   keywords: ["performance", "budget", "limits", "lag", "scale", "profile"]
 categories: ["sfm"]
-updated: "2026-10-30"
+updated: "2026-11-01"
 ---
 
 # Performance and limits
@@ -106,7 +106,7 @@ automatically. **Stop** preserves the sample; **Reset** clears it. Results inclu
 count, updates with a due trigger, average, p50/p95/p99 and maximum milliseconds.
 The collector starts off. Terminal commands `profile start 1200`, `profile status`,
 `profile stop` and `profile reset` control the same capture; start accepts
-1Ã¢â‚¬â€œ4,096 updates. This does not measure whole-server TPS, per-instruction work,
+1-4,096 updates. This does not measure whole-server TPS, per-instruction work,
 background compiler work or manual runs.
 
 ## Operator profiling
@@ -122,46 +122,37 @@ It starts off, retains a stopped capture and resets on start. It is not a
 measurement of the entire server tick or every manual/packet operation. Compare
 actual transferred amounts and workload as well as time when tuning a program.
 
-Next: [contents](/automation/contents.md), [stock helpers](/automation/stock.md),
-and [debugging](debugging.md).
+## Spread a batch across ticks
 
-
-Reference programs wait in a bounded loading queue. Temporary worker capacity
-does not turn off requested running state; overflow registration retries are
-staggered. Missing/corrupt publications still pause until repaired and retried.
-Cold loads always validate the actual world grant and exact program bundle.
-The lexer now caches separate strict/editor automata, reducing repeated compiler
-allocation without sharing mutable execution plans. Headless results are not a
-whole-pack throughput guarantee.
-
-
-Data-only and redstone programs allocate transfer bookkeeping only when an item
-or fluid INPUT/OUTPUT actually needs it. This changes memory use, not scheduling,
-variable scope or transfer semantics. Fresh compilation also reuses immutable
-identifier patterns. Diagnostic tests cover counters, branches, loops, arrays,
-functions, item queries and redstone separately; their allocation improvements
-are not a pack-wide TPS guarantee. Direct item transfers skip occupied destination
-slots with a different item or metadata before trying their faces. Matching slots
-still require exact NBT and permission checks; query limits remain unchanged.
 A query-budget error is a per-run work limit: split a large batch across runs.
 Increasing the trigger interval reduces frequency, not the work in one run.
-For a loop that handles many containers, put `wait(1)` at the end of each
-iteration to continue on the next game tick with fresh work allowances. Locals
-and loop progress are preserved. This changes the batch timing explicitly;
-finished transfers are not repeated. A single expensive operation still needs
-to fit its allowance.
-Event-assisted availability remains separate performance work.
 
-Availability checks validate exposed slots without building a boxed slot set.
-Ordinary nonsided contents scans read directly in ascending slot order instead
-of building and sorting intermediate collections. These reduce allocation while
-preserving fresh reads and validation of every selected provider. Count/empty
-queries still inspect their selected stock, including later-provider errors.
-Fluid tank snapshots also avoid oversized temporary lists for small tank views.
+**Setup:** label three connected source chests `chest1`, `chest2`, `chest3` and
+an output chest `dest`. Put at least eight items in each source.
 
-Compiled functions proven unable to WAIT execute without their own suspension
-bookkeeping, even when the caller can sleep. Functions that can directly or
-indirectly WAIT keep resumable frames, including WAIT(0). Call, depth and work
-limits remain enforced. Fewer continuation allocations also consume less of the
-allocation allowance; an allocation-limited program may now fit more useful work.
-This is not a guarantee about whole-pack tick time.
+```sfml
+name "Paced chest batch"
+every 100 ticks {
+  for index = 1 to 3 {
+    transfer(label("chest" + index), label("dest"), 8)
+    wait(1)
+  }
+}
+```
+
+**Expected:** up to eight items move from each chest, with a one-tick gap between
+requests. Locals and loop position survive WAIT; completed transfers do not
+repeat on resume. Each resumed invocation gets fresh work allowances. A single
+expensive scan or request still has to fit its own allowance. WAIT(0) does not
+spread work across ticks. See [scheduling](/automation/scheduling.md) for lifecycle
+cancellation and busy-trigger behavior.
+
+## Published programs loading
+
+Reference programs can briefly show a loading state while waiting for capacity.
+Temporary capacity waits retry automatically. A missing or corrupt publication
+instead pauses activation until repaired and retried. Keep the world's `sfm`
+directory in backups; the disk does not contain a spare source copy.
+
+Next: [contents](/automation/contents.md), [stock helpers](/automation/stock.md),
+and [debugging](debugging.md).

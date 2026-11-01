@@ -5,11 +5,22 @@ navigation:
   position: 90
   keywords: ["sfm", "side", "slot", "round robin", "label access"]
 categories: ["sfm", "automation"]
-updated: "2026-10-30"
+updated: "2026-11-01"
 ---
 # Sides, slots and round robin
 
 The side is the accessed block's physical face. It does not refer to the manager's facing. Ordinary statement access lists labels, then optional round robin, sides and slots in that order:
+
+<GameScene width="230" height="150" interactive={true}>
+  <Block id="minecraft:chest" x="0" y="0" z="0" />
+  <TextAnnotation pos="0.5 1.7 0.5" text="TOP / up" color="#66CCFF" />
+  <TextAnnotation pos="1.8 0.5 0.5" text="EAST" color="#FFCC66" />
+  <LineAnnotation from="0.5 1.5 0.5" to="0.5 1 0.5" arrow="end" color="#66CCFF" />
+  <LineAnnotation from="1.5 0.5 0.5" to="1 0.5 0.5" arrow="end" color="#FFCC66" />
+</GameScene>
+
+The callouts mark the target block's top and east faces. Rotating the preview or
+turning the manager does not rename those absolute faces.
 
 ```sfml
 NAME "Explicit access"

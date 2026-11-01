@@ -5,7 +5,7 @@ navigation:
   position: 90
   keywords: ["sfml", "language"]
 categories: ["sfm", "language"]
-updated: "2026-10-31"
+updated: "2026-11-01"
 ---
 
 # Language
@@ -17,15 +17,16 @@ Use the **Text** editor for the language features in this chapter. See [Editors]
 Read these pages in order, or jump to the feature you need:
 
 - [Variables and persistent state](variables.md): `LET`, `SET`, fixed types, scope and disk state.
-- [Arrays and structs](collections.md): fixed shapes, member access and independent values.
+- [Arrays and structs](collections.md): fixed shapes, dynamic queues, member access and value copies.
 - [Strings](strings.md): text values, escaping, concatenation and comparisons.
 - [Expressions](expressions.md): checked arithmetic, boolean conditions and computed quantities.
 - [Bitwise operators](bitwise.md): masks, shifts and precedence.
-- [Loops](loops.md): counted ranges, array iteration and bounded `WHILE`.
+- [Loops](loops.md): counted ranges, Java-style FOR, indexed iteration, WHILE and BREAK.
 - [Functions](functions.md): typed player functions and default functions.
 
-The program order is optional NAME, top-level STATE/LET declarations, functions,
-then triggers. Use braces for statement blocks; DO/THEN/ELSE/END remains supported.
+The program order is optional NAME, optional [library imports](/advanced/libraries.md),
+top-level STATE/LET declarations, functions, then triggers. Use braces for statement
+blocks; DO/THEN/ELSE/END remains supported.
 Semicolons are optional. `--` starts a comment. Braces also construct struct
 values, depending on context. Plain variable names and `$names` are equivalent.
 Literal labels always need quotes; an unquoted name is a variable reference.
