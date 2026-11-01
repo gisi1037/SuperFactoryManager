@@ -96,7 +96,7 @@ automatically. **Stop** preserves the sample; **Reset** clears it. Results inclu
 count, updates with a due trigger, average, p50/p95/p99 and maximum milliseconds.
 The collector starts off. Terminal commands `profile start 1200`, `profile status`,
 `profile stop` and `profile reset` control the same capture; start accepts
-1–4,096 updates. This does not measure whole-server TPS, per-instruction work,
+1â€“4,096 updates. This does not measure whole-server TPS, per-instruction work,
 background compiler work or manual runs.
 
 ## Operator profiling
@@ -130,5 +130,9 @@ or fluid INPUT/OUTPUT actually needs it. This changes memory use, not scheduling
 variable scope or transfer semantics. Fresh compilation also reuses immutable
 identifier patterns. Diagnostic tests cover counters, branches, loops, arrays,
 functions, item queries and redstone separately; their allocation improvements
-are not a pack-wide TPS guarantee. Large blocked destination searches and event-
-assisted availability remain separate performance work.
+are not a pack-wide TPS guarantee. Direct item transfers skip occupied destination
+slots with a different item or metadata before trying their faces. Matching slots
+still require exact NBT and permission checks; query limits remain unchanged.
+A query-budget error is a per-run work limit: split a large batch across runs.
+Increasing the trigger interval reduces frequency, not the work in one run.
+Event-assisted availability remains separate performance work.

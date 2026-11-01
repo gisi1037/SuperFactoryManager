@@ -86,13 +86,18 @@ public final class ItemIdentity {
      * and may stop before unrelated descendants; malformed data encountered during comparison still faults.
      */
     public boolean matchesStack(ItemStack stack, QueryBudget budget) {
+        return matchesType(stack, budget) && nbt.matches(stack.getTagCompound(), budget);
+    }
+
+    /** Cheap negative filter only: a matching type still requires exact live NBT validation. */
+    public boolean matchesType(ItemStack stack, QueryBudget budget) {
         if (budget == null) throw new IllegalArgumentException("Item matching requires a query budget");
         budget.chargeSlot();
         if (stack == null || stack.getItem() == null || stack.getItemDamage() != metadata) return false;
         String actual = Item.itemRegistry.getNameForObject(stack.getItem());
         if (actual == null || actual.length() != registryId.length()) return false;
         budget.chargeSlots(registryId.length());
-        return registryId.equals(actual) && nbt.matches(stack.getTagCompound(), budget);
+        return registryId.equals(actual);
     }
 
     /** Budgeted exact matching for native scan hash buckets; reserves comparisons before walking payloads. */

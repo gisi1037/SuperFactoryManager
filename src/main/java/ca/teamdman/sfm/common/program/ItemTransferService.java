@@ -125,10 +125,12 @@ public final class ItemTransferService {
                     Set<Integer> selected = selectedSources.get(output.inv);
                     // Include empty selected source slots: output may never feed a later input in this action.
                     if (selected != null && selected.contains(output.slot)) continue;
-                    if (fullDestination(output)) continue;
+                    if (rejectDestination(output, expected)) continue;
                     for (ForgeDirection targetSide : ForgeDirection.VALID_DIRECTIONS) {
                         if ((output.sideMask & 1 << targetSide.ordinal()) == 0) continue;
-                        if (!valid(input, sourceSide, budget) || !valid(output, targetSide, budget)) break;
+                        if (!valid(input, sourceSide, budget)) break;
+                        // Exposure can change after gathering; a closed face does not close later faces.
+                        if (!valid(output, targetSide, budget)) continue;
                         ItemStack current = read(input, budget);
                         if (current == null || current.stackSize <= 0 || !matchesExpected(current, expected, budget))
                             break;
@@ -377,18 +379,29 @@ public final class ItemTransferService {
         return false;
     }
 
-    /** Fresh negative observation only: a full nonsided slot needs no source key or permission probe. */
-    private boolean fullDestination(Endpoint output) {
-        if (output.inv instanceof ISidedInventory) return false;
+    /** Fresh negative observation only; positive candidates retain every simulation/commit check. */
+    private boolean rejectDestination(Endpoint output, ItemIdentity expected) {
         ForgeDirection side = ForgeDirection.VALID_DIRECTIONS[Integer.numberOfTrailingZeros(output.sideMask)];
-        if (!valid(output, side, budget)) return true;
-        budget.chargeProvider();
-        int limit = output.inv.getInventoryStackLimit();
+        boolean sided = output.inv instanceof ISidedInventory;
+        // A missing advisory face is not evidence that every other face rejects the slot.
+        if (!valid(output, side, budget)) return !sided;
+        int limit = Integer.MAX_VALUE;
+        if (!sided) {
+            budget.chargeProvider();
+            limit = output.inv.getInventoryStackLimit();
+        }
         ItemStack current = limit <= 0 ? null : read(output, budget);
         // Limit/stack callbacks may have replaced or unloaded the provider. Never reuse this observation
         // as transfer authority; all positive candidates still enter the full simulation/commit guards.
         if (!present(output, budget)) return true;
-        return limit <= 0 || current != null && current.stackSize >= limit;
+        // Occupied slots of a different item/metadata cannot merge on any side. Avoid repeating
+        // expensive source/NBT/permission work for every face; do not cache this observation.
+        return limit <= 0 || current != null && (current.stackSize >= limit || !matchesType(expected, current));
+    }
+
+    private boolean matchesType(ItemIdentity expected, ItemStack current) {
+        budget.chargeProvider();
+        return expected.matchesType(current, budget);
     }
 
     private ForgeDirection extractSide(Endpoint endpoint, ItemStack stack, ItemIdentity key, QueryBudget allowance) {
