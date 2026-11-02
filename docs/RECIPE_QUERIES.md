@@ -6,8 +6,26 @@ choose a machine or plan transfers.
 
 The first qualified GT maps are `gt.recipe.macerator`, `gt.recipe.metalbender` and
 `gt.recipe.cuttingsaw`. Other maps and unknown requirements remain explicitly
-unsupported. Automatic machine-map resolution and optional NEI selection are
-separate work.
+unsupported. Qualified loaded-machine inspection is described below; optional NEI
+selection remains separate work.
+
+## Inspect a connected machine
+
+`recipemaps(label("machine"))` returns `status`, `current` and `available`.
+The first qualified family is the stock GT single-block `MTEBasicMachineWithRecipe`
+using one of the three maps above. `current` is its current map ID and `available`
+is the native advertised map list (a singleton for this family). Subclasses,
+multiblocks, unknown versions/backends/maps and other machine families remain
+unsupported. This observation does not prove voltage, structure, heat, cleanroom
+or recipe-specific feasibility.
+
+Require `status == "matches"` before using `current` with `recipes(output, current)`.
+Missing/unloaded/disconnected targets report `unavailable`; multiple distinct
+machines report `ambiguous`, even when they use the same map. `not_ready` means no
+active recipe session, and `stale` means the session changed during the call.
+All unsuccessful results have an empty current ID and available array. Use a
+whole-machine label without side/slot restrictions. Each call observes live loaded
+tile/meta-tile/map identities; no chunk is forced and no provider is retained.
 
 ## Exact output keys
 
@@ -79,3 +97,8 @@ null-NBT query through the index, with at most two entries per input/output grou
 `/sfmprofile recipecheck <map> <item-id> <metadata> [candidate]` also exercises
 fixed read-only SFML expressions through the compiler/runtime and real provider,
 comparing the result with that index. These commands require operator permission.
+
+`/sfmprofile recipemachine <x> <y> <z>` directly inspects an already-loaded native
+tile in the command sender's dimension. It uses the same qualified adapter without
+building a cable network or changing a machine. The script function additionally
+requires a connected label and checks its manager/disk identity.

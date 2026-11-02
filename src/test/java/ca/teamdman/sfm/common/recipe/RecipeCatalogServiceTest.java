@@ -21,6 +21,23 @@ import cpw.mods.fml.common.gameevent.TickEvent;
 
 class RecipeCatalogServiceTest {
 
+    @Test
+    void machineObservationFenceChangesAcrossInvalidationShutdownAndNewSessions() {
+        service = new RecipeCatalogService(RecipeAdapterFixture::openEmpty);
+        assertEquals(-1, service.observationEpoch());
+        service.start();
+        long first = service.observationEpoch();
+        assertTrue(first >= 0);
+        service.invalidate();
+        long remapped = service.observationEpoch();
+        assertNotEquals(first, remapped);
+        service.close();
+        assertEquals(-1, service.observationEpoch());
+        service.start();
+        assertNotEquals(first, service.observationEpoch());
+        assertNotEquals(remapped, service.observationEpoch());
+    }
+
     private static final String MAP = "gt.recipe.macerator";
     private final ItemIdentity output = ItemIdentity.of("service_test:item", 0, null, new QueryBudget());
     private RecipeCatalogService service;

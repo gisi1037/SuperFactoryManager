@@ -1,5 +1,10 @@
 {
   "functions": {
+    "recipemaps": {
+      "signatures": ["recipemaps(source: label_ref) -> machine recipe maps"],
+      "description": "Inspect one loaded connected stock GT single-block machine using a qualified macerator, bending or cutting map. Result fields: status, current, available. Multiple machines are ambiguous; unavailable, unsupported, not_ready and stale results have no map. Requires a whole-machine label, without side/slot selection. Inspection does not prove machine feasibility or grant execution authority.",
+      "example": "let maps = recipemaps(label(\"machine\"))\nprint(maps.status, maps.current)"
+    },
     "itemkey": {
       "signatures": ["itemkey(id: string [, metadata: integer]) -> item_key"],
       "description": "Construct an exact null-NBT identity without a registry lookup. Metadata defaults to zero; use contents()[i].item for an observed key including NBT. ITEM selectors instead match every metadata/NBT variant.",

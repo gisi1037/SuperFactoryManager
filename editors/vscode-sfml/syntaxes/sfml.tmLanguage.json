@@ -311,7 +311,7 @@
     },
     "builtins": {
       "name": "support.function.sfml",
-      "match": "(?i:\\b(?:label|item|itemkey|recipes|recipe|ore|fluid|array|push|pop|extend|insert|removeat|clear|peek|contains|indexof|min|max|clamp|abs|len|total|stock|shortage|print|transfer|transferf|wait|setcircuit))\\b(?=\\s*\\()"
+      "match": "(?i:\\b(?:label|item|itemkey|recipes|recipe|recipemaps|ore|fluid|array|push|pop|extend|insert|removeat|clear|peek|contains|indexof|min|max|clamp|abs|len|total|stock|shortage|print|transfer|transferf|wait|setcircuit))\\b(?=\\s*\\()"
     },
     "resources": {
       "patterns": [

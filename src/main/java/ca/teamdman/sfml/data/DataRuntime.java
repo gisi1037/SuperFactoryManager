@@ -178,6 +178,12 @@ public final class DataRuntime {
         return RecipeValues.materialize(queries.recipes(output, map, owner), false, owner, this);
     }
 
+    public DataValue recipeMaps(LabelReference source) {
+        QueryBudget owner = queryBudget();
+        return queries.recipeMaps(source, owner)
+            .value(owner, this);
+    }
+
     public DataValue recipe(DataValue reference) {
         QueryBudget owner = queryBudget();
         return RecipeValues

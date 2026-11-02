@@ -81,6 +81,12 @@ public final class SyntaxRegistry {
                 + "  PRINT(\"shortage\", SHORTAGE(<amount>, $have), \"locations\", TOTAL($stock[0].locations))\nEND",
             "Reads captured immutable values without querying inventories again; STOCK matches an exact item key");
         snippet(
+            "query_machine_maps",
+            "Inspect machine recipe maps",
+            SnippetCategory.QUERY,
+            "let maps = recipemaps(label(\"<machine>\"))\nprint(maps.status, maps.current)",
+            "One loaded stock GT machine; read-only map association, not recipe feasibility. Multiple machines are ambiguous.");
+        snippet(
             "query_recipes",
             "Inspect recipe candidates",
             SnippetCategory.QUERY,

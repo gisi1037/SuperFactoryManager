@@ -5,6 +5,10 @@ import ca.teamdman.sfml.data.recipe.RecipeCatalog;
 /** Observation boundary injected by the server execution context; expressions own no world objects. */
 public interface DataQueries {
 
+    default MachineRecipeMaps recipeMaps(LabelReference source, QueryBudget budget) {
+        return MachineRecipeMaps.unavailable(MachineRecipeMaps.Status.UNSUPPORTED);
+    }
+
     default RecipeCatalog.Result recipes(ItemIdentity exactOutput, String map, QueryBudget budget) {
         return RecipeCatalog.unavailable(RecipeCatalog.Status.UNSUPPORTED);
     }

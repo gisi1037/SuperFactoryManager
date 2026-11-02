@@ -531,6 +531,15 @@ public final class SfmlCompletionCatalog {
             Context.EXPRESSION);
         add(
             entries,
+            "recipemaps",
+            "recipemaps(source: label_ref) -> machine recipe maps",
+            "recipemaps(label(\"<machine>\"))",
+            "Inspect one loaded stock GT machine. Read status, current and available; multiple machines are ambiguous. No recipe feasibility or execution authority.",
+            "let maps = recipemaps(label(\"machine\"))\nprint(maps.status, maps.current)",
+            Kind.FUNCTION,
+            Context.EXPRESSION);
+        add(
+            entries,
             "itemkey",
             "itemkey(id: string [, metadata: integer]) -> item_key",
             "itemkey(\"<item>\", <metadata>)",

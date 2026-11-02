@@ -55,8 +55,13 @@ The first supported maps are:
 | Bending Machine | `gt.recipe.metalbender` |
 | Cutting Machine | `gt.recipe.cuttingsaw` |
 
-Other maps return `unsupported`. Automatic machine-map selection and NEI selection
-tools are separate planned additions.
+Other maps return `unsupported`. To inspect one connected stock single-block GT
+machine, use `recipemaps(label("machine"))`. Check `status == "matches"` before
+passing its `current` map string to `recipes`. Its `available` array contains the
+native advertised maps, currently one for this qualified family. Multiple labelled
+machines are `ambiguous`; unloaded/missing machines are `unavailable`. Unknown
+families, subclasses, maps or versions are `unsupported`. This does not check
+voltage, structure or other machine requirements. NEI selection remains planned.
 
 ## Read the result
 

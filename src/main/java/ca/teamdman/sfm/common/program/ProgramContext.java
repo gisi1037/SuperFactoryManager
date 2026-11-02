@@ -250,6 +250,12 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
     }
 
     @Override
+    public ca.teamdman.sfml.data.MachineRecipeMaps recipeMaps(ca.teamdman.sfml.data.LabelReference source,
+        QueryBudget budget) {
+        return new ca.teamdman.sfm.common.recipe.MachineRecipeMapService(this).inspect(source, budget);
+    }
+
+    @Override
     public long fluidCount(ca.teamdman.sfml.data.LabelReference source, ca.teamdman.sfml.data.ResourceSelector selector,
         ca.teamdman.sfml.data.QueryBudget budget) {
         return new FluidTransferService(this).count(source, selector, budget);

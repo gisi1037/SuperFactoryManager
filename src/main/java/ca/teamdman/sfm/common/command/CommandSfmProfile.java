@@ -5,16 +5,22 @@ import java.util.Locale;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.command.WrongUsageException;
+import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.ChatComponentText;
+import net.minecraft.world.World;
 
 import ca.teamdman.sfm.common.diagnostics.ManagerTickProfiler;
 import ca.teamdman.sfm.common.program.ProgramContext;
+import ca.teamdman.sfm.common.recipe.MachineRecipeMapService.Access;
 import ca.teamdman.sfm.common.recipe.RecipeCatalogService;
+import ca.teamdman.sfm.common.util.BlockPos;
+import ca.teamdman.sfm.compat.gregtech.GregTechMachineRecipeMapAdapter;
 import ca.teamdman.sfml.data.DataCompiler;
 import ca.teamdman.sfml.data.DataRuntime;
 import ca.teamdman.sfml.data.DataType;
 import ca.teamdman.sfml.data.DataValue;
 import ca.teamdman.sfml.data.ItemIdentity;
+import ca.teamdman.sfml.data.MachineRecipeMaps;
 import ca.teamdman.sfml.data.QueryBudget;
 import ca.teamdman.sfml.data.RecipeValues;
 import ca.teamdman.sfml.data.recipe.RecipeCatalog;
@@ -30,12 +36,16 @@ public final class CommandSfmProfile extends CommandBase {
 
     @Override
     public String getCommandUsage(ICommandSender sender) {
-        return "/sfmprofile [start|status|stop|recipes|recipecheck] [<map> <item-id> <metadata> [candidate]]";
+        return "/sfmprofile [start|status|stop|recipes|recipecheck|recipemachine] [<map> <item-id> <metadata> [candidate] | <x> <y> <z>]";
     }
 
     @Override
     public void processCommand(ICommandSender sender, String[] args) {
         String action = args.length == 0 ? "status" : args[0];
+        if ("recipemachine".equals(action)) {
+            inspectMachine(sender, args);
+            return;
+        }
         if ("recipes".equals(action) || "recipecheck".equals(action)) {
             if (args.length == 1) message(sender, RecipeCatalogService.INSTANCE.summary());
             else inspectRecipe(sender, args, "recipecheck".equals(action));
@@ -224,5 +234,44 @@ public final class CommandSfmProfile extends CommandBase {
 
     private static void message(ICommandSender sender, String text) {
         sender.addChatMessage(new ChatComponentText(text));
+    }
+
+    /** Read-only operator inspection of one already-loaded tile; does not build a cable network. */
+    private void inspectMachine(ICommandSender sender, String[] args) {
+        if (args.length != 4) throw new WrongUsageException(getCommandUsage(sender));
+        BlockPos position = new BlockPos(
+            parseIntBounded(sender, args[1], -30000000, 30000000),
+            parseIntBounded(sender, args[2], 0, 255),
+            parseIntBounded(sender, args[3], -30000000, 30000000));
+        World world = sender.getEntityWorld();
+        long session = RecipeCatalogService.INSTANCE.observationEpoch();
+        QueryBudget budget = new QueryBudget();
+        MachineRecipeMaps maps = MachineRecipeMaps.unavailable(MachineRecipeMaps.Status.UNAVAILABLE);
+        budget.chargePosition();
+        budget.chargeProviders(3);
+        if (session < 0) maps = MachineRecipeMaps.unavailable(MachineRecipeMaps.Status.NOT_READY);
+        else if (world != null && !world.isRemote && position.isLoaded(world)) {
+            TileEntity tile = world.getTileEntity(position.x, position.y, position.z);
+            if (tile != null && !tile.isInvalid()) {
+                Access access = GregTechMachineRecipeMapAdapter.find(tile, budget);
+                maps = access == null ? MachineRecipeMaps.unavailable(MachineRecipeMaps.Status.UNSUPPORTED)
+                    : access.current(tile, budget) ? access.maps()
+                        : MachineRecipeMaps.unavailable(MachineRecipeMaps.Status.UNAVAILABLE);
+                budget.chargePosition();
+                budget.chargeProviders(2);
+                if (!position.isLoaded(world) || world.getTileEntity(position.x, position.y, position.z) != tile
+                    || tile.isInvalid()) maps = MachineRecipeMaps.unavailable(MachineRecipeMaps.Status.UNAVAILABLE);
+                else if (RecipeCatalogService.INSTANCE.observationEpoch() != session)
+                    maps = MachineRecipeMaps.unavailable(MachineRecipeMaps.Status.STALE);
+            }
+        }
+        message(
+            sender,
+            "Machine maps " + maps.status
+                + "; current="
+                + maps.current
+                + "; available="
+                + maps.available
+                + "; inspection only, not recipe feasibility");
     }
 }

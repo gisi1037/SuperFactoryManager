@@ -179,6 +179,11 @@ public final class RecipeCatalogService {
         return current == null ? unavailable() : current.find(exactOutput, map, budget, tick);
     }
 
+    /** Inspection fence only; a map association does not grant catalog or machine execution authority. */
+    public synchronized long observationEpoch() {
+        return session == null ? -1 : epoch.get();
+    }
+
     public synchronized Result resolve(Token token, QueryBudget budget) {
         thread();
         RecipeCatalog current = catalog;

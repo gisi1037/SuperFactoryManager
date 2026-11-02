@@ -27,6 +27,6 @@ class InGameChecklistExamplesTest {
             ProgramBuildResult result = new ProgramBuilder(examples.group(1)).build();
             assertTrue(result.isSuccess(), "Checklist program " + (++count) + ": " + result.getErrorMessage());
         }
-        assertEquals(15, count);
+        assertEquals(16, count);
     }
 }

@@ -1058,7 +1058,8 @@ public final class DataCompiler {
                 throw new IllegalArgumentException("REF arguments require a declared player function");
             if (constantOnly && name.equalsIgnoreCase("RANDOM")) throw new IllegalArgumentException(
                 "RANDOM requires runtime; use a program-wide LET, not a STATE default");
-            if (constantOnly && (name.equalsIgnoreCase("RECIPES") || name.equalsIgnoreCase("RECIPE")))
+            if (constantOnly && (name.equalsIgnoreCase("RECIPES") || name.equalsIgnoreCase("RECIPE")
+                || name.equalsIgnoreCase("RECIPEMAPS")))
                 throw new IllegalArgumentException("Recipe queries require runtime, not a STATE default");
             Node builtin = builtinCall(name, arguments);
             if (builtin != null) {
@@ -1277,6 +1278,21 @@ public final class DataCompiler {
     /** Fixed-arity primitives share expression work without allocating a player call frame. */
     private static Node builtinCall(String name, List<Node> arguments) {
         String method = name.toUpperCase(Locale.ROOT);
+        if (method.equals("RECIPEMAPS")) {
+            if (arguments.size() != 1) throw new IllegalArgumentException("RECIPEMAPS requires one argument");
+            Node source = arguments.get(0);
+            require(source.type, DataType.LABEL_REF);
+            return new Node(MachineRecipeMaps.TYPE, source.depth + 1, false) {
+
+                @Override
+                protected DataValue compute(DataRuntime runtime) {
+                    runtime.work(1);
+                    return runtime.recipeMaps(
+                        source.evaluate(runtime)
+                            .asLabel());
+                }
+            };
+        }
         if (method.equals("ITEMKEY") || method.equals("RECIPES") || method.equals("RECIPE"))
             return recipeBuiltin(method, arguments);
         if (method.equals("TOTAL") || method.equals("STOCK") || method.equals("SHORTAGE"))

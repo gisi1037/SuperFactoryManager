@@ -649,3 +649,34 @@ visible output stack remains64. Repeat with several stack-size-one items.
 - [ ] Confirm standalone loading without Storage Drawers. Compacting, controller
   and slave sources currently refuse before extraction pending dedicated mapping/
   fractional-count qualification; do not count those as supported cases yet.
+
+## R2: Loaded machine recipe-map inspection
+
+Connect one stock GT Macerator, Bending Machine or Cutting Machine and label it
+"machine". Enable PRINT capture and run this saved/imprinted program:
+
+```sfml
+name "Inspect a machine recipe map"
+every 100 ticks {
+  let maps = recipemaps(label("machine"))
+  print(maps.status, maps.current, maps.available)
+  if(maps.status == "matches") {
+    let found = recipes(itemkey("minecraft:flint"), maps.current)
+    print(found.status, len(found.recipes))
+  }
+}
+```
+
+- [ ] Each of the three stock machines reports its corresponding qualified map.
+  Flint has a macerator candidate; other maps may correctly report no match.
+  No items/fluids or machine settings change.
+- [ ] Label a second machine "machine": status is ambiguous with no current map.
+  Remove/unload/disconnect the only target: status is unavailable, with no forced
+  chunk load. Reconnect/reload it: the next call observes the live machine.
+- [ ] Unknown maps, multiblocks and unqualified subclasses report unsupported.
+  Whole-machine observation rejects side/slot selections with a useful error.
+- [ ] Operator-only `/sfmprofile recipemachine <x> <y> <z>` inspects a loaded
+  native tile directly, without discovering a cable network. Its result agrees
+  with the labelled observation. Map association does not prove recipe feasibility.
+- [ ] Check insertion, hover and compiler errors for recipemaps in Studio/VS Code.
+  Restart/reload and confirm no old machine provider or session result is reused.
