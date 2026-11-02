@@ -27,13 +27,15 @@ public final class DiskCopierMui2Panel {
     public static ModularPanel build(TileEntityDiskCopier copier, EntityPlayer player, PanelSyncManager sync) {
         StringSyncValue status = new StringSyncValue(copier::getStatus);
         IntSyncValue progress = new IntSyncValue(copier::getProgress);
+        IntSyncValue cycle = new IntSyncValue(copier::getCycleTicks);
+        IntSyncValue batch = new IntSyncValue(copier::getBatchLimit);
         sync.syncValue("status", status);
         sync.syncValue("progress", progress);
-        String[] groups = { "source", "blank", "output" };
-        int[] x = { 30, 83, 154 };
+        sync.syncValue("cycle", cycle);
+        sync.syncValue("batch", batch);
         // One machine group keeps quick-moves between the machine and the player, not between its own slots.
-        sync.registerSlotGroup("copier_disks", 3);
-        ModularPanel panel = new ModularPanel(NAME).size(224, 204)
+        sync.registerSlotGroup("copier_disks", 4);
+        ModularPanel panel = new ModularPanel(NAME).size(224, 224)
             .background(ManagerConsoleTheme.SHELL)
             .resizeableOnDrag(false)
             .excludeAreaInRecipeViewer();
@@ -41,55 +43,51 @@ public final class DiskCopierMui2Panel {
             new TextWidget<>("Disk Copier").pos(8, 7)
                 .size(200, 10)
                 .color(0xffefa09a));
-        for (int i = 0; i < groups.length; i++) {
-            final int slot = i;
-            sync.itemSlot(groups[i], new ModularSlot(new InvWrapper(copier), i) {
-
-                @Override
-                public boolean isItemValid(ItemStack stack) {
-                    return copier.isItemValidForSlot(slot, stack);
-                }
-
-                @Override
-                public int getItemStackLimit(ItemStack stack) {
-                    return 1; // Avoid simulated clear/restore invalidating a pending cycle.
-                }
-
-                @Override
-                public boolean canTakeStack(EntityPlayer owner) {
-                    return copier.isUseableByPlayer(owner);
-                }
-            }.slotGroup("copier_disks"));
-            panel.child(
-                new TextWidget<>(groups[i]).pos(x[i] - 12, 25)
-                    .size(50, 10)
-                    .color(0xffb7bcc5));
-            panel.child(
-                new ItemSlot().syncHandler(groups[i])
-                    .pos(x[i], 39));
+        panel.child(
+            new TextWidget<>("Blank media").pos(8, 23)
+                .size(72, 10)
+                .color(0xffb7bcc5));
+        panel.child(
+            new TextWidget<>("Source").pos(91, 23)
+                .size(44, 10)
+                .color(0xffb7bcc5));
+        panel.child(
+            new TextWidget<>("Copies").pos(144, 23)
+                .size(72, 10)
+                .color(0xffb7bcc5));
+        addSlot(panel, sync, copier, TileEntityDiskCopier.SOURCE, 103, 36);
+        for (int i = 0; i < TileEntityDiskCopier.CAPACITY; i++) {
+            addSlot(panel, sync, copier, TileEntityDiskCopier.mediumSlot(i), 8 + i % 4 * 18, 36 + i / 4 * 18);
+            addSlot(panel, sync, copier, TileEntityDiskCopier.outputSlot(i), 144 + i % 4 * 18, 36 + i / 4 * 18);
         }
         panel.child(
-            IKey.dynamic(() -> progress.getIntValue() * 100 / TileEntityDiskCopier.COPY_TICKS + "%")
+            IKey.dynamic(() -> progress.getIntValue() * 100 / Math.max(1, cycle.getIntValue()) + "%")
                 .asWidget()
-                .pos(109, 43)
-                .size(40, 10)
+                .pos(90, 60)
+                .size(44, 10)
                 .color(0xffefa09a));
         panel.child(new TextWidget<>(IKey.dynamic(() -> {
             String text = status.getStringValue();
             if (text == null) return "";
             return text.length() <= 60 ? text : text.substring(0, 57) + "...";
-        })).pos(8, 65)
+        })).pos(8, 95)
             .size(208, 24)
             .maxWidth(208)
             .textAlign(Alignment.TopLeft)
             .color(0xffd3d6dc)
             .addTooltipLine(IKey.dynamic(status::getStringValue)));
+        panel.child(IKey.dynamic(() -> {
+            int ticks = Math.max(1, cycle.getIntValue());
+            return (ticks % 20 == 0 ? ticks / 20 + "s" : ticks + " ticks") + " | up to "
+                + Math.max(1, batch.getIntValue())
+                + " disks | no EU";
+        })
+            .asWidget()
+            .pos(8, 79)
+            .size(208, 10)
+            .color(0xffb7bcc5));
         panel.child(
-            new TextWidget<>("5 seconds per copy | no EU").pos(8, 92)
-                .size(208, 10)
-                .color(0xffb7bcc5));
-        panel.child(
-            new TextWidget<>("Inventory").pos(28, 108)
+            new TextWidget<>("Inventory").pos(28, 126)
                 .size(168, 10)
                 .color(0xffb7bcc5));
         SlotGroupWidget inventory = PlayerInventoryWidgets.bind(sync, player);
@@ -97,5 +95,33 @@ public final class DiskCopierMui2Panel {
             inventory.leftRel(.5f)
                 .bottom(5));
         return panel;
+    }
+
+    private static void addSlot(ModularPanel panel, PanelSyncManager sync, TileEntityDiskCopier copier, int slot, int x,
+        int y) {
+        sync.itemSlot("disk", slot, new ModularSlot(new InvWrapper(copier), slot) {
+
+            @Override
+            public boolean isItemValid(ItemStack stack) {
+                return copier.isItemValidForSlot(slot, stack);
+            }
+
+            @Override
+            public int getItemStackLimit(ItemStack stack) {
+                return 1; // Do not simulate clear/restore: it would cancel a pending cycle.
+            }
+
+            @Override
+            public boolean canTakeStack(EntityPlayer player) {
+                return copier.isUseableByPlayer(player);
+            }
+        }.slotGroup("copier_disks"));
+        panel.child(
+            new ItemSlot().syncHandler("disk", slot)
+                .pos(x, y)
+                .addTooltipLine(
+                    slot == TileEntityDiskCopier.SOURCE ? "Source disk is retained; copies start with fresh STATE."
+                        : TileEntityDiskCopier.isMediumSlot(slot) ? "Fresh blank SFM disk input"
+                            : "Completed copy output"));
     }
 }

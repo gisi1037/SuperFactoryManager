@@ -20,11 +20,13 @@ direct recipe. Open it with and without an inventory extension: normal player
 slots and NEI should remain available, without overlapping the machine controls.
 
 1. Imprint a saved published program on one disk. Assign two saved labels. Put it
-   in the left **source** slot and a fresh blank in the middle **blank** slot.
-2. Wait 100 loaded server ticks (five seconds at 20 TPS). Confirm one copy appears
-   on the right, exactly one blank disappears, and the original remains unchanged.
-3. Put another blank in while the output is occupied. Wait ten seconds: neither
-   disk may be consumed or overwritten. Take the output and verify the next cycle.
+   in the center **source** slot and eight fresh blanks in the left grid.
+2. Wait 20 loaded server ticks (one second at 20 TPS) with default settings.
+   Confirm eight independent copies appear on the right, exactly eight blanks
+   disappear, and the original remains unchanged. Repeat with one and three blanks.
+3. Put more blanks in while all eight output slots are occupied. Wait ten seconds:
+   no disks may be consumed or overwritten. Remove two outputs: exactly two blanks
+   should become copies. Then drain outputs and verify the next queued cycle.
 4. Run source and copy in separate managers. Verify both execute the same published
    revision and labels. Change labels on one: the other must remain unchanged.
    With the counter program below, a new copy must start at zero while the original
@@ -32,9 +34,9 @@ slots and NEI should remain available, without overlapping the machine controls.
 5. During a cycle, remove/replace the source or blank: a new full cycle must be
    required. Save/reload halfway through: source and blank must survive, no pending
    output may materialize, and work must restart from zero. Save/reload after a
-   completed copy: only the original and completed copy should remain.
+   completed batch: only the original and the completed copies should remain.
 6. Break a working and a completed copier. Count all dropped disks: original plus
-   blank before completion, original plus copy afterward. Never an extra candidate.
+   blanks before completion, original plus copies afterward. Never extra candidates.
 7. Hopper/pipe source into the top, blanks into a horizontal side, and copies out
    the bottom. The source must not extract through automation. Shift-click, drag,
    number-key swap and two simultaneous viewers must neither duplicate nor lose media.
@@ -45,6 +47,12 @@ slots and NEI should remain available, without overlapping the machine controls.
    must remain exact; runtime STATE, names/foreign metadata and recovery ownership
    must not propagate. Reference copies must not grant private project/library editing
    access to a second player who can physically execute the disk.
+10. In server config, category `machines`, set `diskCopierTicksPerCycle=40` and
+    `diskCopierCopiesPerCycle=2`; restart. Eight blanks should produce two copies
+    per two-second cycle, automatically continuing until done. Verify the client
+    displays the server's timing even if the client's own config differs. Restore
+    defaults 20 and 8 afterward. Open a pre-update copier save: its original three
+    slots must remain intact, with the additional queue slots empty.
 
 Use this source to distinguish independent STATE after copying:
 

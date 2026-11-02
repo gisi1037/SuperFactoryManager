@@ -64,6 +64,7 @@ there is no cheaper vanilla fallback if a component is missing. Conversions rema
 separate from direct crafting. Check the server log if NEI has no direct recipe.
 
 The [Disk Copier](disk-copier.md) writes a program and its saved labels onto fresh
-blank media in five seconds. The source stays unchanged; each copy has fresh runtime STATE.
+blank media: up to eight copies per one-second cycle by default. The source stays
+unchanged; each copy has fresh runtime STATE. Server timing and batch limits are configurable.
 
 Next: [labels and connected blocks](labels.md), or [Studio and program disks](studio.md).

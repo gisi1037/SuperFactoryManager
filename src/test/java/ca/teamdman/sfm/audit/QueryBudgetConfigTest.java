@@ -21,6 +21,7 @@ class QueryBudgetConfigTest {
     @Test
     void forgeConfigDefaultsToFourAndClampsOutOfRangeSettings() throws Exception {
         int previous = Config.queryBudgetMultiplier;
+        int copierTicks = Config.diskCopierTicksPerCycle, copierBatch = Config.diskCopierCopiesPerCycle;
         String greeting = Config.greeting;
         boolean export = Config.exportLogsToFile, discord = Config.showDiscordButton;
         Field home = FMLInjectionData.class.getDeclaredField("minecraftHome");
@@ -43,6 +44,8 @@ class QueryBudgetConfigTest {
         } finally {
             home.set(null, previousHome);
             Config.queryBudgetMultiplier = previous;
+            Config.diskCopierTicksPerCycle = copierTicks;
+            Config.diskCopierCopiesPerCycle = copierBatch;
             Config.greeting = greeting;
             Config.exportLogsToFile = export;
             Config.showDiscordButton = discord;

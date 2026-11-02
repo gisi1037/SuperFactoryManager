@@ -14,6 +14,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import ca.teamdman.sfm.Config;
 import ca.teamdman.sfm.common.item.ItemDisk;
 import ca.teamdman.sfm.common.item.ModItems;
 import ca.teamdman.sfm.common.net.ServerUiTasks;
@@ -28,11 +29,16 @@ import cpw.mods.fml.common.gameevent.TickEvent;
 class DiskCopierTest {
 
     private Item previous;
+    private int previousTicks, previousBatch;
     private static final BlockPos POS = new BlockPos(0, 64, 0);
 
     @BeforeEach
     void setup() {
         previous = ModItems.disk;
+        previousTicks = Config.diskCopierTicksPerCycle;
+        previousBatch = Config.diskCopierCopiesPerCycle;
+        Config.diskCopierTicksPerCycle = 100;
+        Config.diskCopierCopiesPerCycle = 8;
         ModItems.disk = new ItemDisk();
         ServerUiTasks.INSTANCE.tick(new TickEvent.ServerTickEvent(TickEvent.Phase.START));
     }
@@ -40,6 +46,8 @@ class DiskCopierTest {
     @AfterEach
     void cleanup() {
         ModItems.disk = previous;
+        Config.diskCopierTicksPerCycle = previousTicks;
+        Config.diskCopierCopiesPerCycle = previousBatch;
         ServerUiTasks.clear();
     }
 
@@ -235,6 +243,8 @@ class DiskCopierTest {
         assertEquals(1, output.stackSize);
         ticks(copier, 200);
         assertSame(output, copier.getStackInSlot(2));
+        for (int i = 1; i < TileEntityDiskCopier.CAPACITY; i++)
+            copier.setInventorySlotContents(TileEntityDiskCopier.outputSlot(i), blank());
         copier.setInventorySlotContents(1, blank());
         ticks(copier, 200);
         assertSame(output, copier.getStackInSlot(2));
@@ -328,6 +338,32 @@ class DiskCopierTest {
     }
 
     @Test
+    void tileReplacementDuringFinalMetadataValidationCannotPublishIntoAnOrphanedCopier() throws Exception {
+        TileEntityDiskCopier copier = machine();
+        boolean[] replace = { false };
+        NBTTagCompound tags = new NBTTagCompound() {
+
+            @Override
+            public net.minecraft.nbt.NBTBase getTag(String key) {
+                if (replace[0]) {
+                    replace[0] = false;
+                    ((AuditRegressionTest.FakeWorld) copier.getWorldObj()).tiles.put(POS, new TileEntityDiskCopier());
+                }
+                return super.getTag(key);
+            }
+        };
+        tags.setString(ItemDisk.NBT_PROGRAM, ItemDisk.getProgramString(copier.getStackInSlot(0)));
+        copier.getStackInSlot(0)
+            .setTagCompound(tags);
+        ticks(copier, 99);
+        replace[0] = true;
+        ticks(copier, 1);
+        assertNotNull(copier.getStackInSlot(1));
+        assertNull(copier.getStackInSlot(2));
+        assertEquals(0, copier.getProgress());
+    }
+
+    @Test
     void invalidOversizedPhysicalStacksAreNeverTruncatedOrConsumed() throws Exception {
         TileEntityDiskCopier copier = machine();
         ItemStack source = copier.getStackInSlot(0);
@@ -340,12 +376,136 @@ class DiskCopierTest {
     }
 
     @Test
+    void batchUsesOneSourceSnapshotAndGivesEveryCopyIndependentIdentityAndLabels() {
+        ItemStack source = source();
+        class Counted extends NBTTagCompound {
+
+            int copies;
+
+            @Override
+            public net.minecraft.nbt.NBTBase copy() {
+                copies++;
+                return super.copy();
+            }
+        }
+        Counted tags = new Counted();
+        tags.setString(ItemDisk.NBT_PROGRAM, ItemDisk.getProgramString(source));
+        tags.setTag(
+            "sfm:labels",
+            source.getTagCompound()
+                .getTag("sfm:labels"));
+        source.setTagCompound(tags);
+        ItemStack[] media = new ItemStack[8];
+        for (int i = 0; i < media.length; i++) media[i] = blank();
+        DiskCopyPlan plan = DiskCopyPlan.prepareBatch(source, media);
+        assertEquals(1, tags.copies, "Source NBT is captured once for the whole batch");
+        ItemStack[] copies = plan.completeBatch(source, media);
+        java.util.Set<java.util.UUID> identities = new java.util.HashSet<>();
+        for (ItemStack disk : copies) {
+            assertTrue(identities.add(ProgramDocument.read(disk).id));
+            assertEquals(ItemDisk.getProgramString(source), ItemDisk.getProgramString(disk));
+            assertFalse(
+                disk.getTagCompound()
+                    .hasKey(ProgramStateStore.NBT_KEY));
+        }
+        copies[0].getTagCompound()
+            .getCompoundTag("sfm:labels")
+            .removeTag("chest");
+        for (int i = 1; i < copies.length; i++) assertTrue(
+            copies[i].getTagCompound()
+                .getCompoundTag("sfm:labels")
+                .hasKey("chest"));
+        assertTrue(
+            source.getTagCompound()
+                .getCompoundTag("sfm:labels")
+                .hasKey("chest"));
+        ItemStack duplicate = blank();
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> DiskCopyPlan.prepareBatch(source, new ItemStack[] { duplicate, duplicate }));
+        assertThrows(IllegalArgumentException.class, () -> DiskCopyPlan.prepareBatch(source, new ItemStack[9]));
+    }
+
+    @Test
+    void eightCopiesPublishTogetherAfterOneSecondAndQueueRemainsUnconsumedBeforeThen() throws Exception {
+        Config.diskCopierTicksPerCycle = 20;
+        TileEntityDiskCopier copier = machine();
+        for (int i = 1; i < 8; i++) copier.setInventorySlotContents(TileEntityDiskCopier.mediumSlot(i), blank());
+        ticks(copier, 19);
+        for (int i = 0; i < 8; i++) {
+            assertNotNull(copier.getStackInSlot(TileEntityDiskCopier.mediumSlot(i)));
+            assertNull(copier.getStackInSlot(TileEntityDiskCopier.outputSlot(i)));
+        }
+        ticks(copier, 1);
+        java.util.Set<java.util.UUID> identities = new java.util.HashSet<>();
+        for (int i = 0; i < 8; i++) {
+            assertNull(copier.getStackInSlot(TileEntityDiskCopier.mediumSlot(i)));
+            ItemStack copy = copier.getStackInSlot(TileEntityDiskCopier.outputSlot(i));
+            assertNotNull(copy);
+            assertEquals(1, copy.stackSize);
+            assertTrue(identities.add(ProgramDocument.read(copy).id));
+        }
+        assertNotNull(copier.getStackInSlot(TileEntityDiskCopier.SOURCE));
+        assertEquals(17, copier.getSizeInventory());
+    }
+
+    @Test
+    void partialOutputSpaceAndConfiguredBatchLimitConsumeOnlyTheirCorrespondingBlanks() throws Exception {
+        Config.diskCopierTicksPerCycle = 20;
+        TileEntityDiskCopier copier = machine();
+        for (int i = 1; i < 8; i++) copier.setInventorySlotContents(TileEntityDiskCopier.mediumSlot(i), blank());
+        ItemStack blocker = blank();
+        for (int i = 0; i < 6; i++) copier.setInventorySlotContents(TileEntityDiskCopier.outputSlot(i), blocker.copy());
+        ticks(copier, 20);
+        for (int i = 0; i < 8; i++)
+            assertEquals(i >= 2, copier.getStackInSlot(TileEntityDiskCopier.mediumSlot(i)) != null);
+        for (int i = 0; i < 8; i++) assertNotNull(copier.getStackInSlot(TileEntityDiskCopier.outputSlot(i)));
+        ticks(copier, 100);
+        assertNotNull(copier.getStackInSlot(TileEntityDiskCopier.mediumSlot(2)));
+
+        copier = machine();
+        Config.diskCopierCopiesPerCycle = 2;
+        for (int i = 1; i < 8; i++) copier.setInventorySlotContents(TileEntityDiskCopier.mediumSlot(i), blank());
+        for (int run = 1; run <= 4; run++) {
+            ticks(copier, 20);
+            int filled = 0;
+            for (int i = 0; i < 8; i++) if (copier.getStackInSlot(TileEntityDiskCopier.outputSlot(i)) != null) filled++;
+            assertEquals(run * 2, filled, "Remaining media must automatically start another cycle");
+        }
+    }
+
+    @Test
+    void cycleDurationIsCapturedAndAnyReplacedBatchMediumPreventsPartialPublication() throws Exception {
+        Config.diskCopierTicksPerCycle = 20;
+        TileEntityDiskCopier copier = machine();
+        for (int i = 1; i < 8; i++) copier.setInventorySlotContents(TileEntityDiskCopier.mediumSlot(i), blank());
+        ticks(copier, 1);
+        Config.diskCopierTicksPerCycle = 100;
+        assertEquals(20, copier.getCycleTicks());
+        ticks(copier, 18);
+        ItemStack changed = copier.getStackInSlot(TileEntityDiskCopier.mediumSlot(7));
+        changed.setTagCompound(new NBTTagCompound()); // Exact null-vs-empty metadata binding changed in place.
+        ticks(copier, 1);
+        for (int i = 0; i < 8; i++) {
+            assertNotNull(copier.getStackInSlot(TileEntityDiskCopier.mediumSlot(i)));
+            assertNull(copier.getStackInSlot(TileEntityDiskCopier.outputSlot(i)));
+        }
+        assertEquals(0, copier.getProgress());
+    }
+
+    @Test
     void automationSidesAndClientTicksPreserveMedia() throws Exception {
         TileEntityDiskCopier copier = machine();
         assertArrayEquals(new int[] { 0 }, copier.getAccessibleSlotsFromSide(1));
-        assertArrayEquals(new int[] { 2 }, copier.getAccessibleSlotsFromSide(0));
+        int[] outputs = java.util.stream.IntStream.range(0, TileEntityDiskCopier.CAPACITY)
+            .map(TileEntityDiskCopier::outputSlot)
+            .toArray();
+        int[] inputs = java.util.stream.IntStream.range(0, TileEntityDiskCopier.CAPACITY)
+            .map(TileEntityDiskCopier::mediumSlot)
+            .toArray();
+        assertArrayEquals(outputs, copier.getAccessibleSlotsFromSide(0));
         for (int side = 2; side < 6; side++) {
-            assertArrayEquals(new int[] { 1 }, copier.getAccessibleSlotsFromSide(side));
+            assertArrayEquals(inputs, copier.getAccessibleSlotsFromSide(side));
             assertTrue(copier.canInsertItem(1, blank(), side));
             assertFalse(copier.canExtractItem(0, source(), side));
         }

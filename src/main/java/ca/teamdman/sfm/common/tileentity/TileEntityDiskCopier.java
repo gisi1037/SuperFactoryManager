@@ -6,17 +6,22 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
 
+import ca.teamdman.sfm.Config;
 import ca.teamdman.sfm.common.net.ServerUiTasks;
 import ca.teamdman.sfm.common.program.DiskCopyPlan;
 
 /** One blank, one copy. Preparation and final validation are cold; ordinary work ticks only count down. */
 public final class TileEntityDiskCopier extends TileEntity implements ISidedInventory {
 
-    public static final int SOURCE = 0, MEDIUM = 1, OUTPUT = 2, COPY_TICKS = 100;
-    private final ItemStack[] slots = new ItemStack[3];
+    // Preserve the first three indices so existing saves and indexed automation retain their meanings.
+    public static final int SOURCE = 0, MEDIUM = 1, OUTPUT = 2, CAPACITY = DiskCopyPlan.MAX_BATCH_SIZE;
+    private final ItemStack[] slots = new ItemStack[1 + CAPACITY * 2];
     private DiskCopyPlan pending;
+    private int[] inputSlots, outputSlots;
+    private ItemStack[] mediaBindings;
     private long generation, attempted = -1;
     private int progress;
+    private int cycleTicks = 20;
     private String status = "Insert source and blank disks";
 
     @Override
@@ -25,58 +30,130 @@ public final class TileEntityDiskCopier extends TileEntity implements ISidedInve
         if (pending == null) {
             if (attempted == generation) return; // Invalid/full/idle inputs do not repeatedly decode disk NBT.
             attempted = generation;
-            if (slots[OUTPUT] != null) {
-                status = "Remove the output disk";
-                return;
-            }
-            try {
-                pending = DiskCopyPlan.prepare(slots[SOURCE], slots[MEDIUM]);
-                status = "Copying program and labels";
-            } catch (IllegalArgumentException | IllegalStateException failure) {
-                status = failure.getMessage();
-                return;
-            }
+            if (!startBatch()) return;
         }
-        if (!pending.owns(slots[SOURCE], slots[MEDIUM]) || slots[OUTPUT] != null) {
+        if (!pending.ownsSource(slots[SOURCE]) || !workCurrent()) {
             cancel("Disk changed; reinsert media to retry");
             return;
         }
-        if (++progress < COPY_TICKS) return;
+        if (++progress < cycleTicks) return;
         if (!worldObj.blockExists(xCoord, yCoord, zCoord) || worldObj.getTileEntity(xCoord, yCoord, zCoord) != this) {
             cancel("Copier is no longer loaded");
             return;
         }
-        ItemStack copy;
+        ItemStack[] copies;
         DiskCopyPlan finishing = pending;
         long completingGeneration = generation;
-        ItemStack source = slots[SOURCE], medium = slots[MEDIUM];
+        ItemStack source = slots[SOURCE];
+        ItemStack[] media = mediaBindings;
+        int[] inputs = inputSlots, outputs = outputSlots;
         try {
-            copy = finishing.complete(source, medium);
+            copies = finishing.completeBatch(source, media);
         } catch (IllegalArgumentException | IllegalStateException failure) {
             cancel(failure.getMessage());
             return;
         }
         // Even a reentrant metadata reader cannot redirect completion onto replacement media.
-        if (generation != completingGeneration || pending != finishing
-            || slots[SOURCE] != source
-            || slots[MEDIUM] != medium
-            || slots[OUTPUT] != null
-            || !DiskCopyPlan.isDisk(source)
-            || !DiskCopyPlan.isBlank(medium)) {
+        boolean bound = loaded() && slots[SOURCE] == source && DiskCopyPlan.isDisk(source);
+        for (int i = 0; bound && i < inputs.length; i++)
+            bound = slots[inputs[i]] == media[i] && DiskCopyPlan.isBlank(media[i]) && slots[outputs[i]] == null;
+        if (!bound || generation != completingGeneration || pending != finishing) {
             cancel("Disk changed; copy cancelled");
             return;
         }
-        // All fallible validation is finished. Server-thread publication changes both slots together.
-        slots[MEDIUM] = null;
-        slots[OUTPUT] = copy;
-        pending = null;
-        progress = 0;
-        status = "Copy ready";
+        // All fallible validation is finished. Publish the complete batch on the server thread.
+        for (int i = 0; i < inputs.length; i++) {
+            slots[inputs[i]] = null;
+            slots[outputs[i]] = copies[i];
+        }
+        cancel("Copies ready (" + copies.length + ")");
+        attempted = -1; // A smaller configured batch may leave more blanks and output space for the next cycle.
         super.markDirty();
+    }
+
+    private boolean startBatch() {
+        long startingGeneration = generation;
+        int[] inputs = new int[CAPACITY], outputs = new int[CAPACITY];
+        int space = 0, count = 0;
+        for (int i = 0; i < CAPACITY; i++) if (slots[outputSlot(i)] == null) outputs[space++] = outputSlot(i);
+        if (space == 0) {
+            status = "Remove completed copies";
+            return false;
+        }
+        for (int i = 0; i < CAPACITY && count < Math.min(space, getBatchLimit()); i++)
+            if (DiskCopyPlan.isBlank(slots[mediumSlot(i)])) inputs[count++] = mediumSlot(i);
+        if (count == 0) {
+            status = "Insert fresh blank SFM disks";
+            return false;
+        }
+        ItemStack[] media = new ItemStack[count];
+        for (int i = 0; i < count; i++) media[i] = slots[inputs[i]];
+        try {
+            DiskCopyPlan plan = DiskCopyPlan.prepareBatch(slots[SOURCE], media);
+            if (generation != startingGeneration) {
+                status = "Disks changed; restarting copy";
+                return false;
+            }
+            inputSlots = java.util.Arrays.copyOf(inputs, count);
+            outputSlots = java.util.Arrays.copyOf(outputs, count);
+            mediaBindings = media;
+            cycleTicks = Math.max(1, Math.min(12000, Config.diskCopierTicksPerCycle));
+            pending = plan;
+            status = "Copying " + count + " disk(s)";
+            return true;
+        } catch (IllegalArgumentException | IllegalStateException failure) {
+            status = failure.getMessage();
+            return false;
+        }
+    }
+
+    private boolean workCurrent() {
+        DiskCopyPlan plan = pending;
+        int[] inputs = inputSlots, outputs = outputSlots;
+        if (plan == null || inputs == null || outputs == null) return false;
+        for (int i = 0; i < inputs.length; i++)
+            if (!plan.ownsMedium(i, slots[inputs[i]]) || slots[outputs[i]] != null) return false;
+        return pending == plan;
+    }
+
+    private boolean loaded() {
+        return worldObj != null && !worldObj.isRemote
+            && !isInvalid()
+            && ServerUiTasks.isServerThread()
+            && worldObj.blockExists(xCoord, yCoord, zCoord)
+            && worldObj.getTileEntity(xCoord, yCoord, zCoord) == this;
+    }
+
+    public static int mediumSlot(int index) {
+        if (index < 0 || index >= CAPACITY) throw new IndexOutOfBoundsException("Blank disk index");
+        return index == 0 ? MEDIUM : index + 2;
+    }
+
+    public static int outputSlot(int index) {
+        if (index < 0 || index >= CAPACITY) throw new IndexOutOfBoundsException("Output disk index");
+        return index == 0 ? OUTPUT : index + CAPACITY + 1;
+    }
+
+    public static boolean isMediumSlot(int slot) {
+        return slot == MEDIUM || slot >= 3 && slot <= CAPACITY + 1;
+    }
+
+    public static boolean isOutputSlot(int slot) {
+        return slot == OUTPUT || slot >= CAPACITY + 2 && slot < 1 + CAPACITY * 2;
+    }
+
+    public int getCycleTicks() {
+        return pending != null ? cycleTicks : Math.max(1, Math.min(12000, Config.diskCopierTicksPerCycle));
+    }
+
+    public int getBatchLimit() {
+        return Math.max(1, Math.min(CAPACITY, Config.diskCopierCopiesPerCycle));
     }
 
     private void cancel(String message) {
         pending = null;
+        inputSlots = outputSlots = null;
+        mediaBindings = null;
         progress = 0;
         status = message;
     }
@@ -184,23 +261,28 @@ public final class TileEntityDiskCopier extends TileEntity implements ISidedInve
     @Override
     public boolean isItemValidForSlot(int slot, ItemStack stack) {
         return slot == SOURCE ? DiskCopyPlan.isDisk(stack) && !DiskCopyPlan.isBlank(stack)
-            : slot == MEDIUM && DiskCopyPlan.isBlank(stack);
+            : isMediumSlot(slot) && DiskCopyPlan.isBlank(stack);
     }
 
     @Override
     public int[] getAccessibleSlotsFromSide(int side) {
-        return side < 0 || side > 5 ? new int[0]
-            : side == 0 ? new int[] { OUTPUT } : side == 1 ? new int[] { SOURCE } : new int[] { MEDIUM };
+        if (side < 0 || side > 5) return new int[0];
+        if (side == 1) return new int[] { SOURCE };
+        int[] indices = new int[CAPACITY];
+        for (int i = 0; i < CAPACITY; i++) indices[i] = side == 0 ? outputSlot(i) : mediumSlot(i);
+        return indices;
     }
 
     @Override
     public boolean canInsertItem(int slot, ItemStack stack, int side) {
-        return side >= 1 && side <= 5 && slot == (side == 1 ? SOURCE : MEDIUM) && isItemValidForSlot(slot, stack);
+        return side >= 1 && side <= 5
+            && (side == 1 ? slot == SOURCE : isMediumSlot(slot))
+            && isItemValidForSlot(slot, stack);
     }
 
     @Override
     public boolean canExtractItem(int slot, ItemStack stack, int side) {
-        return side == 0 && slot == OUTPUT;
+        return side == 0 && isOutputSlot(slot);
     }
 
     @Override

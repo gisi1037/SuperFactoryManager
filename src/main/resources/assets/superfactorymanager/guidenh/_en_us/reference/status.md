@@ -17,7 +17,8 @@ different.
 
 ## Implemented
 
-- Disk Copier: one blank per independent program/label copy, late-HV recipe,
+- Disk Copier: up to eight independent program/label copies per one-second cycle
+  by default, configurable timing/batch limit, one blank per copy, late-HV recipe,
   normal MUI2 inventory and sided automation. [Copying guide](/advanced/disk-copier.md).
 
 - SFML item/fluid INPUT/OUTPUT, resource filters, quantities, retention,

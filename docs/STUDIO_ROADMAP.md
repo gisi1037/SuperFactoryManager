@@ -206,8 +206,8 @@ load balancer; random phases can collide. Reload/reset can pick a new phase.
 
 ## Disk copying and compact source editing
 
-The Disk Copier writes one independent program/label copy onto one fresh blank
-in 100 loaded server ticks. It has a late-HV recipe, no operating EU, a normal
+The Disk Copier writes up to eight independent program/label copies per cycle,
+consuming one fresh blank per copy in 20 loaded server ticks by default. It has a late-HV recipe, no operating EU, a normal
 MUI2 inventory window and sided automation. Runtime STATE, recovery ownership and
 private authoring access do not propagate. See CRAFTING.md and the in-game checklist.
 Native hopper/pipe, GUI and multiplayer qualification remains pending.
@@ -215,3 +215,11 @@ Native hopper/pipe, GUI and multiplayer qualification remains pending.
 Studio dividers now capture release outside their handles and stop on lost
 focus/button state. The native I-beam follows text-line height, including Studio
 scale. The Manager source editor uses compact toolbars/footer to show more code.
+
+
+Manager visual/preview controls now reflow across the available width. Hidden
+node palettes and property fields release their reserved space; long diagnostic
+messages stay in one status line with complete hover details. The native cursor
+has a one-pixel stem and a shorter height. Copier timing and batch limits are
+server-configurable, with eight blank/output queue slots and legacy save indices
+preserved. Native visual/automation qualification remains in the checklist.

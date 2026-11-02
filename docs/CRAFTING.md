@@ -54,8 +54,9 @@ ordinary cables. Empty NBT compounds are accepted as plain.
 
 ## Disk Copier
 
-The separate Disk Copier consumes one fresh blank SFM disk per copy in 100 loaded
-server ticks (five seconds at 20 TPS). It needs no operating EU; its recipe gates
+The separate Disk Copier makes **up to eight copies per cycle**, consuming one
+fresh blank SFM disk for each copy. A cycle defaults to **20 loaded server ticks**
+(one second at 20 TPS). It needs no operating EU; its recipe gates
 access to late HV. The source is retained. Program text or the exact published
 execution reference and all saved labels carry over. Copies receive a new
 document identity and fresh runtime STATE/clock. Custom names/foreign metadata,
@@ -66,10 +67,24 @@ it does not publish a build, reveal private project/library source or repair a
 missing/revoked reference. Legacy source text is copied verbatim, not compiled.
 
 The GUI uses normal MUI2/player slots and leaves room for NEI. Insert a programmed
-source in the left slot, one fresh blank in the middle, and take the copy on the
-right. A full output prevents work. Automation inserts source from the top and
+source in the center slot, up to eight blanks in the left grid, and take copies
+from the right grid. Copies keep independent identities and label tables, so
+programmed disks remain unstackable. A full output grid prevents work; partial
+space produces only as many copies as can fit. Automation inserts source from the top and
 blank media from horizontal sides, and extracts copies from the bottom. The
 source can be removed manually; automation cannot drain it. Disks are unstackable.
+
+Server configuration in `config/superfactorymanager.cfg`, category `machines`:
+
+| Setting | Default | Range |
+| --- | --- | --- |
+| `diskCopierTicksPerCycle` | 20 ticks | 1-12000 ticks |
+| `diskCopierCopiesPerCycle` | 8 | 1-8 copies |
+
+Restart the server to apply configuration changes. Each active cycle keeps its
+captured duration and bound media. Smaller batch limits automatically process
+the remaining queued blanks in subsequent cycles. Existing three-slot saves keep
+their source/blank/output indices; extra slots simply load empty.
 
 Changing any slot resets progress. Unload/restart discards pending work, consuming
 nothing; a new full cycle begins on reload. In-place metadata changes are checked

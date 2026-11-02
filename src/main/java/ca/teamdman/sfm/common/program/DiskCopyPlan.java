@@ -22,31 +22,59 @@ import cpw.mods.fml.relauncher.ReflectionHelper;
 public final class DiskCopyPlan {
 
     private static final Field LIST = ReflectionHelper.findField(NBTTagList.class, "tagList", "field_74747_a");
-    private final ItemStack source, medium, candidate;
-    private final NBTTagCompound sourceTags, mediumTags;
+    public static final int MAX_BATCH_SIZE = 8;
+    private final ItemStack source;
+    private final ItemStack[] media, candidates;
+    private final NBTTagCompound sourceTags;
+    private final NBTTagCompound[] mediumTags;
     private boolean completed;
 
-    private DiskCopyPlan(ItemStack source, ItemStack medium) {
+    private DiskCopyPlan(ItemStack source, ItemStack[] media) {
         requireDisk(source);
-        if (!isBlank(medium)) throw new IllegalArgumentException("Insert one fresh blank SFM disk");
+        if (media == null || media.length < 1 || media.length > MAX_BATCH_SIZE)
+            throw new IllegalArgumentException("A disk copy batch requires 1-8 blank disks");
+        this.media = media.clone();
+        mediumTags = new NBTTagCompound[media.length];
+        for (int i = 0; i < media.length; i++) {
+            if (!isBlank(media[i])) throw new IllegalArgumentException("Insert fresh blank SFM disks");
+            for (int j = 0; j < i; j++) if (media[i] == media[j])
+                throw new IllegalArgumentException("Blank disk occupies multiple input slots");
+            mediumTags[i] = media[i].getTagCompound() == null ? null
+                : (NBTTagCompound) media[i].getTagCompound()
+                    .copy();
+        }
         validateMetadata(source);
         NBTTagCompound tags = source.getTagCompound();
         if (tags == null) throw new IllegalArgumentException("Source disk has no program");
+        // Parse one immutable snapshot for the whole batch, rather than copying/revalidating STATE eight times.
+        sourceTags = (NBTTagCompound) tags.copy();
+        ItemStack snapshot = new ItemStack(ModItems.disk);
+        snapshot.setTagCompound(sourceTags);
+        tags = sourceTags;
         if (tags.hasKey(ItemRecovery.KEY) || tags.hasKey(FluidRecovery.KEY))
             throw new IllegalArgumentException("Resolve source disk recovery before copying");
-        ProgramDiskData.Mode mode = ProgramDiskData.mode(source);
+        ProgramDiskData.Mode mode = ProgramDiskData.mode(snapshot);
         if (mode == ProgramDiskData.Mode.INVALID) throw new IllegalArgumentException("Invalid source program disk");
-        ProgramDocument.read(source); // Reject unsupported identity metadata without changing the source.
+        ProgramDocument.read(snapshot); // Reject unsupported identity metadata without changing the source.
         validateLabels(tags);
-        candidate = new ItemStack(ModItems.disk);
-        ProgramDocument.ensure(candidate); // Fresh editor identity, STATE and execution clock.
         if (mode == ProgramDiskData.Mode.LEGACY) {
-            String code = ItemDisk.getProgramString(source);
+            String code = ItemDisk.getProgramString(snapshot);
             if (code.trim()
                 .isEmpty()) throw new IllegalArgumentException("Source disk has no program");
             ProgramDocument.validateSource(code);
+        }
+        candidates = new ItemStack[media.length];
+        for (int i = 0; i < candidates.length; i++) candidates[i] = copy(snapshot, mode);
+        this.source = source;
+    }
+
+    private static ItemStack copy(ItemStack snapshot, ProgramDiskData.Mode mode) {
+        NBTTagCompound tags = snapshot.getTagCompound();
+        ItemStack candidate = new ItemStack(ModItems.disk);
+        ProgramDocument.ensure(candidate); // Fresh editor identity, STATE and execution clock.
+        if (mode == ProgramDiskData.Mode.LEGACY) {
             candidate.getTagCompound()
-                .setString(ItemDisk.NBT_PROGRAM, code);
+                .setString(ItemDisk.NBT_PROGRAM, ItemDisk.getProgramString(snapshot));
         } else {
             // Retain the same immutable revision and execution-only bearer authority, never authoring access.
             candidate.getTagCompound()
@@ -61,16 +89,19 @@ public final class DiskCopyPlan {
                 tags.getTag(LabelPositionHolder.NBT_KEY)
                     .copy());
         ProgramStateStore.validateCompleteDisk(candidate);
-        this.source = source;
-        this.medium = medium;
-        sourceTags = (NBTTagCompound) tags.copy();
-        mediumTags = medium.getTagCompound() == null ? null
-            : (NBTTagCompound) medium.getTagCompound()
-                .copy();
+        return candidate;
     }
 
     public static DiskCopyPlan prepare(ItemStack source, ItemStack medium) {
-        return new DiskCopyPlan(source, medium);
+        return new DiskCopyPlan(source, new ItemStack[] { medium });
+    }
+
+    public static DiskCopyPlan prepareBatch(ItemStack source, ItemStack[] media) {
+        return new DiskCopyPlan(source, media);
+    }
+
+    public int size() {
+        return media.length;
     }
 
     public static boolean isDisk(ItemStack stack) {
@@ -91,20 +122,35 @@ public final class DiskCopyPlan {
 
     /** Exact object binding is cheap during work; metadata is revalidated once at completion. */
     public boolean owns(ItemStack currentSource, ItemStack currentMedium) {
-        return !completed && currentSource == source
-            && currentMedium == medium
-            && isDisk(currentSource)
-            && isBlank(currentMedium);
+        return media.length == 1 && ownsSource(currentSource) && ownsMedium(0, currentMedium);
+    }
+
+    public boolean ownsSource(ItemStack current) {
+        return !completed && current == source && isDisk(current);
+    }
+
+    public boolean ownsMedium(int index, ItemStack current) {
+        return !completed && index >= 0 && index < media.length && current == media[index] && isBlank(current);
     }
 
     public ItemStack complete(ItemStack currentSource, ItemStack currentMedium) {
-        if (!owns(currentSource, currentMedium)) throw new IllegalArgumentException("Disk changed; copy cancelled");
+        if (media.length != 1) throw new IllegalArgumentException("Use batch completion for multiple media");
+        return completeBatch(currentSource, new ItemStack[] { currentMedium })[0];
+    }
+
+    public ItemStack[] completeBatch(ItemStack currentSource, ItemStack[] currentMedia) {
+        if (!ownsSource(currentSource) || currentMedia == null || currentMedia.length != media.length)
+            throw new IllegalArgumentException("Disk changed; copy cancelled");
+        for (int i = 0; i < media.length; i++) if (!ownsMedium(i, currentMedia[i]))
+            throw new IllegalArgumentException("Blank media changed; copy cancelled");
         validateMetadata(currentSource);
-        if (!sourceTags.equals(currentSource.getTagCompound())
-            || !java.util.Objects.equals(mediumTags, currentMedium.getTagCompound()))
+        if (!sourceTags.equals(currentSource.getTagCompound()))
             throw new IllegalArgumentException("Disk metadata changed; copy cancelled");
+        for (int i = 0; i < media.length; i++)
+            if (!java.util.Objects.equals(mediumTags[i], currentMedia[i].getTagCompound()))
+                throw new IllegalArgumentException("Blank metadata changed; copy cancelled");
         completed = true;
-        return candidate;
+        return candidates;
     }
 
     private static void validateLabels(NBTTagCompound root) {

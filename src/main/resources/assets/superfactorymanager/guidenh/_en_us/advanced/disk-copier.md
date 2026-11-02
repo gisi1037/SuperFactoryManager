@@ -18,13 +18,14 @@ NEI shows its late-HV recipe. It needs no operating EU.
 <ItemImage id="superfactorymanager:diskCopier" />
 <ItemImage id="superfactorymanager:disk" />
 
-1. Put the programmed disk in **source** on the left.
-2. Put one fresh blank SFM disk in **blank** in the middle.
-3. Wait **five seconds** while the copier is loaded.
-4. Take the new disk from **output** on the right.
+1. Put the programmed disk in **Source** in the center.
+2. Put up to **eight fresh blank disks** in the left grid.
+3. Wait **one second** while the copier is loaded, with default server settings.
+4. Take the new disks from **Copies** on the right.
 
 **Expected:** the source stays in place. One blank becomes one copy.
-Remove the output before copying again.
+Each cycle makes up to eight independent copies. When the output grid fills up,
+remove copies to continue. Partial space uses only as many blanks as can fit.
 
 ## What carries over?
 
@@ -45,6 +46,12 @@ repair a missing published build. Source disks copy their text verbatim.
 | Bottom | Extract completed copies. |
 
 The source is only removable manually. Disks do not stack.
+
+Server owners can change `diskCopierTicksPerCycle` (default 20) and
+`diskCopierCopiesPerCycle` (default 8) in the `machines` category of
+`config/superfactorymanager.cfg`, then restart the server. A smaller batch limit
+automatically processes the queued blanks over several cycles. The GUI shows
+the server's timing and batch limit.
 
 ## If copying stops
 
