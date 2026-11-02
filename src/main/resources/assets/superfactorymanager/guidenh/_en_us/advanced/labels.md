@@ -32,6 +32,28 @@ a deliberate master copy. Editing the gun later does not automatically edit the
 disk. If you replace the gun while its menu is open, reopen the menu for the new
 gun before changing anything.
 
+## Edit labels from a cable
+
+1. Right-click our full-block or Fancy Cable **with an empty hand**.
+2. Choose a Manager. Shared networks can have several; the tool never guesses.
+3. Wait for discovery. Select connected blocks, across pages if needed.
+4. Type an exact label and choose **Add label** or **Remove**.
+
+These edits go directly to that Manager's installed disk. Other label groups,
+program source and runtime STATE stay intact. Several selected blocks can share
+one label, and adding a label keeps their other labels. Removing an assignment
+can change what a running program finds; it does not rename source references.
+
+**Search** uses cached coordinates, block IDs and every label. Long row text ends
+in `...`; shortening the display never removes labels or limits the search.
+Select up to 32 blocks per edit. Discovery supports up to 64 candidate Managers
+and 8,192 connected blocks, with work spread across server ticks. Unloaded chunks
+are not opened. If the disk, labels or network changes, refresh and choose again.
+
+The gun has its own saved table. After cable edits, **sneak-right-click the
+Manager with the gun to pull the updated table** before using that gun to push
+again. An old gun table can overwrite your newer disk labels.
+
 ## Route from a group of chests
 
 Give two single source chests the same label, `supply`, and give an empty

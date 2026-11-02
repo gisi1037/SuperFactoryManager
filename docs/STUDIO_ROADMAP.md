@@ -262,3 +262,30 @@ multiple Managers, runtime parity, invalidation and server-thread enforcement.
 Full stable qualification: 2,158 tests, 2,139 passed, 19 skipped; no failures or
 errors. Style, compiler bridge and GuideNH checks passed. Native qualification
 remains separate.
+
+## Cable label editing
+
+Empty-hand use of a full or Fancy Cable now opens a MUI2 label tool. Pick a
+Manager explicitly, select connected blocks across pages, and add/remove one
+exact label on up to 32 blocks. Multi-label memberships, unrelated assignments,
+program source, disk identity and live STATE are preserved. Held cable placement
+and Label Gun use remain available. This tool grants no Manager program/control
+or inventory capability. It never loads chunks or reads container contents.
+
+Topology, Manager/disk identity and saved labels fence every accepted write.
+Selected endpoints are rechecked before commit; pending recovery and oversized
+candidate NBT refuse without changing labels. Pending heap STATE is flushed for
+sizing, then only the label tag is replaced on the live disk root. Source refs
+are not renamed. A Label Gun keeps its own table: pull newer disk labels before
+pushing an old gun table again.
+
+Discovery, reverse-label indexing, metadata collection and filtering run in
+bounded batches (128 units per server tick). Search uses every label, including
+those shortened with ... in rows; it never rescans all label groups per block.
+Limits: 64 candidate Managers, 8192 connected blocks, 32 selected targets and
+one accepted action per tick. Window/session/revision checks protect queued edits.
+
+Stable headless checks passed: 2167 tests, 2148 passed, 19 skipped, no failures
+or errors. Style, compiler bridge and GuideNH checks passed. In-game acceptance
+is P2 in IN_GAME_TEST_CHECKLIST.md; GUI, multiplayer/claims and full-pack tests
+remain open and this checkpoint is not 1.0 release certification.

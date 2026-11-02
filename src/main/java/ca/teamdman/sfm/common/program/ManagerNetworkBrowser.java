@@ -318,7 +318,8 @@ public final class ManagerNetworkBrowser {
             throw invalid("Network snapshot changed or expired; refresh the browser");
     }
 
-    private static LabelPositionHolder strictLabels(ItemStack disk) {
+    /** Shared strict metadata reader for network tools. No contents, program or STATE are accessed. */
+    public static LabelPositionHolder strictLabels(ItemStack disk) {
         NBTTagCompound root = disk == null ? null : disk.getTagCompound();
         if (root == null || !root.hasKey(LabelPositionHolder.NBT_KEY)) return new LabelPositionHolder();
         if (!root.hasKey(LabelPositionHolder.NBT_KEY, 10)) throw invalid("Invalid saved labels");

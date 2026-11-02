@@ -28,6 +28,15 @@ public class BlockCable extends Block {
     }
 
     @Override
+    public boolean onBlockActivated(net.minecraft.world.World world, int x, int y, int z,
+        net.minecraft.entity.player.EntityPlayer player, int side, float hitX, float hitY, float hitZ) {
+        // Empty-hand use leaves cable placement and Label Gun interactions available.
+        if (player.getHeldItem() != null) return false;
+        if (!world.isRemote) ca.teamdman.sfm.integration.mui2.CableLabelsMui2Factory.INSTANCE.open(player, x, y, z);
+        return true;
+    }
+
+    @Override
     public void breakBlock(net.minecraft.world.World world, int x, int y, int z, Block block, int meta) {
         ca.teamdman.sfm.common.network.CableNetwork.invalidate(world, x, y, z);
         super.breakBlock(world, x, y, z, block, meta);

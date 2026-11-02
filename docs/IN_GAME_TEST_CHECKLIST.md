@@ -36,6 +36,28 @@ locations refer to the installed program, which may differ from a Studio draft.
   Glass Cables and two neutral bundled cables, rotated from SteveFM's layout.
   Both shapes must produce their intended distinct outputs without recipe conflicts.
 
+### P2: Cable label editor
+
+- Empty-hand right-click our full and Fancy Cables. A held cable should still
+  place normally, and Label Gun use should still work. Check small/large GUI
+  scales, scrolling, Close/Escape, NEI suppression and the inventory extension:
+  this label-only tool must never permit inventory-slot interaction.
+- Connect two Managers with different disks to one bus. Choose one explicitly.
+  Select two chests and a Redstone Port, add `bulk`, then remove `bulk` from one
+  chest. Other labels and the other Manager's disk must stay unchanged. Verify
+  the exact group in a running PRINT/query program and by pulling into the gun.
+- Select across pages, filter by a later label in a long multi-label row, clear
+  the selection, cancel by closing, and reopen. No labels change until Add/Remove.
+  A shortened row ends in `...`; Search must still find all labels.
+- From two clients/windows, edit the same disk. The second stale edit must refuse.
+  Repeat after disk removal/reinsertion, Manager replacement, cable break/rebuild,
+  selected-block replacement and chunk unload. No nearby chunk may be loaded to
+  satisfy the tool. An old queued action after close/reopen must not affect the
+  new session. Existing runtime STATE/WAIT and running/paused state must survive.
+- Try a disk near its NBT limit and a Manager with pending recovery. A refused
+  label edit must preserve the disk and all transfer recovery evidence. Check
+  a large network while its programs run; scans/search should progress in batches.
+
 ### D1: Disk Copier
 
 Use a disposable world and the **Disk Copier** from NEI/creative; check its late-HV
@@ -465,9 +487,6 @@ every 40 ticks {
 
 ## Additions: test after implementation, not in the current checkpoint
 
-- [ ] **Cable label editor:** clear selected manager/disk, group assignments,
-  multi-manager ambiguity, bulk edits, cancellation and stale topology/session
-  refusal. Verify authoritative labels in running programs afterward.
 - [ ] **Recipe queries:** compare all returned candidates, counts, alternatives,
   circuits, fluids, chances and constraints against the selected real GT recipe
   map/NEI recipe. Unsupported/ambiguous results must be explicit.

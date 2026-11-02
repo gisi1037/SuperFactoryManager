@@ -53,6 +53,8 @@ public class CommonProxy {
             .registerFactory(ca.teamdman.sfm.integration.mui2.ProgrammingStationMui2Factory.INSTANCE);
         com.cleanroommc.modularui.factory.GuiManager
             .registerFactory(ca.teamdman.sfm.integration.mui2.DiskCopierMui2Factory.INSTANCE);
+        com.cleanroommc.modularui.factory.GuiManager
+            .registerFactory(ca.teamdman.sfm.integration.mui2.CableLabelsMui2Factory.INSTANCE);
     }
 
     public void postInit(FMLPostInitializationEvent event) {}

@@ -613,6 +613,15 @@ Drag a code selection toward or beyond the viewport edges to keep scrolling; hol
 the pointer there to continue. Wrapping disables horizontal selection scrolling.
 
 
+## Edit connected block labels
+
+The separate cable label tool opens with an empty-hand right-click on our full
+or Fancy Cable. Select a Manager explicitly, then select connected blocks and
+add/remove exact label assignments on its disk. It does not edit Studio source
+or runtime STATE. Labels remain case-sensitive and groups may share blocks.
+Afterward pull that disk's table into your Label Gun before pushing an older gun
+table back. See the in-game guide's Labels and cable networks page.
+
 ## Copy saved programs between worlds
 
 Open the top project selector, then **Transfer**.

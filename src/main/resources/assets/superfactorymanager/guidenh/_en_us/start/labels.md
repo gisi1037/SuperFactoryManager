@@ -38,6 +38,9 @@ Insert the disk in the manager. Right-click that manager with the Label Gun
 **Expected:** chat confirms that the gun's table was copied to the disk.
 Editing the gun afterward does not automatically update the disk.
 
+Later, you can also **right-click an SFM cable with an empty hand** to edit the
+connected Manager's disk labels directly. See [network label editing](/advanced/labels.md).
+
 Labels are case-sensitive. Use `source` and `dest` exactly as shown.
 In the program, keep the quotes around `"source"` and `"dest"`.
 Both chests still need a cable connection.
