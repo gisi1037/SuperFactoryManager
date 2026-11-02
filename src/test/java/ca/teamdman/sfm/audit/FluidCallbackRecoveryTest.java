@@ -21,6 +21,189 @@ class FluidCallbackRecoveryTest {
     private static final String CODE = "EVERY 20 TICKS DO INPUT fluid:water FROM \"source\" OUTPUT 1000 fluid:water TO \"dest\" END";
 
     @Test
+    void legacyCallbacksCannotMoveRecoveryEvidenceOntoAReplacementDisk() throws Exception {
+        for (boolean replaceOnDrain : new boolean[] { true, false })
+            for (boolean throwAfterMutation : new boolean[] { true, false }) {
+                Fixture f = new Fixture();
+                TileEntityManager manager = RecoveryFixtures.manager(f);
+                ItemStack owner = manager.getDisk(), replacement = owner.copy();
+                boolean[] observedJournal = { false };
+                Runnable replace = () -> {
+                    observedJournal[0] = manager.hasPendingRecovery();
+                    manager.setInventorySlotContents(0, replacement);
+                };
+                TankTile source = new TankTile(1000) {
+
+                    @Override
+                    public FluidStack drain(ForgeDirection side, FluidStack fluid, boolean actual) {
+                        FluidStack drained = super.drain(side, fluid, actual);
+                        if (actual && replaceOnDrain) {
+                            replace.run();
+                            if (throwAfterMutation) throw new IllegalStateException("drain mutated then replaced disk");
+                        }
+                        return drained;
+                    }
+                };
+                TankTile target = new TankTile(0) {
+
+                    @Override
+                    public int fill(ForgeDirection side, FluidStack fluid, boolean actual) {
+                        int inserted = super.fill(side, fluid, actual);
+                        if (actual && !replaceOnDrain) {
+                            replace.run();
+                            if (throwAfterMutation) throw new IllegalStateException("fill mutated then replaced disk");
+                        }
+                        return inserted;
+                    }
+                };
+                f.world.tiles.put(SRC, source);
+                f.world.tiles.put(DST, target);
+                assertThrows(
+                    SfmlRuntimeException.class,
+                    () -> parse(CODE).tick(
+                        new ProgramContext(f.world, manager, new CableNetwork(f.world, MANAGER), f.labels, 20, false)));
+                assertTrue(observedJournal[0], "Actual provider callbacks need write-ahead ownership evidence");
+                assertSame(replacement, manager.getDisk());
+                assertFalse(
+                    replacement.hasTagCompound() && replacement.getTagCompound()
+                        .hasKey("sfm:recovery_fluid"));
+                NBTTagCompound record = owner.getTagCompound()
+                    .getCompoundTag("sfm:recovery_fluid");
+                assertEquals("uncertain", record.getString("state"));
+                assertEquals(1000, record.getInteger("Amount"));
+                assertTrue(record.getBoolean("recoveryBlocked"));
+                assertEquals(0, source.amount);
+                assertEquals(replaceOnDrain ? 0 : 1000, target.amount);
+                assertFalse(manager.isRunning());
+            }
+    }
+
+    @Test
+    void legacyActualDrainAndFillFenceReentrantManualRuns() throws Exception {
+        for (boolean reenterOnDrain : new boolean[] { true, false }) {
+            Fixture f = new Fixture();
+            TileEntityManager manager = RecoveryFixtures.manager(f);
+            ca.teamdman.sfm.common.item.ItemDisk.setProgramString(manager.getDisk(), CODE);
+            ca.teamdman.sfm.common.label.LabelPositionHolder.saveTo(manager.getDisk(), f.labels);
+            manager.setInventorySlotContents(0, manager.getDisk());
+            int[] calls = { 0 };
+            Runnable nested = () -> {
+                calls[0]++;
+                if (calls[0] == 1) manager.runOnceWithLogLevel(ca.teamdman.sfm.common.tileentity.LogLevel.OFF);
+            };
+            TankTile source = new TankTile(1000) {
+
+                @Override
+                public FluidStack drain(ForgeDirection side, FluidStack fluid, boolean actual) {
+                    if (actual && reenterOnDrain) nested.run();
+                    return super.drain(side, fluid, actual);
+                }
+            };
+            TankTile target = new TankTile(0) {
+
+                @Override
+                public int fill(ForgeDirection side, FluidStack fluid, boolean actual) {
+                    if (actual && !reenterOnDrain) nested.run();
+                    return super.fill(side, fluid, actual);
+                }
+            };
+            f.world.tiles.put(SRC, source);
+            f.world.tiles.put(DST, target);
+            parse(CODE)
+                .tick(new ProgramContext(f.world, manager, new CableNetwork(f.world, MANAGER), f.labels, 20, false));
+            assertEquals(1, calls[0]);
+            assertEquals(0, source.amount);
+            assertEquals(1000, target.amount);
+            assertFalse(manager.hasPendingRecovery());
+            assertFalse(manager.isRunning(), "A blocked reentrant manual run pauses the Manager");
+        }
+    }
+
+    @Test
+    void legacyDrainFencesAbaDiskAndPhysicalManagerReplacement() throws Exception {
+        for (boolean aba : new boolean[] { true, false }) {
+            Fixture f = new Fixture();
+            TileEntityManager manager = RecoveryFixtures.manager(f);
+            ItemStack owner = manager.getDisk();
+            long generation = manager.getDiskGeneration();
+            TankTile source = new TankTile(1000) {
+
+                @Override
+                public FluidStack drain(ForgeDirection side, FluidStack fluid, boolean actual) {
+                    FluidStack extracted = super.drain(side, fluid, actual);
+                    if (actual) {
+                        if (aba) {
+                            manager.setInventorySlotContents(0, owner.copy());
+                            manager.setInventorySlotContents(0, owner);
+                        } else f.world.tiles.put(MANAGER, new TileEntityManager());
+                    }
+                    return extracted;
+                }
+            };
+            TankTile target = new TankTile(0);
+            f.world.tiles.put(SRC, source);
+            f.world.tiles.put(DST, target);
+            assertThrows(
+                SfmlRuntimeException.class,
+                () -> parse(CODE).tick(
+                    new ProgramContext(f.world, manager, new CableNetwork(f.world, MANAGER), f.labels, 20, false)));
+            assertSame(owner, manager.getDisk());
+            if (aba) assertTrue(manager.getDiskGeneration() > generation);
+            assertEquals(
+                "uncertain",
+                owner.getTagCompound()
+                    .getCompoundTag("sfm:recovery_fluid")
+                    .getString("state"));
+            assertEquals(0, source.amount);
+            assertEquals(0, target.amount);
+            assertFalse(manager.isRunning());
+        }
+    }
+
+    @Test
+    void legacyRollbackReplacementRetainsOnlyItsUncertainRemainderOnTheOriginalDisk() throws Exception {
+        Fixture f = new Fixture();
+        TileEntityManager manager = RecoveryFixtures.manager(f);
+        ItemStack owner = manager.getDisk(), replacement = owner.copy();
+        TankTile source = new TankTile(1000) {
+
+            @Override
+            public int fill(ForgeDirection side, FluidStack fluid, boolean actual) {
+                if (!actual) return fluid.amount;
+                manager.setInventorySlotContents(0, replacement);
+                amount += 20;
+                throw new IllegalStateException("rollback mutated then replaced disk");
+            }
+        };
+        TankTile target = new TankTile(0) {
+
+            @Override
+            public int fill(ForgeDirection side, FluidStack fluid, boolean actual) {
+                if (!actual) return fluid.amount;
+                amount += 10;
+                return 10;
+            }
+        };
+        f.world.tiles.put(SRC, source);
+        f.world.tiles.put(DST, target);
+        assertThrows(
+            SfmlRuntimeException.class,
+            () -> parse(CODE)
+                .tick(new ProgramContext(f.world, manager, new CableNetwork(f.world, MANAGER), f.labels, 20, false)));
+        assertSame(replacement, manager.getDisk());
+        assertFalse(
+            replacement.hasTagCompound() && replacement.getTagCompound()
+                .hasKey("sfm:recovery_fluid"));
+        NBTTagCompound record = owner.getTagCompound()
+            .getCompoundTag("sfm:recovery_fluid");
+        assertEquals("uncertain", record.getString("state"));
+        assertEquals("source rollback", record.getString("stage"));
+        assertEquals(990, record.getInteger("Amount"));
+        assertEquals(20, source.amount);
+        assertEquals(10, target.amount);
+    }
+
+    @Test
     void drainFailureBeforeOrAfterMutationIsQuarantined() throws Exception {
         for (boolean mutate : new boolean[] { false, true }) {
             Fixture fixture = new Fixture();

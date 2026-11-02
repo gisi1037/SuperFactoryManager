@@ -607,6 +607,8 @@ public class AuditRegressionTest {
         manager.xCoord = 0;
         manager.yCoord = 64;
         manager.zCoord = 0;
+        // Native transfer authority requires the physical Manager to remain installed.
+        f.world.tiles.put(MANAGER, manager);
         ItemStack disk = new ItemStack(new ItemDisk());
         manager.setInventorySlotContents(0, disk);
         Program program = parse(

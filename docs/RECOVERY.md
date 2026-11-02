@@ -125,3 +125,11 @@ headless registries. A stable290/JDK25 Gradle checkpoint passed 67 methods acros
 the isolated Forge and adjacent fluid/item recovery suites (zero failures, errors
 or skips). This is headless callback/NBT qualification, not a live tank, whole-pack,
 performance or crash-atomicity certification. No deployment was performed.
+
+Legacy INPUT/OUTPUT fluid moves also write ownership evidence before actual
+provider callbacks. If a callback changes the installed disk or physical Manager,
+the original disk keeps uncertain evidence and execution pauses. Do not treat a
+replacement disk as the owner or replay uncertain fluid automatically. Normal
+confirmed transfers clear only their own still-current record; a refused source
+rollback retains only its known remainder. This guard does not make arbitrary
+provider callbacks crash-atomic.

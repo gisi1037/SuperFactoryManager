@@ -304,3 +304,26 @@ edit. Full stable checks:2170 tests,2151 passed,19 skipped,no failures/errors;
 style/compiler/GuideNH passed. Two isolated full-pack clients launched with
 3GiB heaps and verified Java26.0.2.1. Native edit/multiplayer qualification of
 this fix is still pending; startup alone is not an acceptance result.
+
+## Label push and legacy fluid callback guards, 2026-11-01
+
+Label Gun pushes now flush pending heap STATE, validate the complete candidate
+against the existing 30,000-byte NBT bound and recheck the physical Manager,
+installed disk and generation. A refused push keeps old labels; a successful
+push replaces only the labels tag on the live root, without replacing STATE.
+
+Legacy INPUT/OUTPUT fluid moves now journal on the original disk before actual
+drain/fill/rollback callbacks. Callback replacement, A-to-B-to-A disk changes,
+physical Manager replacement and nested manual runs cannot redirect evidence to
+a replacement disk. Known rollback remainders remain distinct from uncertain
+callback outcomes. Existing EACH/RETAIN quantities and normal resource movement
+remain covered by characterization tests. The replacement callback regression
+failed against the previous production path before the fix.
+
+Stable automated checks: 2177 tests, 2158 passed, 19 skipped, zero failures/errors;
+style, compiler bridge and GuideNH checks passed. Native cable smoke on the prior
+scoped-discovery build passed selection and two-block add/remove while keeping
+original labels and the Manager running, with the inventory mod present. The
+GTNH 2.9.0 dedicated server also cold-started with both mods on Java26/3GiB and
+saved/stopped through localhost RCON. Two-player acceptance remains pending.
+These results do not certify 1.0, fault-free native providers or crash atomicity.

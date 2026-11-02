@@ -1119,6 +1119,8 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
 
     private void transferFluidsOnly(OutputStatement out, List<BlockPos> outPositions,
         Map<InputStatement, List<BlockPos>> inPositionsMap) {
+        ItemStack authorityDisk = manager == null ? null : manager.getDisk();
+        long authorityGeneration = manager == null ? 0 : manager.getDiskGeneration();
         Map<Object, Map<ResourceLimit, TransferQuota>> outputQuotas = new HashMap<>();
         // Observe each destination once. Forge 1.7 tank snapshots do not expose tank identity.
         for (BlockPos pos : outPositions) {
@@ -1145,6 +1147,7 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
                     .getFluidSides(sourcePos, getLabelPositionHolder())
                     .resolveDirections();
                 if (!network.isConnected(sourcePos)) continue;
+                TileEntity sourceTile = sourcePos.getTileEntity(world);
                 IFluidHandler source = InventoryUtils.getFluidHandler(world, sourcePos);
                 if (source == null) continue;
                 // A single physical tank is commonly visible through every face.
@@ -1170,6 +1173,7 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
                     for (BlockPos destPos : outPositions) {
                         if (remaining <= 0) break;
                         if (sourcePos.equals(destPos) || !network.isConnected(destPos)) continue;
+                        TileEntity destTile = destPos.getTileEntity(world);
                         IFluidHandler dest = InventoryUtils.getFluidHandler(world, destPos);
                         if (dest == null || dest == source) continue;
                         TransferQuota target = quota(outputQuotas, out.isEach() ? destPos : null, outLimit);
@@ -1185,65 +1189,18 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
                                 .max(0, Math.min(requested, dest.fill(destSide, candidate.copy(), false)));
                             if (accepted == 0) continue;
                             candidate.amount = accepted;
-                            // Fluid-specific drain prevents extracting a different fluid after callbacks.
-                            FluidStack extracted;
-                            try {
-                                extracted = source.drain(side, candidate.copy(), true);
-                            } catch (RuntimeException error) {
-                                preserveFluid(sourcePos, side, destPos, destSide, candidate, true, "extraction");
-                                throw error;
-                            }
-                            if (extracted == null || extracted.amount <= 0) continue;
-                            int inserted;
-                            try {
-                                inserted = extracted.isFluidEqual(candidate)
-                                    ? Math
-                                        .max(0, Math.min(extracted.amount, dest.fill(destSide, extracted.copy(), true)))
-                                    : 0;
-                            } catch (RuntimeException error) {
-                                preserveFluid(
-                                    sourcePos,
-                                    side,
-                                    destPos,
-                                    destSide,
-                                    extracted,
-                                    true,
-                                    "destination insertion");
-                                throw error;
-                            }
-                            int leftover = extracted.amount - inserted;
-                            if (leftover > 0) {
-                                FluidStack remainder = extracted.copy();
-                                remainder.amount = leftover;
-                                int returned;
-                                try {
-                                    returned = Math
-                                        .max(0, Math.min(leftover, source.fill(side, remainder.copy(), true)));
-                                } catch (RuntimeException error) {
-                                    preserveFluid(
-                                        sourcePos,
-                                        side,
-                                        destPos,
-                                        destSide,
-                                        remainder,
-                                        true,
-                                        "source rollback");
-                                    throw error;
-                                }
-                                remainder.amount -= returned;
-                                if (remainder.amount > 0) {
-                                    preserveFluid(
-                                        sourcePos,
-                                        side,
-                                        destPos,
-                                        destSide,
-                                        remainder,
-                                        false,
-                                        "rollback conflict");
-                                    throw new IllegalStateException(
-                                        "Fluid transfer paused: remainder preserved on disk");
-                                }
-                            }
+                            int inserted = moveLegacyFluid(
+                                sourcePos,
+                                sourceTile,
+                                source,
+                                side,
+                                destPos,
+                                destTile,
+                                dest,
+                                destSide,
+                                candidate,
+                                authorityDisk,
+                                authorityGeneration);
                             remaining -= inserted;
                             sourceQuota.moved(key, inserted, false);
                             target.moved(key, inserted, true);
@@ -1256,16 +1213,139 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
         }
     }
 
-    private void preserveFluid(BlockPos source, ForgeDirection sourceSide, BlockPos target, ForgeDirection targetSide,
-        FluidStack fluid, boolean uncertain, String stage) {
-        if (manager == null) throw new IllegalStateException("Fluid recovery requires a manager");
-        NBTTagCompound record = manager.preserveFluid(fluid, source, sourceSide, uncertain, stage);
-        record.setInteger("targetX", target.x);
-        record.setInteger("targetY", target.y);
-        record.setInteger("targetZ", target.z);
-        record.setInteger("targetSide", targetSide.ordinal());
-        record.setInteger("targetDimension", world.provider.dimensionId);
-        manager.markDirty();
+    /** Keep legacy quotas/retention unchanged while journaling ownership before any mutating provider call. */
+    private int moveLegacyFluid(BlockPos sourcePos, TileEntity sourceTile, IFluidHandler source, ForgeDirection from,
+        BlockPos targetPos, TileEntity targetTile, IFluidHandler target, ForgeDirection to, FluidStack candidate,
+        ItemStack owner, long generation) {
+        LegacyFluidJournal journal = new LegacyFluidJournal(
+            owner,
+            generation,
+            sourcePos,
+            from,
+            targetPos,
+            to,
+            candidate);
+        try {
+            requireFluidEndpoints(sourcePos, sourceTile, targetPos, targetTile);
+            journal.requireCurrent();
+            // Fluid-specific drain preserves legacy matching when a provider's contents change after simulation.
+            FluidStack extracted = source.drain(from, candidate.copy(), true);
+            journal.requireCurrent();
+            if (extracted == null || extracted.amount <= 0) {
+                journal.finish();
+                return 0;
+            }
+            journal.owned(extracted, "destination insertion");
+            requireFluidEndpoints(sourcePos, sourceTile, targetPos, targetTile);
+            journal.requireCurrent();
+            int inserted = extracted.isFluidEqual(candidate)
+                ? Math.max(0, Math.min(extracted.amount, target.fill(to, extracted.copy(), true)))
+                : 0;
+            journal.requireCurrent();
+            int leftover = extracted.amount - inserted;
+            if (leftover > 0) {
+                FluidStack remainder = extracted.copy();
+                remainder.amount = leftover;
+                journal.owned(remainder, "source rollback");
+                requireFluidEndpoints(sourcePos, sourceTile, targetPos, targetTile);
+                journal.requireCurrent();
+                int returned = Math.max(0, Math.min(leftover, source.fill(from, remainder.copy(), true)));
+                journal.requireCurrent();
+                remainder.amount -= returned;
+                if (remainder.amount > 0) {
+                    journal.owned(remainder, "rollback conflict");
+                    journal.pending();
+                    throw new IllegalStateException("Fluid transfer paused: remainder preserved on disk");
+                }
+            }
+            journal.finish();
+            return inserted;
+        } catch (RuntimeException failure) {
+            journal.fail();
+            throw failure;
+        }
+    }
+
+    private void requireFluidEndpoints(BlockPos source, TileEntity sourceTile, BlockPos target, TileEntity targetTile) {
+        if (source.getTileEntity(world) != sourceTile || target.getTileEntity(world) != targetTile
+            || sourceTile == null
+            || targetTile == null
+            || sourceTile.isInvalid()
+            || targetTile.isInvalid())
+            throw new IllegalStateException("Fluid transfer endpoint changed during callback");
+    }
+
+    private final class LegacyFluidJournal {
+
+        private final ItemStack owner;
+        private final long generation;
+        private final NBTTagCompound record;
+
+        LegacyFluidJournal(ItemStack owner, long generation, BlockPos source, ForgeDirection from, BlockPos target,
+            ForgeDirection to, FluidStack candidate) {
+            this.owner = owner;
+            this.generation = generation;
+            // Manager-free contexts are used only by legacy characterization tests.
+            if (manager == null) {
+                record = null;
+                return;
+            }
+            if (!ownerCurrent() || manager.hasPendingRecovery())
+                throw new IllegalStateException("Fluid transfer disk changed during simulation");
+            record = manager.journalFluidTransfer(candidate, source, from);
+            record.setInteger("targetX", target.x);
+            record.setInteger("targetY", target.y);
+            record.setInteger("targetZ", target.z);
+            record.setInteger("targetSide", to.ordinal());
+            record.setInteger("targetDimension", world.provider.dimensionId);
+        }
+
+        private boolean ownerCurrent() {
+            return manager.getWorldObj() == world && !manager.isInvalid()
+                && manager.getBlockPos()
+                    .getTileEntity(world) == manager
+                && manager.getDisk() == owner
+                && manager.getDiskGeneration() == generation;
+        }
+
+        void requireCurrent() {
+            if (record != null && (!ownerCurrent() || !owner.hasTagCompound()
+                || owner.getTagCompound()
+                    .getTag("sfm:recovery_fluid") != record)) {
+                record.setString("state", "uncertain");
+                record.setBoolean("recoveryBlocked", true);
+                throw new IllegalStateException(
+                    "Fluid transfer disk changed during callback; inspect original disk recovery evidence");
+            }
+        }
+
+        void owned(FluidStack fluid, String stage) {
+            if (record == null) return;
+            record.removeTag("Tag");
+            fluid.writeToNBT(record);
+            record.setString("stage", stage);
+        }
+
+        void pending() {
+            if (record == null) throw new IllegalStateException("Fluid recovery requires a manager");
+            record.setString("state", "pending");
+            record.setBoolean("recoveryBlocked", false);
+        }
+
+        void finish() {
+            if (record == null) return;
+            requireCurrent();
+            owner.getTagCompound()
+                .removeTag("sfm:recovery_fluid");
+            manager.markDirty();
+        }
+
+        void fail() {
+            if (manager != null) {
+                manager.setRunning(false);
+                manager.markDirty();
+            }
+        }
     }
 
     private Map<InputStatement, Map<Object, Map<ResourceLimit, TransferQuota>>> fluidReservations = Collections
