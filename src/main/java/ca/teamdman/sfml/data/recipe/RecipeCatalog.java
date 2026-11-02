@@ -230,7 +230,7 @@ public final class RecipeCatalog {
                 RecipeDescriptor.text(map, false);
                 if (maps.containsKey(map)) return;
                 reserve(1024 + map.length() * 2L, 0);
-                if (maps.size() == MAX_MAPS) fail();
+                if (maps.size() == MAX_MAPS) fail("maps", maps.size(), 1, MAX_MAPS);
                 maps.put(map, new MapData());
             } catch (RuntimeException failure) {
                 closed = true;
@@ -247,7 +247,8 @@ public final class RecipeCatalog {
             try {
                 MapData data = data(map);
                 visit();
-                if (outputs == null || outputs.size() > RecipeDescriptor.MAX_SLOTS) fail();
+                if (outputs == null || outputs.size() > RecipeDescriptor.MAX_SLOTS)
+                    fail("output slots", 0, outputs == null ? -1 : outputs.size(), RecipeDescriptor.MAX_SLOTS);
                 if (outputs.isEmpty()) {
                     data.incomplete = true;
                     return;
@@ -307,12 +308,13 @@ public final class RecipeCatalog {
         }
 
         private void visit() {
-            if (++visits > MAX_RECIPES) fail();
+            if (++visits > MAX_RECIPES) fail("visits", visits - 1, 1, MAX_RECIPES);
         }
 
         private void reserve(long bytes, int nextPostings) {
-            if (bytes < 0 || bytes > MAX_RETAINED_BYTES - retainedBytes || nextPostings > MAX_POSTINGS - postings)
-                fail();
+            if (bytes < 0 || bytes > MAX_RETAINED_BYTES - retainedBytes)
+                fail("retained bytes", retainedBytes, bytes, MAX_RETAINED_BYTES);
+            if (nextPostings > MAX_POSTINGS - postings) fail("postings", postings, nextPostings, MAX_POSTINGS);
             retainedBytes += bytes;
             postings += nextPostings;
         }
@@ -321,9 +323,20 @@ public final class RecipeCatalog {
             if (closed) throw new IllegalStateException("Recipe catalog builder is closed");
         }
 
-        private void fail() {
+        private void fail(String kind, long used, long requested, long limit) {
             closed = true;
-            throw new IllegalArgumentException("Recipe catalog build limit exceeded");
+            throw new IllegalArgumentException(
+                "Recipe catalog " + kind
+                    + " limit: used "
+                    + used
+                    + ", requested "
+                    + requested
+                    + ", limit "
+                    + limit
+                    + "; descriptors "
+                    + recipes
+                    + ", postings "
+                    + postings);
         }
     }
 }

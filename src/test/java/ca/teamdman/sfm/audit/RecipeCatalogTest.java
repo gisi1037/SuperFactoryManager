@@ -372,7 +372,15 @@ class RecipeCatalogTest {
         Builder capped = builder();
         RecipeDescriptor repeated = recipe(8);
         for (int i = 0; i < RecipeCatalog.MAX_RECIPES; i++) capped.add(repeated, new QueryBudget());
-        assertThrows(IllegalArgumentException.class, () -> capped.add(repeated, new QueryBudget()));
+        IllegalArgumentException failure = assertThrows(
+            IllegalArgumentException.class,
+            () -> capped.add(repeated, new QueryBudget()));
+        assertTrue(
+            failure.getMessage()
+                .contains("visits limit: used " + RecipeCatalog.MAX_RECIPES));
+        assertTrue(
+            failure.getMessage()
+                .contains("descriptors 1, postings 1"));
         assertThrows(IllegalStateException.class, capped::finish);
         Builder finished = builder();
         finished.finish();
@@ -402,6 +410,12 @@ class RecipeCatalogTest {
             try {
                 capped.add(descriptor, new QueryBudget());
             } catch (IllegalArgumentException exhausted) {
+                assertTrue(
+                    exhausted.getMessage()
+                        .contains("retained bytes limit: used "));
+                assertTrue(
+                    exhausted.getMessage()
+                        .contains("limit " + RecipeCatalog.MAX_RETAINED_BYTES));
                 break;
             }
             retained += descriptor.retainedBytes() + 1024;

@@ -17,6 +17,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.oredict.OreDictionary;
 
+import ca.teamdman.sfm.SuperFactoryManager;
 import ca.teamdman.sfml.data.FluidIdentity;
 import ca.teamdman.sfml.data.ItemIdentity;
 import ca.teamdman.sfml.data.QueryBudget;
@@ -150,6 +151,16 @@ public final class GregTechRecipeCatalogAdapter {
             Object categories = call(categoryMap, backend);
             if (!(categories instanceof Map) || ((Map<?, ?>) categories).size() > MAX_CATEGORIES)
                 throw new UnsupportedOperationException("Unsupported recipe category registry");
+            // Opt-in cold-build diagnostics use collection sizes, never flattening or touching native input caches.
+            if (Boolean.getBoolean("sfm.recipeDiagnostics")) {
+                long entries = 0;
+                for (Object recipes : ((Map<?, ?>) categories).values()) {
+                    if (!(recipes instanceof Collection))
+                        throw new UnsupportedOperationException("Unsupported recipe collection");
+                    entries += ((Collection<?>) recipes).size();
+                }
+                SuperFactoryManager.LOG.info("Recipe catalog input {}: {} native entries", id, entries);
+            }
             int amperage = (Integer) call(getAmperage, map);
             for (Object recipes : ((Map<?, ?>) categories).values()) {
                 if (!(recipes instanceof Collection))

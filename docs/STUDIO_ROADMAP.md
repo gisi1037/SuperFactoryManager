@@ -407,4 +407,8 @@ Prototypes resolve once per cold build when the flag is enabled. Fixtures now
 intentionally omit the downgrade bridge and check the distinct ordinary versus
 ore-or-explicit NBT rules. Catalog failures report a bounded readable cause.
 45 targeted adapter/lifecycle/common/Forge checks and style passed; the next
-actual-pack startup must confirm readiness before SFML recipe exposure.
+actual-pack startup must confirm readiness before SFML recipe exposure.Actual-pack follow-up reached a catalog build cap, with no partial data published.
+Cold-build refusals now identify the cap and used/requested/limit counters. Optional
+sfm.recipeDiagnostics logs native collection sizes without flattening registries or
+constructing input caches. No cap has been raised. 59 targeted checks and style /
+compiler bridge passed; measured native coverage remains required before SFML exposure.
