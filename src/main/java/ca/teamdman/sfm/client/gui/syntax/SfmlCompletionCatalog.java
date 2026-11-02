@@ -624,6 +624,15 @@ public final class SfmlCompletionCatalog {
             Context.TRIGGER_STATEMENT);
         add(
             entries,
+            "pulse",
+            "pulse(port: label_ref, ticks: integer [, strength: integer])",
+            "pulse(<port>, <ticks>)",
+            "Emit a nonblocking pulse from native SFM Redstone Ports. Defaults to strength 15; use .side() for one face. Duration is positive game ticks. Continues immediately; latest command wins per face, and explicit OUTPUT cancels its pending off edge. Code only.",
+            "pulse(label(\"signal\").side(\"north\"), 2)",
+            Kind.STATEMENT,
+            Context.TRIGGER_STATEMENT);
+        add(
+            entries,
             "setcircuit",
             "setcircuit(machine: label_ref, configuration: integer) [into $result]",
             "setcircuit(<machine>, <configuration>)",

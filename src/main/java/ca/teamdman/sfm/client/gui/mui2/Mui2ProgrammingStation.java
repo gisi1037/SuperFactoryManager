@@ -677,7 +677,8 @@ public final class Mui2ProgrammingStation {
         popup.child(
             button("", 8, 194, 100, () -> true, SfmlCodeEditorWidget::toggleAutoCloseBlocks)
                 .overlay(IKey.dynamic(() -> "Auto-close: " + (SfmlCodeEditorWidget.autoClosesBlocks() ? "ON" : "OFF")))
-                .addTooltipLine("Enter inserts matching } or end. Applies to editors in this client session."));
+                .addTooltipLine("Pairs parentheses and double quotes while typing; Enter adds } or end.")
+                .addTooltipLine("Applies to code editors in this client session. Paste stays unchanged."));
         popup.child(
             new TextWidget<>("Studio scale").pos(8, 222)
                 .size(92, 12)

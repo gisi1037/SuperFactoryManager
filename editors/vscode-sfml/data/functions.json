@@ -1,5 +1,10 @@
 {
   "functions": {
+    "pulse": {
+      "signatures": ["pulse(port: label_ref, ticks: integer [, strength: integer])"],
+      "description": "Nonblocking native Redstone Port pulse. Continues immediately; default strength 15, optional strength 1..15. Duration is 1..2147483647 game ticks. Use .side() for one face; omission selects all six. Latest pulse restarts that face's timer; explicit OUTPUT cancels it. Trigger/void-procedure statement only; no returned value. Timers belong to ports and persist across world saves; unloaded ports reconcile on load. Legacy emitters and slot-qualified handles are unsupported.",
+      "example": "pulse(label(\"signal\").side(\"north\"), 2)"
+    },
     "recipemaps": {
       "signatures": ["recipemaps(source: label_ref) -> machine recipe maps"],
       "description": "Inspect one loaded connected stock GT single-block machine using a qualified macerator, bending or cutting map. Result fields: status, current, available. Multiple machines are ambiguous; unavailable, unsupported, not_ready and stale results have no map. Requires a whole-machine label, without side/slot selection. Inspection does not prove machine feasibility or grant execution authority.",

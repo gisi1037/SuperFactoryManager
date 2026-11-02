@@ -31,6 +31,7 @@ import com.cleanroommc.modularui.widgets.VoidWidget;
 
 import ca.teamdman.sfm.client.gui.EditorDiagnostic;
 import ca.teamdman.sfm.client.gui.syntax.SfmlAutoClose;
+import ca.teamdman.sfm.client.gui.syntax.SfmlAutoPairs;
 import ca.teamdman.sfm.client.gui.syntax.SfmlBlockMatches;
 import ca.teamdman.sfm.client.gui.syntax.SfmlCompletionCatalog;
 import ca.teamdman.sfm.client.gui.syntax.SfmlHighlighter;
@@ -637,7 +638,7 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
             if (!placeholder(!shift)) insert("  ");
         } else if (key == Keyboard.KEY_BACK || key == Keyboard.KEY_DELETE) {
             if (ctrl && !buffer.selected()) buffer.select(buffer.caret(), word(key == Keyboard.KEY_DELETE));
-            buffer.delete(key == Keyboard.KEY_DELETE);
+            SfmlAutoPairs.delete(buffer, key == Keyboard.KEY_DELETE, autoCloseBlocks && !ctrl);
             refresh();
         } else if (key == Keyboard.KEY_LEFT || key == Keyboard.KEY_RIGHT) {
             boolean forward = key == Keyboard.KEY_RIGHT;
@@ -691,10 +692,17 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
 
     private void typeText(String text) {
         boolean selected = buffer.selected();
-        if (insert(text)) {
-            completionScrollX = getScrollX();
-            completionScrollY = getScrollY();
-            inlineCompletion.typed(source(), buffer.caret(), selected, System.nanoTime());
+        String before = source();
+        try {
+            SfmlAutoPairs.type(buffer, text, autoCloseBlocks);
+            refresh();
+            if (!before.equals(source())) {
+                completionScrollX = getScrollX();
+                completionScrollY = getScrollY();
+                inlineCompletion.typed(source(), buffer.caret(), selected, System.nanoTime());
+            }
+        } catch (IllegalArgumentException rejected) {
+            error.accept(rejected.getMessage());
         }
     }
 

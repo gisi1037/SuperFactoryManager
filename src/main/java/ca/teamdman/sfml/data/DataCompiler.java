@@ -1061,6 +1061,7 @@ public final class DataCompiler {
         // Preserve exact-name player functions; defaults fill only otherwise unresolved names.
         CompiledFunction function = resolveFunction(name);
         if (function == null) {
+            if (name.equalsIgnoreCase("PULSE")) return pulseCall(arguments, constantOnly, statement);
             Node collection = collectionCall(name, arguments, constantOnly, statement);
             if (collection != null) return collection;
             for (Node argument : arguments) if (argument instanceof ReferenceArgument)
@@ -1124,6 +1125,43 @@ public final class DataCompiler {
         if (currentFunction != null) currentFunction.calls(function);
         else rootCalls.add(function);
         return callPlan(function, arguments, depth);
+    }
+
+    /** A native action may not hide in a predicate, initializer, or value-returning function. */
+    private Node pulseCall(List<Node> arguments, boolean constantOnly, boolean statement) {
+        if (!statement || constantOnly
+            || globalInitializer
+            || instantExpression
+            || currentFunction != null && currentFunction.getReturnType() != DataType.VOID)
+            throw new IllegalArgumentException("PULSE requires a standalone call inside a trigger or void procedure");
+        if (arguments.size() < 2 || arguments.size() > 3)
+            throw new IllegalArgumentException("PULSE requires a label, duration in game ticks, and optional strength");
+        int depth = 1;
+        for (int i = 0; i < arguments.size(); i++) {
+            Node argument = arguments.get(i);
+            if (argument instanceof ReferenceArgument)
+                throw new IllegalArgumentException("PULSE takes values, not REF");
+            require(argument.type, i == 0 ? DataType.LABEL_REF : DataType.INTEGER);
+            depth = Math.max(depth, argument.depth + 1);
+        }
+        return new Node(DataType.VOID, depth, false) {
+
+            @Override
+            protected DataValue compute(DataRuntime runtime) {
+                runtime.work(1);
+                LabelReference port = arguments.get(0)
+                    .evaluate(runtime)
+                    .asLabel();
+                long ticks = arguments.get(1)
+                    .evaluate(runtime)
+                    .asLong();
+                long strength = arguments.size() == 3 ? arguments.get(2)
+                    .evaluate(runtime)
+                    .asLong() : 15;
+                runtime.runAction(context -> context.pulseRedstone(port, ticks, strength));
+                return DataValue.voidValue();
+            }
+        };
     }
 
     /** Native collections keep value copies; only explicit REF can publish a changed array. */
@@ -1767,8 +1805,8 @@ public final class DataCompiler {
                     } while (accept(","));
                     expect(")");
                     boolean statement = callStatement && nesting == 1 && peek("<EOF>");
-                    if (statement && (resolveFunction(token) != null || collectionStatement(token)))
-                        statementCall = true;
+                    if (statement && (resolveFunction(token) != null || collectionStatement(token)
+                        || token.equalsIgnoreCase("PULSE"))) statementCall = true;
                     return functionCall(token, arguments, constantOnly, statement);
                 }
                 String argument = take();

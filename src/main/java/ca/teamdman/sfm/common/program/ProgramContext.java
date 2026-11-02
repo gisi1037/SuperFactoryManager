@@ -663,6 +663,42 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
         fluidInputQuotas = saved.fluids;
     }
 
+    /** Native timed output: port-owned deadlines survive program pause/replacement and saved-world reloads. */
+    public void pulseRedstone(ca.teamdman.sfml.data.LabelReference target, long ticks, long strength) {
+        if (target == null || target.hasSlotSelection())
+            throw new IllegalArgumentException("PULSE requires a Redstone Port label without slot restrictions");
+        if (ticks < 1 || ticks > Integer.MAX_VALUE || strength < 1 || strength > 15)
+            throw new IllegalArgumentException("PULSE requires 1..2147483647 game ticks and strength 1..15");
+        if (world == null || network == null)
+            throw new IllegalArgumentException("PULSE requires a connected server context");
+        if (world.isRemote || !ca.teamdman.sfm.common.net.ServerUiTasks.isServerThread())
+            throw new IllegalArgumentException("PULSE requires server-thread execution");
+        QueryBudget budget = getInvocationQueryBudget();
+        java.util.Set<BlockPos> positions = getLabelPositionHolder().getPositions(target.getName());
+        if (positions.isEmpty())
+            throw new IllegalArgumentException("PULSE label has no connected Redstone Ports: " + target.getName());
+        List<ForgeDirection> sides = new ArrayList<>();
+        for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS)
+            if ((target.getSideMask() & 1 << side.ordinal()) != 0) sides.add(side);
+        for (BlockPos pos : positions) {
+            budget.chargePosition();
+            budget.chargeProvider();
+            if (!network.isConnected(pos)) throw new IllegalArgumentException("PULSE target is disconnected: " + pos);
+            budget.chargeProvider();
+            if (!pos.isLoaded(world)) throw new IllegalArgumentException("PULSE target is unloaded: " + pos);
+            budget.chargeProvider();
+            TileEntity tile = pos.getTileEntity(world);
+            if (!(tile instanceof ca.teamdman.sfm.common.tileentity.TileEntityRedstonePort) || tile.isInvalid())
+                throw new IllegalArgumentException("PULSE requires native SFM Redstone Ports: " + pos);
+            if (nativeRedstoneWrites >= MAX_NATIVE_REDSTONE_WRITES)
+                throw new IllegalArgumentException("Native redstone OUTPUT write budget exhausted (256)");
+            nativeRedstoneWrites++;
+            if (!((ca.teamdman.sfm.common.tileentity.TileEntityRedstonePort) tile).pulse(sides, ticks, (int) strength))
+                throw new IllegalArgumentException("PULSE target changed before emission: " + pos);
+            setDidSomething(true);
+        }
+    }
+
     public void executeRedstoneOutput(RedstoneOutputStatement stmt) {
         // Evaluate once before selection, round-robin advancement, or any world mutation.
         int strength = stmt.evaluateLevel(this);

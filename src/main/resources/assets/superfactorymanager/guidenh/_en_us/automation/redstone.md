@@ -49,6 +49,30 @@ END
 
 FALSE initially permits one attempt before a pulse. TRUE initially waits for the first pulse on a new disk or after an explicit state reset; changing a default does not overwrite existing saved state. The lock is set even if the output moves zero. Source order lets a due pulse unlock before the due timer. Ped is a case-sensitive label. See [STATE](/language/variables.md) for persistence rules.
 
+## Send a pulse without waiting
+
+Use `pulse(port, ticks)` to turn an output on and automatically off. The next
+statement runs immediately; no WAIT is required.
+
+```sfml
+name "Timed output pulse"
+every 40 ticks {
+  pulse(label("signal").side("north"), 2)
+}
+```
+
+Connect and label a native Redstone Port `signal`. This sends a two-game-tick
+pulse on its north face every 40 ticks. Default strength is 15; an optional third
+argument selects 1..15. Duration is 1..2147483647 game ticks. Omit `.side()` to
+select all faces. This is a Code-mode trigger/void-procedure action, not a value.
+
+Another pulse restarts the timer on those faces. An explicit OUTPUT takes over
+and cancels their timer, even for the same level. A still-high retrigger does not
+create a second rising edge. Pulse end sets zero. Timers are saved on the port,
+so a paused program still finishes its pulse; unloaded ports reconcile on load.
+Legacy emitters and slot-selected handles are unsupported. A group failure may
+leave pulses already started on earlier members active.
+
 ## Native Redstone Port
 
 The Redstone Port (`superfactorymanager:redstonePort`) both reads and emits signals. Connect it to an SFM cable or directly to the manager, then label it. One block provides independent input readings and output latches on all six absolute faces. No separate detector/emitter block is required.

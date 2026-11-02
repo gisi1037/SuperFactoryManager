@@ -660,6 +660,12 @@ public final class SyntaxRegistry {
             "LET $sum = 8 + 4\nLET $difference = 8 - 4\nLET $product = 8 * 4\nLET $quotient = 8 / 4\nLET $remainder = 8 % 3",
             "Signed 64-bit checked arithmetic; division truncates toward zero");
         snippet(
+            "redstone_pulse_output",
+            "Emit a timed redstone pulse",
+            SnippetCategory.IO,
+            "pulse(label(\"<port>\").side(\"north\"), <ticks>)",
+            "Turn a native Redstone Port on, then automatically off after positive game ticks. The program continues immediately. Default strength 15; optional third argument selects 1..15. Code only.");
+        snippet(
             "math_sign",
             "Unary signs and grouping",
             SnippetCategory.MATH,

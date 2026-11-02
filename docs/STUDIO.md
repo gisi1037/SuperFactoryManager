@@ -653,6 +653,14 @@ Press Enter after an opening brace or a keyword block header to create an indent
 body and its matching closer. An existing matching closer is reused. The edit and
 caret position undo together. Strings, comments and selected replacement text do
 not trigger completion. Settings → Auto-close toggles it for this client session.
+
+The same setting pairs `(` with `)` and double quotes while typing in Studio and
+the Manager's MUI2 text editor. The caret stays between the characters. Typing an
+existing closing character moves past it; typing an opener with text selected
+wraps the selection. Backspace between an empty pair removes both in one undo
+step. Strings/comments receive literal characters, escaped quotes remain literal,
+and pasted text/snippets are unchanged. SFML strings use double quotes.
+
 Drag a code selection toward or beyond the viewport edges to keep scrolling; hold
 the pointer there to continue. Wrapping disables horizontal selection scrolling.
 

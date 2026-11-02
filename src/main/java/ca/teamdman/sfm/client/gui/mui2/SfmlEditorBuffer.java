@@ -80,10 +80,17 @@ public final class SfmlEditorBuffer {
     }
 
     public void insert(String text) {
+        replaceRange(start(), end(), text);
+    }
+
+    /** Replace without first moving selection, so undo retains the caller's original caret/anchor. */
+    public void replaceRange(int start, int end, String text) {
+        if (start < 0 || end < start || end > source.length() || boundary(start) != start || boundary(end) != end)
+            throw new IllegalArgumentException("Invalid editor replacement range");
         String normalized = normalize(text);
-        checkLength((long) source.length() - (end() - start()) + normalized.length());
-        String next = source.substring(0, start()) + normalized + source.substring(end());
-        int offset = start() + normalized.length();
+        checkLength((long) source.length() - (end - start) + normalized.length());
+        String next = source.substring(0, start) + normalized + source.substring(end);
+        int offset = start + normalized.length();
         if (!next.equals(source)) {
             undo.addLast(new Edit(source, caret, anchor));
             if (undo.size() > 100) undo.removeFirst();

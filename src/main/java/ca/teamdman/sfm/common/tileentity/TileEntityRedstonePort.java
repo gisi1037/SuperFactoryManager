@@ -16,15 +16,18 @@ import ca.teamdman.sfm.common.block.BlockRedstonePort;
 import ca.teamdman.sfm.common.net.ServerUiTasks;
 import ca.teamdman.sfm.common.util.LoadedRedstoneAccess;
 
-/** Six independent physical input/output faces. Only output levels belong to saved block data. */
+/** Six physical input/output faces. Output levels and active pulse deadlines belong to saved block data. */
 public class TileEntityRedstonePort extends TileEntity {
 
     /** Conservative upper bound for our loaded checks, block reads and up to 42 power callbacks. */
     public static final int MAX_INPUT_PROVIDER_CALLS = 4096;
     private static final String OUTPUT_TAG = "sfm:outputs";
+    private static final String PULSE_TAG = "sfm:pulseEnd";
     private static final AtomicLong NEXT_EPOCH = new AtomicLong(1);
 
     private final int[] outputs = new int[6];
+    // Absolute world ticks, zero when inactive. Six bounded timers; no retained program/controller.
+    private final long[] pulseEnds = new long[6];
     private final int[] inputs = new int[6];
     private final int[] sampledInputs = new int[6];
     private final long[] rising = new long[6];
@@ -174,12 +177,49 @@ public class TileEntityRedstonePort extends TileEntity {
     /** Installs the entire batch before notifying observers. Null/empty sides selects all six faces. */
     public boolean setOutput(List<ForgeDirection> sides, int strength) {
         if (strength < 0 || strength > 15 || !isLiveServerTile()) return false;
-        int selectedMask = 0;
-        if (sides == null || sides.isEmpty()) selectedMask = 63;
-        else for (ForgeDirection direction : sides) {
-            if (direction == null || direction == ForgeDirection.UNKNOWN) return false;
-            selectedMask |= 1 << direction.ordinal();
+        int selectedMask = sideMask(sides);
+        if (selectedMask == 0) return false;
+        boolean cancelled = false;
+        for (int side = 0; side < 6; side++) {
+            if ((selectedMask & 1 << side) != 0 && pulseEnds[side] != 0) {
+                pulseEnds[side] = 0;
+                cancelled = true;
+            }
         }
+        // Even an unchanged explicit level takes ownership from a pending pulse.
+        if (cancelled) markDirty();
+        return writeOutputs(selectedMask, strength);
+    }
+
+    /** Latest command wins per face. The off edge runs independently of the program's next activation. */
+    public boolean pulse(List<ForgeDirection> sides, long ticks, int strength) {
+        if (ticks < 1 || ticks > Integer.MAX_VALUE || strength < 1 || strength > 15)
+            throw new IllegalArgumentException("PULSE requires 1..2147483647 game ticks and strength 1..15");
+        if (!isLiveServerTile()) return false;
+        int mask = sideMask(sides);
+        if (mask == 0) throw new IllegalArgumentException("PULSE requires absolute physical sides");
+        long now = worldObj.getTotalWorldTime();
+        if (now < 0 || now > Long.MAX_VALUE - ticks)
+            throw new IllegalArgumentException("PULSE deadline exceeds world time range");
+        for (int side = 0; side < 6; side++) if ((mask & 1 << side) != 0) pulseEnds[side] = now + ticks;
+        markDirty();
+        // Schedule before notifications, which can synchronously replace/remove the port or write an output.
+        schedulePulseTick();
+        writeOutputs(mask, strength);
+        return true;
+    }
+
+    private static int sideMask(List<ForgeDirection> sides) {
+        if (sides == null || sides.isEmpty()) return 63;
+        int mask = 0;
+        for (ForgeDirection side : sides) {
+            if (side == null || side == ForgeDirection.UNKNOWN) return 0;
+            mask |= 1 << side.ordinal();
+        }
+        return mask;
+    }
+
+    private boolean writeOutputs(int selectedMask, int strength) {
         int changedMask = 0;
         for (int side = 0; side < 6; side++) {
             if ((selectedMask & 1 << side) != 0 && outputs[side] != strength) {
@@ -196,8 +236,41 @@ public class TileEntityRedstonePort extends TileEntity {
         return true;
     }
 
+    private void expirePulses() {
+        boolean active = false;
+        for (long end : pulseEnds) active |= end != 0;
+        if (!active) return;
+        if (!isLiveServerTile()) return;
+        long now = worldObj.getTotalWorldTime();
+        int expired = 0;
+        for (int side = 0; side < 6; side++) {
+            if (pulseEnds[side] != 0 && pulseEnds[side] <= now) {
+                pulseEnds[side] = 0;
+                expired |= 1 << side;
+            }
+        }
+        if (expired == 0) return;
+        markDirty();
+        try {
+            writeOutputs(expired, 0);
+        } catch (RuntimeException invalidNeighbor) {
+            // The off levels were installed before notification. A peripheral must not crash a world tick.
+            ca.teamdman.sfm.SuperFactoryManager.LOG
+                .warn("Redstone pulse ended; neighbor notification failed", invalidNeighbor);
+        }
+    }
+
+    private void schedulePulseTick() {
+        for (long end : pulseEnds) if (end != 0) {
+            // Vanilla coalesces pending updates. One active-only chain also handles earlier retriggers correctly.
+            worldObj.scheduleBlockUpdate(xCoord, yCoord, zCoord, worldObj.getBlock(xCoord, yCoord, zCoord), 1);
+            return;
+        }
+    }
+
     /** Used before removal so synchronous neighbor reads cannot observe a stale powered tile. */
     public int clearOutputsForRemoval() {
+        Arrays.fill(pulseEnds, 0);
         int mask = 0;
         for (int side = 0; side < 6; side++) {
             if (outputs[side] != 0) mask |= 1 << side;
@@ -211,11 +284,14 @@ public class TileEntityRedstonePort extends TileEntity {
     public void onLoaded() {
         resetSignals();
         reassertOutputs = true;
+        expirePulses();
         if (worldObj != null && !worldObj.isRemote && worldObj.blockExists(xCoord, yCoord, zCoord))
             worldObj.scheduleBlockUpdate(xCoord, yCoord, zCoord, worldObj.getBlock(xCoord, yCoord, zCoord), 1);
     }
 
     public void onScheduledInitialization() {
+        expirePulses();
+        if (isLiveServerTile()) schedulePulseTick();
         refreshInputs();
         if (!reassertOutputs || !isLiveServerTile()) return;
         reassertOutputs = false;
@@ -279,12 +355,21 @@ public class TileEntityRedstonePort extends TileEntity {
     public void writeToNBT(NBTTagCompound tag) {
         super.writeToNBT(tag);
         tag.setIntArray(OUTPUT_TAG, outputs.clone());
+        for (int side = 0; side < 6; side++) {
+            if (pulseEnds[side] != 0) tag.setLong(PULSE_TAG + side, pulseEnds[side]);
+            else tag.removeTag(PULSE_TAG + side);
+        }
     }
 
     @Override
     public void readFromNBT(NBTTagCompound tag) {
         super.readFromNBT(tag);
         readOutputs(tag);
+        Arrays.fill(pulseEnds, 0);
+        for (int side = 0; side < 6; side++) {
+            long end = tag.getLong(PULSE_TAG + side);
+            if (end > 0 && outputs[side] > 0) pulseEnds[side] = end;
+        }
         resetSignals();
     }
 

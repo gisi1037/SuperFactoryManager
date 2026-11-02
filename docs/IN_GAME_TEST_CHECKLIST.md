@@ -13,6 +13,47 @@ locations refer to the installed program, which may differ from a Studio draft.
 
 ## Current build: highest-value manual pass
 
+### Parenthesis and double-quote completion
+
+- [ ] Enable Studio Settings → Auto-close, then check both Studio and the Manager
+  text editor. Type `label`, then `(`, then a double quote: it should show `label("")`
+  with the caret between the quotes. Type a label name, the closing quote and `)`;
+  they should move past the existing closers without duplicates.
+- [ ] Select text, including a backward selection and Unicode label, then type
+  `(` or a double quote. Check wrapping, retained selection and one-step undo/redo.
+  Backspace in an empty pair should remove both; undo should restore the caret
+  between them. Forward Delete and Ctrl+Backspace retain normal editing behavior.
+- [ ] Type punctuation inside `--` comments, multiline strings and escaped quotes.
+  No extra pair should be added there. Paste a complete program and a single `(`;
+  both must remain unchanged by pairing. Check both LWJGL3 text input and classic
+  key input where available, at game and independent Studio scales.
+- [ ] Turn Auto-close off: punctuation should insert literally. Reenable it and
+  verify Enter still adds/reuses the existing brace/end block closers.
+
+### Nonblocking redstone pulse
+
+- [ ] Connect a native Redstone Port labelled `signal`; place a lamp/repeater on
+  its north face. Run the program below with terminal Capture enabled. Each
+  activation prints immediately and produces a two-game-tick pulse every 40 ticks.
+- [ ] Increase pulse duration to 60. Retriggering every 40 ticks should hold the
+  face high. Pause the manager after an activation: the last pulse must still end.
+- [ ] After `pulse(...)`, add `output 15 redstone level to "signal" north side`.
+  The explicit output should stay high beyond the old pulse deadline. Test other
+  faces independently; an override on north must not cancel east's timer.
+- [ ] Save/reload with a long active pulse; verify its remaining world ticks are
+  retained. Unload/reload the port after its deadline; it should load off. Breaking
+  and replacing the port must not transfer an old timer to the new block.
+- [ ] In Studio and VS Code, search for `pulse`, check its signature and help,
+  and confirm the compiler rejects using it as a value or in a value function.
+
+```sfml
+name "Nonblocking pulse check"
+every 40 ticks {
+  pulse(label("signal").side("north"), 2)
+  print("Started pulse without waiting")
+}
+```
+
 ### Debug trace and argument-help follow-up
 
 - [ ] In Studio Debug terminal, connect to the manager running the program below.

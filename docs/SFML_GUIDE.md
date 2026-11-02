@@ -1286,6 +1286,7 @@ Legacy transfer/HAS selectors keep their existing behavior.
 | `$src.empty(ITEM("*"))` | Tests all visible items in the group. Does not inspect fluids or hidden slots. |
 | `$src.empty()` | Same item-only check as `empty(ITEM("*"))`. |
 | `$src.available()` | Same access-only check as `available(ITEM("*"))`. |
+| `$src.contents($iron)` | Captured exact item groups containing only matching iron variants, quantities and locations. |
 
 Count requires exactly one typed selector argument. Empty and available accept
 zero or one; the zero-argument form explicitly means all visible **items**, not
@@ -1294,6 +1295,66 @@ Resolved LABEL names and ITEM literals are limited to 256 characters; label name
 and have no surrounding whitespace. Handles may live in locals, fixed arrays and
 structs. They cannot be stored in STATE, including inside containers. Persistent
 query results can be ordinary integers/booleans.
+
+### Filter empty, count and contents by item
+
+All three methods accept an item filter directly, such as
+`src.empty(item("minecraft:iron_ingot"))`, or through a selector variable.
+Other item types are ignored by that filtered query.
+
+```sfml
+name "Check iron stock"
+every 20 ticks {
+  let src = label("chest_in")
+  let iron = item("minecraft:iron_ingot")
+
+  if (src.available()) {
+    print("No iron:", src.empty(iron))
+    print("Iron ingots:", src.count(iron))
+    for group in src.contents(iron) {
+      print(group.id, group.metadata, group.total)
+    }
+  } else {
+    print("Inventory unavailable")
+  }
+}
+```
+
+- `src.empty(iron)` is true when no iron is present, even if other items exist.
+- `src.count(iron)` returns the number of matching items.
+- `src.contents(iron)` returns only matching exact variant groups, including
+  their quantities and physical locations. `len(...)` counts groups, not items.
+
+`item("minecraft:iron_ingot")` includes every metadata/NBT variant of that item;
+contents keeps those exact variants separate. For an available inventory with
+no iron, the results are true, zero and an empty sequence. Unavailable sources
+make empty false and make count/contents fault. `available(iron)` tests access,
+not matching stock. `empty()` tests all items, while `empty(iron)` tests only iron.
+Omitting the filter from contents likewise captures all visible items.
+
+### Empty of everything except one item
+
+Compare the all-items count with the count of the allowed item. Equality means
+no other item types are present; a completely empty inventory also passes.
+
+```sfml
+name "Only iron allowed"
+every 20 ticks {
+  let src = label("chest_in")
+  let iron = item("minecraft:iron_ingot")
+
+  if (src.available()) {
+    let allItems = src.count(item("*"))
+    let ironItems = src.count(iron)
+    print("Only iron or empty:", allItems == ironItems)
+    print("Only iron, with some present:", allItems == ironItems and ironItems > 0)
+  }
+}
+```
+
+Use the same side/slot-selected handle for both counts. They are separate live
+reads, not one reserved snapshot, and do not include fluids. Use a contents
+snapshot instead if subsequent decisions must inspect one captured view.
 
 Default item access is the union of valid accessible slots from the six faces of
 an `ISidedInventory`, or all ordinary slots of an unsided inventory. Repeated
@@ -1751,6 +1812,34 @@ supports this operation, and never edits a physical circuit stack as a fallback.
 
 ## Redstone
 
+### Nonblocking output pulse
+
+`pulse(port, ticks)` immediately emits strength 15 and automatically switches the
+selected native Redstone Port faces to zero after the requested game ticks.
+`pulse(port, ticks, strength)` selects strength 1..15. Duration must be a positive
+integer, at most 2147483647. Omit `.side()` to select all six physical faces.
+
+```sfml
+name "Nonblocking output pulse"
+every 40 ticks {
+  pulse(label("signal").side("north"), 2)
+  print("Pulse started; code continues in the same tick")
+}
+```
+
+The pulse does not WAIT or suspend any caller/trigger. The port owns one timer per
+face: another pulse replaces that face's strength/deadline, and an explicit OUTPUT
+cancels its pending off edge even if the assigned level is unchanged. Retriggering
+a still-high face restarts its high period; it does not force a fresh edge.
+Ending a pulse sets zero, rather than restoring the previous level.
+
+Timers persist with port saves and continue independently of program pause or disk
+replacement. An unloaded port is not force-loaded; an overdue timer clears when
+the port loads. No input history/continuation is persisted by this helper. Use it
+as a standalone trigger/void-procedure action, not in a value expression or value
+function. It supports native SFM Redstone Ports, not legacy emitters or slot views.
+Group members are processed in order; failure can leave earlier pulses active.
+
 ### Level input and pulses
 
 REDSTONE alone means REDSTONE > 0. `REDSTONE LEVEL >= 8` compares observed manager
@@ -2184,14 +2273,16 @@ the planned NEI/recipe API.
 
 `LABEL("stock").contents()` captures visible items using the same direct-inventory,
 loaded-chunk, chest-pair, side and slot rules as count. Pass ITEM or ORE to filter,
-for example `.contents(ORE("ingotIron"))`. Missing/incomplete/unsupported views and
+for example `.contents(item("minecraft:iron_ingot"))`, `.contents(iron)` when iron
+is a selector variable, or `.contents(ORE("ingotIron"))`. Other item types are
+excluded from the result. Missing/incomplete/unsupported views and
 budget failures fault the whole query. A complete available empty view returns
 zero rows. No partial stock is returned and no items are moved or reserved.
 
 ```sfml
-NAME "Where is our stock?"
+NAME "Where is our iron?"
 EVERY 20 TICKS DO
-  LET $stock = LABEL("inputs").contents()
+  LET $stock = LABEL("inputs").contents(ITEM("minecraft:iron_ingot"))
   PRINT("distinct variants", LEN($stock))
   FOR $group IN $stock DO
     PRINT($group.id, $group.metadata, $group.total)

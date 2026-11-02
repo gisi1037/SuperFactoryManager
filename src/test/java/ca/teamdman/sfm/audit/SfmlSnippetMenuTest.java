@@ -235,6 +235,7 @@ class SfmlSnippetMenuTest {
         replacements.put("<label>", "source");
         replacements.put("<emit>", "emitter");
         replacements.put("<sensor>", "sensor");
+        replacements.put("<port>", "signal");
         replacements.put("<quantity>", "8");
         replacements.put("<amount>", "4");
         replacements.put("<ticks>", "2");

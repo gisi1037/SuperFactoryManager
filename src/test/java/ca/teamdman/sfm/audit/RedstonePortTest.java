@@ -32,6 +32,7 @@ import net.minecraft.world.storage.ISaveHandler;
 import net.minecraftforge.common.util.ForgeDirection;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.objectweb.asm.ClassWriter;
@@ -47,6 +48,11 @@ class RedstonePortTest {
 
     private static final BlockPos POSITION = new BlockPos(0, 64, 0);
 
+    @BeforeAll
+    static void registerTile() {
+        TileEntity.addMapping(TileEntityRedstonePort.class, "sfm.redstonePort");
+    }
+
     @BeforeEach
     void begin() {
         ServerUiTasks.clear();
@@ -56,6 +62,88 @@ class RedstonePortTest {
     @AfterEach
     void end() {
         ServerUiTasks.clear();
+    }
+
+    @Test
+    void pulseExpiresPerFaceAndRetriggerReplacesTheDeadline() throws Exception {
+        Fixture f = new Fixture();
+        List<ForgeDirection> north = Arrays.asList(ForgeDirection.NORTH);
+        assertTrue(f.tile.pulse(north, 2, 15));
+        assertEquals(15, f.tile.getOutputLevel(2));
+        f.world.time = 1;
+        f.tile.onScheduledInitialization();
+        assertEquals(15, f.tile.getOutputLevel(2));
+        assertTrue(f.tile.pulse(north, 3, 8));
+        assertTrue(f.tile.pulse(Arrays.asList(ForgeDirection.EAST), 1, 4));
+        f.world.time = 2;
+        f.tile.onScheduledInitialization();
+        assertEquals(8, f.tile.getOutputLevel(2), "Old off edge must not truncate a retrigger");
+        assertEquals(0, f.tile.getOutputLevel(5));
+        f.world.time = 4;
+        f.tile.onScheduledInitialization();
+        assertEquals(0, f.tile.getOutputLevel(2));
+        int scheduled = f.world.scheduled;
+        f.tile.onScheduledInitialization();
+        assertEquals(scheduled, f.world.scheduled, "No tick chain remains while idle");
+    }
+
+    @Test
+    void explicitUnchangedOutputCancelsOnlyItsSelectedPulseAndExpiredSaveDoesNotReassertHigh() throws Exception {
+        Fixture f = new Fixture();
+        assertTrue(f.tile.pulse(null, 2, 15));
+        assertFalse(f.tile.setOutput(Arrays.asList(ForgeDirection.NORTH), 15));
+        NBTTagCompound saved = new NBTTagCompound();
+        f.tile.writeToNBT(saved);
+        f.tile.onChunkUnload();
+        f.world.time = 10;
+        TileEntityRedstonePort restored = new TileEntityRedstonePort();
+        restored.readFromNBT(saved);
+        restored.setWorldObj(f.world);
+        f.world.tiles.put(POSITION, restored);
+        restored.onLoaded();
+        assertEquals(15, restored.getOutputLevel(2), "Explicit latch survives the old timer");
+        for (int side : new int[] { 0, 1, 3, 4, 5 }) assertEquals(0, restored.getOutputLevel(side));
+    }
+
+    @Test
+    void pulseSavePreservesRemainingWorldTicksAndRejectsInvalidArgumentsBeforeMutation() throws Exception {
+        Fixture f = new Fixture();
+        for (long ticks : new long[] { 0, -1, Long.MAX_VALUE })
+            assertThrows(IllegalArgumentException.class, () -> f.tile.pulse(null, ticks, 15));
+        assertThrows(IllegalArgumentException.class, () -> f.tile.pulse(null, 2, 0));
+        assertThrows(IllegalArgumentException.class, () -> f.tile.pulse(null, 2, 16));
+        assertThrows(IllegalArgumentException.class, () -> f.tile.pulse(Arrays.asList(ForgeDirection.UNKNOWN), 2, 15));
+        assertEquals(0, f.world.dirty);
+        f.world.time = Long.MAX_VALUE;
+        assertThrows(IllegalArgumentException.class, () -> f.tile.pulse(null, 1, 15));
+        f.world.time = 10;
+        f.tile.pulse(null, 4, 9);
+        NBTTagCompound saved = new NBTTagCompound();
+        f.tile.writeToNBT(saved);
+        f.tile.readFromNBT(saved);
+        f.world.time = 12;
+        f.tile.onLoaded();
+        assertEquals(9, f.tile.getOutputLevel(0));
+        f.world.time = 14;
+        f.tile.onScheduledInitialization();
+        assertEquals(0, f.tile.getOutputLevel(0));
+    }
+
+    @Test
+    void pulseCallbacksCannotWriteAnUnloadedOrReplacementTile() throws Exception {
+        Fixture f = new Fixture();
+        f.tile.pulse(null, 1, 15);
+        f.world.time = 2;
+        f.world.unloaded.add(POSITION);
+        int reads = f.world.reads;
+        f.tile.onScheduledInitialization();
+        assertEquals(reads, f.world.reads);
+        f.world.unloaded.clear();
+        TileEntityRedstonePort replacement = new TileEntityRedstonePort();
+        f.world.tiles.put(POSITION, replacement);
+        f.tile.onScheduledInitialization();
+        assertEquals(0, replacement.getOutputLevel(0));
+        assertEquals(15, f.tile.getOutputLevel(0), "An old instance cannot mutate after replacement");
     }
 
     @Test
@@ -312,7 +400,6 @@ class RedstonePortTest {
 
     @Test
     void nbtSavesOnlySanitizedOutputsAndDescriptionPacketCannotMutateServer() throws Exception {
-        TileEntity.addMapping(TileEntityRedstonePort.class, "sfm.redstonePort");
         Fixture fixture = new Fixture();
         fixture.tile.setOutput(Arrays.asList(ForgeDirection.UP), 15);
         fixture.tile.refreshInputs();
@@ -545,6 +632,12 @@ class RedstonePortTest {
         int updates;
         int reads;
         int scheduled;
+        long time;
+
+        @Override
+        public long getTotalWorldTime() {
+            return time;
+        }
 
         private PortWorld() {
             super((ISaveHandler) null, "redstone", (WorldSettings) null, (WorldProvider) null, (Profiler) null);
