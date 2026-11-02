@@ -478,3 +478,12 @@ for actual macerator/bender/cutter tiles and missing/unloaded targets; temporary
 fixtures were removed and the dedicated server saved/stopped. Native connected
 program/multiplayer checks remain on the manual checklist. Broader machine families
 and optional server-validated NEI authoring remain next; alpha.2 assets are unchanged.
+
+Reference preview privacy follow-up: public manager block-description packets now
+omit persistent STATE as well as source/grants from a deep copy of reference disk
+metadata. The actual packet regression reproduces the previous leak and checks
+private declaration names, struct shapes and string values for valid/malformed
+reference media, preserving complete disk/save/extraction data and inert client
+preview/run-intent behavior. Full2254tests/19optional skips/zero failures; native
+multiplayer remains a separate gate. The correction is on main after alpha.2;
+released assets are not replaced. Optional NEI authoring remains next.

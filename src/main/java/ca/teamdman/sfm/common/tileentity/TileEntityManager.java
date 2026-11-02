@@ -1733,6 +1733,8 @@ public class TileEntityManager extends TileEntity implements IInventory {
                 .getCompoundTag("tag");
             diskData.setTag(ProgramDiskData.NBT_REFERENCE, new NBTTagCompound());
             diskData.removeTag(ItemDisk.NBT_PROGRAM);
+            // Declaration names, struct shapes and values belong to private execution, including malformed media.
+            diskData.removeTag(ProgramStateStore.NBT_KEY);
             // Keep the marker so a client cannot mistake this source-free mirror for an editable legacy disk.
         }
         syncData.setString("statusMessage", statusMessage);

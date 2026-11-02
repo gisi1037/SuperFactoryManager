@@ -66,8 +66,14 @@ class ReferenceDiskRuntimeSafetyTest {
     void blockDescriptionRedactsAuthorityFromACopyWhileSavesAndExtractionKeepThePhysicalDisk() throws Exception {
         for (boolean invalid : new boolean[] { false, true }) {
             Fixture fixture = new Fixture();
+            fixture.manager.saveCodeAndRecompile(
+                "STATE PRIVATE_STATE_NAME = {PRIVATE_STATE_SHAPE: \"PRIVATE_STATE_VALUE\"} EVERY 1 TICKS DO END");
+            assertNotNull(fixture.manager.getProgramState());
             ItemStack disk = fixture.manager.getDisk()
                 .copy();
+            assertTrue(
+                disk.getTagCompound()
+                    .hasKey(ProgramStateStore.NBT_KEY));
             reference(disk, invalid);
             if (invalid) disk.getTagCompound()
                 .setString(ItemDisk.NBT_PROGRAM, "PRIVATE_SOURCE_SENTINEL");
@@ -83,6 +89,20 @@ class ReferenceDiskRuntimeSafetyTest {
                 preview.getCompoundTag(ProgramDiskData.NBT_REFERENCE)
                     .hasNoTags());
             assertFalse(preview.hasKey(ItemDisk.NBT_PROGRAM));
+            assertFalse(
+                preview.hasKey(ProgramStateStore.NBT_KEY),
+                "Public previews must not contain private execution STATE");
+            for (String secret : new String[] { "PRIVATE_STATE_NAME", "PRIVATE_STATE_SHAPE", "PRIVATE_STATE_VALUE" }) {
+                assertTrue(
+                    original.toString()
+                        .contains(secret),
+                    "Fixture must contain the encoded private STATE sentinel");
+                assertFalse(
+                    packet.func_148857_g()
+                        .toString()
+                        .contains(secret),
+                    "Private STATE leaked in the public packet: " + secret);
+            }
             assertFalse(
                 packet.func_148857_g()
                     .toString()
