@@ -397,3 +397,14 @@ new regressions cover legacy and transferf refusal, dirty STATE, valid near-limi
 journals including later stages and retained emergency evidence. Combined stable
 checks:2211 tests,2192 passed,19 skipped,zero failures/errors; style/compiler/GuideNH
 passed. This is not native provider fault/crash-atomicity certification.
+Native Java26 follow-up: the isolated2.9.0 server stayed up but the catalog refused
+initialization. API inspection found that GT's Java17 multi-release class omits the
+Java8 downgrade bridge used by the first adapter. Effective special-item NBT policy
+now uses GTppRecipeHelper plus the same three public ItemList prototypes and
+GTUtility.areStacksEqual(...,true) as the inspected .250/.265 implementation, without
+private access, cache construction or invoking GT's mutating setItemStacks.
+Prototypes resolve once per cold build when the flag is enabled. Fixtures now
+intentionally omit the downgrade bridge and check the distinct ordinary versus
+ore-or-explicit NBT rules. Catalog failures report a bounded readable cause.
+45 targeted adapter/lifecycle/common/Forge checks and style passed; the next
+actual-pack startup must confirm readiness before SFML recipe exposure.

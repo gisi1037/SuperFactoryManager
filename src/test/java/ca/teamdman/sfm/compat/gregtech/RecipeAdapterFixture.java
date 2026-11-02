@@ -32,6 +32,8 @@ public final class RecipeAdapterFixture {
         Maps.reset();
         Values.worldTickHappened = true;
         Backend.reads = 0;
+        NativeRecipe.GTppRecipeHelper = false;
+        NativeItems.lookups = 0;
         return open("5.09.54.265");
     }
 
@@ -45,7 +47,9 @@ public final class RecipeAdapterFixture {
                 NativeRecipe.class,
                 AlternativeRecipe.class,
                 Metadata.class,
-                Values.class);
+                Values.class,
+                NativeItems.class,
+                NativeUtility.class);
         } catch (ReflectiveOperationException failure) {
             throw new AssertionError(failure);
         }
@@ -54,6 +58,7 @@ public final class RecipeAdapterFixture {
     public static void snapshotsPreserveNativeDeclarationsWithoutMutatingCaches() throws Exception {
         GregTechRecipeCatalogAdapter adapter = openEmpty();
         NativeRecipe recipe = recipe();
+        NativeRecipe.GTppRecipeHelper = true;
         recipe.mInputs = new ItemStack[] { new ItemStack(Items.iron_ingot, 2, 99), new ItemStack(Items.paper, 0) };
         recipe.mInputChances = new int[] { 5000, 0 };
         recipe.mOutputs = new ItemStack[] { new ItemStack(Items.gold_ingot), null, new ItemStack(Items.redstone, 2) };
@@ -71,6 +76,7 @@ public final class RecipeAdapterFixture {
         Maps.maceratorRecipes.backend.recipes.add(recipe);
         ItemIdentity output = ItemIdentity.fromStack(recipe.mOutputs[0], new QueryBudget());
         GregTechRecipeCatalogAdapter.Build build = adapter.build(UUID.randomUUID(), 1);
+        assertEquals(3, NativeItems.lookups, "Special NBT prototypes are resolved once, never per recipe or query");
         RecipeDescriptor descriptor = build.catalog.find(output, "gt.recipe.macerator", new QueryBudget(), 1).recipes
             .get(0);
         assertEquals(1, build.visited);
@@ -98,13 +104,15 @@ public final class RecipeAdapterFixture {
             descriptor,
             build.catalog.find(output, "gt.recipe.macerator", new QueryBudget(), 2).recipes.get(0));
         assertEquals(reads, Backend.reads, "Indexed lookup does not touch the registry/backend");
+        assertEquals(3, NativeItems.lookups);
         assertEquals(fingerprint, descriptor.fingerprint);
     }
 
     public static void alternativesAndUnsupportedCoverageAreConservative() throws Exception {
         GregTechRecipeCatalogAdapter adapter = openEmpty();
         AlternativeRecipe recipe = new AlternativeRecipe();
-        recipe.mInputs = new ItemStack[] { new ItemStack(Items.iron_ingot), new ItemStack(Items.paper) };
+        NativeRecipe.GTppRecipeHelper = true;
+        recipe.mInputs = new ItemStack[] { new ItemStack(Items.iron_ingot, 1, 99), new ItemStack(Items.paper, 1, 99) };
         recipe.mOutputs = new ItemStack[] { new ItemStack(Items.gold_ingot) };
         OreDictionary.registerOre("catalogTestIron", new ItemStack(Items.iron_ingot));
         recipe.mOreDictIds = new int[] { OreDictionary.getOreID("catalogTestIron"), -1 };
@@ -117,9 +125,13 @@ public final class RecipeAdapterFixture {
         assertEquals(Matching.ORE_OR_EXPLICIT, descriptor.itemInputs.get(0).matching);
         assertEquals("catalogTestIron", descriptor.itemInputs.get(0).ore);
         assertEquals(1, descriptor.itemInputs.get(0).alternatives.size());
+        assertFalse(
+            descriptor.itemInputs.get(0).nbtSensitive,
+            "Ore-or-explicit inputs retain their declared NBT policy");
         assertEquals(Matching.GT_NATIVE_ITEM, descriptor.itemInputs.get(1).matching);
         assertTrue(descriptor.itemInputs.get(1).alternatives.isEmpty());
         assertEquals(1, descriptor.itemInputs.get(1).displayAlternatives.size());
+        assertTrue(descriptor.itemInputs.get(1).nbtSensitive, "Negative ore IDs use ordinary native NBT exceptions");
 
         for (int invalid = 0; invalid < 4; invalid++) {
             adapter = openEmpty();
@@ -131,6 +143,7 @@ public final class RecipeAdapterFixture {
             Maps.maceratorRecipes.backend.recipes.add(unsupported);
             output = ItemIdentity.fromStack(unsupported.mOutputs[0], new QueryBudget());
             GregTechRecipeCatalogAdapter.Build build = adapter.build(UUID.randomUUID(), 1);
+            assertEquals(0, NativeItems.lookups, "Disabled GT helper must not resolve special prototypes");
             assertEquals(1, build.unsupported);
             assertEquals(
                 Status.UNSUPPORTED,
@@ -233,12 +246,40 @@ public final class RecipeAdapterFixture {
             return metadata;
         }
 
-        public static boolean jvmdowngrader$nest$gregtech_api_util_GTRecipe$shouldCheckNBT(ItemStack item) {
-            return item.getItemDamage() == 99;
-        }
+        public static boolean GTppRecipeHelper;
 
         public Object getCachedCombinedItemInputs() {
             throw new AssertionError("Do not mutate native input caches");
+        }
+    }
+
+    /** Deliberately no Java8 downgrade bridge: these public API bindings also model Java17+ GT classes. */
+    public static final class NativeItems {
+
+        public static int lookups;
+        public static final NativeItems Cell_Universal_Fluid = new NativeItems(0);
+        public static final NativeItems Tool_DataStick = new NativeItems(1);
+        public static final NativeItems Tool_DataOrb = new NativeItems(2);
+        private final int kind;
+
+        NativeItems(int kind) {
+            this.kind = kind;
+        }
+
+        public ItemStack get(long count, Object... ignored) {
+            lookups++;
+            return new ItemStack(
+                kind == 0 ? Items.bucket : kind == 1 ? Items.iron_ingot : Items.paper,
+                (int) count,
+                99);
+        }
+    }
+
+    public static final class NativeUtility {
+
+        public static boolean areStacksEqual(ItemStack first, ItemStack second, boolean ignoreNbt) {
+            return first.getItem() == second.getItem() && first.getItemDamage() == second.getItemDamage()
+                && (ignoreNbt || ItemStack.areItemStackTagsEqual(first, second));
         }
     }
 

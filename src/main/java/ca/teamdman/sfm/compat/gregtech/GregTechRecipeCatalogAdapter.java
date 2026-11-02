@@ -43,7 +43,9 @@ public final class GregTechRecipeCatalogAdapter {
     private final Field allMaps, worldReady, oreAlternatives, oreIds;
     private final Field[] selectedMaps = new Field[3];
     private final Map<String, Field> fields = new HashMap<>();
-    private final Method getBackend, categoryMap, getAmperage, metadata, entries, effectiveNbt;
+    private final Method getBackend, categoryMap, getAmperage, metadata, entries, getSpecialItem, stacksEqual;
+    private final Field legacyNbtHelper;
+    private final Field[] specialItems = new Field[3];
     private final Field mapName;
     private final String adapter;
     private final long ownerThread = Thread.currentThread()
@@ -63,15 +65,17 @@ public final class GregTechRecipeCatalogAdapter {
             Class.forName("gregtech.api.util.GTRecipe"),
             Class.forName("gregtech.api.util.GTRecipe$GTRecipe_WithAlt"),
             Class.forName("gregtech.api.recipe.metadata.IRecipeMetadataStorage"),
-            Class.forName("gregtech.api.enums.GTValues"));
+            Class.forName("gregtech.api.enums.GTValues"),
+            Class.forName("gregtech.api.enums.ItemList"),
+            Class.forName("gregtech.api.util.GTUtility"));
     }
 
     // Package-local binding seam permits common-only fixtures without shipping fake GT classes or loading its registry.
     GregTechRecipeCatalogAdapter(String version, Class<?> maps, Class<?> mapClass, Class<?> backendClass,
-        Class<?> recipeClass, Class<?> alternativeClass, Class<?> storage, Class<?> values)
-        throws ReflectiveOperationException {
+        Class<?> recipeClass, Class<?> alternativeClass, Class<?> storage, Class<?> values, Class<?> itemList,
+        Class<?> utility) throws ReflectiveOperationException {
         if (!"5.09.54.250".equals(version) && !"5.09.54.265".equals(version))
-            throw new UnsupportedOperationException("Unqualified GregTech recipe API version");
+            throw new UnsupportedOperationException("Unqualified GregTech recipe API version: " + version);
         adapter = "gtnh-gt-" + version + "-inspection-v1";
         this.recipeClass = recipeClass;
         this.alternativeClass = alternativeClass;
@@ -84,9 +88,12 @@ public final class GregTechRecipeCatalogAdapter {
         categoryMap = backendClass.getMethod("getRecipeCategoryMap");
         metadata = recipeClass.getMethod("getMetadataStorage");
         entries = storage.getMethod("getEntries");
-        // This inspected public downgrade bridge is required; no private reflection fallback is permitted.
-        effectiveNbt = recipeClass
-            .getMethod("jvmdowngrader$nest$gregtech_api_util_GTRecipe$shouldCheckNBT", ItemStack.class);
+        // Java17+ GT classes have no Java8 downgrade bridge. Use the same public prototypes/comparison as GT's rule.
+        legacyNbtHelper = recipeClass.getField("GTppRecipeHelper");
+        getSpecialItem = itemList.getMethod("get", long.class, Object[].class);
+        stacksEqual = utility.getMethod("areStacksEqual", ItemStack.class, ItemStack.class, boolean.class);
+        String[] specialNames = { "Cell_Universal_Fluid", "Tool_DataStick", "Tool_DataOrb" };
+        for (int i = 0; i < specialNames.length; i++) specialItems[i] = itemList.getField(specialNames[i]);
         worldReady = values.getField("worldTickHappened");
         oreAlternatives = alternativeClass.getField("mOreDictAlt");
         oreIds = alternativeClass.getField("mOreDictIds");
@@ -124,6 +131,7 @@ public final class GregTechRecipeCatalogAdapter {
         if (!(registry instanceof Map)) throw new UnsupportedOperationException("Unsupported recipe registry");
         int visited = 0, unsupported = 0;
         Set<String> incompleteMaps = new HashSet<>();
+        ItemStack[] nbtItems = specialNbtItems();
         for (int i = 0; i < MAP_IDS.length; i++) {
             String id = MAP_IDS[i];
             builder.registerMap(id);
@@ -162,7 +170,7 @@ public final class GregTechRecipeCatalogAdapter {
                     }
                     RecipeDescriptor descriptor;
                     try {
-                        descriptor = describe(recipe, id, amperage, new QueryBudget(16));
+                        descriptor = describe(recipe, id, amperage, nbtItems, new QueryBudget(16));
                     } catch (IllegalArgumentException | UnsupportedOperationException unavailable) {
                         unsupported++;
                         List<ItemIdentity> outputs;
@@ -188,7 +196,7 @@ public final class GregTechRecipeCatalogAdapter {
         maps.add(id);
     }
 
-    private RecipeDescriptor describe(Object recipe, String id, int amperage, QueryBudget budget)
+    private RecipeDescriptor describe(Object recipe, String id, int amperage, ItemStack[] nbtItems, QueryBudget budget)
         throws ReflectiveOperationException {
         if (recipe.getClass() != recipeClass && recipe.getClass() != alternativeClass)
             throw new UnsupportedOperationException("Unqualified recipe subclass");
@@ -218,7 +226,7 @@ public final class GregTechRecipeCatalogAdapter {
             String name = hasOre ? OreDictionary.getOreName(ore[i]) : "";
             if (hasOre && (name == null || "Unknown".equals(name)))
                 throw new IllegalArgumentException("Unknown ore predicate");
-            boolean nbt = declaredNbt || !hasOre && (Boolean) call(effectiveNbt, null, stack);
+            boolean nbt = declaredNbt || !hasOre && specialNbt(stack, nbtItems, budget);
             budget.chargeProviders(3);
             itemInputs.add(
                 new ItemPart(
@@ -260,6 +268,26 @@ public final class GregTechRecipeCatalogAdapter {
             fluidParts(recipe, true, budget),
             Collections.emptyList(),
             budget);
+    }
+
+    private ItemStack[] specialNbtItems() throws ReflectiveOperationException {
+        if (!legacyNbtHelper.getBoolean(null)) return new ItemStack[0];
+        ItemStack[] result = new ItemStack[specialItems.length];
+        for (int i = 0; i < specialItems.length; i++) {
+            result[i] = (ItemStack) call(getSpecialItem, specialItems[i].get(null), 1L, new Object[0]);
+            if (result[i] == null || result[i].getItem() == null)
+                throw new UnsupportedOperationException("GT special-item NBT prototypes are unavailable");
+        }
+        return result;
+    }
+
+    private boolean specialNbt(ItemStack stack, ItemStack[] special, QueryBudget budget)
+        throws ReflectiveOperationException {
+        for (ItemStack candidate : special) {
+            budget.chargeProvider();
+            if ((Boolean) call(stacksEqual, null, stack, candidate, true)) return true;
+        }
+        return false;
     }
 
     private List<FluidPart> fluidParts(Object recipe, boolean output, QueryBudget budget)

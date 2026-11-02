@@ -49,6 +49,7 @@ public final class RecipeCatalogService {
     private long tick;
     private int waited, visited, unsupported, incompleteMaps;
     private long buildNanos;
+    private String lastFailure = "";
 
     RecipeCatalogService(Supplier<GregTechRecipeCatalogAdapter> factory) {
         this.factory = Objects.requireNonNull(factory, "Recipe source factory");
@@ -70,6 +71,7 @@ public final class RecipeCatalogService {
         catalog = null;
         adapter = null;
         waited = 0;
+        lastFailure = "";
         if (state != State.STOPPED) state = State.STALE;
     }
 
@@ -83,6 +85,7 @@ public final class RecipeCatalogService {
         tick = 0;
         waited = visited = unsupported = incompleteMaps = 0;
         buildNanos = 0;
+        lastFailure = "";
     }
 
     @SubscribeEvent
@@ -109,7 +112,10 @@ public final class RecipeCatalogService {
             }
             if (!source.firstWorldTickReady()) {
                 synchronized (this) {
-                    if (current(stamp, owner) && ++waited > 1200) state = State.UNSUPPORTED;
+                    if (current(stamp, owner) && ++waited > 1200) {
+                        state = State.UNSUPPORTED;
+                        lastFailure = "GregTech first-world startup timed out";
+                    }
                 }
                 return;
             }
@@ -124,15 +130,16 @@ public final class RecipeCatalogService {
                 catalog = build.catalog;
                 adapter = null;
                 state = State.READY;
+                lastFailure = "";
             }
             SuperFactoryManager.LOG.info(summary());
         } catch (IllegalArgumentException limit) {
             synchronized (this) {
-                if (current(stamp, owner)) fail(State.LIMIT_EXCEEDED);
+                if (current(stamp, owner)) fail(State.LIMIT_EXCEEDED, limit);
             }
         } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailable) {
             synchronized (this) {
-                if (current(stamp, owner)) fail(State.UNSUPPORTED);
+                if (current(stamp, owner)) fail(State.UNSUPPORTED, unavailable);
             }
         }
     }
@@ -141,11 +148,22 @@ public final class RecipeCatalogService {
         return epoch.get() == stamp && owner != null && owner.equals(session) && state != State.STOPPED;
     }
 
-    private void fail(State reason) {
+    private void fail(State reason, Throwable failure) {
         catalog = null;
         adapter = null;
         state = reason;
-        SuperFactoryManager.LOG.warn("Recipe catalog {}: no partial snapshot published", reason);
+        Throwable cause = failure;
+        for (int i = 0; i < 3 && cause.getCause() != null; i++) cause = cause.getCause();
+        String message = cause.getClass()
+            .getSimpleName() + ": "
+            + String.valueOf(cause.getMessage());
+        StringBuilder bounded = new StringBuilder();
+        for (int i = 0; i < Math.min(160, message.length()); i++) {
+            char c = message.charAt(i);
+            bounded.append(c < 32 || c == 127 || c == '\u00a7' ? ' ' : c);
+        }
+        lastFailure = bounded.toString();
+        SuperFactoryManager.LOG.warn("Recipe catalog {}: {}; no partial snapshot published", reason, lastFailure);
     }
 
     public synchronized Result find(ItemIdentity exactOutput, String map, QueryBudget budget) {
@@ -187,7 +205,7 @@ public final class RecipeCatalogService {
             current == null ? 0 : current.recipeCount(),
             current == null ? 0 : current.postingCount(),
             buildNanos / 1e6,
-            current == null ? 0 : current.retainedBytes());
+            current == null ? 0 : current.retainedBytes()) + (lastFailure.isEmpty() ? "" : "; " + lastFailure);
     }
 
     private static void thread() {

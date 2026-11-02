@@ -185,4 +185,23 @@ class RecipeCatalogServiceTest {
             () -> CompletableFuture.supplyAsync(this::status)
                 .join());
     }
+
+    @Test
+    void unavailableApiReportsABoundedReadableCauseWithoutControlCharacters() {
+        service = new RecipeCatalogService(() -> {
+            throw new UnsupportedOperationException(
+                "Optional API unavailable",
+                new NoSuchMethodException(
+                    "missing\n\u00a7method" + String.join("", java.util.Collections.nCopies(500, "x"))));
+        });
+        service.start();
+        service.started();
+        tick();
+        String summary = service.summary();
+        assertEquals(Status.UNSUPPORTED, status());
+        assertTrue(summary.contains("NoSuchMethodException"));
+        assertFalse(summary.contains("\n"));
+        assertFalse(summary.contains("\u00a7"));
+        assertTrue(summary.length() < 600);
+    }
 }
