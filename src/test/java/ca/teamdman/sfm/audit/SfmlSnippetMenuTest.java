@@ -143,15 +143,15 @@ class SfmlSnippetMenuTest {
             for (int i = 0; i < count; i++) {
                 assertTrue(layout.x(i) >= 8);
                 assertTrue(layout.x(i) + layout.buttonWidth <= panelWidth - 8);
-                assertTrue(layout.y(i) >= 47, "Snippet menus stay below the six editing controls");
-                assertTrue(layout.y(i) + 20 < layout.editorTop, "Menus stay above source text");
+                assertTrue(layout.y(i) >= 36, "Snippet menus stay below the six editing controls");
+                assertTrue(layout.y(i) + 14 < layout.editorTop, "Menus stay above source text");
                 for (int j = i + 1; j < count; j++) assertTrue(
                     layout.y(i) != layout.y(j) || layout.x(i) + layout.buttonWidth < layout.x(j)
                         || layout.x(j) + layout.buttonWidth < layout.x(i),
                     "Category buttons must not overlap");
             }
             if (screenWidth == 320)
-                assertTrue((int) (240 * .98f) - layout.editorTop - 61 >= 60, "At least six visible code lines");
+                assertTrue((int) (240 * .98f) - layout.editorTop - 44 >= 100, "At least ten visible code lines");
         }
         assertEquals(5, new HeaderLayout(313, count).columns);
         assertEquals(10, new HeaderLayout(640, count).columns);

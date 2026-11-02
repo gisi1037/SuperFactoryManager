@@ -52,6 +52,11 @@ public class StudioScaledPanel extends ModularPanel {
             : selected == effective ? effective + "x" : selected + "x (" + effective + "x)";
     }
 
+    /** Native cursors use framebuffer pixels, including Studio's independent GUI scale. */
+    static int textLinePixels() {
+        return Math.round(10 * gameScale * ratio);
+    }
+
     public static void changeScale(ModularScreen screen, int direction) {
         int maximum = StudioScalePreference.maximum(displayWidth, displayHeight);
         int next = direction == 0 ? 0

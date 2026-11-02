@@ -148,16 +148,16 @@ public final class Mui2CodeEditor implements ProgramEditSession.Receiver {
             .onCloseAction(this::cancel);
         panel.child(
             new TextWidget<>("SFML text editor").left(8)
-                .top(7)
-                .height(12)
+                .top(5)
+                .height(10)
                 .width(150));
-        panel.child(button("Copy", 8, 23, 36, () -> {
+        panel.child(button("Copy", 8, 18, 32, () -> {
             GuiScreen.setClipboardString(draft());
             status = "Draft copied";
         }));
         panel.child(
-            new ButtonWidget<>().pos(48, 23)
-                .size(52, 20)
+            new ButtonWidget<>().pos(43, 18)
+                .size(50, 14)
                 .overlay(IKey.dynamic(() -> "Wrap: " + (editor.wraps() ? "ON" : "OFF")))
                 .onMousePressed(mouse -> {
                     if (mouse != 0) return false;
@@ -166,17 +166,17 @@ public final class Mui2CodeEditor implements ProgramEditSession.Receiver {
                     return true;
                 }));
         panel.child(
-            new GuardedButton("Indent", this::editable, editor::autoIndent).pos(104, 23)
-                .size(40, 20));
+            new GuardedButton("Indent", this::editable, editor::autoIndent).pos(96, 18)
+                .size(36, 14));
         panel.child(
-            new GuardedButton("Suggest", this::editable, this::suggest).pos(148, 23)
-                .size(48, 20));
+            new GuardedButton("Suggest", this::editable, this::suggest).pos(135, 18)
+                .size(44, 14));
         panel.child(
-            new GuardedButton("Undo", this::editable, editor::undo).pos(200, 23)
-                .size(42, 20));
+            new GuardedButton("Undo", this::editable, editor::undo).pos(182, 18)
+                .size(32, 14));
         panel.child(
-            new GuardedButton("Redo", this::editable, editor::redo).pos(246, 23)
-                .size(42, 20));
+            new GuardedButton("Redo", this::editable, editor::redo).pos(217, 18)
+                .size(32, 14));
         for (SnippetCategory category : SnippetCategory.values()) {
             ButtonWidget<?> categoryButton = new GuardedButton(
                 category.getDisplayName(),
@@ -191,12 +191,12 @@ public final class Mui2CodeEditor implements ProgramEditSession.Receiver {
             editor.left(8)
                 .right(8)
                 .top(new HeaderLayout(initialWidth, categoryButtons.size()).editorTop)
-                .bottom(61));
+                .bottom(44));
         panel.child(
             new DiagnosticStatusWidget(this::statusLine, () -> status, this::jumpToError).left(8)
                 .right(8)
-                .bottom(43)
-                .height(12));
+                .bottom(31)
+                .height(10));
         panel.child(
             new TextWidget<>(
                 IKey.dynamic(
@@ -205,20 +205,20 @@ public final class Mui2CodeEditor implements ProgramEditSession.Receiver {
                         + (editor.column() + 1)
                         + " | Ctrl+S Save | Ctrl+Space")).left(8)
                             .right(8)
-                            .bottom(28)
-                            .height(12));
+                            .bottom(19)
+                            .height(10));
         panel.child(
-            new GuardedButton("Save", this::editable, () -> save(false)).right(180)
-                .bottom(6)
-                .size(90, 20));
+            new GuardedButton("Save", this::editable, () -> save(false)).right(144)
+                .bottom(3)
+                .size(50, 14));
         panel.child(
-            new GuardedButton("Save & Close", this::editable, () -> save(true)).right(84)
-                .bottom(6)
-                .size(90, 20));
+            new GuardedButton("Save & Close", this::editable, () -> save(true)).right(61)
+                .bottom(3)
+                .size(80, 14));
         panel.child(
             new GuardedButton("Cancel", this::canClose, this::close).right(8)
-                .bottom(6)
-                .size(70, 20));
+                .bottom(3)
+                .size(50, 14));
         snippetPanel = IPanelHandler.simple(panel, (parent, player) -> buildSuggestions(), true);
         return panel;
     }
@@ -503,7 +503,7 @@ public final class Mui2CodeEditor implements ProgramEditSession.Receiver {
         HeaderLayout layout = new HeaderLayout(width, categoryButtons.size());
         for (int i = 0; i < categoryButtons.size(); i++) categoryButtons.get(i)
             .pos(layout.x(i), layout.y(i))
-            .size(layout.buttonWidth, 20);
+            .size(layout.buttonWidth, 14);
         editor.top(layout.editorTop);
         return true;
     }
@@ -519,7 +519,7 @@ public final class Mui2CodeEditor implements ProgramEditSession.Receiver {
             int rows = Math.max(1, (count + capacity - 1) / capacity);
             columns = Math.max(1, (count + rows - 1) / rows);
             buttonWidth = Math.max(1, (available - (columns - 1) * 4) / columns);
-            editorTop = 47 + rows * 24 + 1;
+            editorTop = 36 + rows * 16 + 1;
         }
 
         public int x(int index) {
@@ -527,13 +527,13 @@ public final class Mui2CodeEditor implements ProgramEditSession.Receiver {
         }
 
         public int y(int index) {
-            return 47 + (index / columns) * 24;
+            return 36 + (index / columns) * 16;
         }
     }
 
     private static ButtonWidget<?> button(String label, int x, int y, int width, Runnable action) {
         return new ButtonWidget<>().pos(x, y)
-            .size(width, 20)
+            .size(width, 14)
             .overlay(IKey.str(label))
             .onMousePressed(mouse -> {
                 if (mouse != 0) return false;
