@@ -193,7 +193,14 @@ public final class GregTechRecipeCatalogAdapter {
                         try {
                             outputs = outputKeys(recipe, new QueryBudget(16));
                         } catch (IllegalArgumentException badOutput) {
-                            incomplete(builder, id, incompleteMaps, "unreadable output identity");
+                            Throwable cause = badOutput;
+                            for (int depth = 0; depth < 3 && cause.getCause() != null; depth++)
+                                cause = cause.getCause();
+                            incomplete(
+                                builder,
+                                id,
+                                incompleteMaps,
+                                "unreadable output identity: " + cause.getMessage());
                             continue;
                         }
                         if (!outputs.isEmpty()) builder.unsupported(id, outputs, new QueryBudget(16));
@@ -209,8 +216,14 @@ public final class GregTechRecipeCatalogAdapter {
 
     private static void incomplete(RecipeCatalog.Builder builder, String id, Set<String> maps, String reason) {
         builder.incomplete(id);
-        if (maps.add(id) && Boolean.getBoolean("sfm.recipeDiagnostics"))
-            SuperFactoryManager.LOG.info("Recipe catalog incomplete {}: {}", id, reason);
+        if (maps.add(id) && Boolean.getBoolean("sfm.recipeDiagnostics")) {
+            StringBuilder bounded = new StringBuilder();
+            for (int i = 0; i < Math.min(160, reason.length()); i++) {
+                char c = reason.charAt(i);
+                bounded.append(c < 32 || c == 127 || c == '\u00a7' ? ' ' : c);
+            }
+            SuperFactoryManager.LOG.info("Recipe catalog incomplete {}: {}", id, bounded);
+        }
     }
 
     private RecipeDescriptor describe(Object recipe, String id, int amperage, ItemStack[] nbtItems, QueryBudget budget)
