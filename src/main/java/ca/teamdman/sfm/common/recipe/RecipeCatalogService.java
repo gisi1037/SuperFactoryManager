@@ -101,6 +101,7 @@ public final class RecipeCatalogService {
             stamp = epoch.get();
             owner = session;
         }
+        long attemptStarted = System.nanoTime();
         try {
             GregTechRecipeCatalogAdapter source = adapter;
             if (source == null) {
@@ -135,11 +136,17 @@ public final class RecipeCatalogService {
             SuperFactoryManager.LOG.info(summary());
         } catch (IllegalArgumentException limit) {
             synchronized (this) {
-                if (current(stamp, owner)) fail(State.LIMIT_EXCEEDED, limit);
+                if (current(stamp, owner)) {
+                    buildNanos = System.nanoTime() - attemptStarted;
+                    fail(State.LIMIT_EXCEEDED, limit);
+                }
             }
         } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailable) {
             synchronized (this) {
-                if (current(stamp, owner)) fail(State.UNSUPPORTED, unavailable);
+                if (current(stamp, owner)) {
+                    buildNanos = System.nanoTime() - attemptStarted;
+                    fail(State.UNSUPPORTED, unavailable);
+                }
             }
         }
     }

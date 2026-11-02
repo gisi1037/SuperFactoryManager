@@ -416,3 +416,8 @@ Measured GTNH2.9.0 macerator registry:24,993 native entries. The provisional16,3
 visit cap refused before completing that one map. Align the catalog scan bound
 with the adapter's existing65,536 bound; retain independent64MiB/posting/result/
 per-tick query limits. Catalog core cap/partial-publication regressions pass.
+Actual-pack64MiB refusal occurred within the macerator map at13,301 descriptors /
+35,791 postings. Test a256MiB conservative retained bound, keeping scan/posting/
+query limits independent. Failed cold attempts now report elapsed time as well.
+21 catalog/lifecycle tests and style pass; actual retained size and cold cost
+must be measured before exposing the language API. This is no heap-size claim.

@@ -20,7 +20,7 @@ public final class RecipeCatalog {
     // GTNH 2.9's macerator alone has 24,993 native entries. Retained bytes remain independently capped.
     public static final int MAX_MAPS = 16, MAX_RECIPES = 65536, MAX_POSTINGS = 131072;
     public static final int MAX_RESULTS = 64, WORK_PER_TICK = 256;
-    public static final long MAX_RETAINED_BYTES = 64L * 1024 * 1024;
+    public static final long MAX_RETAINED_BYTES = 256L * 1024 * 1024;
 
     public enum Status {
         MATCHES,

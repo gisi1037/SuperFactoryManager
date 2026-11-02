@@ -420,7 +420,9 @@ class RecipeCatalogTest {
             }
             retained += descriptor.retainedBytes() + 1024;
             entries++;
-            assertTrue(entries < 1000, "Retained descriptor budget must bind long before the entry cap");
+            assertTrue(
+                entries < RecipeCatalog.MAX_RECIPES / 4,
+                "Retained descriptor budget must bind long before the entry cap");
         }
         assertTrue(entries > 0);
         assertTrue(retained <= RecipeCatalog.MAX_RETAINED_BYTES);
