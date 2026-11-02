@@ -4,7 +4,7 @@ navigation:
   position: 65
   icon: "minecraft:book"
   parent: /advanced/index.md
-  keywords: ["recipes", "itemkey", "catalyst", "chance", "recipe map"]
+  keywords: ["recipes", "itemkey", "catalyst", "chance", "recipe map", "NEI"]
 categories: ["sfm"]
 updated: "2026-11-02"
 ---
@@ -93,3 +93,20 @@ the recipe. Keep its machine tier, configuration, catalyst and matching rules.
 References expire after a server/catalog session change. Search again when a
 reference returns `stale`. Searches and detail views have shared work and size
 limits; inspect a candidate only when its details are needed.
+
+## Pick an output from NEI
+
+1. Focus a recipe in a supported GT tab and press **Ctrl+Shift+S**.
+2. Open the station: **Settings → Recipe inspector**.
+3. Click **NEI hint**, then **Lookup**.
+4. Click a server candidate to inspect it. **Copy inspection query** puts a
+   template on your clipboard; paste it through the normal editor.
+
+You can also enter an exact item ID, metadata and map without NEI. The display is
+only a hint: the server supplies and revalidates the candidates. Nothing is
+selected automatically, and this tool never edits or runs your program.
+
+This first shortcut refuses NBT-bearing outputs. More than32 candidates reports
+an explicit UI limit; use SFML for larger results. The preview shows only two
+entries per group, with full counts; `recipe(reference)` reads the full data.
+Map membership does not prove machine voltage/structure or recipe feasibility.

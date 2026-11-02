@@ -680,3 +680,47 @@ every 100 ticks {
   with the labelled observation. Map association does not prove recipe feasibility.
 - [ ] Check insertion, hover and compiler errors for recipemaps in Studio/VS Code.
   Restart/reload and confirm no old machine provider or session result is reused.
+
+## R3: NEI hints and station Recipe inspector
+
+- [ ] In NEI, focus a normal macerator/bender/cutter recipe and pressCtrl+Shift+S.
+  One message remembers an output/map hint. Holding the key must not spam it.
+- [ ] Open the station, Settings → Recipe inspector, NEI hint → Lookup. The
+  server supplies candidates; none is selected automatically. Click one and
+  verify the selected partial preview and explicit Copy inspection query action.
+- [ ] Paste the copied query inside a trigger in a disposable program. Save/check
+  it normally. This independent comparison program can also inspect the same
+  server data with PRINT capture enabled; no inventory transfer occurs:
+
+```sfml
+name "Compare NEI inspection with server data"
+every 100 ticks {
+  let found = recipes(itemkey("minecraft:flint"), "gt.recipe.macerator")
+  print(found.status, len(found.recipes))
+  if(found.coverageComplete and len(found.recipes) == 1) {
+    let details = recipe(found.recipes[0].reference)
+    if(details.status == "matches") {
+      print(details.recipes[0].itemInputs)
+      print(details.recipes[0].itemOutputs)
+    }
+  }
+}
+```
+
+- [ ] Try ambiguous bender/cutter outputs: explicitly choose a candidate; compare
+  its costs/counts and chance/catalyst fields with SFML. More than32 candidates
+  must return a UI limit without a partial/false unique list.
+- [ ] Inspect A, click B, then interrupt/delay the reply. A's preview must clear
+  immediately; timeout/close/new Lookup must not keep old details or enable Copy.
+  Reopen the inspector in the same station session and verify requests still work.
+- [ ] Keep unsaved text, selection/undo and unapplied visual Fields/clause edits.
+  Capture/search/select/copy/close must not change program text, save, publish or
+  bypass paste/edit guards. Underlying inventory remains inaccessible in Studio.
+- [ ] NBT-bearing outputs and unsupported handlers/maps must be explicitly refused.
+  Change worlds/disconnect: an old hint/token cannot become a fresh valid choice.
+- [ ] Without NEI, open the inspector and enter ID/metadata/map manually. Without
+  GT, server status must remain explicitly unsupported/not-ready. Dedicated
+  loading must not resolve NEI/GT client classes.
+- [ ] Verify small/large GUI scales, Row/Column layout, list scrolling, drag/center,
+  text field focus/shortcuts, and two-player station/session replacement. These
+  native GUI/multiplayer checks remain manual; headless tests do not replace them.

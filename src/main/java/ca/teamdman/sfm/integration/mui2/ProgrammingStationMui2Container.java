@@ -17,6 +17,7 @@ public final class ProgrammingStationMui2Container extends ModularContainer {
     public final TileEntityProgrammingStation station;
     public final UUID sessionId;
     public long lastRequestId, pendingRequestId;
+    public long lastRecipeRequestId;
     public PacketStationReply lastReply;
 
     public ProgrammingStationMui2Container(TileEntityProgrammingStation station, UUID sessionId) {

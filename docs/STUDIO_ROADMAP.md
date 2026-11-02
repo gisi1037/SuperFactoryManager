@@ -487,3 +487,22 @@ reference media, preserving complete disk/save/extraction data and inert client
 preview/run-intent behavior. Full2254tests/19optional skips/zero failures; native
 multiplayer remains a separate gate. The correction is on main after alpha.2;
 released assets are not replaced. Optional NEI authoring remains next.
+
+R3 first optional NEI authoring slice is implemented: Ctrl+Shift+S captures one
+world-scoped output/map hint; station Settings → Recipe inspector asks the server
+for candidates. Explicit selection resolves the current server catalog reference
+and exact output again. Copy produces a fresh-query/fingerprint template; no source
+edit, save, publish or execution occurs. Manual ID/metadata/map entry works without
+NEI. Tagged outputs are refused, UI candidates cap at32 with an explicit limit,
+previews are explicitly partial, and incomplete/stale results cannot enable Copy.
+MUI2 Row/Column layout and scroll lists are used. Model-owned preview lines clear
+on search/selection/pending/timeout/close; Studio drives the120tick timeout and
+preserves the inspector sequence across reopenings. No source-owner guards change.
+
+Headless stable2269tests:2250passed,19optional skips,zero failures/errors, plus
+style/compiler/GuideNH checks. Target API compilation passes for RC2 NEI155/MUI92
+and daily803 NEI169/MUI93; stable/nightly share NEI171/MUI94. The optional inspector
+loads/constructs with GT/NEI classes forbidden; packet codecs, station authority,
+replay/session/output validation, explicit ambiguity, limits and stale UI state
+are covered. Native GUI/hotkey/scale/focus/inventory-mod and two-player checks
+remain manual. Alpha.2 assets are unchanged; this is a later main-source checkpoint.

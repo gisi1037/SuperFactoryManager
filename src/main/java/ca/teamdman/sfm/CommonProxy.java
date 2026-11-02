@@ -108,6 +108,8 @@ public class CommonProxy {
 
     public void receiveStationDebugReply(ca.teamdman.sfm.common.net.PacketStationDebugReply reply) {}
 
+    public void receiveStationRecipeReply(ca.teamdman.sfm.common.net.PacketStationRecipeReply reply) {}
+
     public void openProgrammingStation(ca.teamdman.sfm.common.tileentity.TileEntityProgrammingStation station,
         java.util.UUID sessionId) {}
 

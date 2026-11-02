@@ -181,6 +181,8 @@ public final class Mui2ProgrammingStation {
         pickerPanel, fieldDiagnosticPanel;
     private IPanelHandler catalogPanel, confirmationPanel, snippetsPanel, toolsPanel, buildsPanel;
     private IPanelHandler deleteProjectPanel;
+    private IPanelHandler recipePanel;
+    private StudioRecipeInspector recipeInspector;
     private ProjectPage.Entry deleteTarget, pendingDelete;
     private long deleteRequestId;
     private IPanelHandler archivePanel;
@@ -553,6 +555,15 @@ public final class Mui2ProgrammingStation {
         toolsPanel = IPanelHandler.simple(panel, (parent, player) -> buildTools(), true);
         buildsPanel = IPanelHandler.simple(panel, (parent, player) -> buildPublications(), true);
         librariesPanel = IPanelHandler.simple(panel, (parent, player) -> buildLibraries(), true);
+        recipePanel = IPanelHandler.simple(
+            panel,
+            (parent, player) -> recipeInspector.build(
+                modal(
+                    "sfm_recipe_inspector",
+                    StudioLayout.inspectorWidth(panel.getArea().width),
+                    StudioLayout.inspectorHeight(panel.getArea().height)),
+                this::focusAuthoring),
+            true);
         if (document.graph() != null) {
             UUID recoveredSelection = inspected;
             String recoveredClause = clause;
@@ -631,7 +642,7 @@ public final class Mui2ProgrammingStation {
     }
 
     private ModularPanel buildTools() {
-        ModularPanel popup = modal("sfm_studio_tools", 312, 228);
+        ModularPanel popup = modal("sfm_studio_tools", 312, 248);
         popup.child(
             new TextWidget<>("Editor settings").color(0xffefa09a)
                 .pos(8, 8)
@@ -641,50 +652,67 @@ public final class Mui2ProgrammingStation {
                 .widthRelOffset(1f, -8)
                 .height(20));
         String[] names = { "New draft", "Copy", "Undo", "Redo", "Indent", "Wrap", "Find / Replace", "Validate saved",
-            "API reference", "Problems", "Terminal", "Saved builds", "Publish library", "Insert library" };
+            "API reference", "Problems", "Terminal", "Saved builds", "Publish library", "Insert library",
+            "Recipe inspector" };
         Runnable[] commands = { () -> protect("New draft", this::newDraft), this::copy, () -> undo(false),
             () -> undo(true), () -> { if (codeEditable()) editor.autoIndent(); }, () -> {
                 editor.toggleWrap();
                 savedWrap = editor.wraps();
             }, this::openFind, this::validate, this::openApi, this::openProblems, this::openTerminal, this::openBuilds,
-            this::publishLibrary, this::openLibraries };
+            this::publishLibrary, this::openLibraries, this::openRecipeInspector };
         for (int i = 0; i < names.length; i++) {
             Runnable command = commands[i];
-            boolean readOnly = i == 1 || i == 9;
+            boolean readOnly = i == 1 || i == 9 || i == 14;
             popup.child(button(names[i], 8 + i % 2 * 150, 29 + i / 2 * 20, 146, () -> readOnly || !state.busy(), () -> {
                 toolsPanel.closePanel();
                 command.run();
             }).height(18));
         }
-        popup.child(button("Done", 216, 174, 88, () -> true, toolsPanel::closePanel));
-        popup.child(button("", 112, 174, 98, () -> !state.busy(), () -> {
+        popup.child(button("Done", 216, 194, 88, () -> true, toolsPanel::closePanel));
+        popup.child(button("", 112, 194, 98, () -> !state.busy(), () -> {
             if (!applyClause()) return;
             removeFocus();
             advancedTools = !advancedTools;
         }).overlay(IKey.dynamic(() -> advancedTools ? "Tools: Advanced" : "Tools: Basic")));
         popup.child(
-            button("", 8, 174, 100, () -> true, SfmlCodeEditorWidget::toggleAutoCloseBlocks)
+            button("", 8, 194, 100, () -> true, SfmlCodeEditorWidget::toggleAutoCloseBlocks)
                 .overlay(IKey.dynamic(() -> "Auto-close: " + (SfmlCodeEditorWidget.autoClosesBlocks() ? "ON" : "OFF")))
                 .addTooltipLine("Enter inserts matching } or end. Applies to editors in this client session."));
         popup.child(
-            new TextWidget<>("Studio scale").pos(8, 202)
+            new TextWidget<>("Studio scale").pos(8, 222)
                 .size(92, 12)
                 .color(0xffb0b3bb));
-        popup.child(button("-", 104, 199, 24, () -> true, () -> StudioScaledPanel.changeScale(panel.getScreen(), -1)));
+        popup.child(button("-", 104, 219, 24, () -> true, () -> StudioScaledPanel.changeScale(panel.getScreen(), -1)));
         popup.child(
-            new TextWidget<>(IKey.dynamic(StudioScaledPanel::scaleLabel)).pos(132, 202)
+            new TextWidget<>(IKey.dynamic(StudioScaledPanel::scaleLabel)).pos(132, 222)
                 .size(80, 12)
                 .color(0xffe7e8eb)
                 .addTooltipLine("Studio only. Larger values make controls bigger; window size limits the maximum."));
-        popup.child(button("+", 216, 199, 24, () -> true, () -> StudioScaledPanel.changeScale(panel.getScreen(), 1)));
+        popup.child(button("+", 216, 219, 24, () -> true, () -> StudioScaledPanel.changeScale(panel.getScreen(), 1)));
         popup.child(
-            button("Game", 244, 199, 60, () -> true, () -> StudioScaledPanel.changeScale(panel.getScreen(), 0))
+            button("Game", 244, 219, 60, () -> true, () -> StudioScaledPanel.changeScale(panel.getScreen(), 0))
                 .addTooltipLine("Follow Minecraft's GUI scale again. Other screens are never changed."));
         return popup;
     }
 
     private boolean codeEditable() {
         return editable() && view != View.VISUAL && !document.incomplete() && !pendingClause() && !pendingFields();
+    }
+
+    private void openRecipeInspector() {
+        clearAuthorFocus();
+        if (recipeInspector == null) recipeInspector = new StudioRecipeInspector(
+            station.xCoord,
+            station.yCoord,
+            station.zCoord,
+            windowId,
+            sessionId);
+        recipePanel.deleteCachedPanel();
+        recipePanel.openPanel();
+    }
+
+    public void receiveStationRecipeReply(ca.teamdman.sfm.common.net.PacketStationRecipeReply reply) {
+        if (recipeInspector != null && recipePanel != null && recipePanel.isPanelOpen()) recipeInspector.receive(reply);
     }
 
     private ButtonWidget<?> viewButton(String title, int x, int width, View target) {
@@ -3159,6 +3187,7 @@ public final class Mui2ProgrammingStation {
     }
 
     public void tick() {
+        if (recipeInspector != null) recipeInspector.tick();
         if (cancelled) return;
         if (reopenPromotedFields != null) {
             if (fieldDraft != reopenPromotedFields
@@ -4548,6 +4577,7 @@ public final class Mui2ProgrammingStation {
     }
 
     public void cancel() {
+        if (recipeInspector != null) recipeInspector.cancel();
         if (cancelled) return;
         if (graphEditor != null) graphEditor.finishInteraction();
         retain();

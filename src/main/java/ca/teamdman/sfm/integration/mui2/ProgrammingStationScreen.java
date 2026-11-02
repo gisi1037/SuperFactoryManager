@@ -45,6 +45,10 @@ public final class ProgrammingStationScreen extends ModularScreen {
         if (editor != null && projects.isPanelOpen()) editor.receiveStationDebugReply(reply);
     }
 
+    public void receiveStationRecipeReply(ca.teamdman.sfm.common.net.PacketStationRecipeReply reply) {
+        if (editor != null && projects.isPanelOpen()) editor.receiveStationRecipeReply(reply);
+    }
+
     public void openProjects() {
         if (projects.isPanelOpen()) return;
         projects.deleteCachedPanel();

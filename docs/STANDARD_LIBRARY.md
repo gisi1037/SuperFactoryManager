@@ -22,8 +22,8 @@ ship as versioned standard libraries after A4's library/build contracts land.
 | Inventory scans | .contents([selector]), exact grouped items and physical origins | Candidate implemented; direct inventories/chest pairs, headless qualification |
 | Capacity/access | canInsert, canExtract, acceptedAmount, missing(targetStock) | Planned qualified simulations; full/empty are distinct from permission |
 | Logistics | TOTAL(contents/locations), STOCK(contents,exactKey), SHORTAGE(required,available); TRANSFER(src,dest[,keyOrSelector[,amount]]) or TRANSFER(src,dest,amount) [INTO result] | Item-only explicit statement action; separate TRANSFERF(src,dest[,amount or fluid/key[,amount]]) for mB fluid movement |
-| Recipes | Find candidates by output+recipe map, inspect requirements/results, choose recipe, resolve machine maps | Planned server catalog |
-| NEI authoring | Use selected recipe in station/editor, validate server descriptor, insert query/template | Planned optional client adapter |
+| Recipes | ITEMKEY, RECIPES, RECIPE and RECIPEMAPS | Bounded read-only server catalog and qualified loaded stock machines |
+| NEI authoring | Remember output/map hint, inspect server candidates, copy query | Optional client shortcut and station inspector; native GUI qualification pending |
 
 ## This candidate's primitive contracts
 
@@ -207,8 +207,9 @@ describes metadata requirements; verify behavior against pinned artifacts.
 
 Pinned local inspection: GT 5.09.54.250 has ordinary RecipeMap registries plus a
 separate assembly-line registry; NEI 2.8.169 uses display handlers. Existing SFM
-NEICompat only hides items. dependencies.gradle currently compiles NEI 2.8.139, so
-qualify/update the optional API boundary before adding new runtime calls.
+NEICompat originally only hid items. The current target matrix pins NEI155 for
+RC2,169 for daily803 and171 for stable2.9.0/nightly807. The client selection hook
+uses public GuiRecipe/Recipe and GTNEIDefaultHandler map inspection APIs.
 Never load NEI client classes from common/server execution. A client selection
 sends a bounded descriptor/fingerprint; the server resolves it against its own
 catalog. Client display stacks are never authoritative recipe requirements.
@@ -253,5 +254,8 @@ examples remain design illustrations. The first R2 slice adds
 recipemaps(machineLabel), returning status/current/available for one connected,
 loaded stock GT single-block machine using a qualified map. Multiple machines are
 ambiguous; unknown families/versions remain unsupported. Broader machine support,
-NEI selection and feasibility/feeding helpers are separate follow-ups. No automatic
-crafting is provided by these calls.
+The first R3 station inspector accepts a NEI output/map hint, looks up server
+candidates, requires explicit selection/revalidation and copies an inspection
+query without changing source. No NBT-bearing display outputs yet; UI results cap
+at32 with an explicit limit instead of truncating. See recipe queries for workflow.
+Feasibility/feeding helpers remain separate. No automatic crafting is provided.

@@ -647,3 +647,21 @@ projects before retrying: imports do not roll back the whole batch or auto-retry
 Closing the transfer popup leaves it running while the station stays open; closing
 the station stops further requests after the one already sent. Bad clipboard data
 is rejected before any create request. No oversized archive packet is sent.
+
+## NEI recipe hints and the Recipe inspector
+
+In a supported GT NEI recipe view, Ctrl+Shift+S remembers an exact null-NBT output
+and map hint. In Studio, open Settings → Recipe inspector, use NEI hint, then
+Lookup. The same inspector also accepts a manually entered output ID/metadata/map
+without NEI. Select a server candidate explicitly to revalidate and inspect it.
+Copy inspection query copies a template; paste it inside a trigger through normal
+editing. No inspection action saves, publishes, executes or changes source.
+
+The inspector uses MUI2 Row/Column layout and separate scrollable candidate/preview
+lists. More than32 candidates is an explicit UI limit; previews show at most two
+entries per group with full counts. Tagged NEI outputs are explicitly refused in
+this first slice. Copy requires a complete matched server result; stale/unsupported/
+limited views never enable it. Searches, changed selections, timeouts and closing
+clear old previews. Full requirements remain available through RECIPE. See
+[recipe queries](RECIPE_QUERIES.md) and R3 in the manual in-game checklist. Native
+GUI/hotkey/inventory-mod and multiplayer validation remain separate pending gates.

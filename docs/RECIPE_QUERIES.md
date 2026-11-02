@@ -89,6 +89,36 @@ Query inside a trigger when you need a fresh observation. A program-wide LET
 initializer runs once; it does not automatically refresh a `not_ready` result
 captured before the catalog becomes ready.
 
+## Optional NEI authoring
+
+1. In NEI, focus a recipe on a qualified GT macerator, bender or cutter tab.
+2. Press **Ctrl+Shift+S** to remember its output/map hint for this client world.
+3. Open the Programming Station, then **Settings → Recipe inspector**.
+4. Click **NEI hint**, then **Lookup**. You can also enter an item ID, metadata
+   and map manually; the inspector works without NEI.
+5. Choose a server candidate to revalidate its reference and inspect a bounded
+   preview. **Copy inspection query** copies a fresh-query template to the
+   clipboard. Paste it through the normal editor when ready.
+
+NEI ingredients are display data and are never imported as authoritative
+requirements. A hint does not choose among server candidates automatically.
+Searching/selecting does not save, publish, execute or edit a program. Copy is an
+explicit clipboard action; normal source/pending-draft guards still control paste.
+
+This first shortcut supports exact outputs with **no NBT**; tagged outputs are
+explicitly refused. The UI caps results at 32 candidates and reports a limit if
+there are more, with no partial/false unique result. SFML's catalog queries remain
+available for larger results. Previews show at most two entries per group and may
+shorten IDs; use `recipe(reference)` for full alternatives, ore/NBT policies and
+requirements. Map association still does not prove machine feasibility.
+
+Station session/window/current loaded tile and connection are checked server-side.
+Selections resolve against the current catalog session/revision/fingerprint and
+must produce the exact requested output. New searches, timeouts and closing the
+inspector clear any old preview/selection. Hints hold no stack/provider and are
+discarded when the client world changes. Native GUI/hotkey/multiplayer checks
+remain part of manual qualification.
+
 ## Operator checks
 
 `/sfmprofile recipes` reports readiness and cold-build statistics.

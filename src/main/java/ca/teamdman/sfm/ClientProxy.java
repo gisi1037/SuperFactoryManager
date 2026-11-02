@@ -45,6 +45,13 @@ public class ClientProxy extends CommonProxy {
     public void postInit(FMLPostInitializationEvent event) {
         super.postInit(event);
         ca.teamdman.sfm.compat.guidenh.GuideNhSfml.register();
+        if (cpw.mods.fml.common.Loader.isModLoaded("NotEnoughItems")) {
+            try {
+                ca.teamdman.sfm.compat.nei.NeiRecipeSelectionClient.init();
+            } catch (LinkageError unavailable) {
+                SuperFactoryManager.LOG.warn("NEI recipe-selection shortcut is unavailable", unavailable);
+            }
+        }
     }
 
     @Override
@@ -161,6 +168,18 @@ public class ClientProxy extends CommonProxy {
                 if (screen instanceof ca.teamdman.sfm.integration.mui2.ProgrammingStationScreen)
                     ((ca.teamdman.sfm.integration.mui2.ProgrammingStationScreen) screen)
                         .receiveStationDebugReply(reply);
+            });
+    }
+
+    @Override
+    public void receiveStationRecipeReply(final ca.teamdman.sfm.common.net.PacketStationRecipeReply reply) {
+        Minecraft.getMinecraft()
+            .func_152344_a(() -> {
+                com.cleanroommc.modularui.screen.ModularScreen screen = com.cleanroommc.modularui.screen.ModularScreen
+                    .getCurrent();
+                if (screen instanceof ca.teamdman.sfm.integration.mui2.ProgrammingStationScreen)
+                    ((ca.teamdman.sfm.integration.mui2.ProgrammingStationScreen) screen)
+                        .receiveStationRecipeReply(reply);
             });
     }
 

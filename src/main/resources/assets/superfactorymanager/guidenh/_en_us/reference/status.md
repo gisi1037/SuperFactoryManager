@@ -79,7 +79,7 @@ remain separate work.
 ## Planned, not callable today
 
 - Cross-player library sharing, nested library imports and module constants.
-- Broader machine-family recipe-map resolution and optional NEI selection tools.
+- Broader machine-family recipe-map resolution.
   `recipemaps(label("machine"))` inspects one loaded stock GT single-block machine
   using the three qualified maps; multiple labelled machines report ambiguity.
   Read-only recipe candidates/requirements for three explicit GT maps are available
