@@ -43,6 +43,11 @@ public final class ItemIdentity {
         return metadata;
     }
 
+    /** Fresh SHA-256 bytes over versioned exact identity; count is excluded and mutable NBT never escapes. */
+    public byte[] fingerprint(QueryBudget budget) {
+        return IdentityFingerprint.create(1, registryId, metadata, nbt, budget);
+    }
+
     DataValue inspectNbt(String method, String path, QueryBudget budget, DataRuntime runtime) {
         return nbt.inspect(method, path, budget, runtime);
     }

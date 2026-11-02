@@ -327,3 +327,18 @@ original labels and the Manager running, with the inventory mod present. The
 GTNH 2.9.0 dedicated server also cold-started with both mods on Java26/3GiB and
 saved/stopped through localhost RCON. Two-player acceptance remains pending.
 These results do not certify 1.0, fault-free native providers or crash atomicity.
+## Recipe identity foundation, 2026-11-01
+
+Exact item/fluid keys now provide budgeted, versioned SHA-256 identity fingerprints
+for the forthcoming catalog. Canonical NBT keeps compound-key order independent,
+list order and numeric types exact, and null NBT distinct from empty NBT. Item
+metadata and registry names are included; stack amounts and transient fluid IDs
+are excluded. Item/fluid domains are separated and returned bytes are fresh copies.
+No live provider or world read is performed. This is cold catalog infrastructure;
+existing transfers and ordinary query hot paths do not hash these identities.
+
+Eight new identity tests include an independent golden digest, mutation isolation,
+fluid quantity independence and work-budget refusal. Full stable checks:2185 tests,
+2166 passed,19 skipped,no failures/errors; style/compiler/GuideNH passed. This does
+not expose a recipe query yet: immutable descriptors, shared bounded output index,
+GT adapter/lifecycle, SFML API and native recipe qualification remain pending.

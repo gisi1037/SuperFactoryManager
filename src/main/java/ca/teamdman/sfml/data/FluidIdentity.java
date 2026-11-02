@@ -39,6 +39,11 @@ public final class FluidIdentity {
         return id;
     }
 
+    /** Registry name and canonical NBT, excluding amount and transient numeric registry IDs. */
+    public byte[] fingerprint(QueryBudget budget) {
+        return IdentityFingerprint.create(2, id, 0, nbt, budget);
+    }
+
     public int copyWork() {
         return 1 + nbt.getLength();
     }

@@ -19,6 +19,10 @@ public final class TestFluid extends FluidStack {
     }
 
     public static TestFluid water(int amount) {
+        return of(WATER, amount);
+    }
+
+    public static TestFluid of(Fluid fluid, int amount) {
         try {
             Field f = Unsafe.class.getDeclaredField("theUnsafe");
             f.setAccessible(true);
@@ -29,12 +33,12 @@ public final class TestFluid extends FluidStack {
 
                 @Override
                 public Fluid get() {
-                    return WATER;
+                    return fluid;
                 }
 
                 @Override
                 public String name() {
-                    return "water";
+                    return fluid.getName();
                 }
 
                 @Override
@@ -51,14 +55,14 @@ public final class TestFluid extends FluidStack {
 
     @Override
     public FluidStack copy() {
-        TestFluid copy = water(amount);
+        TestFluid copy = of(getFluid(), amount);
         copy.tag = tag == null ? null : (NBTTagCompound) tag.copy();
         return copy;
     }
 
     @Override
     public NBTTagCompound writeToNBT(NBTTagCompound tag) {
-        tag.setString("FluidName", "water");
+        tag.setString("FluidName", getFluid().getName());
         tag.setInteger("Amount", amount);
         if (this.tag != null) tag.setTag("Tag", this.tag.copy());
         return tag;

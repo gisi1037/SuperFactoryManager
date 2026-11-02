@@ -92,6 +92,10 @@ final class BoundedItemNbt {
         return length;
     }
 
+    void fingerprint(IdentityFingerprint writer) {
+        writer.bytes(payload, length);
+    }
+
     DataValue inspect(String method, String path, QueryBudget budget, DataRuntime runtime) {
         return ItemNbtReader.read(payload, length, method, path, budget, runtime);
     }
