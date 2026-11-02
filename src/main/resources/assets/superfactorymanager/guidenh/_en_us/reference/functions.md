@@ -153,6 +153,18 @@ The signal methods use their redstone endpoint contract, not the item-inventory
 availability method. A port's faces have their own input/output settings. See
 [redstone](/automation/redstone.md) for aggregation, edge and feedback behavior.
 
+## Recipe inspection
+
+| Call | Result |
+| --- | --- |
+| `itemkey(id [, metadata])` | Exact ITEM_KEY with null NBT; metadata defaults to zero. |
+| `recipes(outputKey, map)` | Candidate summaries, status, coverageComplete and ambiguous. |
+| `recipe(candidate.reference)` | One candidate's detailed requirements or an explicit unavailable/stale status. |
+
+See [Inspect machine recipes](/advanced/recipes.md) for the three supported maps,
+ordered ingredients, catalysts, chance fields and fluid quantities. Recipe calls
+inspect data; they do not craft items or infer machine feasibility.
+
 ## Statements are separate
 
 `PRINT(...)` is a statement, not a function returning data. Arguments are only
@@ -174,7 +186,7 @@ Parameters are values unless a value function or void procedure explicitly
 declares REF and its caller supplies a matching REF target. Those writes update
 the caller immediately. A trigger or void procedure can explicitly pass STATE
 by REF; a value function cannot directly acquire a STATE reference.
-There are no current recipe-query, dynamic interval or substring defaults. String plus integer
+There are no current dynamic interval or substring defaults. String plus integer
 concatenation uses signed decimal text; it does not provide general conversion.
 
 ## WAIT

@@ -36,23 +36,33 @@ public final class RecipeCatalog {
         public final Status status;
         public final List<RecipeDescriptor> recipes;
         public final boolean coverageComplete;
+        private final List<Token> references;
 
-        private Result(Status status, List<RecipeDescriptor> recipes, boolean complete) {
+        private Result(Status status, List<RecipeDescriptor> recipes, boolean complete, List<Token> references) {
             this.status = status;
             this.recipes = recipes;
             coverageComplete = complete;
+            this.references = references;
         }
 
         public boolean isAmbiguous() {
             return recipes.size() > 1;
+        }
+
+        /** References belong to the same admitted observation, even if the catalog is later withdrawn. */
+        public Token reference(int index) {
+            return references.get(index);
         }
     }
 
     private static final Result[] EMPTY_RESULTS;
     static {
         EMPTY_RESULTS = new Result[Status.values().length];
-        for (Status status : Status.values())
-            EMPTY_RESULTS[status.ordinal()] = new Result(status, Collections.emptyList(), status == Status.NO_MATCH);
+        for (Status status : Status.values()) EMPTY_RESULTS[status.ordinal()] = new Result(
+            status,
+            Collections.emptyList(),
+            status == Status.NO_MATCH,
+            Collections.emptyList());
     }
 
     /** An inspection reference, not authorization to transfer, craft, or access another player's source. */
@@ -143,9 +153,19 @@ public final class RecipeCatalog {
         int count = bucket.recipes.size();
         if (count > MAX_RESULTS || !admit(serverTick, count)) return result(Status.LIMIT_EXCEEDED);
         budget.chargeSlots(count + 1);
-        budget.chargeAllocation(1);
         boolean complete = !data.incomplete && !bucket.unsupported;
-        return new Result(complete ? Status.MATCHES : Status.UNSUPPORTED, bucket.recipes, complete);
+        // Candidate admission covers its immutable inspection reference as well. No later minting round trip.
+        budget.chargeAllocation(2 + count);
+        List<Token> references = new ArrayList<>(count);
+        for (RecipeDescriptor descriptor : bucket.recipes) {
+            budget.chargeSlots(descriptor.adapter.length() + descriptor.map.length() + 65);
+            references.add(new Token(session, revision, descriptor.adapter, descriptor.map, descriptor.fingerprint));
+        }
+        return new Result(
+            complete ? Status.MATCHES : Status.UNSUPPORTED,
+            bucket.recipes,
+            complete,
+            Collections.unmodifiableList(references));
     }
 
     public Token token(RecipeDescriptor recipe, QueryBudget budget, long serverTick) {
@@ -175,7 +195,8 @@ public final class RecipeCatalog {
         return new Result(
             complete ? Status.MATCHES : Status.UNSUPPORTED,
             Collections.singletonList(descriptor),
-            complete);
+            complete,
+            Collections.singletonList(token));
     }
 
     private boolean admit(long serverTick, int units) {

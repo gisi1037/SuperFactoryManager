@@ -531,6 +531,35 @@ public final class SfmlCompletionCatalog {
             Context.EXPRESSION);
         add(
             entries,
+            "itemkey",
+            "itemkey(id: string [, metadata: integer]) -> item_key",
+            "itemkey(\"<item>\", <metadata>)",
+            "Construct an exact null-NBT identity; metadata defaults to zero. Existing contents rows also provide exact keys with NBT. No registry lookup.",
+            "let key = itemkey(\"gregtech:gt.metaitem.01\", 17032)",
+            Kind.FUNCTION,
+            Context.EXPRESSION);
+        add(
+            entries,
+            "recipes",
+            "recipes(output: item_key, map: string) -> recipe search result",
+            "recipes(<itemKey>, \"<recipeMap>\")",
+            "Read bounded candidate summaries for an exact output and explicit GT map. Check status, coverageComplete and ambiguity; does not execute recipes.",
+            "let found = recipes(itemkey(\"minecraft:flint\"), \"gt.recipe.macerator\")\nprint(found.status, len(found.recipes))",
+            Kind.FUNCTION,
+            Context.EXPRESSION);
+        add(
+            entries,
+            "recipe",
+            "recipe(reference: recipe reference) -> recipe detail result",
+            "recipe(<reference>)",
+            "Resolve one summary reference into ordered item/fluid requirements, chances and byproducts. Old session/revision references become stale.",
+            "let found = recipes(itemkey(\"minecraft:flint\"), \"gt.recipe.macerator\")\n"
+                + "if(found.coverageComplete and len(found.recipes) == 1) {\n"
+                + "  let details = recipe(found.recipes[0].reference)\n  print(details.status)\n}",
+            Kind.FUNCTION,
+            Context.EXPRESSION);
+        add(
+            entries,
             "transfer",
             "transfer(source, destination [, amount | selector | item_key [, amount]]) [into $result]",
             "transfer(<source>, <destination>)",

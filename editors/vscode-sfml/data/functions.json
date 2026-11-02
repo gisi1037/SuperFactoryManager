@@ -1,5 +1,20 @@
 {
   "functions": {
+    "itemkey": {
+      "signatures": ["itemkey(id: string [, metadata: integer]) -> item_key"],
+      "description": "Construct an exact null-NBT identity without a registry lookup. Metadata defaults to zero; use contents()[i].item for an observed key including NBT. ITEM selectors instead match every metadata/NBT variant.",
+      "example": "let key = itemkey(\"gregtech:gt.metaitem.01\", 17032)"
+    },
+    "recipes": {
+      "signatures": ["recipes(output: item_key, map: string) -> recipe search result"],
+      "description": "Read candidate summaries from the bounded shared server catalog. Result fields: status, coverageComplete, ambiguous, recipes. Each summary has a reference, costs and input/output counts. First maps: gt.recipe.macerator, gt.recipe.metalbender, gt.recipe.cuttingsaw. Check coverage and ambiguity; no recipe execution or machine feasibility is implied.",
+      "example": "let found = recipes(itemkey(\"minecraft:flint\"), \"gt.recipe.macerator\")\nprint(found.status, len(found.recipes))"
+    },
+    "recipe": {
+      "signatures": ["recipe(reference: recipe reference) -> recipe detail result"],
+      "description": "Resolve one candidate reference into ordered itemInputs/itemOutputs/fluidInputs/fluidOutputs, costs and unsupportedRequirements. Chances use a denominator of 10000; fluid amounts are mB; amount-zero inputs are catalysts. Preserve matching/ore/alternatives/NBT rules. Result uses status, coverageComplete, ambiguous, recipes (zero or one detail). Session/revision changes expire references. Inspection only.",
+      "example": "let found = recipes(itemkey(\"minecraft:flint\"), \"gt.recipe.macerator\")\nif(found.coverageComplete and len(found.recipes) == 1) {\n  let details = recipe(found.recipes[0].reference)\n  print(details.status)\n}"
+    },
     "random": {
       "signatures": ["random(minimum: integer, maximum: integer) -> integer"],
       "description": "Draw a runtime integer from the inclusive signed 64-bit range. Equal bounds return that value; reversed bounds fault. Never constant-folded. STATE defaults cannot use RANDOM; program-wide LET can keep one draw per activation. EVERY 20 PLUS (RANDOM(0, 19)) TICKS samples a manager-local starting offset once, preserving the 20-tick period.",

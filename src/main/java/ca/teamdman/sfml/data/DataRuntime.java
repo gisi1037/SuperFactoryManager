@@ -165,6 +165,25 @@ public final class DataRuntime {
         return DataValue.contents(queries.contents(label, selector, owner), owner, this);
     }
 
+    /** Pure exact null-NBT key constructor. Does not resolve registries or invoke providers. */
+    public DataValue itemKey(String id, long metadata) {
+        if (budget.queries == null) budget.queries = new QueryBudget();
+        work(id.length() + 1);
+        allocate(1);
+        return DataValue.itemIdentity(ItemIdentity.of(id, Math.toIntExact(metadata), null, budget.queries));
+    }
+
+    public DataValue recipes(ItemIdentity output, String map) {
+        QueryBudget owner = queryBudget();
+        return RecipeValues.materialize(queries.recipes(output, map, owner), false, owner, this);
+    }
+
+    public DataValue recipe(DataValue reference) {
+        QueryBudget owner = queryBudget();
+        return RecipeValues
+            .materialize(queries.recipe(RecipeValues.parseReference(reference, owner, this), owner), true, owner, this);
+    }
+
     public boolean sameItem(ItemIdentity left, ItemIdentity right) {
         if (budget.queries == null) budget.queries = new QueryBudget();
         return left.matches(right, budget.queries);

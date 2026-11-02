@@ -81,6 +81,15 @@ public final class SyntaxRegistry {
                 + "  PRINT(\"shortage\", SHORTAGE(<amount>, $have), \"locations\", TOTAL($stock[0].locations))\nEND",
             "Reads captured immutable values without querying inventories again; STOCK matches an exact item key");
         snippet(
+            "query_recipes",
+            "Inspect recipe candidates",
+            SnippetCategory.QUERY,
+            "let found = recipes(itemkey(\"minecraft:flint\"), \"gt.recipe.macerator\")\n"
+                + "print(found.status, len(found.recipes), found.ambiguous)\n"
+                + "if(found.coverageComplete and len(found.recipes) == 1) {\n"
+                + "  let details = recipe(found.recipes[0].reference)\n  print(details.status)\n}",
+            "Read-only exact output search. Check completeness and ambiguity before selecting a reference; recipes are not executed.");
+        snippet(
             "io_transfer_all",
             "Transfer all items",
             SnippetCategory.IO,

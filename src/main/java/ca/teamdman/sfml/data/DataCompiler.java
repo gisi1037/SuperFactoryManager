@@ -1058,6 +1058,8 @@ public final class DataCompiler {
                 throw new IllegalArgumentException("REF arguments require a declared player function");
             if (constantOnly && name.equalsIgnoreCase("RANDOM")) throw new IllegalArgumentException(
                 "RANDOM requires runtime; use a program-wide LET, not a STATE default");
+            if (constantOnly && (name.equalsIgnoreCase("RECIPES") || name.equalsIgnoreCase("RECIPE")))
+                throw new IllegalArgumentException("Recipe queries require runtime, not a STATE default");
             Node builtin = builtinCall(name, arguments);
             if (builtin != null) {
                 if (constantOnly) stateBuiltinCalls.add(name);
@@ -1179,6 +1181,33 @@ public final class DataCompiler {
         return collectionPlan(operation, target, arguments, result, depth, constant);
     }
 
+    private static Node recipeBuiltin(String method, List<Node> arguments) {
+        boolean key = method.equals("ITEMKEY"), search = method.equals("RECIPES");
+        int count = arguments.size();
+        if (key ? count < 1 || count > 2 : count != (search ? 2 : 1)) throw new IllegalArgumentException(
+            method + (key ? " requires one or two arguments"
+                : search ? " requires two arguments" : " requires one argument"));
+        Node first = arguments.get(0), second = count > 1 ? arguments.get(1) : null;
+        require(first.type, key ? DataType.STRING : search ? DataType.ITEM_KEY : RecipeValues.REFERENCE);
+        if (second != null) require(second.type, key ? DataType.INTEGER : DataType.STRING);
+        int depth = Math.max(first.depth, second == null ? 0 : second.depth) + 1;
+        return new Node(
+            key ? DataType.ITEM_KEY : search ? RecipeValues.QUERY : RecipeValues.RESOLUTION,
+            depth,
+            key && first.constant && (second == null || second.constant)) {
+
+            @Override
+            protected DataValue compute(DataRuntime runtime) {
+                runtime.work(1);
+                DataValue a = first.evaluate(runtime);
+                DataValue b = second == null ? null : second.evaluate(runtime);
+                if (key) return runtime.itemKey(a.asString(), b == null ? 0 : b.asLong());
+                if (search) return runtime.recipes(a.asItemIdentity(), b.asString());
+                return runtime.recipe(a);
+            }
+        };
+    }
+
     private static Node collectionPlan(DynamicArrayFunctions.Operation operation, Node target, List<Node> arguments,
         DataType result, int depth, boolean constant) {
         return new Node(result, depth, constant) {
@@ -1248,6 +1277,8 @@ public final class DataCompiler {
     /** Fixed-arity primitives share expression work without allocating a player call frame. */
     private static Node builtinCall(String name, List<Node> arguments) {
         String method = name.toUpperCase(Locale.ROOT);
+        if (method.equals("ITEMKEY") || method.equals("RECIPES") || method.equals("RECIPE"))
+            return recipeBuiltin(method, arguments);
         if (method.equals("TOTAL") || method.equals("STOCK") || method.equals("SHORTAGE"))
             return stockBuiltin(method, arguments);
         int arity;

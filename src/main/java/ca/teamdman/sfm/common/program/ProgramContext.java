@@ -22,6 +22,7 @@ import net.minecraftforge.fluids.IFluidHandler;
 import ca.teamdman.sfm.common.inventory.InventoryUtils;
 import ca.teamdman.sfm.common.label.LabelPositionHolder;
 import ca.teamdman.sfm.common.network.CableNetwork;
+import ca.teamdman.sfm.common.recipe.RecipeCatalogService;
 import ca.teamdman.sfm.common.recovery.ItemRecovery;
 import ca.teamdman.sfm.common.tileentity.LogLevel;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
@@ -34,6 +35,9 @@ import ca.teamdman.sfml.ast.OutputStatement;
 import ca.teamdman.sfml.ast.RedstoneOutputStatement;
 import ca.teamdman.sfml.ast.ResourceLimit;
 import ca.teamdman.sfml.ast.ResourceLimits;
+import ca.teamdman.sfml.data.ItemIdentity;
+import ca.teamdman.sfml.data.QueryBudget;
+import ca.teamdman.sfml.data.recipe.RecipeCatalog;
 
 public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
 
@@ -233,6 +237,16 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
     public ca.teamdman.sfml.data.ItemContents contents(ca.teamdman.sfml.data.LabelReference source,
         ca.teamdman.sfml.data.ResourceSelector selector, ca.teamdman.sfml.data.QueryBudget budget) {
         return itemQueries().contents(source, selector, budget);
+    }
+
+    @Override
+    public RecipeCatalog.Result recipes(ItemIdentity output, String map, QueryBudget budget) {
+        return RecipeCatalogService.INSTANCE.find(output, map, budget);
+    }
+
+    @Override
+    public RecipeCatalog.Result recipe(RecipeCatalog.Token reference, QueryBudget budget) {
+        return RecipeCatalogService.INSTANCE.resolve(reference, budget);
     }
 
     @Override

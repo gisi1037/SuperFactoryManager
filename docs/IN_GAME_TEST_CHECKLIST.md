@@ -587,6 +587,42 @@ end
   or over-32-bit offsets fault with header coordinates. Visual refuses runtime
   offset headers without discarding code. Check native/VS Code hover and insert.
 
+## R1: Recipe inspection (read-only)
+
+Read-only recipe inspection starts with an exact output key and an explicit GT
+map. See [recipe queries](RECIPE_QUERIES.md) for the complete result schema,
+coverage statuses, matching rules and bounds. This example only prints data.
+
+```sfml
+name "Inspect an iron plate recipe"
+every 100 ticks {
+  let found = recipes(itemkey("gregtech:gt.metaitem.01", 17032), "gt.recipe.metalbender")
+  print(found.status, len(found.recipes), found.ambiguous)
+  if(found.coverageComplete and len(found.recipes) == 1) {
+    let details = recipe(found.recipes[0].reference)
+    if(details.status == "matches") {
+      for ingredient in details.recipes[0].itemInputs {
+        print(ingredient.item, ingredient.amount, ingredient.chance, ingredient.matching)
+      }
+    }
+  }
+}
+```
+- [ ] Enable PRINT capture, imprint this saved program and run it on a connected
+  manager. Bender iron plate should report a single candidate and show iron plus
+  a required nonconsumed circuit (amount0). No items/fluids should move.
+- [ ] Change output to itemkey("gregtech:gt.metaitem.01",18032): ambiguity should
+  be explicit. Check itemkey("minecraft:flint") with gt.recipe.macerator for a
+  1000/10000 byproduct chance; cutter minecraft:planks metadata0 has fluid inputs
+  and multiple candidates. Select only a candidate you intended to inspect.
+- [ ] Unsupported maps, missing exact metadata/NBT matches and work limits must
+  show explicit statuses, never a false unique match. Pause/resume and restart:
+  saved references should become stale after a new catalog session; search again.
+- [ ] Verify Studio/VS Code insertion, hover information and compiler diagnostics
+  for itemkey/recipes/recipe. Visual must refuse unsupported source without loss.
+- [ ] Operator-only background check: /sfmprofile recipecheck gt.recipe.metalbender
+  gregtech:gt.metaitem.01 17032. It must print the SFML view check success message.
+
 ## D2: Direct Storage Drawers sources
 
 - [ ] Connect a standard drawer directly as label "source" and a vanilla chest as

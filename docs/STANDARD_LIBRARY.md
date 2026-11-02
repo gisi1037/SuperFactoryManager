@@ -238,7 +238,17 @@ aggregate service work. Registry/world callbacks stay on the server thread.
   allocations/GC, snapshot/index memory, index rebuild and concurrent authoring.
   Caps alone are not a tick-time guarantee or a numerical performance claim.
 
-RANDOM(minimum, maximum) is a runtime INTEGER primitive with inclusive signed
-64-bit bounds, never constant-folded or allowed in STATE defaults. A timer may
-use PLUS (RANDOM(0,19)) to choose one offset per manager execution state without
-changing its fixed period. Runtime-adjustable periods remain planned.
+RANDOM(minimum, maximum) is now a runtime INTEGER primitive with inclusive signed
+64-bit bounds. It is not constant-folded and is not permitted in STATE defaults.
+EVERY 20 PLUS (RANDOM(0, 19)) TICKS keeps a fixed period and snapshots one offset
+per manager execution state. Runtime interval changes are still planned.
+
+
+## R1 read-only inspection API
+
+The first explicit-map inspection slice now provides itemkey(id[,metadata]),
+recipes(exactOutput,map) summaries and recipe(reference) details. See
+[recipe queries](RECIPE_QUERIES.md) for current syntax and schemas; earlier R1-R4
+examples remain design illustrations. Machine-map inference, NEI selection and
+feasibility/feeding helpers are separate follow-ups. No automatic crafting is
+provided by these calls.

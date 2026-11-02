@@ -79,9 +79,9 @@ remain separate work.
 ## Planned, not callable today
 
 - Cross-player library sharing, nested library imports and module constants.
-- Server recipe candidates/requirements, machine recipe-map resolution and
-  optional NEI selection tools. GuideNH displaying a crafting recipe is separate
-  from an SFML recipe-query API.
+- Automatic machine recipe-map resolution and optional NEI selection tools.
+  Read-only recipe candidates/requirements for three explicit GT maps are available
+  through [recipe inspection](/advanced/recipes.md). GuideNH crafting displays are separate.
 - A graphical NBT tree, universal durability adapters and more collection/string helpers.
 - Cable-based network label editing and inventory-content browsing.
 - Runtime-adjustable scheduling and event-driven destination availability.

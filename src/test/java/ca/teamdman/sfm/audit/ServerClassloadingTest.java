@@ -68,7 +68,7 @@ class ServerClassloadingTest {
             "ca.teamdman.sfm.common.program.project.StationProjectService", "ca.teamdman.sfm.common.block.BlockCable",
             "ca.teamdman.sfm.common.network.CableLabelEditor", "ca.teamdman.sfm.common.net.CableLabelData",
             "ca.teamdman.sfml.data.recipe.RecipeDescriptor", "ca.teamdman.sfml.data.recipe.RecipeCatalog",
-            "ca.teamdman.sfm.compat.storagedrawers.DrawerItemSource",
+            "ca.teamdman.sfml.data.RecipeValues", "ca.teamdman.sfm.compat.storagedrawers.DrawerItemSource",
             "ca.teamdman.sfm.common.recipe.RecipeCatalogService",
             "ca.teamdman.sfm.compat.gregtech.GregTechRecipeCatalogAdapter" }) {
             assertNotNull(

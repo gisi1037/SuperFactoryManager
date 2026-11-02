@@ -11,7 +11,7 @@ public enum SnippetCategory {
     COLLECTION("Arrays", "Fixed arrays, structs, nested reads and updates", 0x4EC9B0),
     STRING("Strings", "String literals, concatenation, equality and escapes", 0xCE9178),
     MATH("Math", "Integer arithmetic, comparisons and 64-bit bitwise operators", 0xB5CEA8),
-    QUERY("Queries", "Typed item observations and native Redstone Port input queries", 0xDCDCAA);
+    QUERY("Queries", "Item/fluid observations, recipe inspection and Redstone Port inputs", 0xDCDCAA);
 
     private final String displayName;
     private final int color;

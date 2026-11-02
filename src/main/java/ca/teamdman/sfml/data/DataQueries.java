@@ -1,7 +1,17 @@
 package ca.teamdman.sfml.data;
 
+import ca.teamdman.sfml.data.recipe.RecipeCatalog;
+
 /** Observation boundary injected by the server execution context; expressions own no world objects. */
 public interface DataQueries {
+
+    default RecipeCatalog.Result recipes(ItemIdentity exactOutput, String map, QueryBudget budget) {
+        return RecipeCatalog.unavailable(RecipeCatalog.Status.UNSUPPORTED);
+    }
+
+    default RecipeCatalog.Result recipe(RecipeCatalog.Token reference, QueryBudget budget) {
+        return RecipeCatalog.unavailable(RecipeCatalog.Status.UNSUPPORTED);
+    }
 
     default long fluidCount(LabelReference source, ResourceSelector selector, QueryBudget budget) {
         throw new UnsupportedOperationException("Fluid observations require a native fluid query service");

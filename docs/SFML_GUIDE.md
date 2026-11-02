@@ -2601,3 +2601,25 @@ Random phases reduce clumping, but can collide; this is not a guaranteed load
 balancer or a reduction in the work performed. Interval changes/new random delays
 on each run remain separate future work. Runtime offset headers require Code mode;
 Visual refuses them rather than silently dropping scheduling behavior.
+
+## Inspect recipe requirements
+
+Read-only recipe inspection starts with an exact output key and an explicit GT
+map. See [recipe queries](RECIPE_QUERIES.md) for the complete result schema,
+coverage statuses, matching rules and bounds. This example only prints data.
+
+```sfml
+name "Inspect an iron plate recipe"
+every 100 ticks {
+  let found = recipes(itemkey("gregtech:gt.metaitem.01", 17032), "gt.recipe.metalbender")
+  print(found.status, len(found.recipes), found.ambiguous)
+  if(found.coverageComplete and len(found.recipes) == 1) {
+    let details = recipe(found.recipes[0].reference)
+    if(details.status == "matches") {
+      for ingredient in details.recipes[0].itemInputs {
+        print(ingredient.item, ingredient.amount, ingredient.chance, ingredient.matching)
+      }
+    }
+  }
+}
+```

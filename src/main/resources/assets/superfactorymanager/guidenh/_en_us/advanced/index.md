@@ -38,6 +38,7 @@ complete examples, diagnostics, recovery, performance limits and feature status.
 - [Reusable functions](libraries.md): publish your own library and pin its exact
   revision in several programs.
 - [Read item NBT](nbt.md): inspect captured heat, wear and other typed tags.
+- [Inspect machine recipes](recipes.md): find candidates, then read requirements and chances.
 - [Labels and cable networks](labels.md): gun controls, grouped selections and
   connection rules.
 - [Recipes and cable shapes](hardware.md): progression, conversions and saved-item rules.
