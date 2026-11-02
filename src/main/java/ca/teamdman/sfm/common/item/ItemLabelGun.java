@@ -17,6 +17,9 @@ import net.minecraft.world.World;
 
 import ca.teamdman.sfm.SuperFactoryManager;
 import ca.teamdman.sfm.common.label.LabelPositionHolder;
+import ca.teamdman.sfm.common.program.ManagerNetworkBrowser;
+import ca.teamdman.sfm.common.program.ProgramDiskData;
+import ca.teamdman.sfm.common.program.ProgramStateStore;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 import ca.teamdman.sfm.common.util.BlockPos;
 import ca.teamdman.sfm.compat.Compat;
@@ -276,8 +279,15 @@ public class ItemLabelGun extends Item {
                                 + " labels from Manager's Disk to Label Gun!"));
                 } else {
                     // Push from Gun to Disk
-                    LabelPositionHolder.saveTo(disk, gunHolder);
-                    manager.markDirty();
+                    try {
+                        pushLabels(manager, disk, world, targetPos, gunHolder);
+                    } catch (RuntimeException refused) {
+                        player.addChatMessage(
+                            new ChatComponentText(
+                                EnumChatFormatting.RED
+                                    + "[SFM] Labels unchanged: disk changed, recovery is pending, or disk metadata exceeds the 30,000-byte limit."));
+                        return true;
+                    }
                     if (Compat.isStevesAddonsLoaded()) {
                         StevesAddonsCompat.syncAll(world, gunHolder);
                     }
@@ -413,6 +423,43 @@ public class ItemLabelGun extends Item {
         }
 
         return true;
+    }
+
+    /** Validate a read-only candidate, then change only the live labels tag. Never replace heap STATE. */
+    private static void pushLabels(TileEntityManager manager, ItemStack disk, World world, BlockPos position,
+        LabelPositionHolder labels) {
+        long generation = manager.getDiskGeneration();
+        if (disk.stackSize != 1 || !(disk.getItem() instanceof ItemDisk)
+            || ProgramDiskData.mode(disk) == ProgramDiskData.Mode.INVALID
+            || manager.hasPendingRecovery()) throw new IllegalStateException("Unsupported disk or pending recovery");
+        manager.flushProgramState();
+        NBTTagCompound root = disk.getTagCompound();
+        net.minecraft.nbt.NBTBase oldLabels = root == null ? null : root.getTag(LabelPositionHolder.NBT_KEY);
+        net.minecraft.nbt.NBTBase expectedLabels = oldLabels == null ? null : oldLabels.copy();
+        ItemStack preview = new ItemStack(disk.getItem(), 1, disk.getItemDamage());
+        NBTTagCompound candidate = new NBTTagCompound();
+        if (root != null) for (String key : root.func_150296_c()) candidate.setTag(key, root.getTag(key));
+        preview.setTagCompound(candidate);
+        LabelPositionHolder.saveTo(preview, labels);
+        ProgramStateStore.validateCompleteDisk(preview);
+        ManagerNetworkBrowser.strictLabels(preview);
+        // Chunk/neighbor callbacks from STATE flushing can replace the physical Manager or its disk.
+        if (manager.isInvalid() || manager.getWorldObj() != world
+            || !position.isLoaded(world)
+            || position.getTileEntity(world) != manager
+            || manager.getDisk() != disk
+            || manager.getDiskGeneration() != generation
+            || manager.hasPendingRecovery()
+            || disk.getTagCompound() != root
+            || (expectedLabels == null ? root != null && root.hasKey(LabelPositionHolder.NBT_KEY)
+                : !expectedLabels.equals(root.getTag(LabelPositionHolder.NBT_KEY))))
+            throw new IllegalStateException("Manager or disk changed before label sync");
+        if (root == null) {
+            root = new NBTTagCompound();
+            disk.setTagCompound(root);
+        }
+        root.setTag(LabelPositionHolder.NBT_KEY, candidate.getTag(LabelPositionHolder.NBT_KEY));
+        manager.markDirty();
     }
 
     @Override
