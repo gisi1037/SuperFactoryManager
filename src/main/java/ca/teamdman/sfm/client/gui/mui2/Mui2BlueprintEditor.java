@@ -64,6 +64,9 @@ public final class Mui2BlueprintEditor implements ProgramEditSession.Receiver {
     private Pin wirePin;
     private TextFieldWidget field;
     private Canvas canvas;
+    private ModularPanel panel;
+    private final List<ButtonWidget<?>> toolbar = new ArrayList<>(), palette = new ArrayList<>();
+    private int layoutWidth = -1, layoutPalette = -1;
     private String property = "", status = "Loading program from server", preview = "";
     private String[] previewLines = new String[0];
     private SfmlHighlighter.Highlighted highlighted = SfmlHighlighter.highlight("");
@@ -85,7 +88,8 @@ public final class Mui2BlueprintEditor implements ProgramEditSession.Receiver {
     }
 
     public ModularPanel build() {
-        ModularPanel panel = new ModularPanel("sfm_blueprint") {
+        if (panel != null) return panel;
+        panel = new ModularPanel("sfm_blueprint") {
 
             @Override
             public void closeIfOpen() {
@@ -116,6 +120,7 @@ public final class Mui2BlueprintEditor implements ProgramEditSession.Receiver {
             @Override
             public void postResize() {
                 super.postResize();
+                if (layoutControls(getArea().w())) scheduleResize();
                 int x = Math.max(2, Math.min(getArea().rx, getParentArea().w() - getArea().w() - 2));
                 int y = Math.max(2, Math.min(getArea().ry, getParentArea().h() - getArea().h() - 2));
                 if (x != getArea().rx || y != getArea().ry) {
@@ -147,36 +152,36 @@ public final class Mui2BlueprintEditor implements ProgramEditSession.Receiver {
             .heightRel(.98f)
             .resizeableOnDrag(true)
             .onCloseAction(this::cancel);
-        String[] titles = { "Save", "Cancel", "Text", "Preview", "Fit", "Undo", "Copy", "Name", "Delete" };
+        String[] titles = { "Save", "Cancel", "Text", "Preview", "Fit", "Undo", "Copy", "Name", "Delete", "Nodes >" };
         for (int i = 0; i < titles.length; i++) {
             final int action = i;
-            panel.child(
-                button(titles[i], 6 + (i % 5) * 58, 5 + (i / 5) * 23, 54, () -> action(action))
-                    .overlay(IKey.dynamic(() -> (enabled(action) ? "" : "\u00a78") + titles[action])));
+            ButtonWidget<?> control = button(titles[i], 6, 5, 54, () -> action(action))
+                .overlay(IKey.dynamic(() -> (enabled(action) ? "" : "\u00a78") + titles[action]));
+            toolbar.add(control);
+            panel.child(control);
         }
-        panel.child(button("Nodes >", 238, 28, 54, () -> action(9)));
         for (int i = 0; i < 8; i++) {
             final int slot = i;
-            panel.child(
-                button("", 6 + (i % 5) * 58, 51 + (i / 5) * 23, 54, () -> action(10 + nodePage * 8 + slot))
-                    .overlay(
-                        IKey.dynamic(
-                            () -> nodePage * 8 + slot < Type.values().length
-                                ? Type.values()[nodePage * 8 + slot].menuTitle()
-                                : ""))
-                    .setEnabledIf(widget -> editable() && nodePage * 8 + slot < Type.values().length));
+            ButtonWidget<?> control = button("", 6, 5, 54, () -> action(10 + nodePage * 8 + slot)).overlay(
+                IKey.dynamic(
+                    () -> nodePage * 8 + slot < Type.values().length ? Type.values()[nodePage * 8 + slot].menuTitle()
+                        : ""))
+                .setEnabledIf(widget -> propertiesVisible() && nodePage * 8 + slot < Type.values().length);
+            palette.add(control);
+            panel.child(control);
         }
         canvas = new Canvas();
         panel.child(
             canvas.left(8)
                 .right(8)
-                .top(99)
-                .bottom(76));
+                .top(26)
+                .bottom(28));
         panel.child(
             new TextWidget<>("Drag headers | wheel zoom/scroll | right-drag pan | right-click pin unwires").left(8)
                 .right(8)
-                .bottom(61)
-                .height(12));
+                .bottom(45)
+                .height(10)
+                .setEnabledIf(widget -> propertiesVisible()));
         field = new TextFieldWidget() {
 
             @Override
@@ -203,38 +208,47 @@ public final class Mui2BlueprintEditor implements ProgramEditSession.Receiver {
             .value(new StringValue.Dynamic(() -> property, value -> property = value));
         panel.child(
             field.left(8)
-                .right(82)
-                .bottom(39)
-                .height(18));
+                .right(66)
+                .bottom(29)
+                .height(14)
+                .setEnabledIf(widget -> propertiesVisible()));
         panel.child(
             new ButtonWidget<>().right(8)
-                .bottom(39)
-                .size(68, 20)
+                .bottom(29)
+                .size(52, 14)
                 .overlay(IKey.str("Apply"))
                 .onMousePressed(button -> {
                     if (button != 0) return false;
                     safeApply();
                     return true;
                 })
-                .overlay(IKey.dynamic(() -> (editable() ? "" : "\u00a78") + "Apply")));
+                .overlay(IKey.dynamic(() -> (editable() ? "" : "\u00a78") + "Apply"))
+                .setEnabledIf(widget -> propertiesVisible()));
         panel.child(
-            new TextWidget<>(IKey.dynamic(() -> status)).left(8)
+            new TextWidget<>(IKey.dynamic(this::statusLine)).left(8)
                 .right(8)
-                .bottom(22)
-                .height(12));
+                .bottom(16)
+                .height(10)
+                .addTooltipLine(IKey.dynamic(() -> status)));
         panel.child(
             new TextWidget<>(
-                IKey.dynamic(() -> editingName ? "NAME header" : "Selected node SFML clause; Enter or Apply commits"))
-                    // Stock pack inventory buttons occupy the bottom-left 40 logical pixels.
-                    .left(48)
-                    .right(8)
-                    .bottom(7)
-                    .height(12));
+                IKey.dynamic(
+                    () -> !propertiesVisible() ? "Read-only preview; choose Text to edit."
+                        : editingName ? "NAME header" : "Selected node SFML clause; Enter or Apply commits"))
+                            // Stock pack inventory buttons occupy the bottom-left 40 logical pixels.
+                            .left(48)
+                            .right(8)
+                            .bottom(4)
+                            .height(10));
         return panel;
     }
 
     public void tick() {
         if (cancelled) return;
+        if (panel != null && layoutControls(
+            panel.getArea()
+                .w()))
+            panel.scheduleResize();
         if (!opened) {
             opened = true;
             editSession.open();
@@ -431,6 +445,63 @@ public final class Mui2BlueprintEditor implements ProgramEditSession.Receiver {
 
     private boolean editable() {
         return !cancelled && !recoveryOnly && graph != null && editSession.state.isEditable();
+    }
+
+    private boolean propertiesVisible() {
+        return editable() && !showPreview;
+    }
+
+    private boolean layoutControls(int width) {
+        if (canvas == null) return false;
+        int count = propertiesVisible() ? Math.max(0, Math.min(8, Type.values().length - nodePage * 8)) : -1;
+        if (layoutWidth == width && layoutPalette == count) return false;
+        layoutWidth = width;
+        layoutPalette = count;
+        HeaderLayout layout = new HeaderLayout(width, Math.max(0, count));
+        for (int i = 0; i < toolbar.size(); i++) toolbar.get(i)
+            .pos(layout.x(i), layout.y(i));
+        for (int i = 0; i < palette.size(); i++) palette.get(i)
+            .pos(layout.x(i), layout.paletteY(i));
+        canvas.top(layout.canvasTop)
+            .bottom(count >= 0 ? 57 : 28);
+        return true;
+    }
+
+    private String statusLine() {
+        int newline = status.indexOf('\n');
+        String first = newline < 0 ? status : status.substring(0, newline) + " (hover for details)";
+        return Minecraft.getMinecraft().fontRenderer.trimStringToWidth(
+            first,
+            Math.max(
+                40,
+                panel.getArea()
+                    .w() - 16));
+    }
+
+    /** Only visible controls reserve space; unsupported/read-only previews never leave empty node rows. */
+    public static final class HeaderLayout {
+
+        public final int columns, canvasTop;
+        private final int paletteTop;
+
+        public HeaderLayout(int width, int paletteCount) {
+            columns = Math.max(1, Math.min(10, (Math.max(1, width - 12) + 4) / 58));
+            int toolbarBottom = 5 + ((10 + columns - 1) / columns) * 18;
+            paletteTop = toolbarBottom + 2;
+            canvasTop = toolbarBottom + 3 + (paletteCount > 0 ? 2 + ((paletteCount + columns - 1) / columns) * 18 : 0);
+        }
+
+        public int x(int index) {
+            return 6 + index % columns * 58;
+        }
+
+        public int y(int index) {
+            return 5 + index / columns * 18;
+        }
+
+        public int paletteY(int index) {
+            return paletteTop + index / columns * 18;
+        }
     }
 
     private boolean enabled(int action) {
@@ -870,7 +941,7 @@ public final class Mui2BlueprintEditor implements ProgramEditSession.Receiver {
 
     private static ButtonWidget<?> button(String title, int x, int y, int width, Runnable action) {
         return new ButtonWidget<>().pos(x, y)
-            .size(width, 20)
+            .size(width, 14)
             .overlay(IKey.str(title))
             .onMousePressed(button -> {
                 if (button != 0) return false;

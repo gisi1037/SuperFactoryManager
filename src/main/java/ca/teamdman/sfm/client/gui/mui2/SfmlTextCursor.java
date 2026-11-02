@@ -36,10 +36,14 @@ public final class SfmlTextCursor {
             .getTopHovered() : null;
         boolean text = hovered != null && hovered.isEnabled()
             && (hovered instanceof SfmlCodeEditorWidget || hovered instanceof BaseTextFieldWidget);
+        if (!text) {
+            set(false, 0);
+            return;
+        }
         Minecraft mc = Minecraft.getMinecraft();
-        int height = text && hovered.getPanel() instanceof StudioScaledPanel ? StudioScaledPanel.textLinePixels()
+        int height = hovered.getPanel() instanceof StudioScaledPanel ? StudioScaledPanel.textLinePixels()
             : 10 * new ScaledResolution(mc, mc.displayWidth, mc.displayHeight).getScaleFactor();
-        set(text, Math.max(14, Math.min(60, height + 2)));
+        set(true, Math.max(10, Math.min(22, Math.round(height * .7f))));
     }
 
     @SubscribeEvent
@@ -98,7 +102,6 @@ public final class SfmlTextCursor {
 
     private static boolean beam(int x, int y, int center, int halfHeight) {
         int distance = Math.abs(y - center);
-        return Math.abs(x - center) <= 1 && distance <= halfHeight
-            || Math.abs(x - center) <= 4 && distance == halfHeight;
+        return x == center && distance <= halfHeight || Math.abs(x - center) <= 2 && distance == halfHeight;
     }
 }
