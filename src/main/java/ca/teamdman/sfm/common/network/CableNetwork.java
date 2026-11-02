@@ -25,6 +25,8 @@ public final class CableNetwork {
     // Only networks that have observed named native edges register here. Both levels
     // are weak: the event registry must not keep managers or unloaded worlds alive.
     private static final Map<World, Map<CableNetwork, Boolean>> EDGE_NETWORKS = new WeakHashMap<>();
+    // Open discovery tools only. Weak keys release a closed window's footprint without a global cleanup tick.
+    private static final Map<World, Map<DiscoveryFence, Boolean>> DISCOVERY_FENCES = new WeakHashMap<>();
     private static final int SCAN_INTERVAL = 21;
     private boolean trackingTopology;
     private long topologyGeneration;
@@ -50,6 +52,8 @@ public final class CableNetwork {
     private static void invalidate(World world, BlockPos pos, Long chunk) {
         if (world == null || world.isRemote) return;
         VERSIONS.put(world, VERSIONS.getOrDefault(world, 0L) + 1);
+        Map<DiscoveryFence, Boolean> fences = DISCOVERY_FENCES.get(world);
+        if (fences != null) for (DiscoveryFence fence : fences.keySet()) fence.invalidate(pos, chunk);
         Map<CableNetwork, Boolean> subscribers = EDGE_NETWORKS.get(world);
         if (subscribers == null) return;
         // O(native-subscribed networks), constant-time footprint checks, no world
@@ -71,6 +75,35 @@ public final class CableNetwork {
     /** Read-only discovery fence. Reading this counter never scans a network or subscribes a Manager. */
     public static long getWorldRevision(World world) {
         return version(world);
+    }
+
+    static synchronized DiscoveryFence watchDiscovery(World world) {
+        DiscoveryFence fence = new DiscoveryFence();
+        DISCOVERY_FENCES.computeIfAbsent(world, key -> new WeakHashMap<>())
+            .put(fence, Boolean.TRUE);
+        return fence;
+    }
+
+    /** Coordinates/chunks only, with no strong World, tile, inventory or Manager reference. */
+    static final class DiscoveryFence {
+
+        private final Set<BlockPos> positions = new HashSet<>();
+        private final Set<Long> chunks = new HashSet<>();
+        private volatile boolean invalidated;
+
+        synchronized void observe(BlockPos position) {
+            positions.add(position);
+            chunks.add(chunkKey(position.x >> 4, position.z >> 4));
+        }
+
+        private synchronized void invalidate(BlockPos position, Long chunk) {
+            if (position == null && chunk == null || position != null && positions.contains(position)
+                || chunk != null && chunks.contains(chunk)) invalidated = true;
+        }
+
+        boolean isCurrent() {
+            return !invalidated;
+        }
     }
 
     private boolean needsScan() {

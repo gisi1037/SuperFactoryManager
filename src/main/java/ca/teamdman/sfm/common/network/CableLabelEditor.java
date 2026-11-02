@@ -56,7 +56,8 @@ public final class CableLabelEditor {
     private final Block cable;
     private final UUID session;
     private CableNetworkDiscovery scan;
-    private long revision = 1, topology, lastTick = Long.MIN_VALUE;
+    private long revision = 1, lastTick = Long.MIN_VALUE;
+    private CableNetworkDiscovery.Snapshot component, network;
     private long lastActionTick = Long.MIN_VALUE;
     private Work work = Work.SCAN;
     private Mode mode = Mode.BUSY;
@@ -117,7 +118,7 @@ public final class CableLabelEditor {
         }
         lastTick = now;
         lastWorkUnits = 0;
-        if (CableNetwork.getWorldRevision(world) != topology) {
+        if (!topologyCurrent()) {
             stale("Network changed. Refresh before editing.");
             return;
         }
@@ -139,6 +140,7 @@ public final class CableLabelEditor {
                 CableNetworkDiscovery.Snapshot snapshot = scan.getSnapshot();
                 scan = null;
                 if (manager == null) {
+                    component = snapshot;
                     if (snapshot.managers.size() > MAX_MANAGERS)
                         throw invalid("More than 64 Managers on this component.");
                     positions = new ArrayList<>(snapshot.managers);
@@ -148,6 +150,7 @@ public final class CableLabelEditor {
                     return;
                 }
                 if (!snapshot.cables.contains(root)) throw invalid("Selected Manager no longer reaches this cable.");
+                network = snapshot;
                 if (snapshot.peripherals.size() > MAX_BLOCKS)
                     throw invalid("More than 8192 connected blocks; reduce network size.");
                 positions = new ArrayList<>(snapshot.peripherals);
@@ -316,7 +319,8 @@ public final class CableLabelEditor {
     }
 
     private void refresh() {
-        topology = CableNetwork.getWorldRevision(world);
+        component = null;
+        network = null;
         manager = null;
         disk = null;
         expectedLabels = null;
@@ -337,8 +341,7 @@ public final class CableLabelEditor {
     }
 
     private void choose(BlockPos pos) {
-        if (CableNetwork.getWorldRevision(world) != topology || !pos.isLoaded(world))
-            throw invalid("Network changed. Refresh.");
+        if (!topologyCurrent() || !pos.isLoaded(world)) throw invalid("Network changed. Refresh.");
         TileEntity tile = pos.getTileEntity(world);
         if (!(tile instanceof TileEntityManager) || tile.isInvalid()) throw invalid("Manager unavailable. Refresh.");
         TileEntityManager candidate = (TileEntityManager) tile;
@@ -373,8 +376,7 @@ public final class CableLabelEditor {
             if (name.charAt(i) < 32 || name.charAt(i) == 127 || name.charAt(i) == '\u00a7')
                 throw invalid("Label contains a control character.");
         BoundedUtf8.encode(name, 768);
-        if (CableNetwork.getWorldRevision(world) != topology || !bindingCurrent())
-            throw invalid("Labels or network changed. Refresh.");
+        if (!topologyCurrent() || !bindingCurrent()) throw invalid("Labels or network changed. Refresh.");
         if (!targetsCurrent()) throw invalid("A selected block changed. Refresh.");
         if (manager.hasPendingRecovery())
             throw invalid("Resolve the selected Manager's transfer recovery before label edits.");
@@ -402,9 +404,7 @@ public final class CableLabelEditor {
             throw invalid("Label edit exceeds the 30,000-byte disk NBT limit or cannot be encoded safely.");
         }
         readLabels(preview);
-        if (!canInteract(owner) || !bindingCurrent()
-            || !targetsCurrent()
-            || CableNetwork.getWorldRevision(world) != topology)
+        if (!canInteract(owner) || !bindingCurrent() || !targetsCurrent() || !topologyCurrent())
             throw invalid("Session changed before applying labels.");
         if (rootTag == null) {
             rootTag = new NBTTagCompound();
@@ -435,6 +435,10 @@ public final class CableLabelEditor {
                 || pos.getTileEntity(world) != expected) return false;
         }
         return true;
+    }
+
+    private boolean topologyCurrent() {
+        return (component == null || component.isCurrent()) && (network == null || network.isCurrent());
     }
 
     private boolean bindingCurrent() {

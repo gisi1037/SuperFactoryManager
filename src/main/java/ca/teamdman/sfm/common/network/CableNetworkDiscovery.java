@@ -41,6 +41,7 @@ public final class CableNetworkDiscovery {
 
         public final Set<BlockPos> cables, peripherals, managers, unloaded;
         public final long revision;
+        private final CableNetwork.DiscoveryFence fence;
 
         private Snapshot(CableNetworkDiscovery discovery) {
             cables = immutable(discovery.cables);
@@ -48,6 +49,12 @@ public final class CableNetworkDiscovery {
             managers = immutable(discovery.managers);
             unloaded = immutable(discovery.unloaded);
             revision = discovery.revision;
+            fence = discovery.fence;
+        }
+
+        /** Supported edits/chunk transitions on observed cells fence this snapshot; unrelated world work does not. */
+        public boolean isCurrent() {
+            return fence.isCurrent();
         }
 
         private static Set<BlockPos> immutable(Set<BlockPos> positions) {
@@ -59,6 +66,7 @@ public final class CableNetworkDiscovery {
     private final BlockPos root;
     private final boolean managerRoot;
     private final long revision;
+    private final CableNetwork.DiscoveryFence fence;
     private final Queue<BlockPos> pending = new ArrayDeque<>();
     private final Set<BlockPos> seen = new HashSet<>();
     private final Set<BlockPos> cables = new LinkedHashSet<>(), peripherals = new LinkedHashSet<>(),
@@ -76,6 +84,7 @@ public final class CableNetworkDiscovery {
         this.root = root;
         this.managerRoot = managerRoot;
         revision = CableNetwork.getWorldRevision(world);
+        fence = CableNetwork.watchDiscovery(world);
         enqueue(root);
     }
 
@@ -124,11 +133,10 @@ public final class CableNetworkDiscovery {
         return pending.isEmpty() ? finish(Status.COMPLETE) : status;
     }
 
-    /** Broad existing topology/chunk invalidation is conservative; callers must explicitly refresh stale scans. */
+    /** Observed air neighbors are included, so a new cable extending this component also invalidates the scan. */
     public Status getStatus() {
         requireServer(world);
-        if ((status == Status.SCANNING || status == Status.COMPLETE)
-            && revision != CableNetwork.getWorldRevision(world)) finish(Status.STALE);
+        if ((status == Status.SCANNING || status == Status.COMPLETE) && !fence.isCurrent()) finish(Status.STALE);
         return status;
     }
 
@@ -145,6 +153,7 @@ public final class CableNetworkDiscovery {
         if (!valid(position) || seen.contains(position)) return true;
         if (seen.size() == MAX_POSITIONS) return false;
         seen.add(position);
+        fence.observe(position);
         pending.add(position);
         return true;
     }

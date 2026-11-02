@@ -212,6 +212,52 @@ class CableNetworkDiscoveryTest {
         assertEquals(0, world.blockReads);
     }
 
+    @Test
+    void unrelatedWorldChurnDoesNotDiscardPartialOrCompletedFootprints() throws Exception {
+        FakeWorld world = world();
+        BlockCable cable = new BlockCable();
+        for (int x = 0; x < 100; x++) world.blocks.put(new BlockPos(x, 64, 0), cable);
+        CableNetworkDiscovery scan = CableNetworkDiscovery.fromCable(world, MANAGER);
+        assertEquals(SCANNING, scan.advance());
+        CableNetwork.invalidate(world, 10000, 64, 10000);
+        CableNetwork.invalidateChunk(world, 2000, 2000);
+        assertEquals(SCANNING, scan.getStatus());
+        while (scan.getStatus() == SCANNING) {
+            world.time++;
+            scan.advance();
+        }
+        Snapshot snapshot = scan.getSnapshot();
+        CableNetwork.invalidate(world, 20000, 64, 20000);
+        assertEquals(COMPLETE, scan.getStatus());
+        assertTrue(snapshot.isCurrent());
+        int reads = world.blockReads;
+        // This air neighbor was observed even though it contained no cable or inventory.
+        CableNetwork.invalidate(world, 0, 65, 0);
+        assertFalse(snapshot.isCurrent());
+        assertEquals(STALE, scan.getStatus());
+        assertEquals(reads, world.blockReads, "Footprint notifications never inspect the world");
+    }
+
+    @Test
+    void aRetainedCoordinateSnapshotKeepsItsFenceAfterDiscoveryFinishes() throws Exception {
+        FakeWorld world = world();
+        world.blocks.put(MANAGER, new BlockCable());
+        Snapshot snapshot = completeSnapshot(world);
+        assertTrue(snapshot.isCurrent());
+        CableNetwork.invalidateChunk(world, 0, 0);
+        assertFalse(snapshot.isCurrent());
+        Snapshot refreshed = completeSnapshot(world);
+        assertTrue(refreshed.isCurrent());
+        CableNetwork.invalidate(world); // Unknown edit location conservatively fences every scope.
+        assertFalse(refreshed.isCurrent());
+    }
+
+    private static Snapshot completeSnapshot(FakeWorld world) {
+        CableNetworkDiscovery scan = CableNetworkDiscovery.fromCable(world, MANAGER);
+        assertEquals(COMPLETE, scan.advance());
+        return scan.getSnapshot();
+    }
+
     private static Set<BlockPos> positions(BlockPos... positions) {
         return new HashSet<>(Arrays.asList(positions));
     }

@@ -316,6 +316,35 @@ class CableLabelEditorTest {
     }
 
     @Test
+    void selectedManagerSurvivesUnrelatedChunkChurnButRefusesChangesOnItsObservedNetwork() throws Exception {
+        Fixture f = new Fixture();
+        f.open();
+        f.act(Action.ROW, 0, "");
+        f.finish();
+        f.select(ENDPOINT);
+        for (int i = 0; i < 1000; i++) {
+            CableNetwork.invalidate(f.world, 20000 + i, 64, 20000);
+            CableNetwork.invalidateChunk(f.world, 2000 + i, 2000);
+        }
+        f.world.time++;
+        f.editor.tick();
+        assertEquals(Mode.BLOCKS, f.editor.view().mode);
+        assertEquals(1, f.editor.view().selected);
+        f.act(Action.ADD, 0, "survived");
+        f.finish();
+        assertTrue(
+            LabelPositionHolder.from(f.disk)
+                .getPositions("survived")
+                .contains(ENDPOINT));
+        NBTTagCompound before = (NBTTagCompound) f.disk.getTagCompound()
+            .copy();
+        CableNetwork.invalidate(f.world, 0, 65, 0);
+        f.act(Action.ADD, 0, "must-refuse");
+        assertEquals(Mode.STALE, f.editor.view().mode);
+        assertEquals(before, f.disk.getTagCompound());
+    }
+
+    @Test
     void wireBoundsAndRoundTripsDoNotTransportSourceOrRuntimeState() {
         UUID session = UUID.randomUUID();
         for (Action action : Action.values()) {

@@ -289,3 +289,18 @@ Stable headless checks passed: 2167 tests, 2148 passed, 19 skipped, no failures
 or errors. Style, compiler bridge and GuideNH checks passed. In-game acceptance
 is P2 in IN_GAME_TEST_CHECKLIST.md; GUI, multiplayer/claims and full-pack tests
 remain open and this checkpoint is not 1.0 release certification.
+
+Native follow-up: the first GTNH 2.9.0 / Java26 run exposed unrelated chunk loads
+invalidating the cable window while browsing. Discovery now retains a weakly
+registered coordinate/chunk footprint, including observed air neighbors. Changes
+inside it and unknown edits still fence snapshots; unrelated block/chunk activity
+does not clear selections. No World, tile or Manager is retained by the fence,
+and ordinary runtime discovery/redstone cache behavior is unchanged. A snapshot
+keeps its own fence after the incremental scanner is released.
+
+Regressions cover partial/completed footprints, unknown edits, adjacent extension,
+chunk unload and 1000 unrelated notifications while preserving an accepted label
+edit. Full stable checks:2170 tests,2151 passed,19 skipped,no failures/errors;
+style/compiler/GuideNH passed. Two isolated full-pack clients launched with
+3GiB heaps and verified Java26.0.2.1. Native edit/multiplayer qualification of
+this fix is still pending; startup alone is not an acceptance result.
