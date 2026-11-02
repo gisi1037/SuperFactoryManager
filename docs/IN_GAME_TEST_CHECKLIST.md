@@ -586,3 +586,30 @@ end
   inclusive range. STATE defaults reject it; program-wide LET accepts it. Negative
   or over-32-bit offsets fault with header coordinates. Visual refuses runtime
   offset headers without discarding code. Check native/VS Code hover and insert.
+
+## D2: Direct Storage Drawers sources
+
+- [ ] Connect a standard drawer directly as label "source" and a vanilla chest as
+  "dest". Store100stackable items in the drawer. Run this saved/imprinted code
+  with PRINT capture enabled:
+
+```sfml
+name "Drawer extraction check"
+every 100 ticks {
+  transfer(label("source"), label("dest"), 1) into moved
+  print(moved.status, moved.moved)
+}
+```
+
+The destination gains1 and the drawer backing count decreases1 even while its
+visible output stack remains64. Repeat with several stack-size-one items.
+
+- [ ] Test unlimited vending separately: the source stays unlimited and the
+  destination gains exactly the requested finite amount. An ordinary drawer with
+  a capacity upgrade must still decrease normally.
+- [ ] Test a nearly full destination and pause/reload. No resource duplication or
+  false recovery record should appear. Inspect any older recovery record before
+  resuming a program that already had an uncertain transfer.
+- [ ] Confirm standalone loading without Storage Drawers. Compacting, controller
+  and slave sources currently refuse before extraction pending dedicated mapping/
+  fractional-count qualification; do not count those as supported cases yet.

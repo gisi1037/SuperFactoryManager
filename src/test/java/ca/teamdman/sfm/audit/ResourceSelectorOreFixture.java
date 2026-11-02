@@ -52,6 +52,14 @@ import cpw.mods.fml.relauncher.Side;
 /** Runs only inside the isolated LaunchClassLoader owned by ResourceSelectorOreTest. */
 public final class ResourceSelectorOreFixture {
 
+    public static void storageDrawersRealVirtualStacksUseBackingQuantityForExtraction() throws Exception {
+        StorageDrawersFixture.virtualStacksUseBackingQuantity();
+    }
+
+    public static void storageDrawersRealCreativeAndFiniteRollbackConserveOwnedItems() throws Exception {
+        StorageDrawersFixture.creativeAndFiniteRollbackConserveOwnedItems();
+    }
+
     public static void legacyForgePipeNamespacesCaptureAndMatchRealRegisteredStacks() throws Exception {
         String name = "ProjRed|Exploration:sfm_legacy_identity_fixture";
         Item nativeItem = new Item();

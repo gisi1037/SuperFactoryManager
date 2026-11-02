@@ -27,6 +27,29 @@ import ca.teamdman.sfml.data.ResourceSelector;
 /** Adversarial callbacks at the final boundaries between advisory reads and physical mutations. */
 class ItemTransferCallbackTest {
 
+    @Test
+    void unchangedOrdinarySourceIsNotMistakenForCreativeStorage() throws Exception {
+        Fixture fixture = new Fixture();
+        InventoryTile dishonest = new InventoryTile(1) {
+
+            @Override
+            public ItemStack decrStackSize(int slot, int amount) {
+                ItemStack result = getStackInSlot(slot).copy();
+                result.stackSize = amount;
+                return result;
+            }
+        };
+        dishonest.setInventorySlotContents(0, stack(6));
+        fixture.world.tiles.put(SRC, dishonest);
+        ProgramContext context = context(fixture);
+        assertThrows(IllegalArgumentException.class, () -> context.transferItems(SOURCE, DEST, ALL, 1));
+        assertEquals(6, rawCount(dishonest));
+        assertEquals(0, rawCount(fixture.dest));
+        assertTrue(
+            context.getManager()
+                .hasPendingRecovery());
+    }
+
     private static final Item ITEM = new Item();
     private static final LabelReference SOURCE = LabelReference.literal("source")
         .slots(0, 0);

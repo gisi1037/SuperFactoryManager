@@ -438,3 +438,12 @@ isolated real Forge registration/capture/matching and pure identity regressions
 pass. Full2214 tests:2195 passed,19 skipped,zero failures/errors; style/compiler
 bridge/GuideNH packaging pass. Native recipe coverage retest follows; no claim
 that every unsupported recipe is now covered.
+
+Drawer prerelease checkpoint: validate standard Storage Drawers item sources by
+backing count rather than the self-refilling virtual output slot. Explicit vending
+mode supports unlimited sources; ordinary unchanged storage still fails closed.
+Known rollback uses backing storage with count/type/mode checks after capacity
+and item callbacks. Real2.2.31 implementation tests cover ordinary/stack-size-one/
+creative extraction, partial returns and a cleared drawer prototype. Compacting
+pools/controllers/slaves remain refused before extraction pending qualification.
+This checkpoint excludes the unfinished SFML recipe-query language interface.

@@ -20,6 +20,7 @@ import ca.teamdman.sfm.common.inventory.InventoryUtils;
 import ca.teamdman.sfm.common.program.ProgramContext.ItemMoveEndpoint;
 import ca.teamdman.sfm.common.program.ProgramContext.ItemMoveGuard;
 import ca.teamdman.sfm.common.util.BlockPos;
+import ca.teamdman.sfm.compat.storagedrawers.DrawerItemSource;
 import ca.teamdman.sfml.data.DataType;
 import ca.teamdman.sfml.data.DataValue;
 import ca.teamdman.sfml.data.ItemIdentity;
@@ -465,6 +466,7 @@ public final class ItemTransferService {
         QueryBudget.Reservation reservation;
         boolean attempted;
         int beforeCount, attemptedCount;
+        DrawerItemSource.Observation drawerSource;
 
         Guard(Endpoint source, ForgeDirection sourceSide, Endpoint target, ForgeDirection targetSide,
             ItemIdentity expected) {
@@ -498,7 +500,16 @@ public final class ItemTransferService {
             int allocations = Math.addExact(
                 COMMIT_VIEW_CHECKS * 9 + COMMIT_COMPARISONS,
                 Math.multiplyExact(COMMIT_COPIES, Math.addExact(Math.multiplyExact(copy, 2), 4)));
-            reservation = budget.reserve(COMMIT_POSITIONS, COMMIT_CALLBACKS, work, allocations);
+            boolean virtualDrawer = DrawerItemSource.handles(source.inv);
+            if (virtualDrawer) {
+                // Public drawer mapping/count checks and known rollback need extra credit; ordinary slots are
+                // unchanged.
+                work = Math.addExact(work, Math.multiplyExact(6, expected.getComparisonWork()));
+                work = Math.addExact(work, expected.getCopyWork());
+                allocations = Math.addExact(allocations, expected.getCopyWork() * 2 + 384);
+            }
+            reservation = budget
+                .reserve(COMMIT_POSITIONS, COMMIT_CALLBACKS + (virtualDrawer ? 128 : 0), work, allocations);
             commit = reservation.budget();
             return true;
         }
@@ -522,6 +533,10 @@ public final class ItemTransferService {
             int amount = Math.min(accepted, current.stackSize);
             if (amount <= 0) return null;
             beforeCount = current.stackSize;
+            if (DrawerItemSource.handles(source.inv)) {
+                drawerSource = DrawerItemSource.observe(source.inv, source.slot, expected, commit);
+                if (drawerSource == null) return null;
+            }
             if (!present(source, commit) || !present(target, commit)) return null;
             commit.chargeProviders(2);
             attemptedCount = amount;
@@ -541,6 +556,7 @@ public final class ItemTransferService {
 
         public boolean acceptExtracted(ItemStack extracted) {
             if (!matchesStack(expected, extracted, commit) || !valid(source, sourceSide, commit)) return false;
+            if (drawerSource != null) return drawerSource.acceptsExtraction(extracted.stackSize, commit);
             ItemStack remaining = read(source, commit);
             int expectedRemaining = beforeCount - extracted.stackSize;
             return remaining == null ? expectedRemaining == 0
@@ -589,6 +605,15 @@ public final class ItemTransferService {
         }
 
         public boolean restore(ItemStack remainder) {
+            if (drawerSource != null) {
+                try {
+                    commit.chargeProviders(4);
+                    commit.chargePositions(2);
+                } catch (RuntimeException refused) {
+                    return false;
+                }
+                return drawerSource.restore(remainder, commit, this::recoveryPresent);
+            }
             // Recovery consumes previously reserved work. If validation cannot complete, return the
             // known remainder to the shared disk-preservation path rather than gate recovery on budget.
             ItemStack replacement;

@@ -18,6 +18,22 @@ import org.junit.jupiter.api.Test;
 class ResourceSelectorOreTest {
 
     @Test
+    void storageDrawersRealVirtualStacksUseBackingQuantityForExtraction() throws Throwable {
+        org.junit.jupiter.api.Assumptions.assumeFalse(
+            System.getProperty("sfm.storageDrawersTestJar", "")
+                .isEmpty());
+        invoke("storageDrawersRealVirtualStacksUseBackingQuantityForExtraction");
+    }
+
+    @Test
+    void storageDrawersRealCreativeAndFiniteRollbackConserveOwnedItems() throws Throwable {
+        org.junit.jupiter.api.Assumptions.assumeFalse(
+            System.getProperty("sfm.storageDrawersTestJar", "")
+                .isEmpty());
+        invoke("storageDrawersRealCreativeAndFiniteRollbackConserveOwnedItems");
+    }
+
+    @Test
     void legacyForgePipeNamespacesCaptureAndMatchRealRegisteredStacks() throws Throwable {
         invoke("legacyForgePipeNamespacesCaptureAndMatchRealRegisteredStacks");
     }
@@ -123,6 +139,10 @@ class ResourceSelectorOreTest {
     @BeforeAll
     static void openIsolatedForgeRuntime() throws Throwable {
         Set<URL> sources = new LinkedHashSet<>();
+        String drawers = System.getProperty("sfm.storageDrawersTestJar", "");
+        if (!drawers.isEmpty()) sources.add(
+            new File(drawers).toURI()
+                .toURL());
         for (String entry : System.getProperty("java.class.path")
             .split(Pattern.quote(File.pathSeparator)))
             if (!entry.isEmpty()) sources.add(
