@@ -23,7 +23,13 @@ public final class TerminalCommandCompletion {
         "profile start",
         "profile stop",
         "profile reset",
-        "profile status");
+        "profile status",
+        "trace start",
+        "trace stop",
+        "trace status",
+        "trace list",
+        "trace clear",
+        "locals");
     private final List<String> matches = new ArrayList<>();
     private String last;
     private int index;

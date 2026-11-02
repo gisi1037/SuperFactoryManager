@@ -57,6 +57,33 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
     public static final int MAX_LOOP_INPUT_REGISTRATIONS = 256;
     private int loopDepth, loopInputRegistrations;
 
+    private ExecutionTrace testTrace;
+
+    /** Headless qualification seam; managers own real captures and their authorization/lifetime. */
+    public void setExecutionTrace(ExecutionTrace trace) {
+        testTrace = trace;
+    }
+
+    public ExecutionTrace.Event beginTrace(ca.teamdman.sfml.data.SourceLocation at) {
+        ExecutionTrace trace = manager == null ? testTrace : manager.getExecutionTrace();
+        return trace == null ? null : trace.begin(manager == null ? getWorldTime() : manager.getManagerTick(), at);
+    }
+
+    public void finishTrace(ExecutionTrace.Event event, String outcome, ca.teamdman.sfml.data.DataRuntime runtime,
+        ca.teamdman.sfml.data.DataCompiler.Binding[] visible) {
+        ExecutionTrace trace = manager == null ? testTrace : manager.getExecutionTrace();
+        // Diagnostics must never mask a program failure or turn a cooperative WAIT into a failure.
+        if (trace != null) try {
+            trace.finish(event, outcome, runtime, visible);
+        } catch (RuntimeException invalidSnapshot) {
+            trace.stop();
+        }
+    }
+
+    public ca.teamdman.sfml.data.DataRuntime debugRuntime() {
+        return dataRuntime;
+    }
+
     public boolean isInLoop() {
         return loopDepth > 0;
     }

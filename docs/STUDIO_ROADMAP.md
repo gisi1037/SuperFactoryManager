@@ -6,6 +6,19 @@ preserve their source and explain why they require Code.
 
 ## Available now
 
+- Opt-in statement tracing and lexical local snapshots through the connected
+  terminal: `trace start [1..128]`, `trace list [first]`, `locals <event>` and
+  stop/status/clear. Captures expire after 200 running manager ticks, stay RAM-only
+  and require source-author access for reference disks. WAIT/failure outcomes are
+  observable without pausing execution; refs direct inspection to caller snapshots,
+  and library locals are omitted. Native UI/multiplayer qualification remains open.
+- Studio has cached nested-call signatures/current-argument hints with Esc and
+  Ctrl+Shift+Space. VS Code 0.4.0 adds scoped variable/function/method completions and
+  overload argument help. Assistance retains the real compiler's type authority.
+  Stable 2277 tests/19 optional skips/zero failures, extension 53 passed and RC2/daily
+  API compilation pass. Per-statement timing, breakpoints and stepping remain future
+  work and are not implied by the observational trace.
+
 - RAM-only dynamic `T[]` arrays use explicit ARRAY construction/conversion,
   REF mutation helpers and bounded immutable replacements. Fixed `T[N]` stays
   unchanged. Captured indexed references/assignments reject structural changes

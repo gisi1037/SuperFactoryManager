@@ -70,6 +70,14 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
     private final StudioInlineCompletion inlineCompletion = new StudioInlineCompletion();
     private StudioInlineCompletion.Suggestion shownCompletion;
     private int completionScrollX, completionScrollY;
+    private String callSource;
+    private int callCaret = -1;
+    private SfmlCompletionCatalog.Snapshot callCatalog;
+    private ca.teamdman.sfm.client.gui.syntax.StudioCallHelp.Help callHelp;
+    private boolean callDismissed;
+    private boolean callShown;
+    private String callText, fittedCallText;
+    private int callWidth = -1;
 
     private static final class Row {
 
@@ -417,6 +425,36 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
                     errorLine ? 0xe07373 : 0x858b96);
             }
         }
+        drawCallHelp();
+    }
+
+    private void drawCallHelp() {
+        callShown = false;
+        if (!isFocused() || !inputGate.getAsBoolean() || buffer.selected()) return;
+        if (callCaret != buffer.caret() || callCatalog != catalog || !source().equals(callSource)) {
+            callSource = source();
+            callCaret = buffer.caret();
+            callCatalog = catalog;
+            callHelp = ca.teamdman.sfm.client.gui.syntax.StudioCallHelp.at(source(), callCaret, highlighted, catalog);
+            callDismissed = false;
+            callText = callHelp == null ? "" : "Arg " + (callHelp.argument + 1) + " | " + callHelp.entry.getSignature();
+            callWidth = -1;
+        }
+        if (callHelp == null || callDismissed || getArea().h() < 32) return;
+        int x = getScrollX() + gutter + 4;
+        int width = getArea().w() - gutter - 12;
+        if (width < 80) return;
+        if (callWidth != width) {
+            fittedCallText = font().trimStringToWidth(callText, width - 8);
+            callWidth = width;
+        }
+        int caretY = caretRow() * LINE_HEIGHT + 3;
+        int y = caretY + 13;
+        if (y + 13 > getScrollY() + getArea().h()) y = caretY - 15;
+        if (y < getScrollY() || y + 13 > getScrollY() + getArea().h()) return;
+        Gui.drawRect(x, y, x + Math.min(width, font().getStringWidth(fittedCallText) + 8), y + 13, 0xff343940);
+        font().drawString(fittedCallText, x + 4, y + 2, 0xe7c7a0);
+        callShown = true;
     }
 
     private void drawBlockMatch(Row row, int y, int start, int end) {
@@ -535,6 +573,18 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
             .current(source(), buffer.caret(), buffer.selected());
         if (key == Keyboard.KEY_ESCAPE && completion != null) {
             dismissCompletion();
+            return Result.SUCCESS;
+        }
+        if (key == Keyboard.KEY_ESCAPE && callShown
+            && callHelp != null
+            && !callDismissed
+            && callCaret == buffer.caret()
+            && source().equals(callSource)) {
+            callDismissed = true;
+            return Result.SUCCESS;
+        }
+        if (ctrl && shift && key == Keyboard.KEY_SPACE) {
+            callCaret = -1;
             return Result.SUCCESS;
         }
         if (key == Keyboard.KEY_TAB && !ctrl

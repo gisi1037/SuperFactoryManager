@@ -294,12 +294,14 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
         }
         List<Statement> statements = new ArrayList<>();
         List<ca.teamdman.sfml.data.SourceLocation> locations = new ArrayList<>();
+        List<DataCompiler.Binding[]> debugLocals = new ArrayList<>();
         data.pushScope();
         try {
             for (SFMLParser.StatementContext sCtx : ctx.statement()) {
                 ASTNode node = visit(sCtx);
                 if (node instanceof Statement) {
                     statements.add((Statement) node);
+                    debugLocals.add(data.debugLocals());
                     String kind = sCtx.getChild(0)
                         .getClass()
                         .getSimpleName()
@@ -316,7 +318,7 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
         } finally {
             data.popScope();
         }
-        return new Block(statements, locations);
+        return new Block(statements, locations, debugLocals);
     }
 
     @Override

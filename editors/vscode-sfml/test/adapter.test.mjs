@@ -23,9 +23,16 @@ function host(trusted = true, settings = {}) {
     MarkdownString: class {constructor(){this.value='';} appendCodeblock(text){this.value+=text;return this;}
       appendText(text){this.value+=text;return this;}},
     Hover: class {constructor(contents,range){Object.assign(this,{contents,range});}},
+    CompletionItemKind:{Variable:0,Method:1,Function:2},
+    CompletionItem:class {constructor(label,kind){Object.assign(this,{label,kind});}},
+    SignatureHelp:class {},
+    SignatureInformation:class {constructor(label,documentation){Object.assign(this,{label,documentation});}},
+    ParameterInformation:class {constructor(label){this.label=label;}},
     languages:{createDiagnosticCollection:()=>({...disposable,set:(uri,value)=>diagnostics.set(uri.toString(),value),
       delete:uri=>diagnostics.delete(uri.toString()),clear:()=>diagnostics.clear()}),
-      registerHoverProvider:(_,value)=>{listeners.hover=value;return disposable;}},
+      registerHoverProvider:(_,value)=>{listeners.hover=value;return disposable;},
+      registerCompletionItemProvider:(_,value)=>{listeners.completion=value;return disposable;},
+      registerSignatureHelpProvider:(_,value)=>{listeners.signature=value;return disposable;}},
     commands:{registerCommand:(_,callback)=>{listeners.restart=callback;return disposable;}},
     window:{visibleTextEditors:[{document:doc,setDecorations:(_,ranges)=>colors.push(ranges)}],
       createTextEditorDecorationType:()=>disposable,onDidChangeVisibleTextEditors:event('visible')},
@@ -43,7 +50,7 @@ function host(trusted = true, settings = {}) {
   const context = {subscriptions:[]}, module = {exports:{}};
   vm.runInNewContext(readFileSync(new URL('../src/extension.cjs', import.meta.url),'utf8'), {
     module,require:name=>name==='vscode'?vscode:name==='./compiler.cjs'?{Compiler}:
-      name==='./language.cjs'?require('../src/language.cjs'):require(name),
+      name==='./language.cjs'?require('../src/language.cjs'):name==='./assist.cjs'?require('../src/assist.cjs'):require(name),
     setTimeout:callback=>{const id={};timers.set(id,callback);return id;},clearTimeout:id=>timers.delete(id)
   });
   module.exports.activate(context);
@@ -61,6 +68,25 @@ test('the editor adapter colors variables and supplies untrusted, non-HTML funct
     assert.equal(result.contents.isTrusted,false);
     assert.equal(result.contents.supportHtml,false);
   } finally {h.dispose();}
+});
+
+test('completion and signature providers expose bounded replacements and safe documentation', () => {
+  const h = host();
+  try {
+    h.doc.text = 'every 20 ticks { let source = label("in") source.em';
+    const items = h.listeners.completion.provideCompletionItems(h.doc, {character:h.doc.text.length});
+    const empty = items.find(item => item.label === 'empty');
+    assert.ok(empty);
+    assert.equal(empty.insertText, 'empty');
+    assert.equal(empty.documentation.isTrusted, false);
+    assert.equal(empty.documentation.supportHtml, false);
+    h.doc.text = 'transfer(label("in"), label("out"), ';
+    h.doc.version++;
+    const help = h.listeners.signature.provideSignatureHelp(h.doc, {character:h.doc.text.length});
+    assert.equal(help.activeParameter, 2);
+    assert.ok(help.signatures.length > 0);
+    assert.match(help.signatures[help.activeSignature].label, /transfer\(/);
+  } finally { h.dispose(); }
 });
 
 test('editing to plain variables refreshes decorations and declaration hovers', async () => {

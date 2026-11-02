@@ -123,6 +123,16 @@ public final class StudioDebugTerminal {
         tools.child(
             button("Reset", 359, 0, 42, () -> request("profile reset")).height(17)
                 .setEnabledIf(widget -> dock.getArea().width >= 410));
+        tools.child(
+            button("Trace", 404, 0, 44, () -> request("trace list")).height(17)
+                .setEnabledIf(widget -> dock.getArea().width >= 456)
+                .addTooltipLine(
+                    "Statement history. trace list <first> pages; locals <event> reads lexical snapshots."));
+        tools.child(
+            button("Record trace", 451, 0, 78, () -> request("trace start")).height(17)
+                .setEnabledIf(widget -> dock.getArea().width >= 538)
+                .addTooltipLine(
+                    "Capture up to 64 statement attempts for 200 manager ticks. Author-only, RAM-only; never pauses execution."));
         dock.child(tools);
         dockOutput = new StudioReadOnlyPane(input).left(4)
             .right(4)

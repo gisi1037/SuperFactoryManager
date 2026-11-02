@@ -4,7 +4,7 @@ const bindingName = token => token.text.replace(/^\$/, '');
 const isName = token => token && (token.kind === 'word' || token.kind === 'variable');
 
 // A small lexical scan for presentation only. All diagnostics come from Java's ProgramBuilder.
-function analyze(text) {
+function analyze(text, completionOffset) {
   const tokens = [], variables = [], functions = new Map();
   if (text.length > 262144) return { tokens, variables, functions };
   for (let i = 0; i < text.length;) {
@@ -108,6 +108,18 @@ function analyze(text) {
     i = j;
   }
   const scopes = [{ kind: 'root', bindings: new Map() }];
+  let visible;
+  function captureVisible() {
+    const names = new Map();
+    const inFunction = scopes.some(scope => scope.function);
+    for (let s = scopes.length - 1; s >= 0 && s >= scopes.length - 64; s--) {
+      for (const [name, entry] of scopes[s].bindings) {
+        if (s === 0 && inFunction && !entry.persistent) continue;
+        if (!names.has(name) && names.size < 256) names.set(name, entry);
+      }
+    }
+    visible = [...names.values()];
+  }
   let pendingParameters = [], pendingLoop;
   const loopDeclarations = new Map();
   function loopEntry(token, index = false) {
@@ -130,6 +142,7 @@ function analyze(text) {
     scope.bindings.set(bindingName(token), entry);
   }
   for (let i = 0; i < tokens.length; i++) {
+    if (visible === undefined && completionOffset !== undefined && tokens[i].start >= completionOffset) captureVisible();
     const header = headers.get(i);
     if (header) {
       pendingParameters = header.parameters;
@@ -164,7 +177,7 @@ function analyze(text) {
       if (tokens[i + 1]?.text?.toLowerCase() !== 'if') scopes.push({ kind: 'legacy', bindings: new Map() });
     } else if (!field && ['{', 'do', 'then'].includes(lower)) {
       const structure = lower === '{' && tokens[i + 1]?.kind === 'word' && tokens[i + 2]?.text === ':';
-      scopes.push({ kind: structure ? 'structure' : lower === '{' ? 'brace' : 'legacy', bindings: new Map() });
+      scopes.push({ kind: structure ? 'structure' : lower === '{' ? 'brace' : 'legacy', bindings: new Map(), function: !!header });
       for (const parameter of pendingParameters) declare(parameter.token, parameter);
       pendingParameters = [];
       if (pendingLoop && !structure) {
@@ -178,7 +191,7 @@ function analyze(text) {
     if (loopDeclarations.has(i)) token.binding = loopDeclarations.get(i);
     else if (['let', 'state', 'into', 'for'].includes(previous) && tokens[i - 2]?.text !== '.') {
       const javaInitializer = previous === 'let' && scopes.at(-1).kind === 'for-header';
-      const entry = { token, signatures: [`${previous} ${token.text}`],
+      const entry = { token, persistent: previous === 'state', signatures: [`${previous} ${token.text}`],
         description: previous === 'state' ? 'Persistent disk STATE binding. Names are case-sensitive; the $ prefix is optional.'
           : javaInitializer ? 'Mutable FOR initializer binding. Visible in the condition, body and update, and out of scope after the loop. Names are case-sensitive; the $ prefix is optional.'
           : 'Local or program RAM binding. Names are case-sensitive; the $ prefix is optional. Types are checked by the Java compiler.' };
@@ -199,7 +212,8 @@ function analyze(text) {
     }
     if (token.kind === 'variable' || token.binding) variables.push(token);
   }
-  return { tokens, variables, functions };
+  if (visible === undefined && completionOffset !== undefined) captureVisible();
+  return { tokens, variables, functions, visible };
 }
 
 function hover(analysis, offset) {

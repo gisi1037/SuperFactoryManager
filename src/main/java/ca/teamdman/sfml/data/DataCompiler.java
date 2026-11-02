@@ -235,6 +235,15 @@ public final class DataCompiler {
         scopes.pop();
     }
 
+    /** Immutable compile-time lexical slots, capped before publication; runtime tracing never resolves names. */
+    public Binding[] debugLocals() {
+        List<Binding> visible = new ArrayList<>();
+        for (Map<String, Binding> scope : scopes) for (Binding binding : scope.values()) visible.add(binding);
+        visible.sort(java.util.Comparator.comparingInt(binding -> binding.slot));
+        return visible.subList(0, Math.min(8, visible.size()))
+            .toArray(new Binding[0]);
+    }
+
     public int getMaxLocals() {
         return maxLocals;
     }

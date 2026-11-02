@@ -45,6 +45,16 @@ class TerminalCommandCompletionTest {
     }
 
     @Test
+    void traceCommandsCompleteWithoutSubmittingOrOverwritingArguments() {
+        TerminalCommandCompletion completion = new TerminalCommandCompletion();
+        assertEquals("trace start", completion.complete("trace st", false));
+        assertEquals("trace stop", completion.complete("trace start", false));
+        assertEquals("locals", completion.complete("loc", false));
+        assertEquals("locals 12", completion.complete("locals 12", false));
+        assertEquals("trace list 1", completion.complete("trace list 1", false));
+    }
+
+    @Test
     void argumentsUnknownPrefixesAndOversizedTextAreNeverReplaced() {
         TerminalCommandCompletion completion = new TerminalCommandCompletion();
         for (String text : new String[] { "labels Input Chest", "state $counter", "logs 12", "unknown",

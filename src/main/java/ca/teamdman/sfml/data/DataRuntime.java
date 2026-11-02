@@ -22,6 +22,27 @@ public final class DataRuntime {
     private long gameTick;
     private boolean functionFrame;
 
+    /** Diagnostic reads bypass script budgets, reference resolution and all world/provider APIs. */
+    public DataValue debugLocal(int slot) {
+        return slot < 0 || slot >= locals.length || isDebugReference(slot) ? null : locals[slot];
+    }
+
+    public boolean isDebugReference(int slot) {
+        return references != null && slot >= 0 && slot < references.length && references[slot] != null;
+    }
+
+    public ca.teamdman.sfm.common.program.ExecutionTrace.Event beginTrace(SourceLocation at) {
+        return queries instanceof ca.teamdman.sfm.common.program.ProgramContext
+            ? ((ca.teamdman.sfm.common.program.ProgramContext) queries).beginTrace(at)
+            : null;
+    }
+
+    public void finishTrace(ca.teamdman.sfm.common.program.ExecutionTrace.Event event, String outcome,
+        DataCompiler.Binding[] visible) {
+        if (event != null && queries instanceof ca.teamdman.sfm.common.program.ProgramContext)
+            ((ca.teamdman.sfm.common.program.ProgramContext) queries).finishTrace(event, outcome, this, visible);
+    }
+
     public boolean isFunctionFrame() {
         return functionFrame;
     }

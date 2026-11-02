@@ -73,6 +73,10 @@ public class TileEntityManager extends TileEntity implements IInventory {
     private DebugConsole debugConsole;
     private static final String PRINT_CAPTURE_KEY = "sfm:print_capture";
     private ManagerExecutionProfiler executionProfiler;
+    private ca.teamdman.sfm.common.program.ExecutionTrace executionTrace;
+    private Program traceProgram;
+    private ItemStack traceDisk;
+    private long traceGeneration;
     private boolean profiledDueUpdate;
 
     public ca.teamdman.sfml.data.ProgramGlobals getProgramGlobals(Program program) {
@@ -89,6 +93,9 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     private void clearProgramGlobals() {
+        executionTrace = null;
+        traceProgram = null;
+        traceDisk = null;
         clearRuntimeDiagnostic();
         if (runtimeSourceMapProgram != compiledProgram) {
             runtimeSourceMap = null;
@@ -156,6 +163,42 @@ public class TileEntityManager extends TileEntity implements IInventory {
         if (!canInspectVariables(actor)) return DebugTerminalService.variableAccessDenied();
         ca.teamdman.sfml.data.ProgramGlobals values = globalProgram == compiledProgram ? programGlobals : null;
         return DebugTerminalService.inspectVariables(programState, compiledProgram, values, requested);
+    }
+
+    public ca.teamdman.sfm.common.program.ExecutionTrace getExecutionTrace() {
+        if (executionTrace == null) return null;
+        if (traceProgram != compiledProgram || traceDisk != diskStack || traceGeneration != diskGeneration) {
+            executionTrace = null;
+            traceProgram = null;
+            traceDisk = null;
+            return null;
+        }
+        executionTrace.expire(managerTick);
+        return executionTrace;
+    }
+
+    /** Existing terminal routes authenticate the actor; execution/copy rights never imply source access. */
+    public List<String> executionTraceCommand(String action, int amount, UUID actor) {
+        if (!canInspectVariables(actor)) return DebugTerminalService.variableAccessDenied();
+        if (action.equals("start")) {
+            if (compiledProgram == null)
+                return java.util.Collections.singletonList("Compile/load a program before tracing.");
+            executionTrace = new ca.teamdman.sfm.common.program.ExecutionTrace(managerTick, amount);
+            traceProgram = compiledProgram;
+            traceDisk = diskStack;
+            traceGeneration = diskGeneration;
+        } else if (action.equals("clear")) {
+            executionTrace = null;
+            traceProgram = null;
+            traceDisk = null;
+        }
+        ca.teamdman.sfm.common.program.ExecutionTrace trace = getExecutionTrace();
+        if (trace == null) return java.util.Collections.singletonList("No trace. Use trace start [1..128 statements].");
+        if (action.equals("stop")) trace.stop();
+        if (action.equals("locals")) return trace.locals(amount);
+        if (action.equals("list"))
+            return trace.list(runtimeSourceMapProgram == compiledProgram ? runtimeSourceMap : null, amount);
+        return trace.status();
     }
 
     private void clearRuntimeDiagnostic() {

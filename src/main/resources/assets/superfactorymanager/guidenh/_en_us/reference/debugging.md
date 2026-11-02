@@ -6,7 +6,7 @@ navigation:
   parent: /reference/index.md
   keywords: ["print", "debug", "terminal", "error", "logs", "troubleshooting"]
 categories: ["sfm"]
-updated: "2026-11-01"
+updated: "2026-11-02"
 ---
 
 # Debugging and the terminal
@@ -73,6 +73,10 @@ causes the ordinary program fault.
 | `state` | Show bounded live persistent values. |
 | `state $cycles` | Inspect one persistent variable. |
 | `watch` / `watch $cycles` | Inspect initialized program-wide LET and STATE values, or one exact name. |
+| `trace start` / `trace start 128` | Record the next 64 statements, or up to 128; expires after 200 running manager ticks. |
+| `trace status` / `trace stop` / `trace clear` | Read, stop, or discard the RAM-only trace. |
+| `trace list` / `trace list 1` | Show the latest 15 events, or page from a chosen event. |
+| `locals 12` | Read up to eight lexical local/parameter snapshots for trace event 12. |
 | `profile start 1200` | Start a bounded complete-update timing capture; accepts 1–4,096 updates. |
 | `profile status` / `profile stop` / `profile reset` | Read, stop while retaining, or clear that profiler capture. |
 | `labels` | Show the first 15 saved label names and position-entry counts. |
@@ -85,8 +89,14 @@ Up/Down recalls up to 32 submitted commands and restores an unfinished command
 when you move past the newest entry. Tab/Shift+Tab completes supported command
 names; completion does not execute the command.
 
-Commands do not evaluate arbitrary SFML, mutate STATE or move items. Trigger and
-function locals exist only during execution, so inspect trigger locals with PRINT.
+Commands do not evaluate arbitrary SFML, mutate STATE or move items. Use PRINT or
+an explicit trace to inspect trigger/function locals. Traces show statement
+locations and completed, waiting, break or failed attempts, never pause execution,
+and do not consume script work allowance. Values are snapshots after that attempt;
+a resumed WAIT has a new attempt. Ref parameters direct you to the caller's
+snapshot; library locals are omitted. Disk/program replacement and unloading
+discard traces. They are not saved or included in public logs. Recording adds
+bounded overhead and is off until requested.
 Program-wide LET values remain available through Watch after initialization.
 For a reference disk, only its verified source author can inspect variable names
 and values; execution-disk holders can still use profiling and deliberate PRINT

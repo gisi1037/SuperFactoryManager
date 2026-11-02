@@ -584,6 +584,42 @@ suggestion; **Esc** dismisses it. Otherwise Tab retains indentation/placeholder
 behavior. Suggestions never change code automatically. Scoped names require a
 parseable draft; **Ctrl+Space** retains the explicit completion menu.
 
+While typing a call, a small parameter hint shows its signature and the current
+argument number. Nested calls, arrays, structs and quoted commas are handled
+independently. **Esc** dismisses the hint; **Ctrl+Shift+Space** requests it again.
+The hint is cached by source and caret and performs no type inference or world
+queries. Hover the function name for its full description. VS Code 0.4.0 also
+offers interactive function/method/scoped-variable completion and signature help;
+compiler-backed diagnostics remain the authority for receiver and argument types.
+
+## Statement tracing and local snapshots
+
+Connect Debug terminal to a Manager, then use **Record trace** (on wide layouts)
+or enter `trace start`. This records the next 64 statement attempts. Use
+`trace start 128` for the maximum capture. Recording stops at the event limit or
+after 200 running manager ticks; it never pauses or steps the program.
+
+- `trace status`: recording state and event count.
+- `trace list`: the latest 15 events, with tick, source line/column, statement
+  kind and completed/waiting/break/failed outcome.
+- `trace list 1`: page starting at event 1; use another first event to page onward.
+- `locals 12`: up to eight lexical local/parameter snapshots from event 12.
+- `trace stop` / `trace clear`: stop recording / discard the capture.
+
+Locals show values after that statement attempt, including values retained at a
+WAIT or failure. A resumed statement is a new attempt, not a duplicate effect.
+Outer control-flow events complete after their nested events. Uninitialized
+bindings are marked; reference parameters direct you to the caller snapshot
+rather than resolving a live reference. Library locals are omitted. Globals and
+STATE remain available through `watch` and `state`.
+
+Captures are bounded RAM-only diagnostics, separate from PRINT and aggregate
+profiling. They are cleared when the executable/disk changes or the manager
+unloads, and never copied to disks, saved, broadcast in shared logs, or evaluated
+as SFML. Published-program details require the verified source author through the
+existing authenticated terminal route. Turning on tracing adds bounded overhead;
+it does not consume the program's work allowance or change scheduling.
+
 The **Problems** dock and window show bounded, wrapped issue cards with compiler
 locations, messages and source excerpts. Click an issue to jump to it, or focus
 the list and use Up/Down then Enter. Stale locations never overwrite or navigate

@@ -58,7 +58,9 @@ public final class DebugTerminalService {
                 help.add("labels reads saved bindings, not live connectivity or contents.");
                 help.add("state reads live STATE; watch also reads initialized program-wide globals.");
                 help.add("Reference variables require the source author; PRINT remains intentional output.");
-                help.add("Watch is a bounded read-only snapshot; trigger/function locals are unavailable.");
+                help.add("trace start [1..128] | trace stop/status/list/clear | locals <event>");
+                help.add(
+                    "Trace records statement attempts and up to 8 lexical locals; expires after 200 manager ticks.");
                 help.add("PRINT(expr[, expr...]) records up to 8 values when capture is on.");
                 help.add("Capture is off by default and adds work while enabled.");
                 help.add("Capture choice survives reloads; clear removes RAM-only PRINT history.");
@@ -91,6 +93,40 @@ public final class DebugTerminalService {
                 return manager.getLiveVariableSnapshot(words.length == 2 ? words[1] : null, actor);
             case "profile":
                 return profileCommand(manager, words);
+            case "trace":
+                if (words.length == 3 && words[1].equalsIgnoreCase("list")) {
+                    try {
+                        int first = Integer.parseInt(words[2]);
+                        if (first >= 1 && first <= ExecutionTrace.MAX_EVENTS)
+                            return manager.executionTraceCommand("list", first, actor);
+                    } catch (NumberFormatException invalid) {
+                        // Explicit bounded page numbers only.
+                    }
+                    return Collections.singletonList("Use trace list [first event, 1..128].");
+                }
+                if (words.length == 2 && (words[1].equalsIgnoreCase("stop") || words[1].equalsIgnoreCase("status")
+                    || words[1].equalsIgnoreCase("list")
+                    || words[1].equalsIgnoreCase("clear")))
+                    return manager.executionTraceCommand(words[1].toLowerCase(Locale.ROOT), 0, actor);
+                if (words.length >= 2 && words[1].equalsIgnoreCase("start")) {
+                    int count = 64;
+                    try {
+                        if (words.length == 3) count = Integer.parseInt(words[2]);
+                    } catch (NumberFormatException invalid) {
+                        count = 0;
+                    }
+                    if (count < 1 || count > ExecutionTrace.MAX_EVENTS)
+                        return Collections.singletonList("Trace limit must be 1..128 statements.");
+                    return manager.executionTraceCommand("start", count, actor);
+                }
+                break;
+            case "locals":
+                if (words.length != 2) break;
+                try {
+                    return manager.executionTraceCommand("locals", Integer.parseInt(words[1]), actor);
+                } catch (NumberFormatException invalid) {
+                    return Collections.singletonList("Use locals <trace event number>.");
+                }
             case "labels":
                 // The remainder is the exact label, including spaces and case; no expression parsing.
                 String label = trimmed.substring(words[0].length())

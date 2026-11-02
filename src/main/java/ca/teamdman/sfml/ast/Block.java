@@ -11,17 +11,24 @@ public final class Block implements ASTNode {
 
     private final List<Statement> statements;
     private final List<SourceLocation> locations;
+    private final List<ca.teamdman.sfml.data.DataCompiler.Binding[]> debugLocals;
 
     public Block(List<Statement> statements) {
         this(statements, null);
     }
 
     public Block(List<Statement> statements, List<SourceLocation> locations) {
+        this(statements, locations, Collections.emptyList());
+    }
+
+    public Block(List<Statement> statements, List<SourceLocation> locations,
+        List<ca.teamdman.sfml.data.DataCompiler.Binding[]> debugLocals) {
         this.statements = statements != null ? statements : Collections.emptyList();
         if (locations != null && locations.size() != this.statements.size())
             throw new IllegalArgumentException("Statement source annotation count mismatch");
         this.locations = locations == null ? Collections.emptyList()
             : Collections.unmodifiableList(new ArrayList<>(locations));
+        this.debugLocals = Collections.unmodifiableList(new ArrayList<>(debugLocals));
     }
 
     public List<Statement> getStatements() {
@@ -38,7 +45,7 @@ public final class Block implements ASTNode {
                 try {
                     if (context.isInLoop()) runtime.work(1);
                     flow.command(statement, () -> {
-                        statement.tick(context);
+                        execute(context, statement, cursor.index);
                         return null;
                     });
                 } catch (RuntimeException failure) {
@@ -54,11 +61,34 @@ public final class Block implements ASTNode {
             // Bound repeated legacy statements too, without imposing new work cutoffs outside loops.
             try {
                 if (loopRuntime != null) loopRuntime.work(1);
-                statements.get(index)
-                    .tick(context);
+                execute(context, statements.get(index), index);
             } catch (RuntimeException failure) {
                 throw located(index, failure);
             }
+        }
+    }
+
+    private void execute(ProgramContext context, Statement statement, int index) {
+        ca.teamdman.sfm.common.program.ExecutionTrace.Event event = locations.isEmpty() ? null
+            : context.beginTrace(locations.get(index));
+        String outcome = "completed";
+        try {
+            statement.tick(context);
+        } catch (ca.teamdman.sfml.data.Continuation.Pause pause) {
+            outcome = "waiting";
+            throw pause;
+        } catch (ca.teamdman.sfml.data.LoopBreak stop) {
+            outcome = "break";
+            throw stop;
+        } catch (RuntimeException failure) {
+            outcome = "failed";
+            throw failure;
+        } finally {
+            if (event != null) context.finishTrace(
+                event,
+                outcome,
+                context.debugRuntime(),
+                debugLocals.isEmpty() ? null : debugLocals.get(index));
         }
     }
 

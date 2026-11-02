@@ -737,7 +737,17 @@ class ReferenceActivationLifecycleTest {
             List<String> own = ca.teamdman.sfm.common.program.DebugTerminalService.execute(f.manager, "watch", author);
             assertTrue(own.contains("STATE $hiddenCounter = 5"));
             assertTrue(own.contains("GLOBAL $privateSession = 8"));
-            for (String command : new String[] { "state", "state $hiddenCounter", "watch", "watch $privateSession" }) {
+            assertTrue(
+                ca.teamdman.sfm.common.program.DebugTerminalService.execute(f.manager, "trace start 8", author)
+                    .get(0)
+                    .contains("Trace ON"));
+            f.tick();
+            assertTrue(
+                ca.teamdman.sfm.common.program.DebugTerminalService.execute(f.manager, "trace list", author)
+                    .toString()
+                    .contains("DataAssignment"));
+            for (String command : new String[] { "state", "state $hiddenCounter", "watch", "watch $privateSession",
+                "trace start", "trace list", "trace status", "trace stop", "trace clear", "locals 1" }) {
                 List<String> other = ca.teamdman.sfm.common.program.DebugTerminalService
                     .execute(f.manager, command, bearer);
                 assertEquals(ca.teamdman.sfm.common.program.DebugTerminalService.variableAccessDenied(), other);
@@ -771,9 +781,12 @@ class ReferenceActivationLifecycleTest {
             f.tick();
             f.complete(0, COUNTER, author);
             assertTrue(f.manager.canInspectVariables(author));
+            ca.teamdman.sfm.common.program.DebugTerminalService.execute(f.manager, "trace start", author);
+            assertNotNull(f.manager.getExecutionTrace());
             ItemStack replacement = f.manager.getStackInSlot(0)
                 .copy();
             f.manager.setInventorySlotContents(0, replacement);
+            assertNull(f.manager.getExecutionTrace(), "A replacement disk cannot inherit captured source or locals");
             assertFalse(f.manager.canInspectVariables(author));
             f.tick();
             f.complete(1, COUNTER, nextAuthor);

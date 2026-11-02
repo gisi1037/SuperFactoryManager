@@ -22,7 +22,7 @@ Install the packaged extension from the repository's `editors/vscode-sfml`
 directory:
 
 ```sh
-code --install-extension dist/sfml-language-0.3.3.vsix
+code --install-extension dist/sfml-language-0.4.0.vsix
 ```
 
 You can also select **Extensions: Install from VSIX…** in the Command Palette and
@@ -46,6 +46,17 @@ choose that file. Reload VS Code if prompted.
   Variable hovers show the declaration or parameter type. Hovers ignore comments and strings.
 - Actual SFML compiler errors in the Problems panel and editor, using the optional
   local compiler backend described below.
+- Interactive completion for functions, receiver methods, same-file qualified
+  functions and lexical variables (plain or `$` names). Existing parentheses are
+  preserved: completions insert the name only. Comments/strings are excluded.
+- Signature help while typing `(` or `,`, including overloads and active argument
+  underlining. Use **Ctrl+Shift+Space** to request it explicitly. Nested calls,
+  arrays, structs and quoted commas do not advance the enclosing argument.
+
+Completions and signatures are presentation assistance, not type validation.
+Receiver suggestions list available methods without guessing an expression's
+type. Same-file functions retain exact case; the Java compiler still diagnoses
+invalid scope, receiver types, overloads and arguments.
 
 Useful prefixes include `every`, `everyglobal`, `pulse`, `redstonetrigger`,
 `redstoneout`, `let`, `globallet`, `state`, `assign`, `ifelse`, `for`, `forin`,
@@ -318,6 +329,7 @@ BREAK now exits the innermost lexical loop in triggers/functions, including afte
 BREAK outside loops now ends only the current trigger activation. Its normal timer
 or redstone condition controls the next run; other due triggers keep running.
 Inside loops it still exits only the nearest loop. Functions require a local loop.
+
 
 ## Spread periodic work with a random starting offset
 

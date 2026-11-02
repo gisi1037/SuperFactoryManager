@@ -6,7 +6,8 @@ public final class StudioInlineCompletion {
     public static final long DELAY_NANOS = 200_000_000L;
     private static final String[] KEYWORDS = { "every", "input", "output", "from", "to", "retain", "forget", "round",
         "robin", "ticks", "seconds", "redstone", "if", "else", "then", "end", "let", "state", "function", "return",
-        "while", "for", "in", "true", "false", "and", "or", "not", "do" };
+        "while", "for", "in", "true", "false", "and", "or", "not", "do", "break", "ref", "void", "integer", "boolean",
+        "string" };
 
     public static final class Suggestion {
 

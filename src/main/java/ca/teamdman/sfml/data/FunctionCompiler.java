@@ -272,11 +272,23 @@ public final class FunctionCompiler {
                         .getClass()
                         .getSimpleName()
                         .replace("Context", ""));
+                DataCompiler.Binding[] visible = data.debugLocals();
                 commands.set(index, runtime -> {
+                    ca.teamdman.sfm.common.program.ExecutionTrace.Event event = runtime.beginTrace(location);
+                    String outcome = "completed";
                     try {
                         return command.execute(runtime);
+                    } catch (Continuation.Pause pause) {
+                        outcome = "waiting";
+                        throw pause;
+                    } catch (LoopBreak stop) {
+                        outcome = "break";
+                        throw stop;
                     } catch (RuntimeException failure) {
+                        outcome = "failed";
                         throw location.annotate(failure);
+                    } finally {
+                        if (event != null) runtime.finishTrace(event, outcome, visible);
                     }
                 });
             }

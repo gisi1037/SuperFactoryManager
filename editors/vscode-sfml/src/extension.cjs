@@ -2,6 +2,7 @@ const vscode = require('vscode');
 const path = require('node:path');
 const { analyze, hover } = require('./language.cjs');
 const { Compiler } = require('./compiler.cjs');
+const { completions, signatureHelp, parameters } = require('./assist.cjs');
 
 function activate(context) {
   const cache = new WeakMap(), compilers = new Map(), pending = new Map(), manifestWatchers = new Map();
@@ -109,6 +110,35 @@ function activate(context) {
     for (const document of vscode.workspace.textDocuments) scheduleCheck(document);
   };
   context.subscriptions.push(color, diagnostics,
+    vscode.languages.registerCompletionItemProvider('sfml', { provideCompletionItems(document, position) {
+      return completions(document.getText(), document.offsetAt(position)).map(candidate => {
+        const kind = candidate.kind === 'variable' ? vscode.CompletionItemKind.Variable
+          : candidate.kind === 'method' ? vscode.CompletionItemKind.Method : vscode.CompletionItemKind.Function;
+        const item = new vscode.CompletionItem(candidate.name, kind);
+        item.range = new vscode.Range(document.positionAt(candidate.start), document.positionAt(candidate.end));
+        item.insertText = candidate.name;
+        item.detail = candidate.entry.signatures.join(' | ');
+        const help = new vscode.MarkdownString();
+        help.isTrusted = false;
+        help.supportHtml = false;
+        help.appendText(candidate.entry.description);
+        item.documentation = help;
+        return item;
+      });
+    }}, '.', '$'),
+    vscode.languages.registerSignatureHelpProvider('sfml', { provideSignatureHelp(document, position) {
+      const help = signatureHelp(document.getText(), document.offsetAt(position), analysis(document));
+      if (!help) return;
+      const result = new vscode.SignatureHelp();
+      result.signatures = help.entry.signatures.map(label => {
+        const signature = new vscode.SignatureInformation(label, help.entry.description);
+        signature.parameters = parameters(label).map(range => new vscode.ParameterInformation(range));
+        return signature;
+      });
+      result.activeSignature = Math.max(0, result.signatures.findIndex(signature => signature.parameters.length > help.argument));
+      result.activeParameter = help.argument;
+      return result;
+    }}, '(', ','),
     vscode.languages.registerHoverProvider('sfml', { provideHover(document, position) {
       const entry = hover(analysis(document), document.offsetAt(position));
       if (!entry) return;

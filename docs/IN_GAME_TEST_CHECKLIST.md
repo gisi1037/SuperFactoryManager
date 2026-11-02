@@ -13,6 +13,48 @@ locations refer to the installed program, which may differ from a Studio draft.
 
 ## Current build: highest-value manual pass
 
+### Debug trace and argument-help follow-up
+
+- [ ] In Studio Debug terminal, connect to the manager running the program below.
+  Enter `trace start 64`, wait for one run, then `trace list 1`. Check event
+  coordinates against the installed source; nested events are numbered by entry.
+- [ ] Use `locals <event>` for a declaration, a function statement and a WAIT.
+  Check `counter`, `delta`, and the loop's `index` only appear in their own scope.
+  Reference parameter `value` should say to inspect the caller; caller snapshots
+  should show the update. Resume should add attempts without applying `+2` twice.
+- [ ] `trace stop`, `trace clear`, a replaced disk and chunk unload clear/stop
+  captures as documented. `trace start 1` stops at one event; `trace start 129`
+  refuses. `trace list <first>` pages and remains readable at small scales.
+- [ ] With two players, a reference-disk bearer who is not its source author must
+  be denied trace start/list/locals/stop/clear even when execution is permitted.
+- [ ] Type `transfer(label("source"), label("destination"), ` and nested calls
+  in Studio: argument number changes only for the current call. Esc dismisses;
+  Ctrl+Shift+Space restores; pointer selection, scrolling, undo and source remain
+  intact at game and independent Studio scales.
+- [ ] With VS Code extension 0.4.0, check scoped variables, `source.em` methods,
+  same-file qualified functions, overload help, quoted commas and diagnostics.
+  No suggestions inside strings/comments; no out-of-scope local suggestions.
+
+```sfml
+name "Trace exercise"
+integer bump(ref integer value) {
+  let delta = 2
+  value = value + delta
+  wait(2)
+  return value
+}
+every 20 ticks {
+  let counter = 3
+  let answer = bump(ref counter)
+  for index = 0 to 1 {
+    print(index, counter, answer)
+  }
+}
+```
+
+Expected PRINT with capture enabled: `0 5 5`, then `1 5 5`. Captures are
+observations, not breakpoints, and are not saved across server restarts.
+
 ### P1: Startup PRINT and project deletion
 
 - Enable Capture in a manager on the updated build, save/restart the server, and
