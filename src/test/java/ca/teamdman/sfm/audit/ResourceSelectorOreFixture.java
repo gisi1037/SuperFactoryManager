@@ -52,6 +52,40 @@ import cpw.mods.fml.relauncher.Side;
 /** Runs only inside the isolated LaunchClassLoader owned by ResourceSelectorOreTest. */
 public final class ResourceSelectorOreFixture {
 
+    public static void legacyForgePipeNamespacesCaptureAndMatchRealRegisteredStacks() throws Exception {
+        String name = "ProjRed|Exploration:sfm_legacy_identity_fixture";
+        Item nativeItem = new Item();
+        // Forge chooses the active mod namespace; supplying a foreign prefix alone would prepend minecraft:.
+        Field controllerField = Loader.class.getDeclaredField("modController");
+        controllerField.setAccessible(true);
+        Object previous = controllerField.get(Loader.instance());
+        cpw.mods.fml.common.LoadController controller = new cpw.mods.fml.common.LoadController(Loader.instance());
+        Field active = cpw.mods.fml.common.LoadController.class.getDeclaredField("activeContainer");
+        active.setAccessible(true);
+        cpw.mods.fml.common.ModMetadata metadata = new cpw.mods.fml.common.ModMetadata();
+        metadata.modId = "ProjRed|Exploration";
+        active.set(controller, new cpw.mods.fml.common.DummyModContainer(metadata));
+        try {
+            controllerField.set(Loader.instance(), controller);
+            Item.itemRegistry.addObject(-1, "sfm_legacy_identity_fixture", nativeItem);
+        } finally {
+            controllerField.set(Loader.instance(), previous);
+        }
+        assertEquals(name, Item.itemRegistry.getNameForObject(nativeItem));
+        ItemStack stack = new ItemStack(nativeItem, 1, 7);
+        ca.teamdman.sfml.data.ItemIdentity captured = ca.teamdman.sfml.data.ItemIdentity
+            .fromStack(stack, new QueryBudget());
+        assertEquals(name, captured.getRegistryId());
+        assertTrue(captured.matchesStack(stack, new QueryBudget()));
+        assertTrue(
+            ResourceSelector.item(name)
+                .matches(stack, new QueryBudget()));
+        assertFalse(
+            ResourceSelector.item(name.toLowerCase(java.util.Locale.ROOT))
+                .matches(stack, new QueryBudget()));
+        assertFalse(captured.matchesStack(new ItemStack(nativeItem, 1, 8), new QueryBudget()));
+    }
+
     public static void recipeAdapterPreservesDeclarations() throws Exception {
         ca.teamdman.sfm.compat.gregtech.RecipeAdapterFixture.snapshotsPreserveNativeDeclarationsWithoutMutatingCaches();
     }

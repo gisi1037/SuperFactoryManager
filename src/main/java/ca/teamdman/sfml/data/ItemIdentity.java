@@ -61,7 +61,7 @@ public final class ItemIdentity {
             .addExact(40, Math.addExact(BoundedItemNbt.retainedStringBytes(registryId), nbt.getRetainedOpaqueBytes()));
     }
 
-    private static boolean validRegistryId(String id) {
+    static boolean validRegistryId(String id) {
         if (id == null || id.isEmpty() || id.length() > 256) return false;
         int colon = -1;
         for (int i = 0; i < id.length(); i++) {
@@ -74,6 +74,8 @@ public final class ItemIdentity {
                 || c == '_'
                 || c == '.'
                 || c == '-'
+                // Forge 1.7.10 namespaces include ProjectRed/BuildCraft module separators.
+                || c == '|' && colon < 0
                 || c == '/' && colon >= 0)) return false;
         }
         return colon >= 0;

@@ -25,9 +25,26 @@ import org.junit.jupiter.api.Test;
 
 import ca.teamdman.sfml.data.ItemIdentity;
 import ca.teamdman.sfml.data.QueryBudget;
+import ca.teamdman.sfml.data.ResourceSelector;
 
 /** Pure identity foundation tests: normal NBT initializes headlessly, without Item/Forge registry bootstrap. */
 class ItemIdentityTest {
+
+    @Test
+    void legacyForgePipeNamespacesRemainExactWithoutAcceptingPatternsOrControlCharacters() {
+        String name = "ProjRed|Exploration:projectred.exploration.stone";
+        ItemIdentity key = ItemIdentity.of(name, 4, null, new QueryBudget());
+        assertEquals(name, key.getRegistryId());
+        assertEquals(
+            name,
+            ResourceSelector.item(name)
+                .getId());
+        assertNotEquals(key, ItemIdentity.of(name.toLowerCase(java.util.Locale.ROOT), 4, null, new QueryBudget()));
+        for (String invalid : new String[] { "test:item|pattern", "test:item*", "test:item:4", "test\n:item" }) {
+            assertThrows(IllegalArgumentException.class, () -> ItemIdentity.of(invalid, 0, null, new QueryBudget()));
+            assertThrows(IllegalArgumentException.class, () -> ResourceSelector.item(invalid));
+        }
+    }
 
     private static ItemIdentity key(NBTTagCompound nbt) {
         return ItemIdentity.of("identity_test:item", 7, nbt, new QueryBudget());

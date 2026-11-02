@@ -23,9 +23,8 @@ public final class ResourceSelector {
     }
 
     public static ResourceSelector item(String id) {
-        if (id == null || id.length() > 256 || !(id.equals("*") || id.matches("[A-Za-z0-9_.-]+:[A-Za-z0-9_./-]+")))
-            throw new IllegalArgumentException(
-                "ITEM needs namespace:name or '*'; patterns, tags, metadata and fluid selectors are not supported yet");
+        if (id == null || !(id.equals("*") || ItemIdentity.validRegistryId(id))) throw new IllegalArgumentException(
+            "ITEM needs namespace:name or '*'; patterns, tags, metadata and fluid selectors are not supported yet");
         return id.equals("*") ? ALL_ITEMS : new ResourceSelector(Kind.ITEM, id);
     }
 

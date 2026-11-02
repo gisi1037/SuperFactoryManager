@@ -430,3 +430,11 @@ queries an exact null-NBT output through the same bounded index, showing at most
 two entries per input/output group with total counts. Optional cold diagnostics
 identify each incomplete map's first cause.59 targeted checks/style/compiler pass.
 SFML recipe functions/NEI authoring and remaining provider qualification are pending.
+Legacy Forge exact item IDs now accept the pipe in namespaces used by ProjectRed
+and BuildCraft. Item selectors and captured identities share one validator; case,
+metadata and NBT remain exact. Wildcards in keys, extra colons, item-path pipes and
+control characters remain rejected. A pre-fix regression reproduced rejection;
+isolated real Forge registration/capture/matching and pure identity regressions
+pass. Full2214 tests:2195 passed,19 skipped,zero failures/errors; style/compiler
+bridge/GuideNH packaging pass. Native recipe coverage retest follows; no claim
+that every unsupported recipe is now covered.

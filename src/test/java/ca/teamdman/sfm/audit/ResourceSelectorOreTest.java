@@ -18,6 +18,11 @@ import org.junit.jupiter.api.Test;
 class ResourceSelectorOreTest {
 
     @Test
+    void legacyForgePipeNamespacesCaptureAndMatchRealRegisteredStacks() throws Throwable {
+        invoke("legacyForgePipeNamespacesCaptureAndMatchRealRegisteredStacks");
+    }
+
+    @Test
     void recipeAdapterPreservesDeclarations() throws Throwable {
         invoke("recipeAdapterPreservesDeclarations");
     }
