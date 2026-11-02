@@ -113,11 +113,11 @@ public final class RecipeCraftingFixture {
         for (String ore : new String[] { "plateStainlessSteel", "circuitAdvanced", "cableGt01Gold", "foilElectrum",
             "wireFineElectrum" }) OreDictionary.registerOre(ore, new ItemStack(item()));
         Map<String, ItemStack> outputs = new LinkedHashMap<>(), components = new LinkedHashMap<>();
-        for (String name : new String[] { "manager", "cable", "disk", "labelgun", "programmingStation",
-            "redstonePort" }) outputs.put(name, new ItemStack(item()));
+        for (String name : new String[] { "manager", "cable", "disk", "labelgun", "programmingStation", "redstonePort",
+            "diskCopier" }) outputs.put(name, new ItemStack(item()));
         List<IRecipe> recipes = LateHvRecipes
             .build(outputs, name -> components.computeIfAbsent(name, k -> new ItemStack(item())));
-        assertEquals(6, recipes.size());
+        assertEquals(7, recipes.size());
         int index = 0;
         for (IRecipe recipe : recipes) {
             assertTrue(recipe instanceof PlainShapedOreRecipe);

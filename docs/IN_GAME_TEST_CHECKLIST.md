@@ -4,13 +4,62 @@ Use a disposable test world and record the exact SFM JAR, GTNH pack, Java versio
 single-player/dedicated server and optional mods. Test one matching client/server
 build. A prepared JAR is not necessarily installed. Older8fbe82e lacks the newer
 NBT/BREAK and late-HV recipe changes; use the matching updated test artifact.
-The disk copier and other explicitly planned features below are still future work.
+The Disk Copier is now implemented; native machine/automation checks below remain
+unchecked until someone runs them in a pack.
 
 For each failure, keep the smallest program that reproduces it, installed build
 revision, expected/actual result, exact error and a screenshot if useful. Source
 locations refer to the installed program, which may differ from a Studio draft.
 
 ## Current build: highest-value manual pass
+
+### D1: Disk Copier
+
+Use a disposable world and the **Disk Copier** from NEI/creative; check its late-HV
+direct recipe. Open it with and without an inventory extension: normal player
+slots and NEI should remain available, without overlapping the machine controls.
+
+1. Imprint a saved published program on one disk. Assign two saved labels. Put it
+   in the left **source** slot and a fresh blank in the middle **blank** slot.
+2. Wait 100 loaded server ticks (five seconds at 20 TPS). Confirm one copy appears
+   on the right, exactly one blank disappears, and the original remains unchanged.
+3. Put another blank in while the output is occupied. Wait ten seconds: neither
+   disk may be consumed or overwritten. Take the output and verify the next cycle.
+4. Run source and copy in separate managers. Verify both execute the same published
+   revision and labels. Change labels on one: the other must remain unchanged.
+   With the counter program below, a new copy must start at zero while the original
+   continues its existing STATE. Pause both when finished.
+5. During a cycle, remove/replace the source or blank: a new full cycle must be
+   required. Save/reload halfway through: source and blank must survive, no pending
+   output may materialize, and work must restart from zero. Save/reload after a
+   completed copy: only the original and completed copy should remain.
+6. Break a working and a completed copier. Count all dropped disks: original plus
+   blank before completion, original plus copy afterward. Never an extra candidate.
+7. Hopper/pipe source into the top, blanks into a horizontal side, and copies out
+   the bottom. The source must not extract through automation. Shift-click, drag,
+   number-key swap and two simultaneous viewers must neither duplicate nor lose media.
+8. Try a nonblank target and a recovery-blocked source. Neither may be overwritten,
+   consumed or silently cleared. Resolve the original recovery through its normal
+   manager workflow. Correct and reinsert a refused source before retrying.
+9. Repeat with an ordinary legacy source disk. Text, embedded graph data and labels
+   must remain exact; runtime STATE, names/foreign metadata and recovery ownership
+   must not propagate. Reference copies must not grant private project/library editing
+   access to a second player who can physically execute the disk.
+
+Use this source to distinguish independent STATE after copying:
+
+```sfml
+name "Copier state check"
+state counter = 0
+every 20 ticks {
+  print(counter)
+  counter = counter + 1
+}
+```
+
+Enable PRINT capture in each manager to observe the counter. Headless tests cover
+the copy transaction, bounds, timed publication, sides and save/reload; these
+steps qualify actual MUI2 slots, rendering, pack automation and multiplayer.
 
 ### How to run the copyable programs
 
@@ -385,10 +434,6 @@ every 40 ticks {
 
 ## Additions: test after implementation, not in the current checkpoint
 
-- [ ] **Disk copier:** one blank consumed per completed copy, unchanged source,
-  exact program revision/labels, fresh independent runtime state, full-output
-  refusal, disk replacement, unload/restart and hopper interactions. Invalid or
-  recovery-blocked sources must refuse without losing media or recovery evidence.
 - [ ] **Cable label editor:** clear selected manager/disk, group assignments,
   multi-manager ambiguity, bulk edits, cancellation and stale topology/session
   refusal. Verify authoritative labels in running programs afterward.

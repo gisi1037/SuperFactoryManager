@@ -160,7 +160,7 @@ Full-block cable is available in NEI, with free reversible plain-item conversion
 Direct recipes target late HV; see CRAFTING.md. Studio adds native text cursors,
 matching delimiter feedback and subtle two-space indent guides. Full-pack crafting,
 cursor appearance and scaled/wrapped editor rendering still require manual checks.
-Disk copier and automatic block completion remain planned.
+Disk copier and automatic block completion are implemented; native qualification remains pending.
 
 ## Trigger-level BREAK
 
@@ -203,3 +203,15 @@ the 20-tick period, including with WAIT/BREAK. Old numeric timers are unchanged.
 Runtime-offset headers stay text-only; native insertion/help and VS Code 0.3.9
 cover the API. Idle polls do not reroll. This is not a dynamic period or guaranteed
 load balancer; random phases can collide. Reload/reset can pick a new phase.
+
+## Disk copying and compact source editing
+
+The Disk Copier writes one independent program/label copy onto one fresh blank
+in 100 loaded server ticks. It has a late-HV recipe, no operating EU, a normal
+MUI2 inventory window and sided automation. Runtime STATE, recovery ownership and
+private authoring access do not propagate. See CRAFTING.md and the in-game checklist.
+Native hopper/pipe, GUI and multiplayer qualification remains pending.
+
+Studio dividers now capture release outside their handles and stop on lost
+focus/button state. The native I-beam follows text-line height, including Studio
+scale. The Manager source editor uses compact toolbars/footer to show more code.

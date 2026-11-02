@@ -52,6 +52,10 @@ import cpw.mods.fml.relauncher.Side;
 /** Runs only inside the isolated LaunchClassLoader owned by ResourceSelectorOreTest. */
 public final class ResourceSelectorOreFixture {
 
+    public static void diskCopierPersistsMediaWithoutPendingCandidates() throws Exception {
+        DiskCopierPersistenceFixture.roundTrip();
+    }
+
     public static void cableConversionsHaveNoCompetingOutputs() {
         RecipeCraftingFixture.cableChoices();
     }

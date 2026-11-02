@@ -13,6 +13,7 @@ mod recipe loaders, not while a program runs.
 | Label Gun | 1 | Stainless-steel plate, HV sensor, HV circuit, HV emitter, HV motor |
 | Programming Station | 1 | 2 stainless-steel plates, screen, 2 advanced epoxy circuit boards, HV hull, 2 HV circuits, Factory Manager |
 | Redstone Port | 1 | 4 stainless-steel plates, HV sensor, 2 HV circuits, HV emitter, Inventory Cable |
+| Disk Copier | 1 | 2 stainless-steel plates, screen, 2 advanced epoxy circuit boards, HV hull, 2 HV circuits, HV motor |
 
 HV circuit means the circuitAdvanced OreDictionary category. Plates, wires,
 foils and cables use their normal GT ore categories. Other entries use the exact
@@ -51,6 +52,27 @@ through crafting. Use a fresh plain ingredient and retain the original data.
 Conversion metadata is exact; advanced/cluster variants are not treated as
 ordinary cables. Empty NBT compounds are accepted as plain.
 
-Programming disk copies remain a separate planned machine. No disk copier recipe
-is registered before that block exists. GuideNH's hardware page and the
-[in-game checklist](IN_GAME_TEST_CHECKLIST.md) describe the verification steps.
+## Disk Copier
+
+The separate Disk Copier consumes one fresh blank SFM disk per copy in 100 loaded
+server ticks (five seconds at 20 TPS). It needs no operating EU; its recipe gates
+access to late HV. The source is retained. Program text or the exact published
+execution reference and all saved labels carry over. Copies receive a new
+document identity and fresh runtime STATE/clock. Custom names/foreign metadata,
+recovery records and authoring ownership do not carry over. Recovery-blocked,
+malformed/unsupported or oversized source metadata refuses without consuming media.
+Copying a published reference retains its existing execution-only bearer rights;
+it does not publish a build, reveal private project/library source or repair a
+missing/revoked reference. Legacy source text is copied verbatim, not compiled.
+
+The GUI uses normal MUI2/player slots and leaves room for NEI. Insert a programmed
+source in the left slot, one fresh blank in the middle, and take the copy on the
+right. A full output prevents work. Automation inserts source from the top and
+blank media from horizontal sides, and extracts copies from the bottom. The
+source can be removed manually; automation cannot drain it. Disks are unstackable.
+
+Changing any slot resets progress. Unload/restart discards pending work, consuming
+nothing; a new full cycle begins on reload. In-place metadata changes are checked
+before completion. After refusal, reinsert the corrected disk to retry. Copying
+does not read project files during machine ticks. See the
+[in-game checklist](IN_GAME_TEST_CHECKLIST.md) for native qualification.

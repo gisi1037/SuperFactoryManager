@@ -18,6 +18,11 @@ import org.junit.jupiter.api.Test;
 class ResourceSelectorOreTest {
 
     @Test
+    void diskCopierPersistsMediaWithoutPendingCandidates() throws Throwable {
+        invoke("diskCopierPersistsMediaWithoutPendingCandidates");
+    }
+
+    @Test
     void cableConversionsHaveNoCompetingOutputs() throws Throwable {
         invoke("cableConversionsHaveNoCompetingOutputs");
     }

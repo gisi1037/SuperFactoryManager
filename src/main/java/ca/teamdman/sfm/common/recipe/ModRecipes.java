@@ -53,6 +53,7 @@ public final class ModRecipes {
             outputs.put("labelgun", new ItemStack(ModItems.labelGun));
             outputs.put("programmingStation", new ItemStack(ModBlocks.programmingStation));
             outputs.put("redstonePort", new ItemStack(ModBlocks.redstonePort));
+            outputs.put("diskCopier", new ItemStack(ModBlocks.diskCopier));
             for (IRecipe recipe : LateHvRecipes.build(outputs, parts::get)) GameRegistry.addRecipe(recipe);
         } catch (ReflectiveOperationException | IllegalArgumentException | LinkageError failure) {
             SuperFactoryManager.LOG

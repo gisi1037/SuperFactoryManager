@@ -17,6 +17,9 @@ different.
 
 ## Implemented
 
+- Disk Copier: one blank per independent program/label copy, late-HV recipe,
+  normal MUI2 inventory and sided automation. [Copying guide](/advanced/disk-copier.md).
+
 - SFML item/fluid INPUT/OUTPUT, resource filters, quantities, retention,
   conditions, FORGET and supported round-robin selections.
 - Manager timers and pulses, plus the combined native Redstone Port for named

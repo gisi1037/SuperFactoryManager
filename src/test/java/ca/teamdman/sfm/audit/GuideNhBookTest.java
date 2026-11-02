@@ -43,6 +43,7 @@ class GuideNhBookTest {
         ITEMS.add("fancyCable");
         ITEMS.add("programmingStation");
         ITEMS.add("redstonePort");
+        ITEMS.add("diskCopier");
     }
 
     static Map<Path, String> pages() throws Exception {

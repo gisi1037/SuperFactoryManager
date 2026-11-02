@@ -41,3 +41,4 @@ complete examples, diagnostics, recovery, performance limits and feature status.
 - [Labels and cable networks](labels.md): gun controls, grouped selections and
   connection rules.
 - [Recipes and cable shapes](hardware.md): progression, conversions and saved-item rules.
+- [Copy program disks](disk-copier.md): duplicate a program onto fresh media.

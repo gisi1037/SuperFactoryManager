@@ -49,7 +49,8 @@ class ServerClassloadingTest {
             "ca.teamdman.sfm.common.net.PacketDebugTerminalReply", "ca.teamdman.sfm.common.net.PacketStationRequest",
             "ca.teamdman.sfm.common.net.PacketStationReply", "ca.teamdman.sfm.common.net.PacketStationDebugRequest",
             "ca.teamdman.sfm.common.net.PacketStationDebugReply",
-            "ca.teamdman.sfm.common.tileentity.TileEntityProgrammingStation" }) {
+            "ca.teamdman.sfm.common.tileentity.TileEntityProgrammingStation",
+            "ca.teamdman.sfm.common.tileentity.TileEntityDiskCopier" }) {
             assertNotNull(
                 Class.forName(name, true, loader)
                     .getConstructor()
@@ -57,6 +58,7 @@ class ServerClassloadingTest {
         }
         for (String name : new String[] { "ca.teamdman.sfm.common.program.DebugConsole",
             "ca.teamdman.sfm.common.recipe.ModRecipes", "ca.teamdman.sfm.common.recipe.LateHvRecipes",
+            "ca.teamdman.sfm.common.program.DiskCopyPlan", "ca.teamdman.sfm.common.block.BlockDiskCopier",
             "ca.teamdman.sfm.common.recipe.PlainConversionRecipe", "ca.teamdman.sfm.common.recipe.PlainShapedOreRecipe",
             "ca.teamdman.sfm.compat.gregtech.GtnhRecipeParts", "ca.teamdman.sfm.common.program.DebugValueFormatter",
             "ca.teamdman.sfm.common.program.DebugTerminalService", "ca.teamdman.sfml.ast.PrintStatement",

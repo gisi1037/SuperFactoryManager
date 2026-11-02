@@ -57,9 +57,13 @@ means an accepted `circuitAdvanced` ingredient. NEI shows alternatives.
 | Label Gun ×1 | Stainless steel, HV sensor, HV emitter, HV motor and an HV circuit |
 | Programming Station ×1 | Stainless steel, screen, advanced epoxy boards, HV hull, 2 HV circuits and a manager |
 | Redstone Port ×1 | Stainless steel, HV sensor, HV emitter, 2 HV circuits and our full-block cable |
+| Disk Copier ×1 | 2 stainless-steel plates, screen, 2 advanced epoxy boards, HV hull, 2 HV circuits and HV motor |
 
 No OpenComputers parts are required. Direct recipes need the GT components;
 there is no cheaper vanilla fallback if a component is missing. Conversions remain
 separate from direct crafting. Check the server log if NEI has no direct recipe.
+
+The [Disk Copier](disk-copier.md) writes a program and its saved labels onto fresh
+blank media in five seconds. The source stays unchanged; each copy has fresh runtime STATE.
 
 Next: [labels and connected blocks](labels.md), or [Studio and program disks](studio.md).

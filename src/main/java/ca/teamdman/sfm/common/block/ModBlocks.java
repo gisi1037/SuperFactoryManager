@@ -2,6 +2,7 @@ package ca.teamdman.sfm.common.block;
 
 import net.minecraft.block.Block;
 
+import ca.teamdman.sfm.common.tileentity.TileEntityDiskCopier;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 import ca.teamdman.sfm.common.tileentity.TileEntityProgrammingStation;
 import ca.teamdman.sfm.common.tileentity.TileEntityRedstonePort;
@@ -14,6 +15,7 @@ public final class ModBlocks {
     public static Block fancyCable;
     public static Block programmingStation;
     public static Block redstonePort;
+    public static Block diskCopier;
 
     public static void init() {
         manager = new BlockManager();
@@ -21,15 +23,18 @@ public final class ModBlocks {
         fancyCable = new BlockFancyCable();
         programmingStation = new BlockProgrammingStation();
         redstonePort = new BlockRedstonePort();
+        diskCopier = new BlockDiskCopier();
 
         GameRegistry.registerBlock(manager, "manager");
         GameRegistry.registerBlock(cable, "cable");
         GameRegistry.registerBlock(fancyCable, "fancyCable");
         GameRegistry.registerBlock(programmingStation, "programmingStation");
         GameRegistry.registerBlock(redstonePort, "redstonePort");
+        GameRegistry.registerBlock(diskCopier, "diskCopier");
 
         GameRegistry.registerTileEntity(TileEntityManager.class, "sfm.manager");
         GameRegistry.registerTileEntity(TileEntityProgrammingStation.class, "sfm.programmingStation");
         GameRegistry.registerTileEntity(TileEntityRedstonePort.class, "sfm.redstonePort");
+        GameRegistry.registerTileEntity(TileEntityDiskCopier.class, "sfm.diskCopier");
     }
 }

@@ -25,7 +25,8 @@ public final class LateHvRecipes {
             emitter = part(gt.apply("Emitter_HV"));
         ItemStack manager = part(outputs.get("manager")), cable = part(outputs.get("cable")),
             disk = part(outputs.get("disk")), gun = part(outputs.get("labelgun")),
-            station = part(outputs.get("programmingStation")), port = part(outputs.get("redstonePort"));
+            station = part(outputs.get("programmingStation")), port = part(outputs.get("redstonePort")),
+            copier = part(outputs.get("diskCopier"));
         List<IRecipe> recipes = new ArrayList<>();
         recipes.add(
             new PlainShapedOreRecipe(
@@ -124,6 +125,24 @@ public final class LateHvRecipes {
                 emitter,
                 'W',
                 single));
+        recipes.add(
+            new PlainShapedOreRecipe(
+                copier,
+                "PSP",
+                "BHB",
+                "CMC",
+                'P',
+                "plateStainlessSteel",
+                'S',
+                screen,
+                'B',
+                board,
+                'H',
+                hull,
+                'C',
+                "circuitAdvanced",
+                'M',
+                motor));
         return recipes;
     }
 
