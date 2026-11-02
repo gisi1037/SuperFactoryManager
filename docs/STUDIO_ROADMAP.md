@@ -421,3 +421,12 @@ Actual-pack64MiB refusal occurred within the macerator map at13,301 descriptors 
 query limits independent. Failed cold attempts now report elapsed time as well.
 21 catalog/lifecycle tests and style pass; actual retained size and cold cost
 must be measured before exposing the language API. This is no heap-size claim.
+Isolated GTNH2.9.0 Java26 /3GiB server reached READY:38,106 visits,36,941 descriptors,
+63,609 postings;373.664ms cold build;155,638,176 conservative retained bytes.
+735unsupported entries and2incomplete maps remain explicit. No heap or runtime
+speedup claim follows from this cold measurement. Operator-only inspection:
+/sfmprofile recipes <map> <item-id> <metadata> [candidate]
+queries an exact null-NBT output through the same bounded index, showing at most
+two entries per input/output group with total counts. Optional cold diagnostics
+identify each incomplete map's first cause.59 targeted checks/style/compiler pass.
+SFML recipe functions/NEI authoring and remaining provider qualification are pending.

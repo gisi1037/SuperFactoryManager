@@ -140,12 +140,12 @@ public final class GregTechRecipeCatalogAdapter {
             if (map == null || map.getClass() != mapClass
                 || ((Map<?, ?>) registry).get(id) != map
                 || !id.equals(mapName.get(map))) {
-                incomplete(builder, id, incompleteMaps);
+                incomplete(builder, id, incompleteMaps, "unqualified map identity");
                 continue;
             }
             Object backend = call(getBackend, map);
             if (backend == null || backend.getClass() != backendClass) {
-                incomplete(builder, id, incompleteMaps);
+                incomplete(builder, id, incompleteMaps, "unqualified backend");
                 continue;
             }
             Object categories = call(categoryMap, backend);
@@ -169,13 +169,18 @@ public final class GregTechRecipeCatalogAdapter {
                     if (++visited > MAX_NATIVE_VISITS)
                         throw new IllegalArgumentException("Native recipe visit limit exceeded");
                     if (recipe == null || !recipeClass.isInstance(recipe)) {
-                        incomplete(builder, id, incompleteMaps);
+                        incomplete(builder, id, incompleteMaps, "invalid native recipe entry");
                         unsupported++;
                         continue;
                     }
                     if (!(Boolean) read("mEnabled", recipe) || (Boolean) read("mFakeRecipe", recipe)) continue;
                     if (recipe.getClass() != recipeClass && recipe.getClass() != alternativeClass) {
-                        incomplete(builder, id, incompleteMaps);
+                        incomplete(
+                            builder,
+                            id,
+                            incompleteMaps,
+                            "unqualified recipe subclass " + recipe.getClass()
+                                .getName());
                         unsupported++;
                         continue;
                     }
@@ -188,7 +193,7 @@ public final class GregTechRecipeCatalogAdapter {
                         try {
                             outputs = outputKeys(recipe, new QueryBudget(16));
                         } catch (IllegalArgumentException badOutput) {
-                            incomplete(builder, id, incompleteMaps);
+                            incomplete(builder, id, incompleteMaps, "unreadable output identity");
                             continue;
                         }
                         if (!outputs.isEmpty()) builder.unsupported(id, outputs, new QueryBudget(16));
@@ -202,9 +207,10 @@ public final class GregTechRecipeCatalogAdapter {
         return new Build(builder.finish(), visited, unsupported, incompleteMaps.size(), System.nanoTime() - started);
     }
 
-    private static void incomplete(RecipeCatalog.Builder builder, String id, Set<String> maps) {
+    private static void incomplete(RecipeCatalog.Builder builder, String id, Set<String> maps, String reason) {
         builder.incomplete(id);
-        maps.add(id);
+        if (maps.add(id) && Boolean.getBoolean("sfm.recipeDiagnostics"))
+            SuperFactoryManager.LOG.info("Recipe catalog incomplete {}: {}", id, reason);
     }
 
     private RecipeDescriptor describe(Object recipe, String id, int amperage, ItemStack[] nbtItems, QueryBudget budget)
