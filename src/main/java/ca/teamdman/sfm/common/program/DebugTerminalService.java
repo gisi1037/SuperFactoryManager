@@ -61,7 +61,7 @@ public final class DebugTerminalService {
                 help.add("Watch is a bounded read-only snapshot; trigger/function locals are unavailable.");
                 help.add("PRINT(expr[, expr...]) records up to 8 values when capture is on.");
                 help.add("Capture is off by default and adds work while enabled.");
-                help.add("clear removes PRINT history; capture/history are temporary manager memory.");
+                help.add("Capture choice survives reloads; clear removes RAM-only PRINT history.");
                 help.add("Commands inspect diagnostics; arbitrary SFML evaluation is unavailable.");
                 return help;
             case "status":

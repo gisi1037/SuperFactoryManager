@@ -131,7 +131,7 @@ public final class PacketStationDebugRequest implements IMessage {
         if (request.action == Action.CONNECT) binding.target = new WeakReference<>(target);
         List<String> result = request.action == Action.CONNECT
             ? Collections
-                .singletonList("Connected. Type help; capture is enabled only by an explicit capture on command.")
+                .singletonList("Connected. Type help; capture on/off changes this manager's saved PRINT setting.")
             : DebugTerminalService.execute(target, request.command, player.getUniqueID());
         DebugConsole console = target.getDebugConsole();
         // Reuse the existing independently bounded diagnostic codec inside the station envelope.

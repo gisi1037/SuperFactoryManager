@@ -117,7 +117,36 @@ public final class RecipeCraftingFixture {
             "diskCopier" }) outputs.put(name, new ItemStack(item()));
         List<IRecipe> recipes = LateHvRecipes
             .build(outputs, name -> components.computeIfAbsent(name, k -> new ItemStack(item())));
+        assertEquals(6, recipes.size());
+        ItemStack glass = new ItemStack(item(), 1, 16), bundled = new ItemStack(item(), 1, 17);
+        IRecipe cableRecipe = LateHvRecipes.cableRecipe(outputs.get("cable"), glass, bundled);
+        recipes.add(cableRecipe);
         assertEquals(7, recipes.size());
+        IRecipe legacyCable = new PlainShapedOreRecipe(
+            new ItemStack(item(), 2),
+            "PWP",
+            "AAA",
+            "PWP",
+            'P',
+            "plateStainlessSteel",
+            'W',
+            bundled,
+            'A',
+            glass);
+        for (IRecipe selected : new IRecipe[] { cableRecipe, legacyCable }) {
+            InventoryCrafting cableGrid = grid();
+            Object[] ingredients = ((PlainShapedOreRecipe) selected).getInput();
+            for (int slot = 0; slot < 9; slot++) {
+                Object ingredient = ingredients[slot];
+                if (ingredient instanceof List) ingredient = ((List<?>) ingredient).get(0);
+                cableGrid.setInventorySlotContents(slot, ((ItemStack) ingredient).copy());
+            }
+            assertEquals(selected == cableRecipe, cableRecipe.matches(cableGrid, null));
+            assertEquals(selected == legacyCable, legacyCable.matches(cableGrid, null));
+        }
+        assertTrue(hasPart(recipes.get(2), components.get("Cover_Screen")), "Label Gun needs a display");
+        assertTrue(hasPart(recipes.get(5), components.get("Sensor_HV")), "Copier needs an HV sensor");
+        assertTrue(hasPart(recipes.get(5), components.get("Emitter_HV")), "Copier needs an HV emitter");
         int index = 0;
         for (IRecipe recipe : recipes) {
             assertTrue(recipe instanceof PlainShapedOreRecipe);
@@ -130,7 +159,7 @@ public final class RecipeCraftingFixture {
             }
             assertTrue(recipe.matches(grid, null), "recipe " + index);
             ItemStack made = recipe.getCraftingResult(grid);
-            assertEquals(index == 1 ? 2 : 1, made.stackSize);
+            assertEquals(index == 6 ? 2 : 1, made.stackSize);
             assertFalse(made.hasTagCompound());
             made.setTagCompound(new NBTTagCompound());
             made.getTagCompound()
@@ -153,5 +182,11 @@ public final class RecipeCraftingFixture {
         }
         assertEquals(1, outputs.get("cable").stackSize);
         assertThrows(IllegalArgumentException.class, () -> LateHvRecipes.build(outputs, name -> null));
+    }
+
+    private static boolean hasPart(IRecipe recipe, ItemStack expected) {
+        for (Object input : ((PlainShapedOreRecipe) recipe).getInput())
+            if (input instanceof ItemStack && ((ItemStack) input).isItemEqual(expected)) return true;
+        return false;
     }
 }

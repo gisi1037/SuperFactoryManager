@@ -8,12 +8,12 @@ mod recipe loaders, not while a program runs.
 | Output | Count | Ingredients |
 | --- | --- | --- |
 | Factory Manager | 1 | 4 stainless-steel plates, screen, 2 HV circuits, HV hull, HV motor |
-| Full-block Inventory Cable | 2 | 4 stainless-steel plates, 4 single gold cables, HV circuit |
+| Full-block Inventory Cable | 2 | 4 stainless-steel plates, 3 AE2 Fluix ME Glass Cables, 2 ProjectRed neutral bundled cables |
 | Blank program disk | 1 | 4 electrum foils, advanced epoxy circuit board, 2 fine electrum wires, blank data stick, HV circuit |
-| Label Gun | 1 | Stainless-steel plate, HV sensor, HV circuit, HV emitter, HV motor |
+| Label Gun | 1 | Stainless-steel plate, screen, HV sensor, HV circuit, HV emitter, HV motor |
 | Programming Station | 1 | 2 stainless-steel plates, screen, 2 advanced epoxy circuit boards, HV hull, 2 HV circuits, Factory Manager |
 | Redstone Port | 1 | 4 stainless-steel plates, HV sensor, 2 HV circuits, HV emitter, Inventory Cable |
-| Disk Copier | 1 | 2 stainless-steel plates, screen, 2 advanced epoxy circuit boards, HV hull, 2 HV circuits, HV motor |
+| Disk Copier | 1 | Stainless-steel plate, screen, 2 advanced epoxy circuit boards, HV hull, 2 HV circuits, HV sensor, HV emitter |
 
 HV circuit means the circuitAdvanced OreDictionary category. Plates, wires,
 foils and cables use their normal GT ore categories. Other entries use the exact
@@ -21,6 +21,15 @@ GT ItemList components. Missing GT components/materials are reported during
 startup, with no cheaper vanilla fallback. Without GT, direct recipes are absent;
 available cable/legacy conversions still work. This does not change runtime mod
 dependencies or add hidden EU consumption to blocks.
+
+Inventory Cable uses the same ingredients and output count as the GTNH SteveFM
+recipe, rotated to avoid competing outputs. Put Fluix ME Glass Cable down the
+middle column, neutral bundled cable on the left/right of the middle row, and
+stainless-steel plates in the corners.
+
+The exact pack inputs are AE2 `item.ItemMultiPart:16` and ProjectRed
+`projectred.transmission.wire:17`. Missing AE2/ProjectRed cable parts disable only
+this direct recipe; the other GT machine recipes and available conversions remain.
 
 ## Free reversible conversions
 

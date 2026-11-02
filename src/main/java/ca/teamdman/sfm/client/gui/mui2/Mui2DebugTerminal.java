@@ -34,7 +34,8 @@ public final class Mui2DebugTerminal {
     private final TerminalCommandHistory commands = new TerminalCommandHistory();
     private final ca.teamdman.sfm.client.gui.TerminalCommandCompletion completion = new ca.teamdman.sfm.client.gui.TerminalCommandCompletion();
     private List<String> history = Collections.emptyList();
-    private List<String> result = Collections.singletonList("Type help for commands. PRINT capture starts OFF.");
+    private List<String> result = Collections
+        .singletonList("Type help for commands. PRINT uses this manager's saved capture setting.");
     private ModularPanel panel;
     private String command = "", notice = "Connecting to manager";
     private int ticks, lastPoll = -20, pendingAt, page, column;

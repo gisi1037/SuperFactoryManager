@@ -153,6 +153,24 @@ public final class StationProjectService {
                         request.source,
                         result -> finishDraft(player, container, request, result));
                     break;
+                case DELETE:
+                    admitted = store.delete(owner, request.projectId, request.expectedRevision, result -> {
+                        if (result.isSuccess() && container.pendingRequestId == request.requestId
+                            && authorized(player, request) == container
+                            && request.projectId.equals(container.station.getProjectId()))
+                            container.station.selectProject(null);
+                        finish(
+                            player,
+                            container,
+                            request,
+                            new PacketStationReply(
+                                request,
+                                result.isSuccess(),
+                                result.isSuccess()
+                                    ? "Project deleted from browser; published builds and archived source retained."
+                                    : result.message));
+                    });
+                    break;
                 case VALIDATE:
                     admitted = store.validate(owner, request.projectId, request.expectedRevision, result -> {
                         PacketStationReply reply = reply(request, result);

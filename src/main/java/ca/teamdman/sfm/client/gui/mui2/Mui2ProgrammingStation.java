@@ -180,6 +180,9 @@ public final class Mui2ProgrammingStation {
     private IPanelHandler nodesPanel, apiPanel, problemsPanel, inspectPanel, fieldsPanel, completionPanel, findPanel,
         pickerPanel, fieldDiagnosticPanel;
     private IPanelHandler catalogPanel, confirmationPanel, snippetsPanel, toolsPanel, buildsPanel;
+    private IPanelHandler deleteProjectPanel;
+    private ProjectPage.Entry deleteTarget, pendingDelete;
+    private long deleteRequestId;
     private IPanelHandler archivePanel;
     private StationSourceTransfer archiveTransfer;
     private List<ProgramSourceArchive.Entry> archivePreview = Collections.emptyList();
@@ -230,6 +233,19 @@ public final class Mui2ProgrammingStation {
             clause = studio.clause;
             view = studio.view;
             fields = studio.fieldDraft == null ? null : new StudioFieldDraft(studio.fieldDraft);
+        }
+
+        Retained(Retained before) {
+            saved = null;
+            localId = UUID.randomUUID();
+            name = before.name;
+            source = before.source;
+            uncertain = false;
+            visual = before.visual;
+            selected = before.selected;
+            clause = before.clause;
+            view = before.view;
+            fields = before.fields == null ? null : new StudioFieldDraft(before.fields);
         }
     }
 
@@ -519,6 +535,7 @@ public final class Mui2ProgrammingStation {
                 .height(11)
                 .addTooltipLine(IKey.dynamic(() -> status)));
         catalogPanel = IPanelHandler.simple(panel, (parent, player) -> buildCatalog(), true);
+        deleteProjectPanel = IPanelHandler.simple(panel, (parent, player) -> buildDeleteProject(), true);
         archivePanel = IPanelHandler.simple(panel, (parent, player) -> buildArchive(), true);
         confirmationPanel = IPanelHandler.simple(panel, (parent, player) -> buildConfirmation(), true);
         snippetsPanel = IPanelHandler.simple(panel, (parent, player) -> buildSnippets(), true);
@@ -1015,6 +1032,16 @@ public final class Mui2ProgrammingStation {
             listButton("Transfer programs", 120, this::archiveIdle, this::openArchive).widthRel(1f)
                 .height(18)
                 .addTooltipLine("Export saved sources as Base64 or import new copies from the clipboard."));
+        outlineList.child(
+            listButton(
+                "Delete open project",
+                120,
+                () -> state.saved != null && !state.awaitingReply() && !state.uncertainWrite,
+                () -> openDeleteProject(new ProjectPage.Entry(state.saved.id, state.saved.revision, state.saved.name)))
+                    .widthRel(1f)
+                    .height(18)
+                    .background(StudioTheme.PRIMARY)
+                    .addTooltipLine("Review the exact saved project before deleting. Published disks keep working."));
         outlineList.child(
             new TextWidget<>("TEMPLATES").color(0xffc1878e)
                 .height(19)
@@ -3209,9 +3236,17 @@ public final class Mui2ProgrammingStation {
             reply.restored)) return;
         status = reply.message;
         if (!reply.accepted) {
+            if (reply.action == Action.DELETE) pendingDelete = null;
             if (reply.action == Action.RESTORE_BUILD) releaseRestoreBackup();
             if (reply.action == Action.LOAD) loadingRecovery = null;
             retain();
+            return;
+        }
+        if (reply.action == Action.DELETE) {
+            if (pendingDelete != null && deleteRequestId == reply.requestId) deletedProject(pendingDelete.id);
+            pendingDelete = null;
+            deleteTarget = null;
+            refreshCatalog = true;
             return;
         }
         if (reply.action == Action.RESTORE_BUILD) {
@@ -3464,6 +3499,11 @@ public final class Mui2ProgrammingStation {
             PublicationReceipt selectedBuild = state.selectedBuild();
             request.expectedRevision = (action == Action.WRITE_DISK || action == Action.RESTORE_BUILD)
                 && selectedBuild != null ? selectedBuild.revision : state.saved == null ? 0 : state.saved.revision;
+            if (action == Action.DELETE) {
+                if (deleteTarget == null || !deleteTarget.id.equals(id))
+                    throw new IllegalStateException("Choose the exact project to delete.");
+                request.expectedRevision = deleteTarget.revision;
+            }
             if (action == Action.LIST_LIBRARY_PUBLICATIONS) request.expectedRevision = 0;
             request.buildDigest = (action == Action.WRITE_DISK || action == Action.RESTORE_BUILD)
                 && selectedBuild != null ? selectedBuild.digest : "";
@@ -3483,6 +3523,10 @@ public final class Mui2ProgrammingStation {
                 throw invalid;
             }
             if (action == Action.LIST) libraryCatalogRequest = libraryCatalog ? request.requestId : 0;
+            if (action == Action.DELETE) {
+                pendingDelete = deleteTarget;
+                deleteRequestId = request.requestId;
+            }
             if (action == Action.LIST_LIBRARY_PUBLICATIONS) {
                 libraryRevisionProject = id;
                 selectedLibrary = null;
@@ -3898,6 +3942,92 @@ public final class Mui2ProgrammingStation {
         if (!state.awaitingReply()) request(Action.LIST, null, catalog.offset);
     }
 
+    private void openDeleteProject(ProjectPage.Entry entry) {
+        if (entry == null || state.awaitingReply() || state.uncertainWrite) return;
+        if (state.saved != null && state.saved.id.equals(entry.id) && !recoveryCapacity()) {
+            status = "Make room in local recovery before deleting the open project. Current work kept.";
+            return;
+        }
+        deleteTarget = entry;
+        removeFocus();
+        deleteProjectPanel.deleteCachedPanel();
+        deleteProjectPanel.openPanel();
+    }
+
+    private ModularPanel buildDeleteProject() {
+        ProjectPage.Entry target = deleteTarget;
+        ModularPanel popup = modal("sfm_station_delete_project", 312, 148);
+        popup.child(
+            new TextWidget<>("Delete saved project?").pos(8, 9)
+                .size(296, 12)
+                .color(0xffefa09a));
+        popup.child(
+            new StudioPanelDragWidget().pos(4, 4)
+                .widthRelOffset(1f, -8)
+                .height(21));
+        popup.child(
+            new TextWidget<>(trimFor(target.name, 296)).pos(8, 28)
+                .size(296, 12)
+                .color(0xffe7e8eb)
+                .addTooltipLine(target.name));
+        popup.child(
+            new TextWidget<>(target.id.toString()).pos(8, 44)
+                .size(296, 10)
+                .color(0xffb0b3bb));
+        popup.child(
+            new TextWidget<>("Saved revision r" + target.revision).pos(8, 58)
+                .size(296, 10)
+                .color(0xffb0b3bb));
+        popup.child(
+            new TextWidget<>("Removed from browser; source archived.").pos(8, 73)
+                .size(296, 10)
+                .color(0xffe7e8eb));
+        popup.child(
+            new TextWidget<>("Published disks and libraries keep working.").pos(8, 87)
+                .size(296, 10)
+                .color(0xffb0b3bb));
+        popup.child(
+            new TextWidget<>("Open edits stay as an unsaved local copy.").pos(8, 101)
+                .size(296, 10)
+                .color(0xffb0b3bb));
+        popup.child(button("Delete project", 8, 120, 144, () -> !state.awaitingReply() && !state.uncertainWrite, () -> {
+            deleteTarget = target;
+            deleteProjectPanel.closePanel();
+            request(Action.DELETE, target.id, 0);
+        }).background(StudioTheme.PRIMARY));
+        popup.child(button("Cancel", 160, 120, 144, () -> true, deleteProjectPanel::closePanel));
+        return popup;
+    }
+
+    private void deletedProject(UUID id) {
+        boolean current = state.saved != null && state.saved.id.equals(id);
+        if (current) cache().remove(key(id));
+        // Retained drafts from this world's other stations must not remain bound to a deleted save.
+        Map<String, Retained> detached = new LinkedHashMap<>();
+        java.util.Iterator<Map.Entry<String, Retained>> entries = cache().entrySet()
+            .iterator();
+        while (entries.hasNext()) {
+            Map.Entry<String, Retained> entry = entries.next();
+            Retained before = entry.getValue();
+            if (before.saved == null || !before.saved.id.equals(id)
+                || !before.saved.owner.equals(Minecraft.getMinecraft().thePlayer.getUniqueID())) continue;
+            String scopeKey = entry.getKey();
+            int prefix = 0;
+            for (int i = 0; i < 4; i++) prefix = scopeKey.indexOf(':', prefix) + 1;
+            Retained copy = new Retained(before);
+            detached.put(scopeKey.substring(0, prefix) + "new:" + copy.localId, copy);
+            entries.remove();
+        }
+        cache().putAll(detached);
+        if (state.detachDeletedProject(id)) {
+            projectMemory.remember(memoryScope, null);
+            publications = new PublicationPage(Collections.emptyList(), 0, 0);
+            retain();
+            status += " Open source kept as an unsaved copy; Save creates a new project.";
+        }
+        rebuildOutline();
+    }
+
     private boolean archiveIdle() {
         return !state.awaitingReply() && (archiveTransfer == null || archiveTransfer.next() == null);
     }
@@ -4040,7 +4170,7 @@ public final class Mui2ProgrammingStation {
                 .addTooltipLine(IKey.dynamic(() -> status)));
         for (int i = 0; i < CATALOG_ROWS; i++) {
             final int row = i;
-            popup.child(button("", 8, 40 + i * 15, 296, () -> !state.busy(), () -> {
+            popup.child(button("", 8, 40 + i * 15, 246, () -> !state.busy(), () -> {
                 ProjectPage.Entry entry = entry(row);
                 if (entry == null) return;
                 catalogPanel.closePanel();
@@ -4056,9 +4186,19 @@ public final class Mui2ProgrammingStation {
                             entry.name + " | r"
                                 + entry.revision
                                 + (cache().containsKey(key(entry.id)) ? " | local draft" : ""),
-                            280);
+                            230);
                 })
                     .color(0xffe7e8eb)));
+            popup.child(
+                button(
+                    "Delete",
+                    258,
+                    40 + i * 15,
+                    46,
+                    () -> !state.awaitingReply() && !state.uncertainWrite && entry(row) != null,
+                    () -> openDeleteProject(entry(row))).height(14)
+                        .background(StudioTheme.PRIMARY)
+                        .setEnabledIf(widget -> entry(row) != null));
         }
         popup.child(
             button(

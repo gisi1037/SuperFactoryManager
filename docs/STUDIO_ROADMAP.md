@@ -223,3 +223,25 @@ messages stay in one status line with complete hover details. The native cursor
 has a one-pixel stem and a shorter height. Copier timing and batch limits are
 server-configurable, with eight blank/output queue slots and legacy save indices
 preserved. Native visual/automation qualification remains in the checklist.
+
+## Startup diagnostics, project cleanup and crafting
+
+Managers now save their PRINT-capture setting and restore it before the first
+program run after reload. Enable it once after updating an older world. Output
+history remains bounded and RAM-only; the preference belongs to the Manager,
+not a copied program disk. Printing does not mark the chunk dirty.
+
+Studio provides Delete open project and per-project Delete actions. Confirmation
+checks the saved revision; deleted drafts leave the browser and source exports.
+Published disks and libraries remain usable. Unsaved open source becomes a new
+local draft, and the last saved source is archived for world-backup recovery.
+
+The Disk Copier recipe includes an HV Sensor and HV Emitter; the Label Gun
+includes a display. Inventory Cable uses SteveFM's four stainless-steel plates,
+three Fluix ME Glass Cables and two neutral bundled cables in a rotated layout,
+producing two cables without competing with the original recipe. Free reversible
+conversions remain available.
+
+Stable 2.9 headless qualification: 2,151 tests, 2,132 passed, 19 skipped; no
+failures or errors. Compiler bridge, style checks and GuideNH packaging passed.
+Native UI, restart capture and NEI checks remain in IN_GAME_TEST_CHECKLIST.md.

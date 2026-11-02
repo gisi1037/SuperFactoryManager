@@ -71,6 +71,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     private DebugConsole debugConsole;
+    private static final String PRINT_CAPTURE_KEY = "sfm:print_capture";
     private ManagerExecutionProfiler executionProfiler;
     private boolean profiledDueUpdate;
 
@@ -101,7 +102,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     }
 
     public DebugConsole getDebugConsole() {
-        if (debugConsole == null) debugConsole = new DebugConsole();
+        if (debugConsole == null) debugConsole = new DebugConsole(false, this::markDirty);
         return debugConsole;
     }
 
@@ -1597,6 +1598,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
         prepareExecutableDisk(false);
         super.writeToNBT(tag);
         tag.setBoolean("isRunning", isRunning);
+        tag.setBoolean(PRINT_CAPTURE_KEY, hasDebugOutputEnabled());
         tag.setLong("managerTick", managerTick);
         tag.setString("logLevel", logLevel.name());
         tag.setDouble("lastTickTimeMs", lastTickTimeMs);
@@ -1615,6 +1617,11 @@ public class TileEntityManager extends TileEntity implements IInventory {
     @Override
     public void readFromNBT(NBTTagCompound tag) {
         executionProfiler = null;
+        // Restore before compilation/activation; startup PRINTs must not wait for a terminal to open.
+        // History remains RAM-only, and legacy or malformed flags default to capture OFF.
+        debugConsole = tag.hasKey(PRINT_CAPTURE_KEY, 1) && tag.getBoolean(PRINT_CAPTURE_KEY)
+            ? new DebugConsole(true, this::markDirty)
+            : null;
         // Deserialization replaces the physical disk even when its document/source NBT is identical. Fence existing
         // editor/control authority independently of the reference loader; client packets retain server-issued tokens.
         diskGeneration = Math.incrementExact(diskGeneration);

@@ -13,6 +13,29 @@ locations refer to the installed program, which may differ from a Studio draft.
 
 ## Current build: highest-value manual pass
 
+### P1: Startup PRINT and project deletion
+
+- Enable Capture in a manager on the updated build, save/restart the server, and
+  leave its terminal closed until the program has run. Capture must still be ON
+  and new PRINT output should be available. Old history is not replayed. Repeat
+  with capture OFF and with a new manager; both must stay OFF. A pre-update save
+  needs capture enabled once because it never stored the choice. Check promptly:
+  the usual 200-line/16,384-character history cap still applies.
+- Export saved projects as a backup, then create disposable test projects. In
+  Projects, cancel Delete and verify nothing changes. Confirm Delete: the exact
+  row must disappear, its published disk must continue running, and an open/local
+  draft must remain as an unsaved copy. Save that copy and verify a new project ID.
+- Delete a published library project used by another saved program: the pinned
+  library should still resolve when publishing that program. Published receipts
+  and builds must remain usable. Normal project export excludes deleted projects.
+- With two stations, change a project after another client has opened the delete
+  confirmation. The stale deletion must refuse rather than deleting the new revision.
+  Check small GUI scales, confirmation centering/dragging and Cancel behavior.
+- Verify recipes in NEI: copier includes HV Sensor and HV Emitter; Label Gun
+  includes a screen. Our full cable uses four stainless plates, three Fluix ME
+  Glass Cables and two neutral bundled cables, rotated from SteveFM's layout.
+  Both shapes must produce their intended distinct outputs without recipe conflicts.
+
 ### D1: Disk Copier
 
 Use a disposable world and the **Disk Copier** from NEI/creative; check its late-HV

@@ -330,7 +330,7 @@ class SfmlPrintTest {
     }
 
     @Test
-    void consoleHooksNeverDirtyManagerAndCaptureHistoryDoNotSurviveNbtReload() throws Exception {
+    void captureChoicePersistsButPrintingAndClearingHistoryNeverDirtyManager() throws Exception {
         CountingManager counter = new CountingManager();
         ProgramContext context = new ProgramContext(null, counter, null, null, 0, false);
         assertFalse(context.hasDebugOutputEnabled());
@@ -341,7 +341,13 @@ class SfmlPrintTest {
             .append("temporary");
         context.getDebugConsole()
             .clear();
-        assertEquals(0, counter.dirtyCalls);
+        assertEquals(1, counter.dirtyCalls, "Only changing the capture choice marks the manager dirty");
+        context.getDebugConsole()
+            .setEnabled(true);
+        assertEquals(1, counter.dirtyCalls, "Repeating capture on must not dirty the chunk");
+        context.getDebugConsole()
+            .setEnabled(false);
+        assertEquals(2, counter.dirtyCalls);
         AuditRegressionTest.Fixture fixture = new AuditRegressionTest.Fixture();
         TileEntityManager manager = RecoveryFixtures.manager(fixture);
         manager.saveCodeAndRecompile("EVERY 20 TICKS DO PRINT(1) END");
@@ -361,12 +367,44 @@ class SfmlPrintTest {
         TileEntityManager loaded = new TileEntityManager();
         loaded.setWorldObj(fixture.world);
         loaded.readFromNBT(saved);
-        assertFalse(loaded.hasDebugOutputEnabled());
-        assertNull(field(loaded, TileEntityManager.class, "debugConsole"));
+        assertTrue(loaded.hasDebugOutputEnabled());
         assertTrue(
             loaded.getDebugConsole()
                 .snapshot()
                 .isEmpty());
+        assertTrue(saved.getBoolean("sfm:print_capture"));
+        assertFalse(
+            manager.getDisk()
+                .getTagCompound()
+                .hasKey("sfm:print_capture"));
+        // The first run after loading records PRINT before anyone opens the terminal.
+        loaded.setRunning(true);
+        loaded.runOnceWithLogLevel(ca.teamdman.sfm.common.tileentity.LogLevel.DEBUG);
+        assertTrue(
+            loaded.getDebugConsole()
+                .snapshot()
+                .stream()
+                .anyMatch(line -> line.contains("1")));
+        // Re-reading the save resets RAM history but restores the explicit capture choice without replaying it.
+        loaded.readFromNBT(saved);
+        assertTrue(
+            loaded.getDebugConsole()
+                .snapshot()
+                .isEmpty());
+        loaded.getDebugConsole()
+            .setEnabled(false);
+        loaded.writeToNBT(saved);
+        loaded.readFromNBT(saved);
+        assertFalse(loaded.hasDebugOutputEnabled());
+        assertNull(field(loaded, TileEntityManager.class, "debugConsole"));
+        for (int kind = 0; kind < 2; kind++) {
+            if (kind == 0) saved.removeTag("sfm:print_capture");
+            else saved.setString("sfm:print_capture", "true");
+            loaded.getDebugConsole()
+                .setEnabled(true);
+            loaded.readFromNBT(saved);
+            assertFalse(loaded.hasDebugOutputEnabled(), "Legacy/malformed flags default OFF");
+        }
     }
 
     private static String repeat(char value, int count) {

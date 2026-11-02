@@ -434,7 +434,8 @@ its three-row scrolling viewport; SFM has no dependency on that mod's API.
 filter. Use wheel/scrollbars, Wrap, Follow, Live/Frozen and Copy to inspect bounded
 retained output. Opening Logs does not enable recording. **Terminal** replaces
 the body in the same machine window; it no longer opens a second panel. PRINT
-capture starts off and must be enabled explicitly.
+new managers start with capture off. Enable it explicitly once; the manager saves
+the choice across chunk reloads/server restarts. Output history remains RAM-only.
 
 ## Performance and execution activity
 

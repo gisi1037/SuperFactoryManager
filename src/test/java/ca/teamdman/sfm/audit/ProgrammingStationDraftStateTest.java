@@ -20,6 +20,42 @@ class ProgrammingStationDraftStateTest {
     private static final UUID OWNER = new UUID(1, 2), PROJECT = new UUID(3, 4);
 
     @Test
+    void confirmedDeleteDetachesOnlyTheMatchingProjectAndKeepsNewerLocalEdits() {
+        ProgrammingStationDraftState state = loaded();
+        long request = state.begin(Action.DELETE);
+        state.name = "new unsaved name";
+        state.source = "new unsaved source";
+        state.noteLocalEdit();
+        assertThrows(IllegalStateException.class, () -> state.detachDeletedProject(PROJECT));
+        assertFalse(state.receive(request + 1, Action.DELETE, true, null, null));
+        assertTrue(state.receive(request, Action.DELETE, true, null, null));
+        assertFalse(state.detachDeletedProject(UUID.randomUUID()));
+        assertTrue(state.detachDeletedProject(PROJECT));
+        assertNull(state.saved);
+        assertEquals("new unsaved name", state.name);
+        assertEquals("new unsaved source", state.source);
+        assertTrue(state.dirty());
+        assertNull(state.selectedBuild());
+        assertDoesNotThrow(() -> state.begin(Action.CREATE));
+    }
+
+    @Test
+    void deleteTimeoutAndRefusalNeverDiscardTheSavedBaselineOrOpenDraft() {
+        ProgrammingStationDraftState state = loaded();
+        ProjectDraft saved = state.saved;
+        long request = state.begin(Action.DELETE);
+        for (int i = 0; i < 201; i++) state.tick();
+        assertTrue(
+            state.timeoutMessage()
+                .contains("may have applied"));
+        assertSame(saved, state.saved);
+        assertTrue(state.receive(request, Action.DELETE, false, null, null));
+        assertSame(saved, state.saved);
+        state.uncertainWrite = true;
+        assertThrows(IllegalStateException.class, () -> state.begin(Action.DELETE));
+    }
+
+    @Test
     void discardingUnsavedEditsClearsOnlyLocalIdentityAndLeavesTheSavedProjectUntouched() {
         ProgrammingStationDraftState state = loaded();
         ProjectDraft saved = state.saved;

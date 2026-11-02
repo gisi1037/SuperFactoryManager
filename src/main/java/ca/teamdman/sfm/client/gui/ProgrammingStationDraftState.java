@@ -125,6 +125,8 @@ public final class ProgrammingStationDraftState {
 
     /** Timeout never cancels or retries a server write, including writing a held physical disk. */
     public String timeoutMessage() {
+        if (action == Action.DELETE) return "No delete confirmation; it may have applied. Current draft kept. "
+            + "A late reply is accepted; reopen Projects to inspect before retrying.";
         if (archiveRequest) return "No transfer confirmation. Import may be partial; do not retry blindly. "
             + "Current draft kept. A late reply is still accepted; reopen and inspect projects if needed.";
         if (action == Action.WRITE_DISK)
@@ -168,6 +170,8 @@ public final class ProgrammingStationDraftState {
     private long begin(Action next, boolean recovering) {
         if (waiting)
             throw new IllegalStateException("Waiting for the previous request; a timed-out save may still apply.");
+        if (next == Action.DELETE && uncertainWrite)
+            throw new IllegalStateException("Reconcile the unconfirmed save before deleting a project.");
         if (next == Action.LOAD && !recovering && !canReplace())
             throw new IllegalStateException("Keep or save the current source and name before loading another project.");
         if (next == Action.RESTORE_BUILD && (!recovering && !canReplace() || uncertainWrite))
@@ -318,6 +322,19 @@ public final class ProgrammingStationDraftState {
         if (waiting || uncertainWrite)
             throw new IllegalStateException("Resolve the pending server request before discarding this draft.");
         reset();
+    }
+
+    /** Deleting a saved project never discards the open buffer or silently recreates the old identity. */
+    public boolean detachDeletedProject(UUID id) {
+        if (saved == null || !saved.id.equals(id)) return false;
+        if (waiting) throw new IllegalStateException("Wait for delete confirmation before detaching the draft.");
+        saved = null;
+        localId = UUID.randomUUID();
+        validation = null;
+        publication = libraryPublication = selectedBuild = null;
+        uncertainWrite = false;
+        noteLocalEdit();
+        return true;
     }
 
     private void reset() {

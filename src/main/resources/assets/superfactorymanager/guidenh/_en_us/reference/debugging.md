@@ -6,7 +6,7 @@ navigation:
   parent: /reference/index.md
   keywords: ["print", "debug", "terminal", "error", "logs", "troubleshooting"]
 categories: ["sfm"]
-updated: "2026-10-31"
+updated: "2026-11-01"
 ---
 
 # Debugging and the terminal
@@ -27,8 +27,17 @@ reachable containers, meet an existing stock target or be blocked by recovery.
 
 ## PRINT
 
-Open **Terminal** in the manager and enable capture. Capture starts off, belongs
-to this manager's memory and is not saved to the disk or world.
+Open **Terminal** in the manager and enable capture. New managers start with it
+off. The on/off choice is saved with that manager and restored before its program
+runs after chunk reload or server restart, even before anyone opens the terminal.
+It is not a disk setting. PRINT history remains bounded RAM-only data and starts
+empty after reload; it does not replay old messages.
+
+After installing a build that adds this persistence, enable capture once on each
+manager you want to inspect. Older saves have no saved capture choice. To diagnose
+startup behavior, record label availability separately from item counts and print
+the reason when setting a shutdown flag. Program-wide LET resets on reload;
+STATE restores its saved value. Old output can roll out of the bounded history.
 
 ```sfml
 NAME "Inspect a route"

@@ -90,10 +90,28 @@ saved server revision. Validation never executes the project.
 
 ## Inspect a running Manager
 
+Use the manager's Terminal, Profile and Watch for runtime inspection.
+
+## Delete a project
+
+Open **Projects** and click **Delete** beside a project, or use **Delete open
+project** in the sidebar. Review its name, ID and saved revision, then confirm.
+If another player/station saved a newer revision, refresh and review it again.
+
+Deletion removes the project from the browser. Its saved source is archived;
+published disks and pinned libraries keep working. An open buffer and retained
+local edits become unsaved copies: Save creates a new project rather than
+recreating the deleted identity. Export an archive first if you want a portable
+backup. Archived projects are excluded from normal project export. Storage is
+bounded to 128 active and 1,024 total active/archived project directories per owner.
+
+## Runtime terminal
+
 The bottom dock has **Problems**, **Debug terminal**, **Watch** and **Build revisions**.
 In Debug terminal, explicitly connect to a nearby loaded Manager by X/Y/Z.
 Use `help`, `status`, `error`, `state`, `labels` or `logs`. Enable PRINT capture
-explicitly to collect its output; capture starts off. Results support paging and
+explicitly to collect its output; new managers start off, then retain that choice
+across reloads. Output history is RAM-only. Results support paging and
 Copy. Tab completes commands; Up/Down recalls history.
 
 **Errors** reads that Manager's retained runtime failure. Its location belongs to

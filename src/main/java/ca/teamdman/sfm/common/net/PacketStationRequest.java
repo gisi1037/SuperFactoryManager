@@ -31,7 +31,8 @@ public final class PacketStationRequest implements IMessage {
         PUBLISH_LIBRARY,
         LIST_LIBRARY_PUBLICATIONS,
         ARCHIVE_LOAD,
-        ARCHIVE_CREATE
+        ARCHIVE_CREATE,
+        DELETE
     }
 
     public int x, y, z, windowId, offset;
@@ -56,6 +57,8 @@ public final class PacketStationRequest implements IMessage {
         if (action == Action.ARCHIVE_LOAD && (!name.isEmpty() || !source.isEmpty() || offset != 0)
             || action == Action.ARCHIVE_CREATE && (offset != 0 || expectedRevision != 0))
             throw new IllegalArgumentException("Invalid saved-program transfer request");
+        if (action == Action.DELETE && (!name.isEmpty() || !source.isEmpty() || offset != 0))
+            throw new IllegalArgumentException("Delete requires only the exact project and saved revision");
         if (action == Action.WRITE_DISK || action == Action.RESTORE_BUILD ? !isBuildDigest(buildDigest)
             : !buildDigest.isEmpty()) throw new IllegalArgumentException("Invalid selected build digest");
         if ((action == Action.PUBLISH || action == Action.LIST_PUBLICATIONS

@@ -26,6 +26,7 @@ public final class ProjectWorkspace implements AutoCloseable {
 
     public static final int MAX_SOURCE_BYTES = 30000, MAX_NAME_BYTES = 96;
     public static final int MAX_PROJECTS_PER_OWNER = 128, PAGE_SIZE = 32, MAX_PENDING = 32;
+    public static final int MAX_STORED_PROJECTS_PER_OWNER = 1024;
     // Independent outstanding limits reserve progress for authoring AND cold activation. Count until callback drain.
     public static final int MAX_AUTHORING_PENDING = 24, MAX_EXECUTION_PENDING = 8;
     public static final int MAX_WAITING_EXECUTIONS = 4096, MAX_EXECUTION_REGISTRATIONS = 64;
@@ -78,6 +79,10 @@ public final class ProjectWorkspace implements AutoCloseable {
 
     public boolean list(UUID owner, int offset, Consumer<ProjectResult<ProjectPage>> callback) {
         return submit(() -> repository.list(owner, offset), callback);
+    }
+
+    public boolean delete(UUID owner, UUID id, long expectedRevision, Consumer<ProjectResult<UUID>> callback) {
+        return submit(() -> repository.delete(owner, id, expectedRevision), callback);
     }
 
     /** Publish only an exact saved revision. Owner must be the authenticated server player. */

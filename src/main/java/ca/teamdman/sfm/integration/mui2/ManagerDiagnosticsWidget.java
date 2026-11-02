@@ -41,8 +41,8 @@ final class ManagerDiagnosticsWidget extends ParentWidget<ManagerDiagnosticsWidg
     private final ConsoleOutputWidget output = new ConsoleOutputWidget();
     private final TerminalCommandHistory history = new TerminalCommandHistory();
     private final TerminalCommandCompletion completion = new TerminalCommandCompletion();
-    private List<String> terminalResult = Collections
-        .singletonList("Type help for commands. Errors shows the last runtime failure. PRINT capture starts OFF.");
+    private List<String> terminalResult = Collections.singletonList(
+        "Type help for commands. Errors shows the last failure. PRINT uses this manager's saved capture setting.");
     private List<String> print = Collections.emptyList(),
         profile = Collections.singletonList("Record full manager update costs; no per-statement tracing."),
         watch = Collections.singletonList("Program globals and persistent variables are read-only snapshots.");

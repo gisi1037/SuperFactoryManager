@@ -6,7 +6,7 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.List;
 
-/** Server-owned, heap-only diagnostic history. Capture is explicitly enabled and never persisted. */
+/** Server-owned, bounded heap history. The manager persists the explicit capture choice separately. */
 public final class DebugConsole {
 
     public static final int MAX_LINES = 200;
@@ -16,13 +16,26 @@ public final class DebugConsole {
     private boolean enabled;
     private int characters;
     private long droppedLines;
+    private final Runnable captureChanged;
+
+    public DebugConsole() {
+        this(false, () -> {});
+    }
+
+    /** Loading a saved choice must not mark the chunk dirty or replay previous output. */
+    public DebugConsole(boolean enabled, Runnable captureChanged) {
+        this.enabled = enabled;
+        this.captureChanged = java.util.Objects.requireNonNull(captureChanged, "captureChanged");
+    }
 
     public boolean isEnabled() {
         return enabled;
     }
 
     public void setEnabled(boolean enabled) {
+        if (this.enabled == enabled) return;
         this.enabled = enabled;
+        captureChanged.run();
     }
 
     /** Command replies may append even when PRINT capture is disabled. */

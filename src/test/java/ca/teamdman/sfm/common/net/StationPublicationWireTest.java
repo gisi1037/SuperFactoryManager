@@ -30,6 +30,24 @@ class StationPublicationWireTest {
     private static final String DIGEST = new PublishedProgram("EVERY 20 TICKS DO END").digest();
 
     @Test
+    void deleteRequestsUseOnlyExactProjectRevisionAndRepliesAreAcknowledgments() {
+        PacketStationRequest request = request(PacketStationRequest.Action.DELETE);
+        request.expectedRevision = 7;
+        PacketStationRequest decoded = decodeRequest(encode(request));
+        assertEquals(PROJECT, decoded.projectId);
+        assertEquals(7, decoded.expectedRevision);
+        assertTrue(decodeReply(encode(reply(PacketStationRequest.Action.DELETE, true))).accepted);
+        request.source = "unexpected source";
+        assertThrows(IllegalArgumentException.class, request::validate);
+        request.source = "";
+        request.offset = 1;
+        assertThrows(IllegalArgumentException.class, request::validate);
+        request.offset = 0;
+        request.projectId = null;
+        assertThrows(IllegalArgumentException.class, request::validate);
+    }
+
+    @Test
     void restoreRequestIsSourceFreeAndRequiresExactPublishedSelection() {
         PacketStationRequest request = request(PacketStationRequest.Action.RESTORE_BUILD);
         request.expectedRevision = 2;
@@ -189,13 +207,16 @@ class StationPublicationWireTest {
                         || action == PacketStationRequest.Action.PUBLISH_LIBRARY
                             ? 3
                             : action == PacketStationRequest.Action.LIST_PUBLICATIONS
-                                || action == PacketStationRequest.Action.LIST_LIBRARY_PUBLICATIONS ? 4
-                                    : action == PacketStationRequest.Action.WRITE_DISK ? -1
-                                        : action == PacketStationRequest.Action.RESTORE_BUILD ? 5 : 0;
+                                || action == PacketStationRequest.Action.LIST_LIBRARY_PUBLICATIONS
+                                    ? 4
+                                    : action == PacketStationRequest.Action.WRITE_DISK
+                                        || action == PacketStationRequest.Action.DELETE ? -1
+                                            : action == PacketStationRequest.Action.RESTORE_BUILD ? 5 : 0;
             for (int payload = -1; payload < 6; payload++) {
                 PacketStationReply reply = reply(action, true);
                 addPayload(reply, payload);
-                if (action == PacketStationRequest.Action.WRITE_DISK && payload != -1) {
+                if ((action == PacketStationRequest.Action.WRITE_DISK || action == PacketStationRequest.Action.DELETE)
+                    && payload != -1) {
                     assertThrows(IllegalArgumentException.class, () -> encode(reply));
                     reply.accepted = false;
                     assertThrows(IllegalArgumentException.class, () -> encode(reply));

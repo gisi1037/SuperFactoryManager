@@ -52,16 +52,20 @@ means an accepted `circuitAdvanced` ingredient. NEI shows alternatives.
 | Output | Main ingredients |
 | --- | --- |
 | Factory Manager ×1 | Stainless-steel plates, screen, 2 HV circuits, HV hull and HV motor |
-| Full-block cable ×2 | Stainless-steel plates, single gold cables and an HV circuit |
+| Full-block cable ×2 | 4 stainless-steel plates, 3 Fluix ME Glass Cables and 2 neutral bundled cables |
 | Blank program disk ×1 | Electrum foil/fine wire, advanced epoxy board, blank data stick and an HV circuit |
-| Label Gun ×1 | Stainless steel, HV sensor, HV emitter, HV motor and an HV circuit |
+| Label Gun ×1 | Stainless steel, screen, HV sensor, HV emitter, HV motor and an HV circuit |
 | Programming Station ×1 | Stainless steel, screen, advanced epoxy boards, HV hull, 2 HV circuits and a manager |
 | Redstone Port ×1 | Stainless steel, HV sensor, HV emitter, 2 HV circuits and our full-block cable |
-| Disk Copier ×1 | 2 stainless-steel plates, screen, 2 advanced epoxy boards, HV hull, 2 HV circuits and HV motor |
+| Disk Copier ×1 | Stainless steel, screen, 2 advanced epoxy boards, HV hull, 2 HV circuits, HV sensor and HV emitter |
 
 No OpenComputers parts are required. Direct recipes need the GT components;
 there is no cheaper vanilla fallback if a component is missing. Conversions remain
 separate from direct crafting. Check the server log if NEI has no direct recipe.
+
+Our cable uses SteveFM's ingredients and output count, rotated so its recipe
+does not conflict. Put Fluix ME Glass Cable down the middle column, neutral bundled
+cable on the left/right of the middle row, and stainless-steel plates in the corners.
 
 The [Disk Copier](disk-copier.md) writes a program and its saved labels onto fresh
 blank media: up to eight copies per one-second cycle by default. The source stays

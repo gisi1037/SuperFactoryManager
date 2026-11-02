@@ -14,8 +14,7 @@ public final class LateHvRecipes {
     private LateHvRecipes() {}
 
     public static List<IRecipe> build(Map<String, ItemStack> outputs, Function<String, ItemStack> gt) {
-        for (String ore : new String[] { "plateStainlessSteel", "circuitAdvanced", "cableGt01Gold", "foilElectrum",
-            "wireFineElectrum" })
+        for (String ore : new String[] { "plateStainlessSteel", "circuitAdvanced", "foilElectrum", "wireFineElectrum" })
             if (net.minecraftforge.oredict.OreDictionary.getOres(ore, false)
                 .isEmpty()) throw new IllegalArgumentException("Missing late-HV material: " + ore);
         // Resolve all parts first so missing dependencies cannot leave a half-built catalog or cheap fallback.
@@ -44,19 +43,6 @@ public final class LateHvRecipes {
                 hull,
                 'M',
                 motor));
-        cable.stackSize = 2;
-        recipes.add(
-            new PlainShapedOreRecipe(
-                cable,
-                "PWP",
-                "WCW",
-                "PWP",
-                'P',
-                "plateStainlessSteel",
-                'W',
-                "cableGt01Gold",
-                'C',
-                "circuitAdvanced"));
         recipes.add(
             new PlainShapedOreRecipe(
                 disk,
@@ -76,7 +62,7 @@ public final class LateHvRecipes {
         recipes.add(
             new PlainShapedOreRecipe(
                 gun,
-                " PS",
+                "DPS",
                 " CE",
                 "M  ",
                 'P',
@@ -88,7 +74,9 @@ public final class LateHvRecipes {
                 'E',
                 emitter,
                 'M',
-                motor));
+                motor,
+                'D',
+                screen));
         recipes.add(
             new PlainShapedOreRecipe(
                 station,
@@ -128,22 +116,44 @@ public final class LateHvRecipes {
         recipes.add(
             new PlainShapedOreRecipe(
                 copier,
-                "PSP",
+                "PSE",
                 "BHB",
-                "CMC",
+                "CDC",
                 'P',
                 "plateStainlessSteel",
                 'S',
-                screen,
+                sensor,
+                'E',
+                emitter,
                 'B',
                 board,
                 'H',
                 hull,
                 'C',
                 "circuitAdvanced",
-                'M',
-                motor));
+                'D',
+                screen));
         return recipes;
+    }
+
+    /** Same 4 plates/3 AE glass cables/2 bundled cables as SteveFM; rotate the layout to avoid competing outputs. */
+    public static IRecipe cableRecipe(ItemStack output, ItemStack glassCable, ItemStack bundledCable) {
+        if (net.minecraftforge.oredict.OreDictionary.getOres("plateStainlessSteel", false)
+            .isEmpty())
+            throw new IllegalArgumentException("Missing stainless-steel plates for the Inventory Cable recipe");
+        ItemStack cable = part(output);
+        cable.stackSize = 2;
+        return new PlainShapedOreRecipe(
+            cable,
+            "PAP",
+            "WAW",
+            "PAP",
+            'P',
+            "plateStainlessSteel",
+            'A',
+            part(glassCable),
+            'W',
+            part(bundledCable)).setMirrored(false);
     }
 
     private static ItemStack part(ItemStack stack) {

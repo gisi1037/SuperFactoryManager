@@ -191,7 +191,8 @@ class ProgrammingStationTest {
                 || action == PacketStationRequest.Action.PUBLISH_LIBRARY
                 || action == PacketStationRequest.Action.LIST_LIBRARY_PUBLICATIONS
                 || action == PacketStationRequest.Action.WRITE_DISK
-                || action == PacketStationRequest.Action.RESTORE_BUILD;
+                || action == PacketStationRequest.Action.RESTORE_BUILD
+                || action == PacketStationRequest.Action.DELETE;
             request.name = publicationAction || action == PacketStationRequest.Action.ARCHIVE_LOAD ? ""
                 : "Local project";
             request.source = publicationAction || action == PacketStationRequest.Action.ARCHIVE_LOAD ? ""
@@ -238,12 +239,14 @@ class ProgrammingStationTest {
                                 request.buildDigest,
                                 "Saved build"),
                             "EVERY 20 TICKS DO END");
-                else if (action != PacketStationRequest.Action.WRITE_DISK) reply.draft = new ProjectDraft(
-                    request.projectId,
-                    UUID.randomUUID(),
-                    0,
-                    request.name,
-                    request.source);
+                else if (action != PacketStationRequest.Action.WRITE_DISK
+                    && action != PacketStationRequest.Action.DELETE)
+                    reply.draft = new ProjectDraft(
+                        request.projectId,
+                        UUID.randomUUID(),
+                        0,
+                        request.name,
+                        request.source);
                 buffer.clear();
                 reply.toBytes(buffer);
                 PacketStationReply decoded = new PacketStationReply();

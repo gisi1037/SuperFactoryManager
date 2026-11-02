@@ -51,7 +51,7 @@ final class ProjectRepository {
     ProjectDraft create(UUID owner, String name, String source) throws IOException {
         validate(name, source);
         Path directory = ownerDirectory(owner, true);
-        List<UUID> existing = projectIds(directory);
+        List<UUID> existing = projectIds(directory, true);
         if (existing.size() >= ProjectWorkspace.MAX_PROJECTS_PER_OWNER)
             throw new Failure(ProjectResult.Status.LIMIT, "Project limit reached");
         UUID id = UUID.randomUUID();
@@ -63,13 +63,18 @@ final class ProjectRepository {
     }
 
     ProjectDraft load(UUID owner, UUID id) throws IOException {
+        return readDraft(owner, id, false);
+    }
+
+    private ProjectDraft readDraft(UUID owner, UUID id, boolean deleted) throws IOException {
         requireId(id);
         Path directory = ownerDirectory(owner, false);
         if (directory == null) throw missing();
         Path project = directory.resolve(id.toString());
         if (!Files.exists(project, LinkOption.NOFOLLOW_LINKS)) throw missing();
         requireDirectory(project);
-        Path file = project.resolve("draft.bin");
+        if (!deleted && Files.exists(project.resolve("deleted.bin"), LinkOption.NOFOLLOW_LINKS)) throw missing();
+        Path file = project.resolve(deleted ? "deleted.bin" : "draft.bin");
         if (!Files.exists(file, LinkOption.NOFOLLOW_LINKS)) throw missing();
         if (!Files.isRegularFile(file, LinkOption.NOFOLLOW_LINKS)) throw malformed();
         long size = Files.size(file);
@@ -110,6 +115,25 @@ final class ProjectRepository {
         ProjectDraft after = new ProjectDraft(id, owner, before.revision + 1, name, source);
         write(ownerDirectory(owner, false).resolve(id.toString()), after, true);
         return after;
+    }
+
+    /** Archive only the exact draft. Immutable receipts, libraries, bundles and execution grants stay in place. */
+    UUID delete(UUID owner, UUID id, long expectedRevision) throws IOException {
+        if (expectedRevision < 0) throw new IllegalArgumentException("Invalid project revision");
+        requireId(id);
+        Path directory = ownerDirectory(owner, false);
+        if (directory == null) throw missing();
+        Path project = directory.resolve(id.toString());
+        if (!Files.exists(project, LinkOption.NOFOLLOW_LINKS)) throw missing();
+        requireDirectory(project);
+        Path draft = project.resolve("draft.bin"), archived = project.resolve("deleted.bin");
+        boolean alreadyDeleted = Files.exists(archived, LinkOption.NOFOLLOW_LINKS);
+        if (alreadyDeleted && Files.exists(draft, LinkOption.NOFOLLOW_LINKS)) throw malformed();
+        ProjectDraft current = readDraft(owner, id, alreadyDeleted);
+        if (current.revision != expectedRevision)
+            throw new Failure(ProjectResult.Status.STALE, "Project changed; refresh before deleting");
+        if (!alreadyDeleted) Files.move(draft, archived, StandardCopyOption.ATOMIC_MOVE);
+        return id; // A lost acknowledgement may safely retry the same exact revision.
     }
 
     ProjectPage list(UUID owner, int offset) throws IOException {
@@ -596,19 +620,32 @@ final class ProjectRepository {
     }
 
     private static List<UUID> projectIds(Path directory) throws IOException {
+        return projectIds(directory, false);
+    }
+
+    private static List<UUID> projectIds(Path directory, boolean reserveNew) throws IOException {
         List<UUID> ids = new ArrayList<>();
         int scanned = 0;
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
             for (Path child : stream) {
-                if (++scanned > ProjectWorkspace.MAX_PROJECTS_PER_OWNER)
-                    throw new Failure(ProjectResult.Status.LIMIT, "Project catalog exceeds its limit");
+                if (++scanned > ProjectWorkspace.MAX_STORED_PROJECTS_PER_OWNER - (reserveNew ? 1 : 0))
+                    throw new Failure(ProjectResult.Status.LIMIT, "Project storage exceeds its active/archive limit");
                 try {
                     String name = child.getFileName()
                         .toString();
                     UUID id = UUID.fromString(name);
                     if (!name.equals(id.toString())) throw malformed();
                     requireDirectory(child);
+                    Path archived = child.resolve("deleted.bin");
+                    if (Files.exists(archived, LinkOption.NOFOLLOW_LINKS)) {
+                        if (!Files.isRegularFile(archived, LinkOption.NOFOLLOW_LINKS)
+                            || Files.size(archived) > MAX_FILE_BYTES
+                            || Files.exists(child.resolve("draft.bin"), LinkOption.NOFOLLOW_LINKS)) throw malformed();
+                        continue;
+                    }
                     ids.add(id);
+                    if (ids.size() > ProjectWorkspace.MAX_PROJECTS_PER_OWNER)
+                        throw new Failure(ProjectResult.Status.LIMIT, "Project catalog exceeds its limit");
                 } catch (IllegalArgumentException error) {
                     throw malformed();
                 }

@@ -59,6 +59,18 @@ public final class ModRecipes {
             SuperFactoryManager.LOG
                 .error("Late-HV SFM recipes could not be registered; no vanilla fallback was added", failure);
         }
+        try {
+            // Missing optional cable ingredients must not remove the other machines' GT recipes.
+            GameRegistry.addRecipe(
+                LateHvRecipes.cableRecipe(
+                    new ItemStack(ModBlocks.cable),
+                    GtnhRecipeParts.packItem("appliedenergistics2", "item.ItemMultiPart", 16),
+                    GtnhRecipeParts.packItem("ProjRed|Transmission", "projectred.transmission.wire", 17)));
+        } catch (IllegalArgumentException | LinkageError failure) {
+            SuperFactoryManager.LOG.error(
+                "Inventory Cable recipe needs AE2 glass and ProjectRed bundled cable; conversions remain available",
+                failure);
+        }
     }
 
     public static void convert(ItemStack first, ItemStack second) {

@@ -56,12 +56,13 @@ public final class PacketStationReply implements IMessage {
 
     @Override
     public void toBytes(ByteBuf buffer) {
-        if (action == PacketStationRequest.Action.WRITE_DISK && (draft != null || page != null
-            || validation != null
-            || publication != null
-            || publications != null
-            || restored != null))
-            throw new IllegalArgumentException("Disk write replies contain an acknowledgment only");
+        if ((action == PacketStationRequest.Action.WRITE_DISK || action == PacketStationRequest.Action.DELETE)
+            && (draft != null || page != null
+                || validation != null
+                || publication != null
+                || publications != null
+                || restored != null))
+            throw new IllegalArgumentException("Delete/disk-write replies contain an acknowledgment only");
         buffer.writeInt(VERSION);
         buffer.writeInt(x);
         buffer.writeInt(y);
@@ -214,6 +215,7 @@ public final class PacketStationReply implements IMessage {
                 expectedPayload = publications != null;
                 break;
             case WRITE_DISK:
+            case DELETE:
                 expectedPayload = true;
                 break;
             case RESTORE_BUILD:
@@ -222,9 +224,11 @@ public final class PacketStationReply implements IMessage {
             default:
                 expectedPayload = draft != null;
         }
-        if (buffer.isReadable()
-            || accepted && (payloads != (action == PacketStationRequest.Action.WRITE_DISK ? 0 : 1) || !expectedPayload)
-            || !accepted && payloads != 0) throw new IllegalArgumentException("Invalid station reply payload");
+        if (buffer.isReadable() || accepted && (payloads
+            != (action == PacketStationRequest.Action.WRITE_DISK || action == PacketStationRequest.Action.DELETE ? 0
+                : 1)
+            || !expectedPayload) || !accepted && payloads != 0)
+            throw new IllegalArgumentException("Invalid station reply payload");
     }
 
     private static void writeReceipt(ByteBuf buffer, PublicationReceipt receipt) {

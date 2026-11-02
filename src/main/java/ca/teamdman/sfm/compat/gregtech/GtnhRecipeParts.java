@@ -30,4 +30,15 @@ public final class GtnhRecipeParts {
             throw new IllegalArgumentException("Cannot resolve GT component " + name, failure);
         }
     }
+
+    /** Pack items resolve by registry identity/metadata, without linking optional mod classes. */
+    public static ItemStack packItem(String mod, String name, int metadata) {
+        ItemStack stack = cpw.mods.fml.common.registry.GameRegistry.findItemStack(mod, name, 1);
+        if (stack == null || stack.getItem() == null)
+            throw new IllegalArgumentException("Missing cable recipe component: " + mod + ":" + name);
+        stack = stack.copy();
+        stack.stackSize = 1;
+        stack.setItemDamage(metadata);
+        return stack;
+    }
 }

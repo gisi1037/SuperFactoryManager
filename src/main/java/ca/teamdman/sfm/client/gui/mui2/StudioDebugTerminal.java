@@ -54,7 +54,7 @@ public final class StudioDebugTerminal {
     private String deferred;
     private List<String> history = Collections.emptyList();
     private List<String> result = Collections.singletonList(
-        "Type help after connecting. Errors reads the manager's last runtime failure. Capture starts OFF.");
+        "Type help after connecting. Errors reads the last failure. PRINT uses the manager's saved capture setting.");
 
     public StudioDebugTerminal(TileEntityProgrammingStation station, UUID session, int window) {
         this.station = station;
