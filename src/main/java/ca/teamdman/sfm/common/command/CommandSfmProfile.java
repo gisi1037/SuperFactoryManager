@@ -19,13 +19,18 @@ public final class CommandSfmProfile extends CommandBase {
 
     @Override
     public String getCommandUsage(ICommandSender sender) {
-        return "/sfmprofile [start|status|stop]";
+        return "/sfmprofile [start|status|stop|recipes]";
     }
 
     @Override
     public void processCommand(ICommandSender sender, String[] args) {
         if (args.length > 1) throw new WrongUsageException(getCommandUsage(sender));
         String action = args.length == 0 ? "status" : args[0];
+        if ("recipes".equals(action)) {
+            sender.addChatMessage(
+                new ChatComponentText(ca.teamdman.sfm.common.recipe.RecipeCatalogService.INSTANCE.summary()));
+            return;
+        }
         ManagerTickProfiler profiler = ManagerTickProfiler.INSTANCE;
         if ("start".equals(action)) profiler.setEnabled(true);
         else if ("stop".equals(action)) profiler.setEnabled(false);

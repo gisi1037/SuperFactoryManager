@@ -193,6 +193,12 @@ public final class RecipeCatalog {
         return EMPTY_RESULTS[status.ordinal()];
     }
 
+    public static Result unavailable(Status status) {
+        if (status == Status.MATCHES || status == Status.NO_MATCH)
+            throw new IllegalArgumentException("Unavailable catalog cannot establish matches or absence");
+        return result(status);
+    }
+
     private static String hex(byte[] bytes) {
         StringBuilder text = new StringBuilder(64);
         for (byte value : bytes) {

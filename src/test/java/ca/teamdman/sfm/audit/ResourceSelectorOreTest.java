@@ -18,6 +18,16 @@ import org.junit.jupiter.api.Test;
 class ResourceSelectorOreTest {
 
     @Test
+    void recipeAdapterPreservesDeclarations() throws Throwable {
+        invoke("recipeAdapterPreservesDeclarations");
+    }
+
+    @Test
+    void recipeAdapterAlternativesAndCoverage() throws Throwable {
+        invoke("recipeAdapterAlternativesAndCoverage");
+    }
+
+    @Test
     void diskCopierPersistsMediaWithoutPendingCandidates() throws Throwable {
         invoke("diskCopierPersistsMediaWithoutPendingCandidates");
     }

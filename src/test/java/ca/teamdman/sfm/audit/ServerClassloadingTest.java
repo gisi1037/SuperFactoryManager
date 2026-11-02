@@ -66,7 +66,9 @@ class ServerClassloadingTest {
             "ca.teamdman.sfm.common.program.DebugTerminalService", "ca.teamdman.sfml.ast.PrintStatement",
             "ca.teamdman.sfm.common.program.project.StationProjectService", "ca.teamdman.sfm.common.block.BlockCable",
             "ca.teamdman.sfm.common.network.CableLabelEditor", "ca.teamdman.sfm.common.net.CableLabelData",
-            "ca.teamdman.sfml.data.recipe.RecipeDescriptor", "ca.teamdman.sfml.data.recipe.RecipeCatalog" }) {
+            "ca.teamdman.sfml.data.recipe.RecipeDescriptor", "ca.teamdman.sfml.data.recipe.RecipeCatalog",
+            "ca.teamdman.sfm.common.recipe.RecipeCatalogService",
+            "ca.teamdman.sfm.compat.gregtech.GregTechRecipeCatalogAdapter" }) {
             assertNotNull(
                 Class.forName(name, true, loader)
                     .getDeclaredMethods());

@@ -1,0 +1,197 @@
+package ca.teamdman.sfm.common.recipe;
+
+import java.util.Locale;
+import java.util.Objects;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
+
+import ca.teamdman.sfm.SuperFactoryManager;
+import ca.teamdman.sfm.common.net.ServerUiTasks;
+import ca.teamdman.sfm.compat.gregtech.GregTechRecipeCatalogAdapter;
+import ca.teamdman.sfml.data.ItemIdentity;
+import ca.teamdman.sfml.data.QueryBudget;
+import ca.teamdman.sfml.data.recipe.RecipeCatalog;
+import ca.teamdman.sfml.data.recipe.RecipeCatalog.Result;
+import ca.teamdman.sfml.data.recipe.RecipeCatalog.Status;
+import ca.teamdman.sfml.data.recipe.RecipeCatalog.Token;
+import ca.teamdman.sfml.data.recipe.RecipeDescriptor;
+import cpw.mods.fml.common.eventhandler.SubscribeEvent;
+import cpw.mods.fml.common.gameevent.TickEvent;
+
+/** Server-session startup snapshot; no world access, per-manager copies, NEI dependency, or periodic registry scans. */
+public final class RecipeCatalogService {
+
+    public static final RecipeCatalogService INSTANCE = new RecipeCatalogService(() -> {
+        try {
+            return GregTechRecipeCatalogAdapter.open();
+        } catch (ReflectiveOperationException | LinkageError failure) {
+            throw new UnsupportedOperationException("Recipe API unavailable", failure);
+        }
+    });
+
+    private enum State {
+        STOPPED,
+        WAITING,
+        STALE,
+        READY,
+        UNSUPPORTED,
+        LIMIT_EXCEEDED
+    }
+
+    private final Supplier<GregTechRecipeCatalogAdapter> factory;
+    private final AtomicLong epoch = new AtomicLong();
+    private volatile State state = State.STOPPED;
+    private volatile RecipeCatalog catalog;
+    private volatile GregTechRecipeCatalogAdapter adapter;
+    private volatile UUID session;
+    private volatile boolean started;
+    private long tick;
+    private int waited, visited, unsupported, incompleteMaps;
+    private long buildNanos;
+
+    RecipeCatalogService(Supplier<GregTechRecipeCatalogAdapter> factory) {
+        this.factory = Objects.requireNonNull(factory, "Recipe source factory");
+    }
+
+    public synchronized void start() {
+        close();
+        session = UUID.randomUUID();
+        state = State.WAITING;
+    }
+
+    public synchronized void started() {
+        started = true;
+    }
+
+    /** Withdraw immediately even if remapping is reported from a different lifecycle thread. */
+    public synchronized void invalidate() {
+        epoch.incrementAndGet();
+        catalog = null;
+        adapter = null;
+        waited = 0;
+        if (state != State.STOPPED) state = State.STALE;
+    }
+
+    public synchronized void close() {
+        state = State.STOPPED;
+        epoch.incrementAndGet();
+        catalog = null;
+        adapter = null;
+        session = null;
+        started = false;
+        tick = 0;
+        waited = visited = unsupported = incompleteMaps = 0;
+        buildNanos = 0;
+    }
+
+    @SubscribeEvent
+    public void tick(TickEvent.ServerTickEvent event) {
+        if (event.phase != TickEvent.Phase.END || state == State.STOPPED) return;
+        thread();
+        final long stamp;
+        final UUID owner;
+        synchronized (this) {
+            if (state == State.STOPPED) return;
+            tick++;
+            if (!started || state == State.READY || state == State.UNSUPPORTED || state == State.LIMIT_EXCEEDED) return;
+            stamp = epoch.get();
+            owner = session;
+        }
+        try {
+            GregTechRecipeCatalogAdapter source = adapter;
+            if (source == null) {
+                source = factory.get();
+                synchronized (this) {
+                    if (!current(stamp, owner)) return;
+                    adapter = source;
+                }
+            }
+            if (!source.firstWorldTickReady()) {
+                synchronized (this) {
+                    if (current(stamp, owner) && ++waited > 1200) state = State.UNSUPPORTED;
+                }
+                return;
+            }
+            GregTechRecipeCatalogAdapter.Build build = source.build(owner, stamp);
+            // Publication and withdrawal share the same short critical section. Native scans stay outside it.
+            synchronized (this) {
+                if (!current(stamp, owner)) return;
+                visited = build.visited;
+                unsupported = build.unsupported;
+                incompleteMaps = build.incompleteMaps;
+                buildNanos = build.elapsedNanos;
+                catalog = build.catalog;
+                adapter = null;
+                state = State.READY;
+            }
+            SuperFactoryManager.LOG.info(summary());
+        } catch (IllegalArgumentException limit) {
+            synchronized (this) {
+                if (current(stamp, owner)) fail(State.LIMIT_EXCEEDED);
+            }
+        } catch (ReflectiveOperationException | RuntimeException | LinkageError unavailable) {
+            synchronized (this) {
+                if (current(stamp, owner)) fail(State.UNSUPPORTED);
+            }
+        }
+    }
+
+    private boolean current(long stamp, UUID owner) {
+        return epoch.get() == stamp && owner != null && owner.equals(session) && state != State.STOPPED;
+    }
+
+    private void fail(State reason) {
+        catalog = null;
+        adapter = null;
+        state = reason;
+        SuperFactoryManager.LOG.warn("Recipe catalog {}: no partial snapshot published", reason);
+    }
+
+    public synchronized Result find(ItemIdentity exactOutput, String map, QueryBudget budget) {
+        thread();
+        RecipeCatalog current = catalog;
+        return current == null ? unavailable() : current.find(exactOutput, map, budget, tick);
+    }
+
+    public synchronized Result resolve(Token token, QueryBudget budget) {
+        thread();
+        RecipeCatalog current = catalog;
+        return current == null ? unavailable() : current.resolve(token, budget, tick);
+    }
+
+    public synchronized Token token(RecipeDescriptor descriptor, QueryBudget budget) {
+        thread();
+        RecipeCatalog current = catalog;
+        if (current == null) throw new IllegalArgumentException("Recipe catalog is not ready");
+        return current.token(descriptor, budget, tick);
+    }
+
+    private Result unavailable() {
+        State current = state;
+        return RecipeCatalog.unavailable(
+            current == State.LIMIT_EXCEEDED ? Status.LIMIT_EXCEEDED
+                : current == State.UNSUPPORTED ? Status.UNSUPPORTED
+                    : current == State.STALE ? Status.STALE : Status.NOT_READY);
+    }
+
+    public synchronized String summary() {
+        RecipeCatalog current = catalog;
+        return String.format(
+            Locale.ROOT,
+            "SFM recipe catalog %s: %d visited, %d unsupported, %d incomplete maps, %d descriptors, %d postings; %.3f ms cold build; %d conservative retained bytes",
+            state,
+            visited,
+            unsupported,
+            incompleteMaps,
+            current == null ? 0 : current.recipeCount(),
+            current == null ? 0 : current.postingCount(),
+            buildNanos / 1e6,
+            current == null ? 0 : current.retainedBytes());
+    }
+
+    private static void thread() {
+        if (!ServerUiTasks.isServerThread())
+            throw new IllegalStateException("Recipe catalog requires the server thread");
+    }
+}

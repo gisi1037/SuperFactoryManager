@@ -52,6 +52,14 @@ import cpw.mods.fml.relauncher.Side;
 /** Runs only inside the isolated LaunchClassLoader owned by ResourceSelectorOreTest. */
 public final class ResourceSelectorOreFixture {
 
+    public static void recipeAdapterPreservesDeclarations() throws Exception {
+        ca.teamdman.sfm.compat.gregtech.RecipeAdapterFixture.snapshotsPreserveNativeDeclarationsWithoutMutatingCaches();
+    }
+
+    public static void recipeAdapterAlternativesAndCoverage() throws Exception {
+        ca.teamdman.sfm.compat.gregtech.RecipeAdapterFixture.alternativesAndUnsupportedCoverageAreConservative();
+    }
+
     public static void diskCopierPersistsMediaWithoutPendingCandidates() throws Exception {
         DiskCopierPersistenceFixture.roundTrip();
     }

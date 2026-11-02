@@ -363,3 +363,22 @@ Fourteen focused regressions and full stable checks passed:2199 tests,2180 passe
 classloading checks exclude GT, NEI and client GUI types. Native adapter/lifecycle,
 SFML exposure and actual-pack recipe coverage/performance remain pending. No new
 recipe command is available to players at this core-only checkpoint.
+## Qualified recipe adapter and lifecycle, 2026-11-02
+
+A common-only reflective adapter now inspects the pinned GT5.09.54.250/.265 APIs
+for the macerator, metalbender and cutting-saw maps. It requires the registered map
+identity, exact ordinary backend and known recipe classes. It preserves catalysts,
+all chance fields, effective special-item NBT flags, ore-or-explicit alternatives,
+display-only alternatives, fluid alternative quantities, byproducts and costs.
+Unknown special slots/values/metadata remain unsupported; unknown classes or
+unreadable output identities make map coverage incomplete. It never constructs
+native input caches or flattens getAllRecipes on ordinary queries.
+
+The shared snapshot arms after server start and waits for GT's first-world work.
+Stop/remapping withdraws it and expires tokens. Publication, withdrawal and lookup
+freshness are serialized; the cold native scan stays outside the lifecycle lock.
+Queries share the actual server-tick allowance. Readiness is visible with the
+operator command /sfmprofile recipes. Arbitrary runtime recipe mutation is not a
+supported refresh mechanism. Eight new adapter/lifecycle regressions passed,
+including concurrent withdrawal during build. Actual-pack coverage/build latency
+is still pending; no SFML recipe function or NEI import is exposed yet.

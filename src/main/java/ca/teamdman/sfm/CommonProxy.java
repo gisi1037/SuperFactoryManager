@@ -44,6 +44,9 @@ public class CommonProxy {
         FMLCommonHandler.instance()
             .bus()
             .register(ManagerTickProfiler.INSTANCE);
+        FMLCommonHandler.instance()
+            .bus()
+            .register(ca.teamdman.sfm.common.recipe.RecipeCatalogService.INSTANCE);
     }
 
     public void init(FMLInitializationEvent event) {
@@ -64,6 +67,7 @@ public class CommonProxy {
     }
 
     public void serverStarting(FMLServerStartingEvent event) {
+        ca.teamdman.sfm.common.recipe.RecipeCatalogService.INSTANCE.start();
         ca.teamdman.sfm.common.program.project.StationProjectService.INSTANCE.close();
         ManagerTickProfiler.INSTANCE.reset();
         ca.teamdman.sfm.common.net.ProgramEditDispatcher.clear();
@@ -74,10 +78,19 @@ public class CommonProxy {
     }
 
     public void serverStopped(cpw.mods.fml.common.event.FMLServerStoppedEvent event) {
+        ca.teamdman.sfm.common.recipe.RecipeCatalogService.INSTANCE.close();
         ca.teamdman.sfm.common.program.project.StationProjectService.INSTANCE.close();
         ca.teamdman.sfm.common.net.ProgramEditDispatcher.clear();
         ca.teamdman.sfm.common.net.ServerUiTasks.clear();
         ca.teamdman.sfm.common.net.LabelGunAccess.clear();
+    }
+
+    public void serverStarted(cpw.mods.fml.common.event.FMLServerStartedEvent event) {
+        ca.teamdman.sfm.common.recipe.RecipeCatalogService.INSTANCE.started();
+    }
+
+    public void idMapping(cpw.mods.fml.common.event.FMLModIdMappingEvent event) {
+        ca.teamdman.sfm.common.recipe.RecipeCatalogService.INSTANCE.invalidate();
     }
 
     public void openManagerPage(ca.teamdman.sfm.common.tileentity.TileEntityManager manager, String page,

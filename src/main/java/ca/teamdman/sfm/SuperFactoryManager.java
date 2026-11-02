@@ -57,4 +57,14 @@ public class SuperFactoryManager {
     public void serverStopped(cpw.mods.fml.common.event.FMLServerStoppedEvent event) {
         proxy.serverStopped(event);
     }
+
+    @Mod.EventHandler
+    public void serverStarted(cpw.mods.fml.common.event.FMLServerStartedEvent event) {
+        proxy.serverStarted(event);
+    }
+
+    @Mod.EventHandler
+    public void idMapping(cpw.mods.fml.common.event.FMLModIdMappingEvent event) {
+        proxy.idMapping(event);
+    }
 }
