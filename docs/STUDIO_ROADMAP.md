@@ -245,3 +245,20 @@ conversions remain available.
 Stable 2.9 headless qualification: 2,151 tests, 2,132 passed, 19 skipped; no
 failures or errors. Compiler bridge, style checks and GuideNH packaging passed.
 Native UI, restart capture and NEI checks remain in IN_GAME_TEST_CHECKLIST.md.
+
+## Cable label editor discovery foundation
+
+A separate incremental scan now supports the forthcoming cable label editor.
+It inspects at most 128 positions per server tick, caps discovery at 32,768
+positions and refuses stale or truncated snapshots. It lists all peripheral
+kinds and candidate Managers without reading inventory contents or opening
+unloaded chunks. A selected-Manager scan includes that Manager's separate
+branches; Managers do not become cable bridges. Existing runtime discovery and
+program execution are unchanged. The MUI2 screen and permission-checked label
+writes are still pending; this checkpoint adds no clickable cable editor yet.
+
+Seven discovery regressions cover bounds, repeated calls, loaded-only access,
+multiple Managers, runtime parity, invalidation and server-thread enforcement.
+Full stable qualification: 2,158 tests, 2,139 passed, 19 skipped; no failures or
+errors. Style, compiler bridge and GuideNH checks passed. Native qualification
+remains separate.

@@ -68,6 +68,11 @@ public final class CableNetwork {
         return VERSIONS.getOrDefault(world, 0L);
     }
 
+    /** Read-only discovery fence. Reading this counter never scans a network or subscribes a Manager. */
+    public static long getWorldRevision(World world) {
+        return version(world);
+    }
+
     private boolean needsScan() {
         if (world == null) return false;
         long now = world.getTotalWorldTime();
