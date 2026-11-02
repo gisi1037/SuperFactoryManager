@@ -56,6 +56,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     private Program executionProgram;
     private ca.teamdman.sfml.data.ProgramExecution programExecution;
     private ca.teamdman.sfm.common.program.RuntimeDiagnostic runtimeDiagnostic;
+    private boolean runtimeDiagnosticInLogs;
     private Program diagnosticProgram;
     private ItemStack diagnosticDisk;
     private long diagnosticDiskGeneration;
@@ -203,6 +204,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
 
     private void clearRuntimeDiagnostic() {
         runtimeDiagnostic = null;
+        runtimeDiagnosticInLogs = false;
         diagnosticProgram = null;
         diagnosticDisk = null;
     }
@@ -234,6 +236,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
             return;
         }
         runtimeDiagnostic = candidate;
+        runtimeDiagnosticInLogs = true;
         diagnosticProgram = executingProgram;
         diagnosticDisk = executingDisk;
         diagnosticDiskGeneration = executingGeneration;
@@ -262,8 +265,9 @@ public class TileEntityManager extends TileEntity implements IInventory {
     /** Source-bearing details are projected per authenticated viewer, never placed in shared/exported logs. */
     public List<LogEntry> getDiagnosticLogs(UUID actor) {
         List<LogEntry> result = getLogs();
-        if (hasCurrentRuntimeDiagnostic() && canInspectVariables(actor)) for (String line : runtimeDiagnostic.lines())
-            result.add(new LogEntry(runtimeDiagnostic.timestamp(), LogLevel.ERROR, line));
+        if (runtimeDiagnosticInLogs && hasCurrentRuntimeDiagnostic() && canInspectVariables(actor))
+            for (String line : runtimeDiagnostic.lines())
+                result.add(new LogEntry(runtimeDiagnostic.timestamp(), LogLevel.ERROR, line));
         return result;
     }
 
@@ -911,6 +915,8 @@ public class TileEntityManager extends TileEntity implements IInventory {
         synchronized (logs) {
             logs.clear();
         }
+        // Errors keeps its independent last-failure snapshot; normal log polls must not recreate cleared entries.
+        runtimeDiagnosticInLogs = false;
     }
 
     public void setClientLogs(List<LogEntry> newLogs) {

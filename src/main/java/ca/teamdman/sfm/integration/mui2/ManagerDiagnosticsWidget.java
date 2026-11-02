@@ -129,7 +129,9 @@ final class ManagerDiagnosticsWidget extends ParentWidget<ManagerDiagnosticsWidg
                 new PacketManagerClearLogs(manager.xCoord, manager.yCoord, manager.zCoord, control.get()));
             logs = Collections.emptyList();
             filterLogs();
-        }).setEnabledIf(w -> page() == 4);
+        }).setEnabledIf(w -> page() == 4)
+            .addTooltipLine(
+                "Clear retained logs. Terminal Errors keeps the last failure; new events may still appear.");
         child(
             new TextFieldWidget().setMaxLength(128)
                 .autoUpdateOnChange(true)

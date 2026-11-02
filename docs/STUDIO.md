@@ -592,6 +592,14 @@ queries. Hover the function name for its full description. VS Code 0.4.0 also
 offers interactive function/method/scoped-variable completion and signature help;
 compiler-backed diagnostics remain the authority for receiver and argument types.
 
+## Clearing manager logs
+
+The Manager Logs page's **Clear** removes retained entries, including displayed
+runtime-failure details. Polling does not restore those cleared details. The last
+failure remains independently available through **Terminal → Errors** until it is
+explicitly cleared or the program is replaced. New log events continue recording
+at the selected recording level.
+
 ## Statement tracing and local snapshots
 
 Connect Debug terminal to a Manager, then use **Record trace** (on wide layouts)

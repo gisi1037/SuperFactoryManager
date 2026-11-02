@@ -1036,6 +1036,10 @@ class ReferenceActivationLifecycleTest {
             assertTrue(
                 f.manager.getLogs()
                     .isEmpty());
+            assertTrue(
+                f.manager.getDiagnosticLogs(author)
+                    .isEmpty(),
+                "Clear must remove the projected failure from the Logs page as well as the shared history");
             assertEquals(first, f.manager.getRuntimeErrorSnapshot(author));
             f.manager.setRunning(true);
             f.tick();
@@ -1044,10 +1048,17 @@ class ReferenceActivationLifecycleTest {
                 first,
                 f.manager.getRuntimeErrorSnapshot(author),
                 "A successful retry does not discard the last failure");
+            assertTrue(
+                f.manager.getDiagnosticLogs(author)
+                    .isEmpty(),
+                "Polling or a successful rerun must not resurrect cleared log entries");
             f.manager.getProgramState()
                 .write(0, DataValue.integer(2));
             f.tick();
             List<String> second = f.manager.getRuntimeErrorSnapshot(author);
+            assertTrue(
+                diagnosticText(f.manager, author).contains("private_second"),
+                "A genuinely new failure appears in Logs after a clear");
             assertTrue(
                 second.toString()
                     .contains("private_second"),
