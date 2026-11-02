@@ -21,6 +21,128 @@ class FluidCallbackRecoveryTest {
     private static final String CODE = "EVERY 20 TICKS DO INPUT fluid:water FROM \"source\" OUTPUT 1000 fluid:water TO \"dest\" END";
 
     @Test
+    void oversizedLegacyJournalRefusesBeforeAnyActualFluidCallbackAndFlushesCurrentState() throws Exception {
+        Fixture f = new Fixture();
+        TileEntityManager manager = RecoveryFixtures.manager(f);
+        ItemStack owner = manager.getDisk();
+        ca.teamdman.sfml.data.ProgramStateSchema schema = new ca.teamdman.sfml.data.ProgramStateSchema(
+            java.util.Collections.singletonList(
+                new ca.teamdman.sfml.data.ProgramStateSchema.Declaration(
+                    "count",
+                    ca.teamdman.sfml.data.DataValue.integer(0))));
+        ca.teamdman.sfm.common.program.ProgramStateStore state = ca.teamdman.sfm.common.program.ProgramStateStore
+            .activate(owner, schema);
+        java.lang.reflect.Field stateField = TileEntityManager.class.getDeclaredField("programState");
+        stateField.setAccessible(true);
+        stateField.set(manager, state);
+        state.flush();
+        padDisk(owner, 29900);
+        NBTTagCompound root = owner.getTagCompound();
+        NBTTagCompound before = (NBTTagCompound) root.copy();
+        state.write(0, ca.teamdman.sfml.data.DataValue.integer(77));
+        int[] actual = { 0 };
+        TankTile source = new TankTile(1000) {
+
+            @Override
+            public FluidStack drain(ForgeDirection side, int amount, boolean action) {
+                if (action) actual[0]++;
+                FluidStack fluid = super.drain(side, amount, action);
+                if (fluid != null) {
+                    fluid.tag = new NBTTagCompound();
+                    fluid.tag.setString("batch", String.join("", java.util.Collections.nCopies(500, "x")));
+                }
+                return fluid;
+            }
+        };
+        TankTile target = new TankTile(0) {
+
+            @Override
+            public int fill(ForgeDirection side, FluidStack fluid, boolean action) {
+                if (action) actual[0]++;
+                return super.fill(side, fluid, action);
+            }
+        };
+        f.world.tiles.put(SRC, source);
+        f.world.tiles.put(DST, target);
+        SfmlRuntimeException refused = assertThrows(
+            SfmlRuntimeException.class,
+            () -> parse(CODE)
+                .tick(new ProgramContext(f.world, manager, new CableNetwork(f.world, MANAGER), f.labels, 20, false)));
+        assertTrue(
+            refused.getCause()
+                .getMessage()
+                .contains("Complete disk NBT"));
+        assertEquals(0, actual[0]);
+        assertEquals(1000, source.amount);
+        assertEquals(0, target.amount);
+        assertSame(root, owner.getTagCompound());
+        assertFalse(manager.hasPendingRecovery());
+        before.removeTag(ca.teamdman.sfm.common.program.ProgramStateStore.NBT_KEY);
+        NBTTagCompound after = (NBTTagCompound) root.copy();
+        after.removeTag(ca.teamdman.sfm.common.program.ProgramStateStore.NBT_KEY);
+        assertEquals(before, after);
+        assertEquals(
+            77,
+            ca.teamdman.sfm.common.program.ProgramStateStore.activate(owner, schema)
+                .read(0)
+                .asLong());
+        ca.teamdman.sfm.common.program.ProgramStateStore.validateCompleteDisk(owner);
+    }
+
+    @Test
+    void nearLimitCompleteJournalReservesTargetFieldsAndLaterStageGrowth() throws Exception {
+        Fixture f = new Fixture();
+        TileEntityManager manager = RecoveryFixtures.manager(f);
+        ItemStack owner = manager.getDisk();
+        padDisk(owner, 29400);
+        NBTTagCompound root = owner.getTagCompound();
+        FluidStack fluid = water(1000);
+        fluid.tag = new NBTTagCompound();
+        fluid.tag.setString("batch", String.join("", java.util.Collections.nCopies(100, "x")));
+        NBTTagCompound entry = manager
+            .journalFluidTransfer(fluid, SRC, ForgeDirection.NORTH, DST, ForgeDirection.SOUTH);
+        assertSame(root, owner.getTagCompound());
+        assertEquals(DST.x, entry.getInteger("targetX"));
+        assertEquals(ForgeDirection.SOUTH.ordinal(), entry.getInteger("targetSide"));
+        for (String stage : new String[] { "extraction", "destination insertion", "source rollback",
+            "rollback conflict", "automatic source return" }) {
+            entry.setString("stage", stage);
+            ca.teamdman.sfm.common.program.ProgramStateStore.validateCompleteDisk(owner);
+        }
+    }
+
+    @Test
+    void emergencyEvidenceForAlreadyOwnedFluidIsNeverDiscardedByThePreflightLimit() throws Exception {
+        Fixture f = new Fixture();
+        TileEntityManager manager = RecoveryFixtures.manager(f);
+        ItemStack owner = manager.getDisk();
+        padDisk(owner, 29900);
+        FluidStack owned = water(1000);
+        owned.tag = new NBTTagCompound();
+        owned.tag.setString("batch", String.join("", java.util.Collections.nCopies(500, "x")));
+        NBTTagCompound entry = manager.preserveFluid(owned, SRC, ForgeDirection.NORTH, true, "provider failure");
+        assertSame(
+            entry,
+            owner.getTagCompound()
+                .getTag("sfm:recovery_fluid"));
+        assertEquals(1000, entry.getInteger("Amount"));
+        assertEquals(owned.tag, entry.getCompoundTag("Tag"));
+        assertTrue(manager.hasPendingRecovery());
+        assertFalse(manager.isRunning());
+    }
+
+    static void padDisk(ItemStack disk, int bytes) throws Exception {
+        if (!disk.hasTagCompound()) disk.setTagCompound(new NBTTagCompound());
+        disk.getTagCompound()
+            .setString("padding", "");
+        java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+        net.minecraft.nbt.CompressedStreamTools.write(disk.getTagCompound(), new java.io.DataOutputStream(output));
+        disk.getTagCompound()
+            .setString("padding", String.join("", java.util.Collections.nCopies(bytes - output.size(), "a")));
+        ca.teamdman.sfm.common.program.ProgramStateStore.validateCompleteDisk(disk);
+    }
+
+    @Test
     void legacyCallbacksCannotMoveRecoveryEvidenceOntoAReplacementDisk() throws Exception {
         for (boolean replaceOnDrain : new boolean[] { true, false })
             for (boolean throwAfterMutation : new boolean[] { true, false }) {

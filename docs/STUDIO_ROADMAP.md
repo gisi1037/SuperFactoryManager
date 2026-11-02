@@ -382,3 +382,18 @@ operator command /sfmprofile recipes. Arbitrary runtime recipe mutation is not a
 supported refresh mechanism. Eight new adapter/lifecycle regressions passed,
 including concurrent withdrawal during build. Actual-pack coverage/build latency
 is still pending; no SFML recipe function or NEI import is exposed yet.
+## Complete fluid journal preflight, 2026-11-02
+
+Both native transferf and legacy INPUT/OUTPUT now ask the Manager to preflight the
+complete write-ahead fluid record, including destination coordinates/side/dimension,
+current flushed heap STATE and space for later recovery stage names. Oversized
+requests refuse before any actual drain/fill, retaining old disk metadata except
+legitimate STATE flushing. Physical Manager/disk/generation are rechecked before
+attaching the journal. This check is before ownership: emergency evidence for fluid
+already extracted is never discarded because an external provider misbehaved.
+
+The near-limit legacy regression failed against the prior implementation. Four
+new regressions cover legacy and transferf refusal, dirty STATE, valid near-limit
+journals including later stages and retained emergency evidence. Combined stable
+checks:2211 tests,2192 passed,19 skipped,zero failures/errors; style/compiler/GuideNH
+passed. This is not native provider fault/crash-atomicity certification.

@@ -518,13 +518,69 @@ public class TileEntityManager extends TileEntity implements IInventory {
     /** Fence reentrant execution before native fluid callbacks; successful commits clear this journal. */
     public NBTTagCompound journalFluidTransfer(net.minecraftforge.fluids.FluidStack fluid, BlockPos source,
         net.minecraftforge.common.util.ForgeDirection side) {
-        return fluidRecord(fluid, source, side, true, "extraction", false);
+        return journalFluidTransfer(fluid, source, side, null, net.minecraftforge.common.util.ForgeDirection.UNKNOWN);
+    }
+
+    /** Preflight the complete write-ahead record before any fluid is owned, including target and later stage growth. */
+    public NBTTagCompound journalFluidTransfer(net.minecraftforge.fluids.FluidStack fluid, BlockPos source,
+        net.minecraftforge.common.util.ForgeDirection side, BlockPos target,
+        net.minecraftforge.common.util.ForgeDirection targetSide) {
+        ItemStack owner = diskStack;
+        long generation = diskGeneration;
+        World world = worldObj;
+        if (owner == null || !(owner.getItem() instanceof ItemDisk) || hasPendingRecovery())
+            throw new IllegalStateException("No available disk for fluid transfer recovery");
+        if (world == null || world.provider == null || source == null || side == null || targetSide == null)
+            throw new IllegalArgumentException("Fluid journal endpoints required");
+        flushProgramState();
+        NBTTagCompound entry = fluidEntry(fluid, source, side, true, "extraction");
+        if (target != null) {
+            entry.setInteger("targetX", target.x);
+            entry.setInteger("targetY", target.y);
+            entry.setInteger("targetZ", target.z);
+            entry.setInteger("targetSide", targetSide.ordinal());
+            entry.setInteger("targetDimension", world.provider.dimensionId);
+        }
+        NBTTagCompound root = owner.getTagCompound(), snapshot = new NBTTagCompound(), maximum = new NBTTagCompound();
+        if (root != null) for (String key : root.func_150296_c()) snapshot.setTag(key, root.getTag(key));
+        for (String key : entry.func_150296_c()) maximum.setTag(key, entry.getTag(key));
+        // Normal commit/rollback/automatic-return stage names fit this longest stage; uncertainty is already reserved.
+        maximum.setString("stage", "automatic source return");
+        snapshot.setTag(RECOVERY_FLUID, maximum);
+        ItemStack preview = new ItemStack(owner.getItem(), 1, owner.getItemDamage());
+        preview.setTagCompound(snapshot);
+        ProgramStateStore.validateCompleteDisk(preview);
+        if (worldObj != world || isInvalid()
+            || getBlockPos().getTileEntity(world) != this
+            || diskStack != owner
+            || diskGeneration != generation
+            || owner.getTagCompound() != root
+            || hasPendingRecovery()) throw new IllegalStateException("Fluid transfer disk changed before journaling");
+        if (root == null) {
+            root = new NBTTagCompound();
+            owner.setTagCompound(root);
+        }
+        root.setTag(RECOVERY_FLUID, entry);
+        markDirty();
+        return entry;
     }
 
     private NBTTagCompound fluidRecord(net.minecraftforge.fluids.FluidStack fluid, BlockPos source,
         net.minecraftforge.common.util.ForgeDirection side, boolean uncertain, String stage, boolean pause) {
         if (fluid == null || fluid.amount <= 0) throw new IllegalArgumentException("Positive recovery fluid required");
         requireRecoverySpace();
+        // Emergency ownership evidence must never be rejected after extraction merely because a provider misbehaved.
+        NBTTagCompound entry = fluidEntry(fluid, source, side, uncertain, stage);
+        diskStack.getTagCompound()
+            .setTag(RECOVERY_FLUID, entry);
+        if (pause) setRunning(false);
+        markDirty();
+        return entry;
+    }
+
+    private NBTTagCompound fluidEntry(net.minecraftforge.fluids.FluidStack fluid, BlockPos source,
+        net.minecraftforge.common.util.ForgeDirection side, boolean uncertain, String stage) {
+        if (fluid == null || fluid.amount <= 0) throw new IllegalArgumentException("Positive recovery fluid required");
         NBTTagCompound entry = new NBTTagCompound();
         entry.setInteger("version", RECOVERY_VERSION);
         entry.setString("state", uncertain ? "uncertain" : "pending");
@@ -540,10 +596,6 @@ public class TileEntityManager extends TileEntity implements IInventory {
         entry.setInteger("sourceZ", source.z);
         entry.setInteger("sourceSide", side.ordinal());
         entry.setInteger("sourceDimension", worldObj.provider.dimensionId);
-        diskStack.getTagCompound()
-            .setTag(RECOVERY_FLUID, entry);
-        if (pause) setRunning(false);
-        markDirty();
         return entry;
     }
 

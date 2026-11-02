@@ -407,12 +407,7 @@ public final class FluidTransferService {
         final NBTTagCompound record;
 
         Transaction(Endpoint source, ForgeDirection from, Endpoint target, ForgeDirection to, FluidStack evidence) {
-            record = manager.journalFluidTransfer(evidence, source.position, from);
-            record.setInteger("targetX", target.position.x);
-            record.setInteger("targetY", target.position.y);
-            record.setInteger("targetZ", target.position.z);
-            record.setInteger("targetSide", to.ordinal());
-            record.setInteger("targetDimension", context.getWorld().provider.dimensionId);
+            record = manager.journalFluidTransfer(evidence, source.position, from, target.position, to);
         }
 
         boolean current() {

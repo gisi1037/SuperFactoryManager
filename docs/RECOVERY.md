@@ -133,3 +133,9 @@ replacement disk as the owner or replay uncertain fluid automatically. Normal
 confirmed transfers clear only their own still-current record; a refused source
 rollback retains only its known remainder. This guard does not make arbitrary
 provider callbacks crash-atomic.
+Write-ahead fluid journals are now sized as complete disk metadata before any
+actual extraction. The preflight includes target metadata, current heap STATE and
+later stage-name growth. An oversized request refuses without moving fluid; reduce
+disk metadata before retrying. Emergency evidence for fluid already owned remains
+a conservation exception: it is retained rather than discarded if a broken native
+provider returns unexpected data. This preflight does not promise crash atomicity.

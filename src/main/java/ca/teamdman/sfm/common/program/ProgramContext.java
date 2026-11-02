@@ -1292,12 +1292,7 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
             }
             if (!ownerCurrent() || manager.hasPendingRecovery())
                 throw new IllegalStateException("Fluid transfer disk changed during simulation");
-            record = manager.journalFluidTransfer(candidate, source, from);
-            record.setInteger("targetX", target.x);
-            record.setInteger("targetY", target.y);
-            record.setInteger("targetZ", target.z);
-            record.setInteger("targetSide", to.ordinal());
-            record.setInteger("targetDimension", world.provider.dimensionId);
+            record = manager.journalFluidTransfer(candidate, source, from, target, to);
         }
 
         private boolean ownerCurrent() {

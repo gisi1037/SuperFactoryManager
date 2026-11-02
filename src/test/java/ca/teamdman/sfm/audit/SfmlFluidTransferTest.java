@@ -18,6 +18,11 @@ import org.junit.jupiter.api.Test;
 class SfmlFluidTransferTest {
 
     @Test
+    void completeJournalSizeRefusesBeforeAnyActualFluidCallback() throws Throwable {
+        invoke("completeJournalSizeRefusesBeforeAnyActualFluidCallback");
+    }
+
+    @Test
     void journalPreventsReentrantTransfersDuringActualDrain() throws Throwable {
         invoke("journalPreventsReentrantTransfersDuringActualDrain");
     }

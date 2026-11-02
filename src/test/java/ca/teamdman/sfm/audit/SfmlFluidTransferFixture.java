@@ -76,6 +76,57 @@ public final class SfmlFluidTransferFixture {
     private static final DataValue ALL = DataValue.selector(FLUIDS);
     private static final String CALL = "transferf(label(\"source\"), label(\"dest\")";
 
+    public static void completeJournalSizeRefusesBeforeAnyActualFluidCallback() throws Exception {
+        int[] actual = { 0 };
+        Setup setup = new Setup(new TankTile(1000) {
+
+            private FluidStack tagged(int amount) {
+                FluidStack stack = water(amount);
+                stack.tag = new NBTTagCompound();
+                stack.tag.setString("batch", String.join("", java.util.Collections.nCopies(50, "x")));
+                return stack;
+            }
+
+            @Override
+            public FluidTankInfo[] getTankInfo(ForgeDirection side) {
+                return new FluidTankInfo[] { new FluidTankInfo(tagged(amount), 10000) };
+            }
+
+            @Override
+            public FluidStack drain(ForgeDirection side, int requested, boolean action) {
+                if (action) actual[0]++;
+                int moved = Math.min(requested, amount);
+                if (action) amount -= moved;
+                return moved == 0 ? null : tagged(moved);
+            }
+        }, new TankTile(0) {
+
+            @Override
+            public int fill(ForgeDirection side, FluidStack fluid, boolean action) {
+                if (action) actual[0]++;
+                return super.fill(side, fluid, action);
+            }
+        });
+        net.minecraft.item.ItemStack disk = setup.context.getManager()
+            .getDisk();
+        FluidCallbackRecoveryTest.padDisk(disk, 29900);
+        NBTTagCompound root = disk.getTagCompound(), before = (NBTTagCompound) root.copy();
+        IllegalStateException refused = assertThrows(
+            IllegalStateException.class,
+            () -> setup.context.transferFluids(SOURCE, DEST, ALL, 1000));
+        assertTrue(
+            refused.getMessage()
+                .contains("Complete disk NBT"));
+        assertEquals(0, actual[0]);
+        assertEquals(1000, setup.source.amount);
+        assertEquals(0, setup.target.amount);
+        assertSame(root, disk.getTagCompound());
+        assertEquals(before, root);
+        assertFalse(
+            setup.context.getManager()
+                .hasPendingRecovery());
+    }
+
     public static void allFourFormsTransferInMillibuckets() throws Exception {
         String[] suffixes = { ")", ", 700)", ", fluid(\"water\"))", ", fluid(\"*\"), 700)" };
         for (int i = 0; i < suffixes.length; i++) {
