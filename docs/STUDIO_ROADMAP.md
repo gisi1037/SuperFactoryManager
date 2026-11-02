@@ -447,3 +447,21 @@ and item callbacks. Real2.2.31 implementation tests cover ordinary/stack-size-on
 creative extraction, partial returns and a cleared drawer prototype. Compacting
 pools/controllers/slaves remain refused before extraction pending qualification.
 This checkpoint excludes the unfinished SFML recipe-query language interface.
+
+R1 language API is separately available on main after the drawer prerelease:
+`itemkey(id[,metadata])`, `recipes(outputKey,map)` and `recipe(reference)` expose
+bounded read-only summaries and detailed requirements. Completion, compiler
+checks and guide examples are included. Eight GTNH 2.9.0 dedicated-server checks
+exercised the real compiler/runtime/provider path for ore inputs, catalyst circuits,
+ambiguous candidates, byproduct chances, fluid inputs and explicit absence/unsupported
+statuses. The combined headless suite passed 2236 tests, with 19 optional skips.
+Automatic loaded-machine map selection and optional NEI authoring remain pending.
+These language additions are not bundled into the already-published alpha.2 assets.
+
+Editor refresh follow-up: load establishes a normalized display baseline without
+publishing a text edit. Wrap, Find, diagnostics and no-op commands leave raw source
+and code/graph undo-redo history intact. Genuine changes still notify the source
+owner and follow the existing pending-field/visual-draft guards. Two regression
+tests reproduced the old notification bug and pass with the narrow correction;
+the combined 2238-test suite passes with 19 optional skips and zero failures.
+Native GUI interaction remains part of manual qualification.

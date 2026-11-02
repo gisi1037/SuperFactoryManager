@@ -53,7 +53,7 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
     private final Consumer<String> error;
     private final List<Row> rows = new ArrayList<>();
     private SfmlHighlighter.Highlighted highlighted = SfmlHighlighter.highlight("");
-    private String cachedSource, highlightedSource = "";
+    private String cachedSource, highlightedSource = "", notifiedSource = "";
     private int cachedWidth = -1, cachedHeight = -1, gutter = 25, blink;
     private boolean wrap;
     private boolean selecting;
@@ -132,6 +132,8 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
     public void load(String source) {
         selecting = false;
         buffer.load(source);
+        // Loading establishes the display baseline; CRLF normalization is not a user edit.
+        notifiedSource = buffer.source();
         refresh();
     }
 
@@ -654,13 +656,16 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
             highlightedSource = source();
         }
         cachedWidth = -1;
-        changed.run();
+        // Wrap, Find, diagnostics and no-op commands must not enter the owner's edit/reload path.
+        if (!source().equals(notifiedSource)) {
+            notifiedSource = source();
+            changed.run();
+        }
         if (isValid()) ensureVisible();
     }
 
     public void refreshAfterCommand() {
         refresh();
-        ensureVisible();
     }
 
     private int word(boolean forward) {

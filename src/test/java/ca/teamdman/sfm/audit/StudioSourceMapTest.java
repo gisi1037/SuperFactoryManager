@@ -23,6 +23,83 @@ import ca.teamdman.sfm.client.gui.mui2.SfmlCodeEditorWidget;
 class StudioSourceMapTest {
 
     @Test
+    void viewRefreshKeepsCrLfSourceGraphHistoryAndUncommittedCodeHistory() {
+        String source = "-- 🏭\r\nevery 20 ticks do\r\n print(1)\r\nend\r\n";
+        StudioDocument document = new StudioDocument();
+        document.load(source);
+        document.openVisual();
+        Node root = document.graph()
+            .triggers()
+            .get(0);
+        document.editGraph(
+            graph -> graph.node(root.id)
+                .setPosition(500, 500));
+        assertTrue(document.undo());
+        String before = document.source();
+        int[] changes = { 0 };
+        SfmlCodeEditorWidget[] holder = new SfmlCodeEditorWidget[1];
+        SfmlCodeEditorWidget editor = new SfmlCodeEditorWidget(() -> {
+            changes[0]++;
+            document.editCode(holder[0].source());
+        }, () -> {}, () -> {}, () -> {}, () -> true, error -> fail(error));
+        holder[0] = editor;
+        editor.load(document.code());
+        assertEquals(0, changes[0], "Loading normalized display text must not publish an edit");
+        editor.buffer.move(
+            editor.source()
+                .length(),
+            false);
+        editor.buffer.insert("-- undo marker");
+        assertTrue(editor.buffer.undo());
+        editor.toggleWrap();
+        assertTrue(editor.buffer.find("print", false, true));
+        editor.refreshAfterCommand();
+        editor.diagnostic("Line 3, Col 1: test diagnostic");
+        editor.toggleWrap();
+        assertEquals(0, changes[0], "Wrap, Find and diagnostics are view operations");
+        assertEquals(before, document.source());
+        assertTrue(editor.buffer.redo(), "View refresh must preserve code redo history");
+        assertTrue(editor.buffer.undo());
+        assertTrue(document.redo(), "View refresh must preserve graph redo history");
+        assertTrue(document.undo());
+        assertEquals(before, document.source());
+    }
+
+    @Test
+    void changedNotificationsFollowTextEditsAndDoNotResetBlockedDraftHistoryOnViewChanges() {
+        int[] changes = { 0 };
+        boolean[] blocked = { false };
+        SfmlCodeEditorWidget[] holder = new SfmlCodeEditorWidget[1];
+        SfmlCodeEditorWidget editor = new SfmlCodeEditorWidget(() -> {
+            changes[0]++;
+            if (blocked[0]) holder[0].load("original");
+        }, () -> {}, () -> {}, () -> {}, () -> true, error -> fail(error));
+        holder[0] = editor;
+        editor.load("original");
+        assertEquals(0, changes[0]);
+        editor.buffer.move(
+            editor.source()
+                .length(),
+            false);
+        assertTrue(editor.insert(" edit"));
+        assertEquals(1, changes[0]);
+        editor.undo();
+        assertEquals(2, changes[0]);
+        blocked[0] = true;
+        editor.toggleWrap();
+        editor.refreshAfterCommand();
+        assertEquals(2, changes[0]);
+        assertTrue(editor.buffer.redo(), "A view change must not enter the pending-fields rejection/reload path");
+        assertTrue(editor.buffer.undo());
+        blocked[0] = false;
+        editor.redo();
+        assertEquals(3, changes[0]);
+        assertEquals("original edit", editor.source());
+        editor.refreshAfterCommand();
+        assertEquals(3, changes[0], "A no-op command does not publish another edit");
+    }
+
+    @Test
     void reorderingIdenticalTriggersWithSameNodeInstancesAndEdgesInvalidatesOldSpanOwnership() {
         String source = program("PRINT(1)") + " " + program("PRINT(1)");
         BlueprintGraph graph = BlueprintCompiler.importText(source);
