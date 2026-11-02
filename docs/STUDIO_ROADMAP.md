@@ -465,3 +465,16 @@ owner and follow the existing pending-field/visual-draft guards. Two regression
 tests reproduced the old notification bug and pass with the narrow correction;
 the combined 2238-test suite passes with 19 optional skips and zero failures.
 Native GUI interaction remains part of manual qualification.
+
+R2's first loaded-machine inspection is implemented: `recipemaps(machineLabel)`
+returns status/current/available for one stock GT single-block machine using the
+three qualified maps. Group ambiguity, missing/unloaded providers, unsupported
+families, session changes and manager/disk replacement remain explicit. Each call
+re-resolves loaded tile/meta-tile/map identity on the server thread; no chunk load,
+machine mutation or recipe feasibility authority is granted. Studio/VS Code
+completion and GuideNH/manual instructions are updated. The 2254-test headless
+suite passed with 19 optional skips. Background GTNH 2.9.0 adapter checks passed
+for actual macerator/bender/cutter tiles and missing/unloaded targets; temporary
+fixtures were removed and the dedicated server saved/stopped. Native connected
+program/multiplayer checks remain on the manual checklist. Broader machine families
+and optional server-validated NEI authoring remain next; alpha.2 assets are unchanged.

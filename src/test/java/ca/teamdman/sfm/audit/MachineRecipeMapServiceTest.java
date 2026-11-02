@@ -16,12 +16,14 @@ import ca.teamdman.sfm.common.recipe.MachineRecipeMapService;
 import ca.teamdman.sfm.common.recipe.MachineRecipeMapService.Access;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 import ca.teamdman.sfml.data.DataCompiler;
+import ca.teamdman.sfml.data.DataQueries;
 import ca.teamdman.sfml.data.DataRuntime;
 import ca.teamdman.sfml.data.DataValue;
 import ca.teamdman.sfml.data.LabelReference;
 import ca.teamdman.sfml.data.MachineRecipeMaps;
 import ca.teamdman.sfml.data.MachineRecipeMaps.Status;
 import ca.teamdman.sfml.data.QueryBudget;
+import ca.teamdman.sfml.data.ResourceSelector;
 import ca.teamdman.sfml.program_builder.ProgramBuilder;
 
 class MachineRecipeMapServiceTest {
@@ -157,6 +159,46 @@ class MachineRecipeMapServiceTest {
         DataValue result = compiler.compile("recipemaps(label(\"source\")).status", 1, 0)
             .evaluate(new DataRuntime(null, 0, provider, new QueryBudget()));
         assertEquals("unavailable", result.asString());
+        QueryBudget shared = new QueryBudget();
+        DataQueries live = new DataQueries() {
+
+            @Override
+            public MachineRecipeMaps recipeMaps(LabelReference source, QueryBudget budget) {
+                assertSame(shared, budget, "Compiler and native service must share the invocation budget");
+                return setup.service.inspect(source, budget);
+            }
+
+            @Override
+            public long count(LabelReference source, ResourceSelector selector, QueryBudget budget) {
+                throw new AssertionError("Map inspection cannot scan item slots");
+            }
+
+            @Override
+            public boolean empty(LabelReference source, ResourceSelector selector, QueryBudget budget) {
+                throw new AssertionError("Map inspection cannot scan item slots");
+            }
+
+            @Override
+            public boolean available(LabelReference source, ResourceSelector selector, QueryBudget budget) {
+                throw new AssertionError("Map inspection cannot scan item slots");
+            }
+        };
+        DataValue maps = compiler.compile("recipemaps(label(\"source\"))", 1, 0)
+            .evaluate(new DataRuntime(null, 0, live, shared));
+        assertEquals(
+            "matches",
+            maps.get("status")
+                .asString());
+        assertEquals(
+            MAP,
+            maps.get("current")
+                .asString());
+        assertEquals(
+            MAP,
+            maps.get("available")
+                .get(0)
+                .asString());
+        assertTrue(shared.getProviderCalls() > 0);
         assertThrows(IllegalArgumentException.class, () -> compiler.compile("recipemaps()", 1, 0));
         assertThrows(IllegalArgumentException.class, () -> compiler.compile("recipemaps(\"source\")", 1, 0));
         assertFalse(

@@ -249,6 +249,9 @@ per manager execution state. Runtime interval changes are still planned.
 The first explicit-map inspection slice now provides itemkey(id[,metadata]),
 recipes(exactOutput,map) summaries and recipe(reference) details. See
 [recipe queries](RECIPE_QUERIES.md) for current syntax and schemas; earlier R1-R4
-examples remain design illustrations. Machine-map inference, NEI selection and
-feasibility/feeding helpers are separate follow-ups. No automatic crafting is
-provided by these calls.
+examples remain design illustrations. The first R2 slice adds
+recipemaps(machineLabel), returning status/current/available for one connected,
+loaded stock GT single-block machine using a qualified map. Multiple machines are
+ambiguous; unknown families/versions remain unsupported. Broader machine support,
+NEI selection and feasibility/feeding helpers are separate follow-ups. No automatic
+crafting is provided by these calls.

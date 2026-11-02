@@ -158,6 +158,7 @@ availability method. A port's faces have their own input/output settings. See
 | Call | Result |
 | --- | --- |
 | `itemkey(id [, metadata])` | Exact ITEM_KEY with null NBT; metadata defaults to zero. |
+| `recipemaps(machineLabel)` | Loaded stock GT machine's status, current map and available maps; multiple targets are ambiguous. |
 | `recipes(outputKey, map)` | Candidate summaries, status, coverageComplete and ambiguous. |
 | `recipe(candidate.reference)` | One candidate's detailed requirements or an explicit unavailable/stale status. |
 
