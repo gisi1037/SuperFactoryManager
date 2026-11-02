@@ -412,3 +412,7 @@ Cold-build refusals now identify the cap and used/requested/limit counters. Opti
 sfm.recipeDiagnostics logs native collection sizes without flattening registries or
 constructing input caches. No cap has been raised. 59 targeted checks and style /
 compiler bridge passed; measured native coverage remains required before SFML exposure.
+Measured GTNH2.9.0 macerator registry:24,993 native entries. The provisional16,384
+visit cap refused before completing that one map. Align the catalog scan bound
+with the adapter's existing65,536 bound; retain independent64MiB/posting/result/
+per-tick query limits. Catalog core cap/partial-publication regressions pass.
