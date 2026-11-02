@@ -342,3 +342,24 @@ fluid quantity independence and work-budget refusal. Full stable checks:2185 tes
 2166 passed,19 skipped,no failures/errors; style/compiler/GuideNH passed. This does
 not expose a recipe query yet: immutable descriptors, shared bounded output index,
 GT adapter/lifecycle, SFML API and native recipe qualification remain pending.
+## Shared recipe catalog core, 2026-11-01
+
+Immutable descriptors preserve ordered input/output slots, catalysts, item/fluid
+consumption and output chances, execution versus display alternatives, fluid
+alternative amounts, matching policies, processing costs and unsupported
+requirement markers. Canonical fingerprints identify descriptor content; exact
+duplicate descriptors coalesce. An exact output index retains distinct candidates,
+including ambiguity, and unsupported buckets prevent false no-match conclusions.
+Tokens are scoped to a server session, revision, map, adapter and fingerprint.
+They authorize inspection only, not crafting or access to authoring source.
+
+Provisional caps:16 maps,16384 recipe visits,131072 postings,64MiB conservative
+retained accounting,64 returned candidates,256 shared query work units per tick.
+Capped builds cannot publish; capped queries return no truncated candidate list.
+These are finite implementation bounds, not measured whole-pack performance.
+
+Fourteen focused regressions and full stable checks passed:2199 tests,2180 passed,
+19 skipped,zero failures/errors; style/compiler/GuideNH passed. Optional-mod/server
+classloading checks exclude GT, NEI and client GUI types. Native adapter/lifecycle,
+SFML exposure and actual-pack recipe coverage/performance remain pending. No new
+recipe command is available to players at this core-only checkpoint.

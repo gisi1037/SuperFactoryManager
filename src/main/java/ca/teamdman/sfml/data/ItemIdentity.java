@@ -52,11 +52,11 @@ public final class ItemIdentity {
         return nbt.inspect(method, path, budget, runtime);
     }
 
-    int getRetainedCharacters() {
+    public int getRetainedCharacters() {
         return Math.addExact(registryId.length(), nbt.getRetainedCharacters());
     }
 
-    int getRetainedOpaqueBytes() {
+    public int getRetainedOpaqueBytes() {
         return Math
             .addExact(40, Math.addExact(BoundedItemNbt.retainedStringBytes(registryId), nbt.getRetainedOpaqueBytes()));
     }

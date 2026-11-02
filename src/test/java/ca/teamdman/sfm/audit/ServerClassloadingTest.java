@@ -17,6 +17,8 @@ class ServerClassloadingTest {
             @Override
             protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
                 if (name.startsWith("vswe.") || name.startsWith("stevesaddons.")
+                    || name.startsWith("gregtech.")
+                    || name.startsWith("codechicken.nei.")
                     || name.startsWith("net.minecraft.client.")
                     || name.startsWith("org.lwjgl.")
                     || name.equals("ca.teamdman.sfm.common.gui.GuiLabelGun")
@@ -63,7 +65,8 @@ class ServerClassloadingTest {
             "ca.teamdman.sfm.compat.gregtech.GtnhRecipeParts", "ca.teamdman.sfm.common.program.DebugValueFormatter",
             "ca.teamdman.sfm.common.program.DebugTerminalService", "ca.teamdman.sfml.ast.PrintStatement",
             "ca.teamdman.sfm.common.program.project.StationProjectService", "ca.teamdman.sfm.common.block.BlockCable",
-            "ca.teamdman.sfm.common.network.CableLabelEditor", "ca.teamdman.sfm.common.net.CableLabelData" }) {
+            "ca.teamdman.sfm.common.network.CableLabelEditor", "ca.teamdman.sfm.common.net.CableLabelData",
+            "ca.teamdman.sfml.data.recipe.RecipeDescriptor", "ca.teamdman.sfml.data.recipe.RecipeCatalog" }) {
             assertNotNull(
                 Class.forName(name, true, loader)
                     .getDeclaredMethods());
