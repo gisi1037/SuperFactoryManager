@@ -787,6 +787,29 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
     }
 
     @Override
+    public ASTNode visitBooleanLabelledRedstone(SFMLParser.BooleanLabelledRedstoneContext ctx) {
+        SetOperator setOp = ctx.setOp() != null ? SetOperator.from(
+            ctx.setOp()
+                .getText())
+            : SetOperator.OVERALL;
+        LabelAccess labelAccess = (LabelAccess) visit(ctx.labelAccess());
+        ComparisonOperator op = ctx.comparisonOp() != null ? ComparisonOperator.from(
+            ctx.comparisonOp()
+                .getText())
+            : ComparisonOperator.GREATER;
+        if (ctx.dataExpression() != null) return new BoolRedstone(
+            setOp,
+            labelAccess,
+            op,
+            new ResourceQuantity(expression(ctx.dataExpression()), false));
+        int val = ctx.number() != null ? Integer.parseInt(
+            ctx.number()
+                .getText())
+            : 0;
+        return new BoolRedstone(setOp, labelAccess, op, val);
+    }
+
+    @Override
     public ASTNode visitBooleanHas(SFMLParser.BooleanHasContext ctx) {
         SetOperator setOp = ctx.setOp() != null ? SetOperator.from(
             ctx.setOp()
