@@ -193,6 +193,8 @@ boolexpr        : TRUE                              #BooleanTrue
                 | boolexpr OR boolexpr              #BooleanDisjunction
                 | setOp? labelAccess HAS comparisonOp (number | LPAREN dataExpression RPAREN) resourceIdDisjunction? with? (EXCEPT resourceIdList)?  #BooleanHas
                 | REDSTONE (LEVEL | LEVELS)? (comparisonOp (number | LPAREN dataExpression RPAREN))?   #BooleanRedstone
+                // OVERALL (default) tests the strongest signal into the labelled blocks; EACH, SOME, etc. test each block's own
+                | setOp? labelAccess REDSTONE (LEVEL | LEVELS)? (comparisonOp (number | LPAREN dataExpression RPAREN))?   #BooleanLabelledRedstone
                 ;
 
 comparisonOp    : GT
