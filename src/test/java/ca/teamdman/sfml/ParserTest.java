@@ -578,23 +578,23 @@ public class ParserTest {
 
     @Test
     public void testLabelledRedstoneCondition() {
-        BoolRedstone rcv = parseRedstone("rcv REDSTONE LEVEL > 0");
+        BoolRedstone rcv = parseRedstone("\"rcv\" REDSTONE LEVEL > 0");
         assertLabels(rcv, "rcv");
         assertEquals(SetOperator.OVERALL, rcv.getSetOperator());
         assertEquals(ComparisonOperator.GREATER, rcv.getComparison());
         assertEquals(0, rcv.getTargetValue());
 
-        BoolRedstone each = parseRedstone("EACH a, b REDSTONE >= 8");
+        BoolRedstone each = parseRedstone("EACH \"a\", \"b\" REDSTONE >= 8");
         assertLabels(each, "a", "b");
         assertEquals(SetOperator.EVERY, each.getSetOperator());
         assertEquals(ComparisonOperator.GREATER_OR_EQUAL, each.getComparison());
         assertEquals(8, each.getTargetValue());
 
-        BoolRedstone any = parseRedstone("ANY sensors REDSTONE LEVEL = 15");
-        assertLabels(any, "sensors");
-        assertEquals(SetOperator.SOME, any.getSetOperator());
-        assertEquals(ComparisonOperator.EQUALS, any.getComparison());
-        assertEquals(15, any.getTargetValue());
+        BoolRedstone some = parseRedstone("SOME \"sensors\" REDSTONE LEVEL = 15");
+        assertLabels(some, "sensors");
+        assertEquals(SetOperator.SOME, some.getSetOperator());
+        assertEquals(ComparisonOperator.EQUALS, some.getComparison());
+        assertEquals(15, some.getTargetValue());
 
         BoolRedstone overall = parseRedstone("OVERALL \"my sensor\" REDSTONE LEVELS LT 3");
         assertLabels(overall, "my sensor");
@@ -602,7 +602,7 @@ public class ParserTest {
         assertEquals(ComparisonOperator.LESSER, overall.getComparison());
 
         // without a comparison it defaults to > 0, like the unlabelled form
-        BoolRedstone bare = parseRedstone("rcv REDSTONE");
+        BoolRedstone bare = parseRedstone("\"rcv\" REDSTONE");
         assertLabels(bare, "rcv");
         assertEquals(ComparisonOperator.GREATER, bare.getComparison());
         assertEquals(0, bare.getTargetValue());
@@ -610,36 +610,47 @@ public class ParserTest {
 
     @Test
     public void testLabelledRedstoneConditionKeywordLabels() {
-        // REDSTONE, LEVEL and ANY are also valid label names
-        assertLabels(parseRedstone("redstone REDSTONE > 0"), "redstone");
-        assertLabels(parseRedstone("level REDSTONE LEVEL > 0"), "level");
-        assertLabels(parseRedstone("any REDSTONE > 0"), "any");
-        assertLabels(parseRedstone("ANY any REDSTONE > 0"), "any");
+        // Labels may be named like keywords
+        assertLabels(parseRedstone("\"redstone\" REDSTONE > 0"), "redstone");
+        assertLabels(parseRedstone("\"level\" REDSTONE LEVEL > 0"), "level");
+        assertLabels(parseRedstone("\"any\" REDSTONE > 0"), "any");
+        assertLabels(parseRedstone("SOME \"any\" REDSTONE > 0"), "any");
 
-        String code = "EVERY 20 TICKS DO\n" + "  INPUT FROM any\n" + "  OUTPUT TO level\n" + "END";
+        String code = "EVERY 20 TICKS DO\n" + "  INPUT FROM \"any\"\n" + "  OUTPUT TO \"level\"\n" + "END";
+        ProgramBuildResult result = new ProgramBuilder(code).build();
+        assertTrue(result.isSuccess(), "Errors: " + result.getErrors());
+    }
+
+    @Test
+    public void testLabelledRedstoneConditionFromVariable() {
+        String code = "EVERY 20 TICKS DO\n" + "  LET sensor = LABEL(\"rcv\")\n"
+            + "  IF EACH sensor REDSTONE >= 8 THEN\n"
+            + "    FORGET\n"
+            + "  END\n"
+            + "END";
         ProgramBuildResult result = new ProgramBuilder(code).build();
         assertTrue(result.isSuccess(), "Errors: " + result.getErrors());
     }
 
     @Test
     public void testLabelledRedstoneConditionInExpressions() {
-        BoolExpr expr = parseCondition("a REDSTONE > 3 AND REDSTONE > 0");
+        BoolExpr expr = parseCondition("\"a\" REDSTONE > 3 AND REDSTONE > 0");
         assertTrue(expr instanceof BoolConjunction);
         BoolConjunction conj = (BoolConjunction) expr;
         assertLabels((BoolRedstone) conj.getLeft(), "a");
         assertNull(((BoolRedstone) conj.getRight()).getLabelAccess());
 
-        BoolExpr negated = parseCondition("NOT EACH a REDSTONE LEVEL = 0");
+        BoolExpr negated = parseCondition("NOT EACH \"a\" REDSTONE LEVEL = 0");
         assertTrue(negated instanceof BoolNegation);
 
-        assertTrue(parseCondition("chest HAS > 0 OR rcv REDSTONE > 0") instanceof BoolDisjunction);
+        assertTrue(parseCondition("\"chest\" HAS > 0 OR \"rcv\" REDSTONE > 0") instanceof BoolDisjunction);
     }
 
     @Test
     public void testLabelledRedstoneConditionReferencesLabels() {
-        String code = "EVERY 20 TICKS DO\n" + "  IF EACH a, b REDSTONE >= 8 THEN\n"
+        String code = "EVERY 20 TICKS DO\n" + "  IF EACH \"a\", \"b\" REDSTONE >= 8 THEN\n"
             + "    FORGET\n"
-            + "  ELSE IF ANY \"c d\" REDSTONE = 15 THEN\n"
+            + "  ELSE IF SOME \"c d\" REDSTONE = 15 THEN\n"
             + "    FORGET\n"
             + "  END\n"
             + "END";
@@ -654,28 +665,28 @@ public class ParserTest {
     @Test
     public void testLabelledRedstoneSetOperators() {
         // OVERALL compares the strongest signal
-        BoolRedstone overall = parseRedstone("rcv REDSTONE >= 8");
+        BoolRedstone overall = parseRedstone("\"rcv\" REDSTONE >= 8");
         assertTrue(overall.test(Arrays.asList(0, 9, 3)));
         assertFalse(overall.test(Arrays.asList(0, 7, 3)));
         assertFalse(overall.test(Collections.emptyList()));
-        assertTrue(parseRedstone("rcv REDSTONE = 0").test(Collections.emptyList()));
+        assertTrue(parseRedstone("\"rcv\" REDSTONE = 0").test(Collections.emptyList()));
 
         // EACH needs every block to satisfy it, and at least one block
-        BoolRedstone each = parseRedstone("EACH rcv REDSTONE >= 8");
+        BoolRedstone each = parseRedstone("EACH \"rcv\" REDSTONE >= 8");
         assertTrue(each.test(Arrays.asList(8, 15)));
         assertFalse(each.test(Arrays.asList(8, 7)));
         assertFalse(each.test(Collections.emptyList()));
 
-        // ANY needs at least one block to satisfy it
-        BoolRedstone any = parseRedstone("ANY rcv REDSTONE < 4");
-        assertTrue(any.test(Arrays.asList(15, 3)));
-        assertFalse(any.test(Arrays.asList(15, 4)));
-        assertFalse(any.test(Collections.emptyList()));
+        // SOME needs at least one block to satisfy it
+        BoolRedstone some = parseRedstone("SOME \"rcv\" REDSTONE < 4");
+        assertTrue(some.test(Arrays.asList(15, 3)));
+        assertFalse(some.test(Arrays.asList(15, 4)));
+        assertFalse(some.test(Collections.emptyList()));
 
-        // OVERALL and ANY differ for comparisons that the maximum doesn't capture
-        assertFalse(parseRedstone("rcv REDSTONE < 4").test(Arrays.asList(15, 3)));
+        // OVERALL and SOME differ for comparisons that the maximum doesn't capture
+        assertFalse(parseRedstone("\"rcv\" REDSTONE < 4").test(Arrays.asList(15, 3)));
 
-        BoolRedstone one = parseRedstone("ONE rcv REDSTONE > 0");
+        BoolRedstone one = parseRedstone("ONE \"rcv\" REDSTONE > 0");
         assertTrue(one.test(Arrays.asList(0, 5)));
         assertFalse(one.test(Arrays.asList(5, 5)));
     }
@@ -688,11 +699,11 @@ public class ParserTest {
         // no world: every block reads as unpowered
         ProgramContext context = new ProgramContext(null, null, null, holder, 0, false);
 
-        assertTrue(parseRedstone("EACH a REDSTONE = 0").evaluate(context));
-        assertFalse(parseRedstone("ANY a REDSTONE > 0").evaluate(context));
+        assertTrue(parseRedstone("EACH \"a\" REDSTONE = 0").evaluate(context));
+        assertFalse(parseRedstone("SOME \"a\" REDSTONE > 0").evaluate(context));
         // a label with no blocks fails EACH even though no block disagrees
-        assertFalse(parseRedstone("EACH missing REDSTONE = 0").evaluate(context));
-        assertTrue(parseRedstone("missing REDSTONE = 0").evaluate(context));
+        assertFalse(parseRedstone("EACH \"missing\" REDSTONE = 0").evaluate(context));
+        assertTrue(parseRedstone("\"missing\" REDSTONE = 0").evaluate(context));
         assertTrue(parseRedstone("REDSTONE = 0").evaluate(context));
     }
 }
