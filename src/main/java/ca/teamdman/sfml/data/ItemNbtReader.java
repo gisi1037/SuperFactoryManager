@@ -125,10 +125,7 @@ final class ItemNbtReader {
         if (type == 10) {
             int count = count();
             for (int i = 0; i < count; i++) {
-                String key = text();
-                runtime.work(key.length());
-                budget.chargeSlots(key.length());
-                if (key.equals(parts[index])) return find(parts, index + 1, depth + 1);
+                if (matchesKey(parts[index])) return find(parts, index + 1, depth + 1);
                 skip(depth + 1);
             }
         } else if (type == 9 || type == 7 || type == 11) {
@@ -217,6 +214,21 @@ final class ItemNbtReader {
         long value = 0;
         for (int i = 0; i < width; i++) value = value << 8 | bytes[position++] & 255L;
         return value;
+    }
+
+    /** Canonical names use UTF-16 code units, so a lookup can compare directly against the decoded path. */
+    private boolean matchesKey(String key) {
+        int count = count();
+        int start = position;
+        advance(count * 2);
+        runtime.work(count);
+        budget.chargeSlots(count);
+        if (count != key.length()) return false;
+        for (int i = 0, offset = start; i < count; i++, offset += 2) {
+            int unit = (bytes[offset] & 255) << 8 | bytes[offset + 1] & 255;
+            if (unit != key.charAt(i)) return false;
+        }
+        return true;
     }
 
     private String text() {

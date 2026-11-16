@@ -49,7 +49,7 @@ public final class CommandSfmRecovery extends CommandBase {
                     + ", itemId="
                     + stack.getInteger("id")
                     + ", count="
-                    + stack.getByte("Count")
+                    + ItemRecovery.amount(record)
                     + ", source="
                     + record.getInteger("sourceX")
                     + ","
@@ -76,6 +76,8 @@ public final class CommandSfmRecovery extends CommandBase {
                     + ", side="
                     + record.getInteger("targetSide");
                 if (record.hasKey("attemptStage")) response += ", last attempt=" + record.getString("attemptStage");
+                if (record.getInteger("attemptAmount") > 0)
+                    response += ", uncertain attempt=" + record.getInteger("attemptAmount");
             } else if ("claim".equals(action) && args.length == 6) {
                 ForgeDirection direction = ForgeDirection.valueOf(args[5].toUpperCase(Locale.ROOT));
                 int moved = ItemRecovery.claim(manager, args[4], direction, sender.getCommandSenderName());
@@ -84,7 +86,8 @@ public final class CommandSfmRecovery extends CommandBase {
                     + (manager.hasPendingRecovery() ? " Recovery is still pending." : " Restart when ready.");
             } else if ("resolve-present".equals(action) && args.length == 5) {
                 ItemRecovery.resolvePresent(manager, args[4], sender.getCommandSenderName());
-                response = "Acknowledged items already present/reconciled; no items created. Manager remains paused.";
+                response = "Acknowledged items already present/reconciled. Manager remains paused."
+                    + (manager.hasPendingRecovery() ? " The known remainder is still pending for claim." : "");
             } else throw new WrongUsageException(getCommandUsage(sender));
         } catch (WrongUsageException e) {
             throw e;

@@ -3,6 +3,7 @@ package ca.teamdman.sfm.common.program;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import net.minecraft.item.ItemStack;
@@ -11,10 +12,14 @@ import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
 import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.fluids.FluidTank;
 import net.minecraftforge.fluids.FluidTankInfo;
 import net.minecraftforge.fluids.IFluidHandler;
 
+import ca.teamdman.sfm.common.storage.BackendFluidHandler;
+import ca.teamdman.sfm.common.storage.StorageBackend;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
+import ca.teamdman.sfm.common.tileentity.TileEntityModAdapter;
 import ca.teamdman.sfm.common.util.BlockPos;
 import ca.teamdman.sfml.data.DataType;
 import ca.teamdman.sfml.data.DataValue;
@@ -61,23 +66,36 @@ public final class FluidTransferService {
     }
 
     public long count(LabelReference source, ResourceSelector selector, QueryBudget budget) {
-        return observation(source, selector, budget, false).amount;
+        long amount = observedAmount(source, selector, budget);
+        if (amount < 0) throw queryUnavailable(source);
+        return amount;
     }
 
     public boolean empty(LabelReference source, ResourceSelector selector, QueryBudget budget) {
-        Observation result = observation(source, selector, budget, true);
-        return result.complete && result.amount == 0;
+        return observedAmount(source, selector, budget) == 0;
     }
 
     public boolean available(LabelReference source, ResourceSelector selector, QueryBudget budget) {
-        return observation(source, selector, budget, true).complete;
+        try {
+            // An ME monitor can be available with zero stored fluids. Probe access without listing its stock.
+            queryEndpoints(source, selector, budget, false);
+            return true;
+        } catch (Unavailable missing) {
+            return false;
+        }
     }
 
     public FluidContents contents(LabelReference source, ResourceSelector selector, QueryBudget budget) {
-        Observation result = observation(source, selector, budget, false);
+        List<Endpoint> endpoints;
+        try {
+            endpoints = queryEndpoints(source, selector, budget, true);
+        } catch (Unavailable missing) {
+            throw queryUnavailable(source);
+        }
         budget.chargeAllocation(1);
         List<FluidContents.Row> rows = new ArrayList<>();
-        for (Endpoint endpoint : result.endpoints) for (int i = 0; i < endpoint.tanks.size(); i++) {
+        int dimension = context.getWorld().provider.dimensionId;
+        for (Endpoint endpoint : endpoints) for (int i = 0; i < endpoint.tanks.size(); i++) {
             Tank tank = endpoint.tanks.get(i);
             budget.chargeSlot();
             if (tank.amount == 0 || !selected(selector, tank.fluid)) continue;
@@ -86,7 +104,7 @@ public final class FluidTransferService {
                 new FluidContents.Row(
                     tank.fluid,
                     tank.amount,
-                    context.getWorld().provider.dimensionId,
+                    dimension,
                     endpoint.position.x,
                     endpoint.position.y,
                     endpoint.position.z,
@@ -96,30 +114,34 @@ public final class FluidTransferService {
         return new FluidContents(budget, rows);
     }
 
-    private Observation observation(LabelReference source, ResourceSelector selector, QueryBudget budget,
-        boolean allowUnavailable) {
-        label(source);
-        selector(selector);
-        if (budget == null) throw new IllegalArgumentException("Fluid query budget required");
+    private long observedAmount(LabelReference source, ResourceSelector selector, QueryBudget budget) {
         try {
-            List<Endpoint> endpoints = gather(source, budget);
+            List<Endpoint> endpoints = queryEndpoints(source, selector, budget, true);
             long amount = 0;
             for (Endpoint endpoint : endpoints) for (Tank tank : endpoint.tanks) {
                 budget.chargeSlot();
                 if (tank.amount > 0 && selected(selector, tank.fluid)) amount = Math.addExact(amount, tank.amount);
             }
-            return new Observation(endpoints, amount, true);
+            return amount;
         } catch (Unavailable missing) {
-            if (!allowUnavailable) throw new IllegalArgumentException("Fluid query unavailable for " + source);
-            return new Observation(null, 0, false);
+            return -1;
         }
     }
 
+    private List<Endpoint> queryEndpoints(LabelReference source, ResourceSelector selector, QueryBudget budget,
+        boolean observeStock) {
+        label(source);
+        selector(selector);
+        if (budget == null) throw new IllegalArgumentException("Fluid query budget required");
+        return gather(source, budget, observeStock, null);
+    }
+
+    private static IllegalArgumentException queryUnavailable(LabelReference source) {
+        return new IllegalArgumentException("Fluid query unavailable for " + source);
+    }
+
     private static boolean selected(ResourceSelector selector, FluidIdentity fluid) {
-        return selector.getId()
-            .equals("*")
-            || selector.getId()
-                .equals(fluid.getId());
+        return selector.matchesFluidId(fluid.getId());
     }
 
     public ItemTransferResult transfer(LabelReference source, LabelReference destination, DataValue filter,
@@ -134,13 +156,16 @@ public final class FluidTransferService {
         long moved = 0;
         boolean matched = false;
         try {
-            List<Endpoint> inputs = gather(source, budget), outputs = gather(destination, budget);
+            // Only a transfer can visit the same adapter in separate input and output passes.
+            Map<TileEntityModAdapter, BackendFluidHandler> backendViews = new IdentityHashMap<>();
+            List<Endpoint> inputs = gather(source, budget, true, backendViews);
+            List<Endpoint> outputs = gather(destination, budget, false, backendViews);
             budget.chargeAllocation(1);
-            IdentityHashMap<IFluidHandler, Boolean> sources = new IdentityHashMap<>();
+            IdentityHashMap<Object, Boolean> sources = new IdentityHashMap<>();
             long stock = 0;
             for (Endpoint input : inputs) {
                 budget.chargeAllocation(1);
-                sources.put(input.handler, Boolean.TRUE);
+                sources.put(storageIdentity(input.handler), Boolean.TRUE);
                 for (Tank tank : input.tanks) {
                     budget.chargeSlot();
                     if (tank.amount > 0 && matches(filter, tank.fluid, budget))
@@ -157,23 +182,37 @@ public final class FluidTransferService {
                 for (Endpoint output : outputs) {
                     if (allowance <= 0 || moved == requested) break;
                     budget.chargeSlot();
-                    if (sources.containsKey(output.handler)) continue;
+                    if (sources.containsKey(storageIdentity(output.handler))) continue;
+                    boolean nativeSource = input.handler instanceof BackendFluidHandler;
+                    boolean nativeTarget = output.handler instanceof BackendFluidHandler;
                     for (ForgeDirection from : ForgeDirection.VALID_DIRECTIONS) {
                         if ((input.sideMask & 1 << from.ordinal()) == 0) continue;
+                        long beforePass = allowance;
                         for (ForgeDirection to : ForgeDirection.VALID_DIRECTIONS) {
                             if ((output.sideMask & 1 << to.ordinal()) == 0 || allowance <= 0) continue;
                             int amount = (int) Math.min(Math.min(allowance, requested - moved), Integer.MAX_VALUE);
                             if (amount == 0) break;
                             int drained = simulateDrain(input, from, tank.fluid, amount, budget);
-                            if (drained == 0) continue;
+                            if (drained == 0) {
+                                if (nativeSource || nativeTarget) break;
+                                continue;
+                            }
                             matched = true;
                             int accepted = simulateFill(output, to, tank.fluid, drained, budget);
-                            if (accepted == 0) continue;
+                            if (accepted == 0) {
+                                if (nativeTarget) break;
+                                continue;
+                            }
                             int sent = commit(input, from, output, to, tank.fluid, accepted, budget);
                             moved += sent;
                             allowance -= sent;
                             if (sent > 0) context.setDidSomething(true);
+                            else if (nativeTarget) break;
                         }
+                        // An adapter's label faces all access the same monitor. With no progress,
+                        // retrying the same physical target faces just repeats the rejected operation.
+                        // Keep progressing passes so long quantities can still move in int-sized chunks.
+                        if (nativeSource && allowance == beforePass) break;
                     }
                 }
             }
@@ -192,7 +231,195 @@ public final class FluidTransferService {
             .matches(fluid, budget) : selected(filter.asSelector(), fluid);
     }
 
-    private List<Endpoint> gather(LabelReference label, QueryBudget budget) {
+    ItemTransferResult transferExact(LabelReference source, LabelReference destination, DataValue filter,
+        long requested) {
+        World world = context.getWorld();
+        if (world == null || world.provider == null || context.getNetwork() == null)
+            return new ItemTransferResult(requested, 0, Status.UNAVAILABLE);
+        QueryBudget budget = context.getInvocationQueryBudget();
+        ExactTransferPlan<FluidIdentity> plan = new ExactTransferPlan<>(context, requested);
+        try {
+            return plan.execute(exactTanks(source, filter, budget), exactTanks(destination, null, budget));
+        } catch (Unavailable missing) {
+            return new ItemTransferResult(requested, 0, Status.UNAVAILABLE);
+        }
+    }
+
+    private static final String BUILDCRAFT_TANK_TILE = "buildcraft.factory.TileTank";
+    private static final String BUILDCRAFT_TANK_STORAGE = "buildcraft.core.lib.fluids.Tank";
+    private static final ForgeDirection[] VERTICAL = { ForgeDirection.UP, ForgeDirection.DOWN };
+
+    private List<ExactTransferPlan.Cell<FluidIdentity>> exactTanks(LabelReference label, DataValue filter,
+        QueryBudget budget) {
+        Set<BlockPos> positions = context.getLabelPositionHolder()
+            .getPositions(label.getName());
+        if (positions.isEmpty()) throw new Unavailable();
+        budget.chargeAllocation(2);
+        List<ExactTransferPlan.Cell<FluidIdentity>> cells = new ArrayList<>();
+        IdentityHashMap<FluidTank, Boolean> seen = new IdentityHashMap<>();
+        for (BlockPos position : positions) {
+            TileEntity found = tile(position, budget);
+            if (found == null || found.isInvalid()
+                || !found.getClass()
+                    .getName()
+                    .equals(BUILDCRAFT_TANK_TILE)
+                || !standalone(position, budget)) throw new Unavailable();
+            BuildCraftStorage access = BUILDCRAFT_ACCESS.get(found.getClass());
+            FluidTank tank = access.tank(found);
+            if (tank == null) throw new Unavailable();
+            budget.chargeAllocation(1);
+            if (seen.put(tank, Boolean.TRUE) != null) continue;
+            if (cells.size() >= FluidContents.MAX_ROWS) throw new IllegalArgumentException("Fluid tank limit exceeded");
+            FluidStack stack = tank.getFluid();
+            int count = stack == null ? 0 : stack.amount;
+            if (count < 0 || count > tank.getCapacity())
+                throw new IllegalArgumentException("Invalid exact transfer tank contents");
+            FluidIdentity key = stack == null ? null : FluidIdentity.fromStack(stack, budget);
+            FluidIdentity selected = count > 0 && (filter == null || matches(filter, key, budget)) ? key : null;
+            budget.chargeAllocation(2);
+            cells.add(new ExactTank(label, position, found, access, tank, stack, key, selected, count, budget));
+        }
+        return cells;
+    }
+
+    private boolean standalone(BlockPos position, QueryBudget budget) {
+        World world = context.getWorld();
+        for (ForgeDirection side : VERTICAL) {
+            budget.chargeAllocation(1);
+            budget.chargePosition();
+            budget.chargeProviders(2);
+            BlockPos neighbor = position.offset(side);
+            if (!neighbor.isLoaded(world)) return false;
+            TileEntity found = world.getTileEntity(neighbor.x, neighbor.y, neighbor.z);
+            for (Class<?> type = found == null ? null : found.getClass(); type != null; type = type.getSuperclass())
+                if (type.getName()
+                    .equals(BUILDCRAFT_TANK_TILE)) return false;
+        }
+        return true;
+    }
+
+    // Keep the optional BuildCraft integration isolated from class loading on servers without it.
+    private static final ClassValue<BuildCraftStorage> BUILDCRAFT_ACCESS = new ClassValue<BuildCraftStorage>() {
+
+        @Override
+        protected BuildCraftStorage computeValue(Class<?> type) {
+            try {
+                java.lang.reflect.Field tank = type.getField("tank");
+                java.lang.reflect.Field update = type.getField("hasNetworkUpdate");
+                Class<?> storage = tank.getType();
+                if (storage.getName()
+                    .equals(BUILDCRAFT_TANK_STORAGE)
+                    && storage.getMethod("setFluid", FluidStack.class)
+                        .getDeclaringClass() == FluidTank.class
+                    && storage.getMethod("getFluid")
+                        .getDeclaringClass() == FluidTank.class
+                    && storage.getMethod("getCapacity")
+                        .getDeclaringClass() == FluidTank.class
+                    && update.getType() == boolean.class) {
+                    java.lang.reflect.Method comparators = type.getDeclaredMethod("updateComparators");
+                    comparators.setAccessible(true);
+                    return new BuildCraftStorage(tank, update, comparators);
+                }
+            } catch (ReflectiveOperationException | RuntimeException incompatible) {
+                // Only a recognized backing tank can commit without Forge fill/drain callbacks.
+            }
+            return new BuildCraftStorage(null, null, null);
+        }
+    };
+
+    private static final class BuildCraftStorage {
+
+        final java.lang.reflect.Field tank, update;
+        final java.lang.reflect.Method comparators;
+
+        BuildCraftStorage(java.lang.reflect.Field tank, java.lang.reflect.Field update,
+            java.lang.reflect.Method comparators) {
+            this.tank = tank;
+            this.update = update;
+            this.comparators = comparators;
+        }
+
+        FluidTank tank(TileEntity tile) {
+            if (tank == null) return null;
+            try {
+                Object value = tank.get(tile);
+                return value != null && value.getClass() == tank.getType() ? (FluidTank) value : null;
+            } catch (IllegalAccessException inaccessible) {
+                return null;
+            }
+        }
+    }
+
+    private final class ExactTank extends ExactTransferPlan.Cell<FluidIdentity> {
+
+        final LabelReference label;
+        final BlockPos position;
+        final BuildCraftStorage access;
+        final FluidTank tank;
+        final FluidStack original;
+        final FluidIdentity originalKey;
+        final QueryBudget budget;
+        FluidStack replacement;
+
+        ExactTank(LabelReference label, BlockPos position, TileEntity tile, BuildCraftStorage access, FluidTank tank,
+            FluidStack original, FluidIdentity originalKey, FluidIdentity selected, int count, QueryBudget budget) {
+            super(tile, tank, 0, selected, count, tank.getCapacity());
+            this.label = label;
+            this.position = position;
+            this.access = access;
+            this.tank = tank;
+            this.original = original;
+            this.originalKey = originalKey;
+            this.budget = budget;
+        }
+
+        @Override
+        boolean matches(FluidIdentity incoming) {
+            return key.matches(incoming, budget);
+        }
+
+        @Override
+        void prepare() {
+            replacement = amount == 0 ? null : key.stack(amount, budget);
+        }
+
+        @Override
+        boolean present() {
+            return FluidTransferService.this.tile(position, budget) == tile && !tile.isInvalid()
+                && context.getLabelPositionHolder()
+                    .getPositions(label.getName())
+                    .contains(position)
+                && standalone(position, budget);
+        }
+
+        @Override
+        boolean unchanged() {
+            budget.chargeSlot();
+            return access.tank(tile) == tank && tank.getCapacity() == capacity
+                && tank.getFluid() == original
+                && (original == null || original.amount == initialAmount && originalKey.matches(original, budget));
+        }
+
+        @Override
+        void write() {
+            tank.setFluid(replacement);
+        }
+
+        @Override
+        void notifyChanged() {
+            try {
+                access.update.setBoolean(tile, true);
+                access.comparators.invoke(tile);
+            } catch (ReflectiveOperationException inaccessible) {
+                throw new IllegalStateException("Cannot notify BuildCraft tank", inaccessible);
+            } finally {
+                super.notifyChanged();
+            }
+        }
+    }
+
+    private List<Endpoint> gather(LabelReference label, QueryBudget budget, boolean observeStock,
+        Map<TileEntityModAdapter, BackendFluidHandler> backendViews) {
         label(label);
         World world = context.getWorld();
         if (world == null || world.provider == null || context.getNetwork() == null) throw new Unavailable();
@@ -202,16 +429,31 @@ public final class FluidTransferService {
         if (positions.isEmpty()) throw new Unavailable();
         budget.chargeAllocation(2);
         List<Endpoint> result = new ArrayList<>();
-        IdentityHashMap<IFluidHandler, Boolean> seen = new IdentityHashMap<>();
+        IdentityHashMap<Object, Boolean> seen = new IdentityHashMap<>();
         int tankCount = 0;
         for (BlockPos position : positions) {
             TileEntity tile = tile(position, budget);
-            if (!(tile instanceof IFluidHandler)) throw new Unavailable();
-            IFluidHandler handler = (IFluidHandler) tile;
-            if (seen.containsKey(handler)) continue;
+            IFluidHandler handler;
+            if (tile instanceof TileEntityModAdapter adapter) {
+                BackendFluidHandler view = backendViews == null ? null : backendViews.get(adapter);
+                if (view == null) {
+                    StorageBackend backend = adapter.open(budget);
+                    if (backend == null || !backend.supportsFluids()) throw new Unavailable();
+                    // A second adapter on the same grid must resolve, but its stock is already represented.
+                    if (seen.containsKey(backend.identity())) continue;
+                    view = new BackendFluidHandler(backend, budget, observeStock);
+                    if (backendViews != null) backendViews.put(adapter, view);
+                }
+                handler = view;
+            } else if (tile instanceof IFluidHandler found) handler = found;
+            else throw new Unavailable();
+            if (seen.containsKey(storageIdentity(handler))) continue;
             List<Tank> canonical = null;
             int sideMask = 0;
-            for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS) {
+            if (handler instanceof BackendFluidHandler) {
+                canonical = tanks(handler, ForgeDirection.UNKNOWN, budget);
+                sideMask = label.getSideMask();
+            } else for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS) {
                 if ((label.getSideMask() & 1 << side.ordinal()) == 0) continue;
                 List<Tank> view = tanks(handler, side, budget);
                 if (view.isEmpty()) continue;
@@ -224,7 +466,7 @@ public final class FluidTransferService {
             tankCount = Math.addExact(tankCount, canonical.size());
             if (tankCount > FluidContents.MAX_ROWS) throw new IllegalArgumentException("Fluid tank limit exceeded");
             budget.chargeAllocation(3);
-            seen.put(handler, Boolean.TRUE);
+            seen.put(storageIdentity(handler), Boolean.TRUE);
             result.add(new Endpoint(position, tile, handler, sideMask, canonical));
         }
         for (Endpoint endpoint : result) requirePresent(endpoint, budget);
@@ -241,10 +483,27 @@ public final class FluidTransferService {
     }
 
     private void requirePresent(Endpoint endpoint, QueryBudget budget) {
-        if (tile(endpoint.position, budget) != endpoint.tile || endpoint.tile.isInvalid()) throw new Unavailable();
+        if (!present(endpoint, budget)) throw new Unavailable();
+    }
+
+    private static Object storageIdentity(IFluidHandler handler) {
+        return handler instanceof BackendFluidHandler nativeView ? nativeView.backend.identity() : handler;
     }
 
     private static List<Tank> tanks(IFluidHandler handler, ForgeDirection side, QueryBudget budget) {
+        if (handler instanceof BackendFluidHandler nativeView) {
+            if (!nativeView.current(budget)) throw new Unavailable();
+            budget.chargeAllocation(1);
+            List<Tank> result = new ArrayList<>();
+            for (StorageBackend.StoredFluid row : nativeView.rows()) {
+                budget.chargeSlot();
+                if (row.amount <= 0) throw new IllegalArgumentException("Invalid adapter fluid count");
+                budget.chargeAllocation(1);
+                result.add(new Tank(FluidIdentity.fromStack(row.fluid, budget), row.amount, Integer.MAX_VALUE));
+            }
+            if (result.isEmpty()) result.add(new Tank(null, 0, Integer.MAX_VALUE));
+            return result;
+        }
         budget.chargeProvider();
         FluidTankInfo[] info = handler.getTankInfo(side);
         int length = info == null ? 0 : info.length;
@@ -310,7 +569,13 @@ public final class FluidTransferService {
         // Hold all post-extraction work up front. Provider callbacks cannot consume recovery credit.
         int work = Math.addExact(128, key.comparisonWork() * 12 + key.copyWork() * 14);
         int allocation = Math.addExact(64, key.copyWork() * 14);
-        try (QueryBudget.Reservation reserve = budget.reserve(24, 96, work, allocation)) {
+        boolean backend = source.handler instanceof BackendFluidHandler
+            || target.handler instanceof BackendFluidHandler;
+        try (QueryBudget.Reservation reserve = budget.reserve(
+            backend ? 152 : 24,
+            backend ? 1632 : 96,
+            work + (backend ? 256 : 0),
+            allocation + (backend ? 256 : 0))) {
             QueryBudget commit = reserve.budget();
             int drained = simulateDrain(source, from, key, amount, commit);
             if (drained == 0) return 0;
@@ -395,7 +660,8 @@ public final class FluidTransferService {
     }
 
     private boolean present(Endpoint endpoint, QueryBudget budget) {
-        return tile(endpoint.position, budget) == endpoint.tile && !endpoint.tile.isInvalid();
+        return tile(endpoint.position, budget) == endpoint.tile && !endpoint.tile.isInvalid()
+            && (!(endpoint.handler instanceof BackendFluidHandler nativeView) || nativeView.current(budget));
     }
 
     /** Write-ahead evidence also fences reentrant runs and disk replacement during provider callbacks. */
@@ -463,25 +729,13 @@ public final class FluidTransferService {
     private static final class Tank {
 
         final FluidIdentity fluid;
-        final int amount, capacity;
+        final long amount;
+        final int capacity;
 
-        Tank(FluidIdentity fluid, int amount, int capacity) {
+        Tank(FluidIdentity fluid, long amount, int capacity) {
             this.fluid = fluid;
             this.amount = amount;
             this.capacity = capacity;
-        }
-    }
-
-    private static final class Observation {
-
-        final List<Endpoint> endpoints;
-        final long amount;
-        final boolean complete;
-
-        Observation(List<Endpoint> endpoints, long amount, boolean complete) {
-            this.endpoints = endpoints;
-            this.amount = amount;
-            this.complete = complete;
         }
     }
 

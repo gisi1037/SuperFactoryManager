@@ -188,6 +188,42 @@ public final class FluidIntegrationFixture {
                 5000,
                 capacity,
                 phases);
+            reset(source, water(5000));
+            reset(dest, water(capacity - 750));
+            phase(
+                manager,
+                sourcePos,
+                destPos,
+                source,
+                dest,
+                "exact transfer refuses short capacity",
+                "transferfexact(label(\"source\"), label(\"dest\"), fluid(\"water\"), 1000) into result",
+                5000,
+                capacity - 750,
+                phases);
+            reset(dest, null);
+            phase(
+                manager,
+                sourcePos,
+                destPos,
+                source,
+                dest,
+                "exact transfer refuses short stock",
+                "transferfexact(label(\"source\"), label(\"dest\"), 5001)",
+                5000,
+                0,
+                phases);
+            phase(
+                manager,
+                sourcePos,
+                destPos,
+                source,
+                dest,
+                "exact transfer commits full amount",
+                "transferfexact(label(\"source\"), label(\"dest\"), fluid(\"water\"), 1000)",
+                4000,
+                1000,
+                phases);
             JsonObject result = new JsonObject();
             result.addProperty("passed", true);
             result.addProperty("serverThread", ServerUiTasks.isServerThread());

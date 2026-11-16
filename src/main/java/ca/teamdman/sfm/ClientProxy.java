@@ -30,6 +30,7 @@ public class ClientProxy extends CommonProxy {
             .bus()
             .register(worldRenderer);
         MinecraftForge.EVENT_BUS.register(new LabelGunReminderOverlay());
+        MinecraftForge.EVENT_BUS.register(new ca.teamdman.sfm.client.render.FancyCableHighlight());
         MinecraftForge.EVENT_BUS.register(new ca.teamdman.sfm.client.gui.mui2.SfmlTextCursor());
         int fancyCableRenderId = cpw.mods.fml.client.registry.RenderingRegistry.getNextAvailableRenderId();
         ca.teamdman.sfm.common.block.BlockFancyCable.renderId = fancyCableRenderId;

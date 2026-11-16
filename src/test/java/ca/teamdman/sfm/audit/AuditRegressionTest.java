@@ -721,9 +721,15 @@ public class AuditRegressionTest {
         Set<BlockPos> unloaded;
         long time;
         int blockReads;
+        ISaveHandler saveHandler;
 
         private FakeWorld() {
             super((ISaveHandler) null, "audit", (WorldSettings) null, (WorldProvider) null, (Profiler) null);
+        }
+
+        @Override
+        public ISaveHandler getSaveHandler() {
+            return saveHandler;
         }
 
         @Override

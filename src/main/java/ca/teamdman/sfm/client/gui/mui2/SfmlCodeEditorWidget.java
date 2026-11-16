@@ -813,6 +813,25 @@ public final class SfmlCodeEditorWidget extends AbstractScrollWidget<VoidWidget,
         if (isValid()) getContext().focus(this);
     }
 
+    /** Browser insertion replaces exactly the chosen range and records the original selection in one undo step. */
+    public boolean insertTemplate(String template, int start, int end) {
+        if (!editable.getAsBoolean()) return false;
+        try {
+            if (start < 0 || end < start || end > source().length())
+                throw new IllegalArgumentException("The insertion range changed; reopen Insert.");
+            String text = template.replace("\n", "\n" + spaces(leading(source().substring(lineStart(start), start))));
+            buffer.replaceRange(start, end, text);
+            Matcher placeholder = SyntaxSnippet.PLACEHOLDER_PATTERN.matcher(text);
+            if (placeholder.find()) buffer.select(start + placeholder.start(), start + placeholder.end());
+            refresh();
+            if (isValid()) getContext().focus(this);
+            return true;
+        } catch (IllegalArgumentException rejected) {
+            error.accept(rejected.getMessage());
+            return false;
+        }
+    }
+
     public boolean placeholder(boolean forward) {
         Matcher matcher = SyntaxSnippet.PLACEHOLDER_PATTERN.matcher(source());
         int first = -1, last = -1, found = -1;

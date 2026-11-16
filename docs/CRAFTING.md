@@ -14,6 +14,9 @@ mod recipe loaders, not while a program runs.
 | Programming Station | 1 | 2 stainless-steel plates, screen, 2 advanced epoxy circuit boards, HV hull, 2 HV circuits, Factory Manager |
 | Redstone Port | 1 | 4 stainless-steel plates, HV sensor, 2 HV circuits, HV emitter, Inventory Cable |
 | Disk Copier | 1 | Stainless-steel plate, screen, 2 advanced epoxy circuit boards, HV hull, 2 HV circuits, HV sensor, HV emitter |
+| Wireless Inventory Connector | 2 | 4 stainless-steel plates, HV sensor, 2 HV emitters, HV circuit, Inventory Cable |
+| Wireless Linking Tool | 1 | Stainless-steel plate, HV sensor, HV emitter, screen, HV circuit |
+| Mod Storage Adapter | 1 | 3 stainless-steel plates, HV sensor, 2 HV circuits, HV hull, HV emitter, Inventory Cable |
 
 HV circuit means the circuitAdvanced OreDictionary category. Plates, wires,
 foils and cables use their normal GT ore categories. Other entries use the exact

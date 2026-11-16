@@ -19,7 +19,7 @@ public final class BlockDiskCopier extends BlockContainer {
     public BlockDiskCopier() {
         super(Material.iron);
         setBlockName("sfm.diskCopier");
-        setBlockTextureName("superfactorymanager:manager_side");
+        setBlockTextureName("superfactorymanager:disk_copier");
         setHardness(2.5F);
         setResistance(15);
         setStepSound(soundTypeMetal);

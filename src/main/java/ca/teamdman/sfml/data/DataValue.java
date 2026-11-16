@@ -109,6 +109,11 @@ public final class DataValue {
     }
 
     public static DataValue string(String value) {
+        int bytes = checkedStringNbtBytes(value);
+        return new DataValue(DataType.STRING, 0, null, value, value.length(), bytes);
+    }
+
+    static int checkedStringNbtBytes(String value) {
         if (value == null) throw new IllegalArgumentException("String value required");
         if (value.length() > ExpressionLimits.MAX_STRING_LENGTH)
             throw new IllegalArgumentException("String length exceeds " + ExpressionLimits.MAX_STRING_LENGTH);
@@ -123,7 +128,7 @@ public final class DataValue {
             // NBT uses Java modified UTF-8: NUL takes two bytes and each surrogate takes three.
             bytes += c >= 1 && c <= 0x7f ? 1 : c <= 0x7ff ? 2 : 3;
         }
-        return new DataValue(DataType.STRING, 0, null, value, value.length(), bytes);
+        return bytes;
     }
 
     public static DataValue label(LabelReference label) {
@@ -337,6 +342,10 @@ public final class DataValue {
 
     public DataValue get(String name) {
         return get(type.fieldIndex(name));
+    }
+
+    void copyElements(int start, DataValue[] target, int offset, int length) {
+        System.arraycopy(children, start, target, offset, length);
     }
 
     public DataValue with(int index, DataValue replacement) {

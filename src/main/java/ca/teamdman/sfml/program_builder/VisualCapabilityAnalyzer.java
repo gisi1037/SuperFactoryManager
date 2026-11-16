@@ -89,9 +89,15 @@ public final class VisualCapabilityAnalyzer {
             inspectCalls(tree, blockers);
             return;
         }
-        if (tree instanceof SFMLParser.TransferStatementContext) {
+        if (tree instanceof SFMLParser.TransferStatementContext transfer) {
             // Result capture remains separate from ordinary scoped declaration and assignment nodes.
-            if (((SFMLParser.TransferStatementContext) tree).INTO() != null) blockers.add(
+            if (transfer.TRANSFEREXACT() != null || transfer.TRANSFERFEXACT() != null) blockers
+                .add(at(Kind.TRANSFER_STATEMENT, "Exact transfer currently requires the text editor", transfer));
+            else if (transfer.TRANSFERFORCE() != null) blockers
+                .add(at(Kind.TRANSFER_STATEMENT, "Forced extraction currently requires the text editor", transfer));
+            else if (transfer.transferExclusion() != null) blockers
+                .add(at(Kind.TRANSFER_STATEMENT, "TRANSFER EXCEPT currently requires the text editor", transfer));
+            else if (transfer.INTO() != null) blockers.add(
                 at(
                     Kind.TRANSFER_STATEMENT,
                     "TRANSFER result capture currently requires the text editor",

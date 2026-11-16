@@ -127,16 +127,14 @@ public final class DynamicArrayFunctions {
         runtime.work(1 + nextSize * 3);
         runtime.allocate(1 + nextSize);
         DataValue[] values = new DataValue[nextSize];
+        if (operation != Operation.CLEAR) array.copyElements(0, values, 0, index);
         if (operation == Operation.EXTEND) {
-            for (int i = 0; i < size; i++) values[i] = array.get(i);
-            for (int i = 0; i < added; i++) values[size + i] = extension.get(i);
+            extension.copyElements(0, values, size, added);
         } else if (operation == Operation.PUSH || operation == Operation.INSERT) {
-            for (int i = 0; i < index; i++) values[i] = array.get(i);
             values[index] = extra[operation == Operation.PUSH ? 0 : 1];
-            for (int i = index; i < size; i++) values[i + 1] = array.get(i);
-        } else if (operation != Operation.CLEAR) {
-            for (int i = 0; i < index; i++) values[i] = array.get(i);
-            for (int i = index + 1; i < size; i++) values[i - 1] = array.get(i);
+            if (index < size) array.copyElements(index, values, index + 1, size - index);
+        } else if (index + 1 < size) {
+            array.copyElements(index + 1, values, index, size - index - 1);
         }
         DataValue replacement = DataValue.ownedDynamicArray(type, values);
         reference.publish(runtime, replacement, true);
@@ -178,7 +176,8 @@ public final class DynamicArrayFunctions {
                     && sameText(a.getName(), b.getName(), runtime);
             case RESOURCE_SELECTOR:
                 ResourceSelector x = left.asSelector(), y = right.asSelector();
-                return x.getKind() == y.getKind() && sameText(x.getId(), y.getId(), runtime);
+                return x.getKind() == y.getKind() && x.isInverted() == y.isInverted()
+                    && sameText(x.getId(), y.getId(), runtime);
             case ITEM_KEY:
                 return runtime.sameItem(left.asItemIdentity(), right.asItemIdentity());
             case FLUID_KEY:

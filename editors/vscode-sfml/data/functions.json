@@ -42,14 +42,14 @@
         "item(\"namespace:name\") -> resource_selector",
         "item(\"*\") -> resource_selector"
       ],
-      "description": "Construct an item filter from one quoted source literal. An exact, case-sensitive registry ID matches every metadata/NBT variant of that item; '*' matches all items. This is a RESOURCE_SELECTOR, not an exact ITEM_KEY. No item: prefix, metadata suffix, glob pattern, NBT filter or fluid selector is accepted. Unknown valid IDs match nothing; the constructor name ignores case.",
+      "description": "Construct an item filter from one quoted source literal. An exact, case-sensitive registry ID matches every metadata/NBT variant of that item. Use '*' for all items or prefix the selector with ! to exclude the selected type. This returns a RESOURCE_SELECTOR. No item: prefix, metadata suffix, glob pattern or NBT filter is accepted. Unknown valid IDs match nothing before inversion.",
       "example": "let iron = item(\"minecraft:iron_ingot\")"
     },
     "ore": {
       "signatures": [
         "ore(\"oreName\") -> resource_selector"
       ],
-      "description": "Construct an OreDictionary filter from one exact, case-sensitive quoted source literal of 1–256 ASCII letters, digits or underscores. Registered alternatives and wildcard metadata registrations are supported. Unknown names match nothing and do not register a new ore category. No ore: prefix, pattern or computed string is accepted. This is a RESOURCE_SELECTOR, not an exact ITEM_KEY; the constructor name ignores case.",
+      "description": "Construct an OreDictionary filter from one exact, case-sensitive quoted source literal of 1–256 ASCII letters, digits or underscores. Registered alternatives and wildcard metadata registrations are supported. Prefix the selector with ! to exclude its members. Unknown names match nothing before inversion and do not register a new ore category. No ore: prefix, pattern or computed string is accepted.",
       "example": "let iron = ore(\"ingotIron\")"
     },
     "array": {
@@ -190,7 +190,8 @@
         "transfer(source: label_ref, destination: label_ref) [into $result]",
         "transfer(source: label_ref, destination: label_ref, amount: integer) [into $result]",
         "transfer(source: label_ref, destination: label_ref, selection: resource_selector | item_key) [into $result]",
-        "transfer(source: label_ref, destination: label_ref, selection: resource_selector | item_key, amount: integer) [into $result]"
+        "transfer(source: label_ref, destination: label_ref, selection: resource_selector | item_key, amount: integer) [into $result]",
+        "transfer(source: label_ref, destination: label_ref [, amount: integer]) except item(\"namespace:name\") [into $result]"
       ],
       "description": "The third argument may be an integer total item-count limit (all items), or an item key/selector (matching stock). Four arguments require an item key/selector followed by an integer amount. Use transferf for fluids, in millibuckets; this action stays item-only. An item-moving statement, not a value-returning function. Two arguments select all items; a third selector/key selects matching items, while a third integer caps all items; an omitted amount observes matching visible source stock. Four arguments provide one nonnegative aggregate cap across variants and containers. ITEM/ORE selectors are broad; an ITEM_KEY from contents() selects exact metadata/NBT. Optional INTO declares a fresh local record with integer requested/moved/remaining and string status (complete, partial, no_match, no_capacity or unavailable). Unavailable automatic preflight can report requested=0 without proving emptiness. Provider errors, exhausted work limits and recovery uncertainty fault; earlier confirmed transfers remain committed. Cannot appear inside a data expression or value-returning function; void procedures may use it. The statement name ignores case.",
       "example": "let source = label(\"inputs\")\nlet destination = label(\"assembly\")\ntransfer(source, destination, item(\"minecraft:iron_ingot\"), 16) into result\nprint(result.moved, result.remaining, result.status)"
@@ -207,8 +208,32 @@
         "fluid(\"name\") -> resource_selector",
         "fluid(\"*\") -> resource_selector"
       ],
-      "description": "Select an exact Forge fluid registry name (water, lava or a mod registered name), or every fluid with *. Requires a quoted literal. Broad over NBT; captured FLUID_KEY values require exact fluid/NBT. Use with transferf and fqueries. Amounts are mB.",
+      "description": "Select an exact Forge fluid registry name (water, lava or a mod registered name), or every fluid with *. Prefix the selector with ! to exclude the selected fluid across all NBT variants. Requires a quoted literal. Use with transferf and fluid queries. Amounts are mB.",
       "example": "let water = fluid(\"water\")"
+    },
+    "transferexact": {
+      "signatures": [
+        "transferexact(source: label_ref, destination: label_ref, amount: integer) [into result]",
+        "transferexact(source: label_ref, destination: label_ref, selection: resource_selector | item_key, amount: integer) [into result]"
+      ],
+      "description": "Move the full requested number of items or leave both endpoints unchanged. Supports vanilla chests, including double chests. Unsupported endpoints report unavailable.",
+      "example": "transferexact(label(\"supply\"), label(\"assembly\"), item(\"minecraft:iron_ingot\"), 10) into sent"
+    },
+    "transferforce": {
+      "signatures": [
+        "transferforce(source.slots(first, last), destination: label_ref, amount: integer) [into result]",
+        "transferforce(source.slots(first, last), destination: label_ref, selection: resource_selector | item_key, amount: integer) [into result]"
+      ],
+      "description": "Pull items from exposed machine slots even when automated extraction is refused. The source requires an explicit inclusive slot range. The amount is a total maximum and destination insertion rules still apply.",
+      "example": "transferforce(label(\"machine\").slots(2, 2), label(\"returns\"), 16) into recovered"
+    },
+    "transferfexact": {
+      "signatures": [
+        "transferfexact(source: label_ref, destination: label_ref, amount: integer) [into result]",
+        "transferfexact(source: label_ref, destination: label_ref, selection: resource_selector | fluid_key, amount: integer) [into result]"
+      ],
+      "description": "Move the full requested number of millibuckets or leave both endpoints unchanged. Supports standalone BuildCraft tanks. Unsupported endpoints report unavailable.",
+      "example": "transferfexact(label(\"supply\"), label(\"tank\"), fluid(\"water\"), 1000) into sent"
     },
     "transferf": {
       "signatures": [

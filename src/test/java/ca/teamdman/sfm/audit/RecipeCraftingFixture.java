@@ -122,6 +122,14 @@ public final class RecipeCraftingFixture {
         IRecipe cableRecipe = LateHvRecipes.cableRecipe(outputs.get("cable"), glass, bundled);
         recipes.add(cableRecipe);
         assertEquals(7, recipes.size());
+        List<IRecipe> wireless = LateHvRecipes
+            .wirelessRecipes(new ItemStack(item()), new ItemStack(item()), outputs.get("cable"), components::get);
+        assertEquals(2, wireless.size());
+        assertTrue(hasPart(wireless.get(0), components.get("Sensor_HV")));
+        assertTrue(hasPart(wireless.get(0), components.get("Emitter_HV")));
+        assertTrue(hasPart(wireless.get(1), components.get("Cover_Screen")));
+        recipes.addAll(wireless);
+        recipes.add(LateHvRecipes.adapterRecipe(new ItemStack(item()), outputs.get("cable"), components::get));
         IRecipe legacyCable = new PlainShapedOreRecipe(
             new ItemStack(item(), 2),
             "PWP",
@@ -159,7 +167,7 @@ public final class RecipeCraftingFixture {
             }
             assertTrue(recipe.matches(grid, null), "recipe " + index);
             ItemStack made = recipe.getCraftingResult(grid);
-            assertEquals(index == 6 ? 2 : 1, made.stackSize);
+            assertEquals(index == 6 || index == 7 ? 2 : 1, made.stackSize);
             assertFalse(made.hasTagCompound());
             made.setTagCompound(new NBTTagCompound());
             made.getTagCompound()

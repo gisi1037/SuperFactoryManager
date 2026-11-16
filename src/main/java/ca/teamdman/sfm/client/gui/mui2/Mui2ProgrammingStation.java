@@ -55,10 +55,7 @@ import ca.teamdman.sfm.client.blueprint.StudioTransferArguments;
 import ca.teamdman.sfm.client.gui.ProgrammingStationDraftState;
 import ca.teamdman.sfm.client.gui.StationSourceTransfer;
 import ca.teamdman.sfm.client.gui.syntax.SfmlCompletionCatalog;
-import ca.teamdman.sfm.client.gui.syntax.SnippetCategory;
 import ca.teamdman.sfm.client.gui.syntax.StudioCompletion;
-import ca.teamdman.sfm.client.gui.syntax.SyntaxRegistry;
-import ca.teamdman.sfm.client.gui.syntax.SyntaxSnippet;
 import ca.teamdman.sfm.common.net.PacketStationDebugReply;
 import ca.teamdman.sfm.common.net.PacketStationReply;
 import ca.teamdman.sfm.common.net.PacketStationRequest;
@@ -103,8 +100,7 @@ public final class Mui2ProgrammingStation {
     private int layoutWidth = -1, layoutHeight = -1;
     private final StudioDraftDiagnostics diagnostics = new StudioDraftDiagnostics();
     private String draftDiagnostic = "Draft not checked";
-    private String snippetSearch = "";
-    private SnippetCategory snippetCategory;
+    private InsertBrowser insertBrowser;
 
     private enum View {
         VISUAL,
@@ -177,9 +173,9 @@ public final class Mui2ProgrammingStation {
     private ListWidget<IWidget, ?> completionList;
     private List<StudioCompletion.Candidate> completions = Collections.emptyList();
     private SfmlCompletionCatalog.Snapshot symbols = SfmlCompletionCatalog.scan("");
-    private IPanelHandler nodesPanel, apiPanel, problemsPanel, inspectPanel, fieldsPanel, completionPanel, findPanel,
-        pickerPanel, fieldDiagnosticPanel;
-    private IPanelHandler catalogPanel, confirmationPanel, snippetsPanel, toolsPanel, buildsPanel;
+    private IPanelHandler nodesPanel, problemsPanel, inspectPanel, fieldsPanel, completionPanel, findPanel, pickerPanel,
+        fieldDiagnosticPanel;
+    private IPanelHandler catalogPanel, confirmationPanel, toolsPanel, buildsPanel;
     private IPanelHandler deleteProjectPanel;
     private IPanelHandler recipePanel;
     private StudioRecipeInspector recipeInspector;
@@ -441,20 +437,31 @@ public final class Mui2ProgrammingStation {
                 .top(26)
                 .height(16)
                 .addTooltipLine("Project name"));
-        allInsert = button("Insert / all", 0, 0, 65, this::editable, () -> {
-            snippetCategory = null;
-            snippets();
-        }).height(16)
-            .addTooltipLine("All supported syntax, functions and examples. Search or choose a category.");
-        apiInsert = button("API", 0, 0, 44, this::editable, this::openApi).height(16);
+        allInsert = button("Insert...", 0, 0, 65, this::editable, () -> insertBrowser.open(InsertBrowser.Entry.ALL))
+            .height(16)
+            .addTooltipLine("Choose a category, read its help and preview, then insert code.");
+        apiInsert = button(
+            "Templates",
+            0,
+            0,
+            44,
+            this::editable,
+            () -> insertBrowser.open(InsertBrowser.Entry.TEMPLATES)).height(16);
         panel.child(allInsert);
         panel.child(apiInsert);
-        for (SnippetCategory category : SnippetCategory.values()) {
-            ButtonWidget<?> entry = button(category.getDisplayName(), 0, 0, 52, this::editable, () -> {
-                snippetCategory = category;
-                snippets();
-            }).height(16)
-                .addTooltipLine(category.getDescription());
+        String[] insertTitles = { "Items", "Fluids", "Redstone", "Templates" };
+        for (int index = 0; index < insertTitles.length; index++) {
+            final int choice = index;
+            ButtonWidget<?> entry = button(
+                insertTitles[index],
+                0,
+                0,
+                72,
+                this::editable,
+                () -> insertBrowser.open(
+                    choice == 3 ? InsertBrowser.Entry.TEMPLATES
+                        : choice == 2 ? InsertBrowser.Entry.REDSTONE
+                            : choice == 1 ? InsertBrowser.Entry.FLUIDS : InsertBrowser.Entry.ITEMS)).height(16);
             categories.add(entry);
             panel.child(entry.setEnabledIf(widget -> workspace != null && !workspace.compact));
         }
@@ -540,9 +547,8 @@ public final class Mui2ProgrammingStation {
         deleteProjectPanel = IPanelHandler.simple(panel, (parent, player) -> buildDeleteProject(), true);
         archivePanel = IPanelHandler.simple(panel, (parent, player) -> buildArchive(), true);
         confirmationPanel = IPanelHandler.simple(panel, (parent, player) -> buildConfirmation(), true);
-        snippetsPanel = IPanelHandler.simple(panel, (parent, player) -> buildSnippets(), true);
+        insertBrowser = createInsertBrowser();
         nodesPanel = IPanelHandler.simple(panel, (parent, player) -> buildNodes(), true);
-        apiPanel = IPanelHandler.simple(panel, (parent, player) -> buildApi(), true);
         problemsPanel = IPanelHandler.simple(panel, (parent, player) -> buildProblems(), true);
         inspectPanel = IPanelHandler.simple(panel, (parent, player) -> buildInspectorPopup(), true);
         fieldsPanel = IPanelHandler.simple(panel, (parent, player) -> buildTypedFields(), true);
@@ -1530,11 +1536,7 @@ public final class Mui2ProgrammingStation {
     }
 
     private void openApi() {
-        if (!editable()) return;
-        symbols = SfmlCompletionCatalog.scan(document.code());
-        removeFocus();
-        apiPanel.deleteCachedPanel();
-        apiPanel.openPanel();
+        if (insertBrowser != null) insertBrowser.open(InsertBrowser.Entry.ALL);
     }
 
     private void complete() {
@@ -3102,56 +3104,6 @@ public final class Mui2ProgrammingStation {
         return popup;
     }
 
-    private ModularPanel buildApi() {
-        ModularPanel popup = modal("sfm_studio_api", 312, 228);
-        popup.child(
-            new TextWidget<>("Functions / hover for signature and rules").color(0xffe7e8eb)
-                .pos(8, 7)
-                .size(296, 12));
-        ListWidget<IWidget, ?> list = new ListWidget<>().pos(8, 50)
-            .size(296, 132);
-        String[] query = { "" };
-        Runnable rebuild = () -> {
-            list.removeAll();
-            for (SfmlCompletionCatalog.Entry entry : SfmlCompletionCatalog.search(symbols, query[0], 256)) {
-                list.child(
-                    listButton(
-                        entry.getName(),
-                        296,
-                        () -> !document.incomplete() && !pendingClause() && !pendingFields(),
-                        () -> {
-                            switchView(View.CODE);
-                            apiPanel.closePanel();
-                            editor.snippet(
-                                new SyntaxSnippet(
-                                    "api_" + entry.getName(),
-                                    entry.getName(),
-                                    SnippetCategory.DATA,
-                                    entry.getTemplate(),
-                                    entry.getDescription()));
-                        }).height(18)
-                            .addTooltipLine(entry.getSignature())
-                            .addTooltipLine(entry.getDescription())
-                            .addTooltipLine("Inserts: " + entry.getTemplate()));
-            }
-            if (list.isValid()) list.scheduleResize();
-        };
-        rebuild.run();
-        popup.child(
-            new TextFieldWidget().setMaxLength(96)
-                .autoUpdateOnChange(true)
-                .value(new StringValue.Dynamic(() -> query[0], value -> {
-                    query[0] = value;
-                    rebuild.run();
-                }))
-                .pos(8, 26)
-                .size(296, 18)
-                .addTooltipLine("Search built-ins, methods and current-program functions"));
-        popup.child(list);
-        popup.child(button("Done", 242, 188, 62, () -> true, apiPanel::closePanel));
-        return popup;
-    }
-
     private void openProblems() {
         checkDraft();
         selectDock(Dock.PROBLEMS);
@@ -4379,87 +4331,81 @@ public final class Mui2ProgrammingStation {
         action.run();
     }
 
-    private void snippets() {
-        if (!editable() || snippetsPanel == null || snippetsPanel.isPanelOpen()) return;
-        snippetSearch = "";
-        removeFocus();
-        snippetsPanel.deleteCachedPanel();
-        snippetsPanel.openPanel();
-    }
+    private InsertBrowser createInsertBrowser() {
+        return new InsertBrowser(panel, new InsertBrowser.Host() {
 
-    private ModularPanel buildSnippets() {
-        ModularPanel popup = modal("sfm_station_snippets", 312, 228);
-        popup.child(
-            new TextWidget<>(
-                snippetCategory == null ? "Insert / all SFML" : "Insert / " + snippetCategory.getDisplayName())
-                    .color(0xffe7e8eb)
-                    .pos(8, 7)
-                    .size(296, 12));
-        ListWidget<IWidget, ?> list = new ListWidget<>().pos(8, 49)
-            .size(296, 131);
-        List<SyntaxSnippet> entries = snippetCategory == null ? SyntaxRegistry.getAllSnippets()
-            : SyntaxRegistry.getSnippetsForCategory(snippetCategory);
-        List<SyntaxSnippet> visible = new ArrayList<>(entries);
-        Runnable rebuild = () -> {
-            list.removeAll();
-            for (SyntaxSnippet snippet : visible) {
-                list.child(
-                    new ButtonWidget<>().widthRel(1f)
-                        .height(20)
-                        .background(StudioTheme.BUTTON)
-                        .hoverBackground(StudioTheme.HOVER)
-                        .overlay(
-                            IKey.dynamic(() -> trimFor(snippet.getTitle(), 280))
-                                .color(0xffe7e8eb))
-                        .addTooltipLine(
-                            IKey.str(
-                                snippet.getCategory()
-                                    .getDisplayName()))
-                        .addTooltipLine(IKey.str(snippet.getDescription()))
-                        .addTooltipLine(IKey.str(snippet.getTemplate()))
-                        .onMousePressed(mouse -> {
-                            if (mouse != 0 || !editable()) return false;
-                            if (document.incomplete() || !applyClause()) return true;
-                            switchView(View.CODE);
-                            snippetsPanel.closePanel();
-                            editor.snippet(snippet);
-                            return true;
-                        }));
+            public SfmlCodeEditorWidget editor() {
+                return editor;
             }
-            if (list.isValid()) list.scheduleResize();
-        };
-        rebuild.run();
-        popup.child(
-            new TextFieldWidget().setMaxLength(96)
-                .autoUpdateOnChange(true)
-                .value(new StringValue.Dynamic(() -> snippetSearch, value -> {
-                    snippetSearch = value;
-                    String query = value.trim()
-                        .toLowerCase(Locale.ROOT);
-                    visible.clear();
-                    for (SyntaxSnippet entry : entries) {
-                        if ((entry.getCategory()
-                            .getDisplayName() + " "
-                            + entry.getTitle()
-                            + " "
-                            + entry.getDescription()
-                            + " "
-                            + entry.getTemplate()).toLowerCase(Locale.ROOT)
-                                .contains(query))
-                            visible.add(entry);
-                    }
-                    rebuild.run();
-                }))
-                .pos(8, 26)
-                .size(296, 18)
-                .addTooltipLine("Search functions, examples and syntax"));
-        popup.child(list);
-        popup.child(button("Insert library", 8, 188, 112, () -> !state.awaitingReply(), () -> {
-            snippetsPanel.closePanel();
-            openLibraries();
-        }));
-        popup.child(button("Done", 242, 188, 62, () -> true, snippetsPanel::closePanel));
-        return popup;
+
+            public boolean editable() {
+                return Mui2ProgrammingStation.this.editable();
+            }
+
+            public java.util.Set<String> labels() {
+                ca.teamdman.sfml.program_builder.ProgramBuildResult built = new ca.teamdman.sfml.program_builder.ProgramBuilder(
+                    editor.source()).build();
+                return built.isSuccess() ? built.getProgram()
+                    .getReferencedLabels() : Collections.emptySet();
+            }
+
+            public int availableWidth() {
+                return StudioScaledPanel.logicalWidth(panel.getScreen());
+            }
+
+            public int availableHeight() {
+                return StudioScaledPanel.logicalHeight(panel.getScreen());
+            }
+
+            public ModularPanel panel(int width, int height, BiPredicate<Character, Integer> keys) {
+                return modal("sfm_station_insert", width, height, keys);
+            }
+
+            public void focus() {
+                focusAuthoring();
+            }
+
+            public void status(String text) {
+                status = text;
+            }
+
+            public boolean canCreateProject() {
+                return true;
+            }
+
+            public void newExample(String name, String code) {
+                protect("Open example: " + name, () -> {
+                    newDraft();
+                    state.name = name;
+                    state.source = code;
+                    state.noteLocalEdit();
+                    document.load(code);
+                    view = View.CODE;
+                    codeFocused = true;
+                    layoutWidth = -1;
+                    syncEditor();
+                    panel.scheduleResize();
+                    status = "New example draft. Set labels, then Save and Check.";
+                });
+            }
+
+            public boolean canPickLibrary() {
+                return true;
+            }
+
+            public void library() {
+                openLibraries();
+            }
+
+            public boolean prepareInsert() {
+                if (document.incomplete() || pendingClause() || pendingFields()) {
+                    status = "Finish or apply the visual draft before inserting code.";
+                    return false;
+                }
+                switchView(View.CODE);
+                return true;
+            }
+        });
     }
 
     private ModularPanel modal(String name, int width, int height) {

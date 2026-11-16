@@ -18,6 +18,126 @@ import org.junit.jupiter.api.Test;
 class SfmlFluidTransferTest {
 
     @Test
+    void adapterLongItemCounts() throws Throwable {
+        invokeAdapter("longCountsAndAliasesAreQueriedOnceAndQueriesSeeEarlierTransfers");
+    }
+
+    @Test
+    void adapterItemInsertion() throws Throwable {
+        invokeAdapter("nativeItemInsertionUsesAcceptedAmountsAndNeverFabricatesInventoryWrites");
+    }
+
+    @Test
+    void itemExclusionAcrossAdapterAndPhysicalStorage() throws Throwable {
+        invokeAdapter("transferExclusionSkipsAdapterStockAndCountsOnlyEligibleItems");
+    }
+
+    @Test
+    void invertedItemSelectorFiltersQueriesAndTransfers() throws Throwable {
+        invokeAdapter("invertedItemSelectorFiltersQueriesAndTransfers");
+    }
+
+    @Test
+    void invertedFluidSelectorFiltersQueriesAndTransfers() throws Throwable {
+        invokeAdapter("invertedFluidSelectorFiltersQueriesAndTransfers");
+    }
+
+    @Test
+    void adapterBulkItemTransfer() throws Throwable {
+        invokeAdapter("bulkNativeItemsUseBoundedStackPayloadsAndStillMoveTheRequestedTotal");
+    }
+
+    @Test
+    void adapterBulkIntoSidedSlots() throws Throwable {
+        invokeAdapter("nativeBulkFillsMultipleBusSlotsWithOneExtraction");
+    }
+
+    @Test
+    void adapterBulkIntoWideSidedBus() throws Throwable {
+        invokeAdapter("nativeBulkUsesBoundedWorkOnAWideSidedBus");
+    }
+
+    @Test
+    void adapterBulkRechecksChangingSlotPermissions() throws Throwable {
+        invokeAdapter("nativeBulkRechecksSlotThatUnlocksAfterEarlierPlacement");
+    }
+
+    @Test
+    void adapterBulkMovesDirectlyBetweenNetworks() throws Throwable {
+        invokeAdapter("bulkNativeEndpointsMoveOneExactIdentityWithoutStackSizedCallbacks");
+    }
+
+    @Test
+    void adapterBulkRecoveryKeepsUnattemptedRemainder() throws Throwable {
+        invokeAdapter("bulkFailureRetainsUnattemptedItemsAfterOperatorReconciliation");
+    }
+
+    @Test
+    void adapterBulkReservesWorkAndFencesDiskChanges() throws Throwable {
+        invokeAdapter("nativeBulkReservesBeforeExtractionAndFencesReplacedDisks");
+    }
+
+    @Test
+    void adapterEmptyNetwork() throws Throwable {
+        invokeAdapter("emptyLiveNetworkIsCompleteAndIsNotUnavailable");
+    }
+
+    @Test
+    void adapterSelfNetwork() throws Throwable {
+        invokeAdapter("sameBackingNetworkCannotFeedItselfThroughDifferentAdapters");
+    }
+
+    @Test
+    void adapterUnavailable() throws Throwable {
+        invokeAdapter("unavailableAdapterIsNeverReportedEmptyAndSlotIndexesAreRefused");
+    }
+
+    @Test
+    void adapterReplacement() throws Throwable {
+        invokeAdapter("callbackReplacementRefusesBeforeNativeExtraction");
+    }
+
+    @Test
+    void adapterPartialRollback() throws Throwable {
+        invokeAdapter("nativeItemRollbackCanBePartialWithoutDuplicatingTheReturnedPortion");
+    }
+
+    @Test
+    void adapterAccessLostAfterExtraction() throws Throwable {
+        invokeAdapter("lostNativeAccessAfterExtractionPreservesKnownOwnedItems");
+    }
+
+    @Test
+    void adapterFluidExtraction() throws Throwable {
+        invokeAdapter("nativeFluidQueriesKeepLongCountsAndTransfersUseTheExistingJournal");
+    }
+
+    @Test
+    void adapterFluidQueriesAvoidRedundantNetworkScans() throws Throwable {
+        invokeAdapter("nativeFluidQueriesAvoidRedundantNetworkScans");
+    }
+
+    @Test
+    void adapterFluidInsertion() throws Throwable {
+        invokeAdapter("nativeFluidInsertionAndShortDestinationConserveEveryMillibucket");
+    }
+
+    @Test
+    void adapterFluidTransferAvoidsNoProgressFaceRetries() throws Throwable {
+        invokeAdapter("nativeFluidTransferSkipsNoProgressFaceRetries");
+    }
+
+    private static void invokeAdapter(String name) throws Throwable {
+        try {
+            Class.forName("ca.teamdman.sfm.audit.StorageBackendFixture", true, isolated)
+                .getMethod(name)
+                .invoke(null);
+        } catch (InvocationTargetException failure) {
+            throw failure.getCause();
+        }
+    }
+
+    @Test
     void completeJournalSizeRefusesBeforeAnyActualFluidCallback() throws Throwable {
         invoke("completeJournalSizeRefusesBeforeAnyActualFluidCallback");
     }
@@ -117,6 +237,11 @@ class SfmlFluidTransferTest {
     @Test
     void allFourFormsTransferInMillibuckets() throws Throwable {
         invoke("allFourFormsTransferInMillibuckets");
+    }
+
+    @Test
+    void standaloneTanksCommitTaggedFluidAndNotifyOnlyAfterSuccess() throws Throwable {
+        invoke("standaloneTanksCommitTaggedFluidAndNotifyOnlyAfterSuccess");
     }
 
     @Test

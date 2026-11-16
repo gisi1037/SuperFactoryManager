@@ -39,16 +39,34 @@ public final class TransferStatement implements Statement {
         STATUSES = Collections.unmodifiableMap(statuses);
     }
 
-    private final DataExpression source, destination, item, amount;
+    private final DataExpression source, destination, item, amount, exclusion;
     private final DataCompiler.Binding result;
-    private final boolean fluids;
+    private final boolean fluids, exact, force;
 
     public TransferStatement(List<DataExpression> arguments, DataCompiler.Binding result) {
         this(arguments, result, false);
     }
 
     public TransferStatement(List<DataExpression> arguments, DataCompiler.Binding result, boolean fluids) {
+        this(arguments, result, fluids, false);
+    }
+
+    public TransferStatement(List<DataExpression> arguments, DataCompiler.Binding result, boolean fluids,
+        boolean exact) {
+        this(arguments, result, fluids, exact, null);
+    }
+
+    public TransferStatement(List<DataExpression> arguments, DataCompiler.Binding result, boolean fluids, boolean exact,
+        DataExpression exclusion) {
+        this(arguments, result, fluids, exact, exclusion, false);
+    }
+
+    public TransferStatement(List<DataExpression> arguments, DataCompiler.Binding result, boolean fluids, boolean exact,
+        DataExpression exclusion, boolean force) {
         this.fluids = fluids;
+        this.exact = exact;
+        this.force = force;
+        this.exclusion = exclusion;
         source = arguments.get(0);
         destination = arguments.get(1);
         // Resolve the third-argument overload once from its static type, without evaluating it.
@@ -69,16 +87,19 @@ public final class TransferStatement implements Statement {
         long requested = amount == null ? 0
             : amount.evaluate(runtime)
                 .asLong();
+        ResourceSelector excluded = exclusion == null ? null
+            : exclusion.evaluate(runtime)
+                .asSelector();
         runtime.work(1);
         if (result == null) {
-            transfer(context, from, to, selected, requested);
+            transfer(context, from, to, selected, requested, excluded);
             return;
         }
         // Reserve record values, child-array/copy and result callback before any provider mutation.
         runtime.allocate(10);
         runtime.allocateString(11); // Longest status is NO_CAPACITY/UNAVAILABLE; reserve before effects.
         result.writeActionResult(runtime, () -> {
-            ItemTransferResult moved = transfer(context, from, to, selected, requested);
+            ItemTransferResult moved = transfer(context, from, to, selected, requested, excluded);
             DataValue[] fields = new DataValue[4];
             for (int i = 0; i < fields.length; i++) {
                 String name = RESULT_TYPE.getFieldNames()
@@ -93,23 +114,26 @@ public final class TransferStatement implements Statement {
     }
 
     private ItemTransferResult transfer(ProgramContext context, DataValue from, DataValue to, DataValue selected,
-        long requested) {
+        long requested, ResourceSelector excluded) {
+        if (exact) return context.transferExact(from.asLabel(), to.asLabel(), selected, requested, fluids);
+        if (force) return context.forceTransferItems(from.asLabel(), to.asLabel(), selected, excluded, requested);
         if (fluids) {
             return amount == null ? context.transferFluids(from.asLabel(), to.asLabel(), selected)
                 : context.transferFluids(from.asLabel(), to.asLabel(), selected, requested);
         }
-        return amount == null ? context.transferItems(from.asLabel(), to.asLabel(), selected)
-            : context.transferItems(from.asLabel(), to.asLabel(), selected, requested);
+        return context.transferItems(from.asLabel(), to.asLabel(), selected, excluded, requested, amount == null);
     }
 
     @Override
     public String toString() {
-        return (fluids ? "TRANSFERF (" : "TRANSFER (") + source
+        return (fluids ? "TRANSFERF" : "TRANSFER") + (exact ? "EXACT (" : force ? "FORCE (" : " (")
+            + source
             + ", "
             + destination
             + (item == null ? "" : ", " + item)
             + (amount == null ? "" : ", " + amount)
             + ")"
+            + (exclusion == null ? "" : " EXCEPT " + exclusion)
             + (result == null ? "" : " INTO $" + result.name);
     }
 }

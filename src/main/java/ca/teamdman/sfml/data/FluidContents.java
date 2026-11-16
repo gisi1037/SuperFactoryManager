@@ -64,19 +64,28 @@ public final class FluidContents {
         runtime.work(cells * 3 + characters);
         owner.chargeSlots(cells * 3 + characters);
         owner.chargeAllocation(cells + rows.size() * width);
+        int fluidField = type.fieldIndex("fluid");
+        int idField = type.fieldIndex("id");
+        int amountField = type.fieldIndex("amount");
+        int dimensionField = type.fieldIndex("dimension");
+        int xField = type.fieldIndex("x");
+        int yField = type.fieldIndex("y");
+        int zField = type.fieldIndex("z");
+        int tankField = type.fieldIndex("tank");
+        int sideMaskField = type.fieldIndex("sideMask");
         DataValue[] result = new DataValue[rows.size()];
         for (int i = 0; i < rows.size(); i++) {
             Row row = rows.get(i);
             DataValue[] values = new DataValue[width];
-            values[type.fieldIndex("fluid")] = DataValue.fluidIdentity(row.fluid);
-            values[type.fieldIndex("id")] = DataValue.string(row.fluid.getId());
-            values[type.fieldIndex("amount")] = DataValue.integer(row.amount);
-            values[type.fieldIndex("dimension")] = DataValue.integer(row.dimension);
-            values[type.fieldIndex("x")] = DataValue.integer(row.x);
-            values[type.fieldIndex("y")] = DataValue.integer(row.y);
-            values[type.fieldIndex("z")] = DataValue.integer(row.z);
-            values[type.fieldIndex("tank")] = DataValue.integer(row.tank);
-            values[type.fieldIndex("sideMask")] = DataValue.integer(row.sideMask);
+            values[fluidField] = DataValue.fluidIdentity(row.fluid);
+            values[idField] = DataValue.string(row.fluid.getId());
+            values[amountField] = DataValue.integer(row.amount);
+            values[dimensionField] = DataValue.integer(row.dimension);
+            values[xField] = DataValue.integer(row.x);
+            values[yField] = DataValue.integer(row.y);
+            values[zField] = DataValue.integer(row.z);
+            values[tankField] = DataValue.integer(row.tank);
+            values[sideMaskField] = DataValue.integer(row.sideMask);
             result[i] = DataValue.ownedCollection(type, values);
         }
         return DataValue.ownedSequence(DataType.FLUID_CONTENTS, result);

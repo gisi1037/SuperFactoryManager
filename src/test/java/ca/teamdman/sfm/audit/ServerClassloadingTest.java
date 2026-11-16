@@ -17,6 +17,7 @@ class ServerClassloadingTest {
             @Override
             protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
                 if (name.startsWith("vswe.") || name.startsWith("stevesaddons.")
+                    || name.startsWith("appeng.")
                     || name.startsWith("gregtech.")
                     || name.startsWith("com.jaquadro.minecraft.storagedrawers.")
                     || name.startsWith("codechicken.nei.")
@@ -47,6 +48,10 @@ class ServerClassloadingTest {
         };
         for (String name : new String[] { "ca.teamdman.sfm.common.item.ItemDisk",
             "ca.teamdman.sfm.common.item.ItemLabelGun", "ca.teamdman.sfm.CommonProxy",
+            "ca.teamdman.sfm.common.item.ItemWirelessLinker",
+            "ca.teamdman.sfm.common.tileentity.TileEntityWirelessConnector",
+            "ca.teamdman.sfm.common.block.BlockWirelessConnector",
+            "ca.teamdman.sfm.common.tileentity.TileEntityModAdapter", "ca.teamdman.sfm.common.block.BlockModAdapter",
             "ca.teamdman.sfm.common.gui.GuiHandler", "ca.teamdman.sfm.common.net.PacketSaveProgram",
             "ca.teamdman.sfm.common.net.PacketDebugTerminalRequest",
             "ca.teamdman.sfm.common.net.PacketDebugTerminalReply", "ca.teamdman.sfm.common.net.PacketStationRequest",
@@ -67,6 +72,8 @@ class ServerClassloadingTest {
             "ca.teamdman.sfm.common.program.DebugTerminalService", "ca.teamdman.sfml.ast.PrintStatement",
             "ca.teamdman.sfm.common.program.project.StationProjectService", "ca.teamdman.sfm.common.block.BlockCable",
             "ca.teamdman.sfm.common.network.CableLabelEditor", "ca.teamdman.sfm.common.net.CableLabelData",
+            "ca.teamdman.sfm.common.storage.StorageBackend", "ca.teamdman.sfm.common.storage.BackendItemInventory",
+            "ca.teamdman.sfm.common.storage.BackendFluidHandler", "ca.teamdman.sfm.common.item.ItemBlockModAdapter",
             "ca.teamdman.sfml.data.recipe.RecipeDescriptor", "ca.teamdman.sfml.data.recipe.RecipeCatalog",
             "ca.teamdman.sfml.data.RecipeValues", "ca.teamdman.sfml.data.MachineRecipeMaps",
             "ca.teamdman.sfm.common.net.PacketStationRecipeRequest",

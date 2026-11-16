@@ -44,6 +44,9 @@ class GuideNhBookTest {
         ITEMS.add("programmingStation");
         ITEMS.add("redstonePort");
         ITEMS.add("diskCopier");
+        ITEMS.add("wirelessConnector");
+        ITEMS.add("wirelessLinker");
+        ITEMS.add("modAdapter");
     }
 
     static Map<Path, String> pages() throws Exception {

@@ -13,9 +13,11 @@ public final class ItemStockFunctions {
         if (runtime == null || contentsOrLocations == null)
             throw new IllegalArgumentException("TOTAL requires item contents or locations and a runtime");
         DataType type = contentsOrLocations.getType();
-        String amount;
-        if (type == DataType.ITEM_CONTENTS) amount = "total";
-        else if (type == DataType.ITEM_LOCATIONS) amount = "amount";
+        int amount;
+        if (type == DataType.ITEM_CONTENTS) amount = type.getElementType()
+            .fieldIndex("total");
+        else if (type == DataType.ITEM_LOCATIONS) amount = type.getElementType()
+            .fieldIndex("amount");
         else throw new IllegalArgumentException("TOTAL requires item contents or locations");
         int size = contentsOrLocations.size();
         runtime.work(1 + size * 3);
@@ -38,13 +40,17 @@ public final class ItemStockFunctions {
             throw new IllegalArgumentException("STOCK requires item contents, an exact item key and a runtime");
         int size = contents.size();
         runtime.work(1 + size * 3);
+        DataType rowType = contents.getType()
+            .getElementType();
+        int item = rowType.fieldIndex("item");
+        int total = rowType.fieldIndex("total");
         for (int i = 0; i < size; i++) {
             DataValue row = contents.get(i);
             if (runtime.sameItem(
-                row.get("item")
+                row.get(item)
                     .asItemIdentity(),
                 key))
-                return row.get("total")
+                return row.get(total)
                     .asLong();
         }
         return 0;

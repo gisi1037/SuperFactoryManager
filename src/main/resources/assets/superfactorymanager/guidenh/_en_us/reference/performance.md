@@ -97,17 +97,24 @@ path can pause the manager with evidence rather than silently retrying it.
 **Overview > Expand** shows up to twenty chronological complete-update cost
 samples, latest/mean/max/peak and runtime state. Bars scale to the visible window;
 their height is not a percentage of the server tick budget. The scheduler-clock
-marker can advance without a due trigger or successful transfer. Statement
-tracing, node highlighting and breakpoints are not available yet.
+marker can advance without a due trigger or successful transfer.
 
 **Profile** records complete server manager updates, including idle checks,
 recovery and discovery. **Record** defaults to 1,200 updates and stops
-automatically. **Stop** preserves the sample; **Reset** clears it. Results include
-count, updates with a due trigger, average, p50/p95/p99 and maximum milliseconds.
-The collector starts off. Terminal commands `profile start 1200`, `profile status`,
-`profile stop` and `profile reset` control the same capture; start accepts
-1-4,096 updates. This does not measure whole-server TPS, per-instruction work,
-background compiler work or manual runs.
+automatically. **Stop** preserves the capture and **Reset** clears it. The
+summary shows full-update percentiles, separate SFML scheduler time, trigger
+runs and WAIT resumes, and the most expensive statement locations by total time.
+Trigger numbers follow source order. Parent statements include time spent in
+nested statements, so their totals overlap.
+
+Choose **Dump** to write JSON under `sfm-profiles` in the server's world save.
+Each manager's next dump replaces its previous file. The dump includes each
+sample's game tick and elapsed time, captured trigger and statement rows, and
+counts of any attempts skipped at the sampling limits. Published programs
+require source-author access to read details or dump. Captures include scheduled
+updates and exclude manual runs. Terminal commands `profile start 1200`,
+`profile status`, `profile stop`, `profile reset`, and `profile dump` control the
+same capture. Start accepts 1–4,096 updates.
 
 ## Operator profiling
 

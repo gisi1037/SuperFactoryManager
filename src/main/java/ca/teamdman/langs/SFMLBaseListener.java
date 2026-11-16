@@ -1782,6 +1782,26 @@ public class SFMLBaseListener implements SFMLListener {
      * </p>
      */
     @Override
+    public void enterTransferExclusion(SFMLParser.TransferExclusionContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
+    public void exitTransferExclusion(SFMLParser.TransferExclusionContext ctx) {}
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation does nothing.
+     * </p>
+     */
+    @Override
     public void enterDataTarget(SFMLParser.DataTargetContext ctx) {}
 
     /**

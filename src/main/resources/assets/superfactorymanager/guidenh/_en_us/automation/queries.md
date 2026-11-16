@@ -3,9 +3,9 @@ navigation:
   title: "Typed item queries"
   parent: /automation/index.md
   position: 70
-  keywords: ["sfm", "label", "item", "ore", "count", "available", "empty"]
+  keywords: ["sfm", "label", "item", "ore", "count", "available", "empty", "contents", "filter"]
 categories: ["sfm", "automation"]
-updated: "2026-11-01"
+updated: "2026-11-02"
 ---
 # Typed item queries
 
@@ -13,6 +13,7 @@ Typed queries read current item stock without moving or reserving it. LABEL crea
 
 Use [constructors](#choose-a-label-and-filter) to select stock,
 [the query table](#choose-an-observation) to choose a read, or
+[item-filter examples](#filter-by-item) to check one item type. Use
 [numbered labels](#numbered-labels) to select a group in a loop.
 
 ```sfml
@@ -43,10 +44,72 @@ ORE accepts an exact case-sensitive OreDictionary name of 1–256 ASCII letters,
 | `$src.available()` | Same access-only test with the all-items selector. |
 | `$src.empty()` | Same item-only test as `empty(ITEM("*"))`. |
 | `$src.contents()` | A captured sequence of exact item groups; see [contents](/automation/contents.md). |
+| `$src.contents($iron)` | A captured sequence containing only matching iron groups. |
 
 Count requires one RESOURCE_SELECTOR. Available, empty and contents accept zero or one selector. There is no implicit string-to-selector conversion. The no-argument forms refer only to visible items: they do not inspect fluids, empty fluid tanks, free space or machine insertion capacity. Supplying a filter to available does not change its access-only meaning; an available group may have zero matching stock.
 
 Default access is all ordinary slots, or the deduplicated union of valid slots exposed by the six faces of an ISidedInventory. Duplicate faces/indices count once; invalid indices are ignored. Visible stock is counted even when extraction is refused. Zero-sized inventories and entirely hidden selections are unavailable, rather than confirmed empty. There are no current `canExtract`, `canInsert`, accepted-amount or capacity methods. Those permissions are checked by an actual transfer; available and empty do not substitute for them.
+
+## Filter by item
+
+Pass `item("minecraft:iron_ingot")` directly, or save it in a variable and pass
+that variable. Other item types are ignored by the filtered query.
+
+| Read | What it answers |
+| --- | --- |
+| `src.empty(item("minecraft:iron_ingot"))` | Is there no iron? Other items may still be present. |
+| `src.count(item("minecraft:iron_ingot"))` | How many iron ingots are present? |
+| `src.contents(item("minecraft:iron_ingot"))` | Which exact iron variants are present, in what quantities and locations? |
+
+```sfml
+name "Check iron stock"
+every 20 ticks {
+  let src = label("chest_in")
+  let iron = item("minecraft:iron_ingot")
+
+  if (src.available()) {
+    print("No iron:", src.empty(iron))
+    print("Iron ingots:", src.count(iron))
+    for group in src.contents(iron) {
+      print(group.id, group.metadata, group.total)
+    }
+  } else {
+    print("Inventory unavailable")
+  }
+}
+```
+
+The item filter includes every metadata/NBT variant of that registered item.
+`contents(iron)` keeps different exact variants in separate groups;
+`len(src.contents(iron))` counts groups, while `src.count(iron)` counts items.
+For an available inventory with no iron, these reads return true, zero and an
+empty sequence respectively. An unavailable inventory makes `empty(iron)` false
+and makes `count(iron)` or `contents(iron)` fault. `available(iron)` checks access,
+not whether any iron exists. These methods observe stock; they do not move it.
+
+## Allow one item and nothing else
+
+To check that no items other than iron are present, compare the all-items count
+with the iron count. This accepts a completely empty inventory too.
+
+```sfml
+name "Only iron allowed"
+every 20 ticks {
+  let src = label("chest_in")
+  let iron = item("minecraft:iron_ingot")
+
+  if (src.available()) {
+    let allItems = src.count(item("*"))
+    let ironItems = src.count(iron)
+    print("Only iron or empty:", allItems == ironItems)
+    print("Only iron, with some present:", allItems == ironItems and ironItems > 0)
+  }
+}
+```
+
+Both reads use the same selected inventory view. They are separate live reads,
+not one reserved snapshot. Fluids are not included. If you need to inspect one
+captured view instead, use [contents](/automation/contents.md).
 
 ## Restrict a view
 

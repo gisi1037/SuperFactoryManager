@@ -6,7 +6,7 @@ navigation:
   parent: /start/index.md
   keywords: ["programming station", "studio", "project", "draft", "save"]
 categories: ["sfm"]
-updated: "2026-11-01"
+updated: "2026-11-02"
 item_ids: ["superfactorymanager:programmingStation"]
 ---
 
@@ -28,8 +28,10 @@ your [first transfer](first-transfer.md) runs from an ordinary disk without one.
 **Expected:** the project appears in the list. Reopening Studio remembers your
 last project. You can save unfinished source even when Check reports errors.
 
-**Visual / Split / Code** changes your editing view. **Insert** supplies statements
-and examples. You can explore these after saving the copied program.
+**Visual / Split / Code** changes your editing view. **Insert** opens a browser:
+choose one category, such as Items or Redstone. Scroll its list and select a name
+to read its help and preview; only the Insert button changes your code.
+Complete examples open a new draft after protecting unsaved work.
 
 ## Put the program on a disk
 

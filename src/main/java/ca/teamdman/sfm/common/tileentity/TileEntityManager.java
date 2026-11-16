@@ -124,6 +124,7 @@ public class TileEntityManager extends TileEntity implements IInventory {
     public boolean startExecutionProfile(int updateLimit) {
         if (!isLiveDiagnosticsThread()) return false;
         executionProfiler = new ManagerExecutionProfiler(updateLimit);
+        executionProfiler.bindProgram(compiledProgram);
         return true;
     }
 
@@ -138,6 +139,27 @@ public class TileEntityManager extends TileEntity implements IInventory {
     public ManagerExecutionProfiler.Snapshot getExecutionProfileSnapshot() {
         return !isLiveDiagnosticsThread() || executionProfiler == null ? ManagerExecutionProfiler.Snapshot.EMPTY
             : executionProfiler.snapshot();
+    }
+
+    public ManagerExecutionProfiler.Report getExecutionProfileReport(UUID actor) {
+        return canReadExecutionProfileDetails(actor) ? executionProfiler.report(profileSourceMap()) : null;
+    }
+
+    public List<String> dumpExecutionProfile(UUID actor) {
+        if (!isLiveDiagnosticsThread() || executionProfiler == null)
+            return java.util.Collections.singletonList("No profile capture. Use profile start.");
+        if (!canReadExecutionProfileDetails(actor))
+            return java.util.Collections.singletonList("Profile export requires access to the captured program.");
+        return ca.teamdman.sfm.common.program.ManagerProfileDump.save(this, executionProfiler, profileSourceMap());
+    }
+
+    private boolean canReadExecutionProfileDetails(UUID actor) {
+        return executionProfiler != null && executionProfiler.matchesProgram(compiledProgram)
+            && canInspectVariables(actor);
+    }
+
+    private ca.teamdman.sfm.common.program.RuntimeSourceMap profileSourceMap() {
+        return runtimeSourceMapProgram == compiledProgram ? runtimeSourceMap : null;
     }
 
     /** A bearer can execute/copy a reference; only its validated source author may inspect private variables. */
@@ -337,9 +359,13 @@ public class TileEntityManager extends TileEntity implements IInventory {
         long startNs = System.nanoTime();
         ManagerExecutionProfiler profiler = executionProfiler;
         boolean profiling = profiler != null && profiler.isCollecting();
-        if (profiling) profiledDueUpdate = false;
+        long sampledGameTick = profiling ? worldObj.getTotalWorldTime() : -1;
+        if (profiling) {
+            profiledDueUpdate = false;
+            profiler.beginUpdate();
+        }
         try {
-            updateServer();
+            updateServer(profiling ? profiler : null);
         } finally {
             long elapsedNs = System.nanoTime() - startNs;
             lastTickTimeMs = elapsedNs / 1_000_000.0;
@@ -347,13 +373,14 @@ public class TileEntityManager extends TileEntity implements IInventory {
             tickTimes[tickTimeIndex] = lastTickTimeMs;
             tickTimeIndex = (tickTimeIndex + 1) % tickTimes.length;
             timedUpdateCount++;
-            if (profiling && executionProfiler == profiler) profiler.recordUpdate(elapsedNs, profiledDueUpdate);
+            if (profiling && executionProfiler == profiler)
+                profiler.recordUpdate(elapsedNs, profiledDueUpdate, sampledGameTick);
             ManagerTickProfiler.INSTANCE.recordUpdate(elapsedNs);
             ManagerPhaseProfiler.update(elapsedNs);
         }
     }
 
-    private void updateServer() {
+    private void updateServer(ManagerExecutionProfiler profiler) {
         if (blockItemRecovery() || recoverFluid()) {
             resetRedstoneTriggerTracker();
             return;
@@ -446,8 +473,19 @@ public class TileEntityManager extends TileEntity implements IInventory {
         Program executingProgram = compiledProgram;
         ItemStack executingDisk = diskStack;
         long executingGeneration = diskGeneration;
+        boolean recordProgram = profiler != null && executionProfiler == profiler
+            && profiler.bindProgram(executingProgram);
+        if (recordProgram) context.setExecutionProfiler(profiler);
         try {
-            tickCompiledProgram(context);
+            try {
+                tickCompiledProgram(context);
+            } finally {
+                if (recordProgram) {
+                    profiler.recordProgram(System.nanoTime() - startNs);
+                    profiledDueUpdate = context.didRunProfiledTrigger();
+                    context.setExecutionProfiler(null);
+                }
+            }
 
             if (context.didSomething()) {
                 if (logLevel.includes(LogLevel.TRACE)) {
@@ -472,8 +510,6 @@ public class TileEntityManager extends TileEntity implements IInventory {
                 privateProgram ? "Published program runtime failed; manager paused"
                     : "Runtime exception: " + e.getMessage());
         } finally {
-            if (executionProfiler != null && executionProfiler.isCollecting())
-                profiledDueUpdate = context.didSomething();
             if (programState != null && programState.isDirty()) markDirty();
             ManagerPhaseProfiler.program(startNs);
         }
@@ -482,6 +518,15 @@ public class TileEntityManager extends TileEntity implements IInventory {
     private static final String RECOVERY_ITEM = "sfm:recovery_item";
     private static final String RECOVERY_FLUID = "sfm:recovery_fluid";
     private static final int RECOVERY_VERSION = 1;
+    private boolean itemRecoveryInProgress;
+
+    public boolean isItemRecoveryInProgress() {
+        return itemRecoveryInProgress;
+    }
+
+    public void setItemRecoveryInProgress(boolean active) {
+        itemRecoveryInProgress = active;
+    }
 
     public boolean hasPendingRecovery() {
         return diskStack != null && diskStack.hasTagCompound()

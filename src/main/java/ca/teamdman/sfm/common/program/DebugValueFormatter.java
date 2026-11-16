@@ -140,6 +140,8 @@ public final class DebugValueFormatter {
                     add(".slots(" + label.getFirstSlot() + ", " + label.getLastSlot() + ")");
                 return;
             case RESOURCE_SELECTOR:
+                if (value.asSelector()
+                    .isInverted()) add("!");
                 add(
                     value.asSelector()
                         .getKind()

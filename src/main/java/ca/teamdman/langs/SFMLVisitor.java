@@ -15,7 +15,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#program}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -23,7 +23,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#importDeclaration}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -31,7 +31,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#functionDefinition}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -39,7 +39,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#functionName}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -47,7 +47,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#functionParameter}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -55,7 +55,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#variableName}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -63,7 +63,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataType}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -71,7 +71,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#typeDimension}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -79,7 +79,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#typeField}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -87,7 +87,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#functionCall}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -95,7 +95,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#functionArgument}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -103,7 +103,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#returnStatement}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -111,7 +111,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#functionCallStatement}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -119,7 +119,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#name}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -128,7 +128,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code TimerTrigger}
      * labeled alternative in {@link SFMLParser#trigger}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -137,7 +137,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code PulseTrigger}
      * labeled alternative in {@link SFMLParser#trigger}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -146,7 +146,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code NamedRedstoneTrigger}
      * labeled alternative in {@link SFMLParser#trigger}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -155,7 +155,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code IntervalSpace}
      * labeled alternative in {@link SFMLParser#interval}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -164,7 +164,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code IntervalNoSpace}
      * labeled alternative in {@link SFMLParser#interval}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -172,7 +172,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#block}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -180,7 +180,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#statement}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -188,7 +188,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#breakStatement}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -196,7 +196,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#redstoneOutputStatement}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -204,7 +204,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#forgetStatement}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -212,7 +212,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#inputStatement}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -220,7 +220,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#outputStatement}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -228,7 +228,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#inputResourceLimits}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -236,7 +236,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#outputResourceLimits}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -244,7 +244,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#resourceLimitList}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -252,7 +252,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#resourceLimit}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -261,7 +261,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code QuantityRetentionLimit}
      * labeled alternative in {@link SFMLParser#limit}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -270,7 +270,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code RetentionLimit}
      * labeled alternative in {@link SFMLParser#limit}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -279,7 +279,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code QuantityLimit}
      * labeled alternative in {@link SFMLParser#limit}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -287,7 +287,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#quantity}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -295,7 +295,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#retention}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -303,7 +303,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#resourceExclusion}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -312,7 +312,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code Resource}
      * labeled alternative in {@link SFMLParser#resourceId}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -321,7 +321,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code StringResource}
      * labeled alternative in {@link SFMLParser#resourceId}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -329,7 +329,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#resourceIdList}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -337,7 +337,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#resourceIdDisjunction}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -345,7 +345,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#with}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -354,7 +354,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code WithConjunction}
      * labeled alternative in {@link SFMLParser#withClause}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -363,7 +363,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code WithParen}
      * labeled alternative in {@link SFMLParser#withClause}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -372,7 +372,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code WithNegation}
      * labeled alternative in {@link SFMLParser#withClause}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -381,7 +381,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code WithTag}
      * labeled alternative in {@link SFMLParser#withClause}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -390,7 +390,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code WithDisjunction}
      * labeled alternative in {@link SFMLParser#withClause}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -398,7 +398,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#tagMatcher}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -407,7 +407,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code EachSide}
      * labeled alternative in {@link SFMLParser#sidequalifier}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -416,7 +416,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code ListedSides}
      * labeled alternative in {@link SFMLParser#sidequalifier}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -424,7 +424,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#side}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -432,7 +432,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#slotqualifier}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -440,7 +440,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#rangeset}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -448,7 +448,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#range}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -456,7 +456,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#ifStatement}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -465,7 +465,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code CountedFor}
      * labeled alternative in {@link SFMLParser#forStatement}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -474,7 +474,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code ArrayFor}
      * labeled alternative in {@link SFMLParser#forStatement}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -483,7 +483,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code JavaFor}
      * labeled alternative in {@link SFMLParser#forStatement}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -492,7 +492,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code IndexedArrayFor}
      * labeled alternative in {@link SFMLParser#forStatement}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -500,7 +500,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#forInitializer}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -508,7 +508,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#forUpdate}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -516,7 +516,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#whileStatement}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -525,7 +525,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code BooleanHas}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -534,7 +534,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code BooleanData}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -543,7 +543,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code BooleanConjunction}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -552,7 +552,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code BooleanRedstone}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -561,7 +561,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code BooleanDisjunction}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -570,7 +570,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code BooleanFalse}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -579,7 +579,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code BooleanParen}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -588,7 +588,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code BooleanNegation}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -597,7 +597,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code BooleanTrue}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -606,7 +606,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code BooleanLabelledRedstone}
      * labeled alternative in {@link SFMLParser#boolexpr}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -614,7 +614,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#comparisonOp}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -622,7 +622,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#setOp}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -630,7 +630,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#labelAccess}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -638,7 +638,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#roundrobin}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -647,7 +647,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code RawLabel}
      * labeled alternative in {@link SFMLParser#label}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -656,7 +656,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code StringLabel}
      * labeled alternative in {@link SFMLParser#label}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -665,7 +665,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code VariableLabel}
      * labeled alternative in {@link SFMLParser#label}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -674,7 +674,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
     /**
      * Visit a parse tree produced by the {@code CallLabel}
      * labeled alternative in {@link SFMLParser#label}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -682,7 +682,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#emptyslots}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -690,7 +690,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#identifier}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -698,7 +698,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#stateDeclaration}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -706,7 +706,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataDeclaration}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -714,7 +714,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataAssignment}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -722,7 +722,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#circuitStatement}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -730,7 +730,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#waitStatement}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -738,7 +738,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#printStatement}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -746,15 +746,23 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#transferStatement}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
     T visitTransferStatement(SFMLParser.TransferStatementContext ctx);
 
     /**
+     * Visit a parse tree produced by {@link SFMLParser#transferExclusion}.
+     * 
+     * @param ctx the parse tree
+     * @return the visitor result
+     */
+    T visitTransferExclusion(SFMLParser.TransferExclusionContext ctx);
+
+    /**
      * Visit a parse tree produced by {@link SFMLParser#dataTarget}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -762,7 +770,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataExpression}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -770,7 +778,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataOr}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -778,7 +786,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataAnd}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -786,7 +794,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataNot}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -794,7 +802,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataComparison}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -802,7 +810,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataBitOr}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -810,7 +818,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataBitXor}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -818,7 +826,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataBitAnd}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -826,7 +834,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataShift}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -834,7 +842,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataAdd}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -842,7 +850,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataMultiply}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -850,7 +858,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#multiplyOperator}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -858,7 +866,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataSign}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -866,7 +874,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataPostfix}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -874,7 +882,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataSuffix}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -882,7 +890,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataPrimary}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -890,7 +898,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataField}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -898,7 +906,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#dataName}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -906,7 +914,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#string}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */
@@ -914,7 +922,7 @@ public interface SFMLVisitor<T> extends ParseTreeVisitor<T> {
 
     /**
      * Visit a parse tree produced by {@link SFMLParser#number}.
-     *
+     * 
      * @param ctx the parse tree
      * @return the visitor result
      */

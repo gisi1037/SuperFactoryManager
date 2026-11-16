@@ -1,5 +1,77 @@
 # In-game acceptance checklist
 
+## ME storage adapter
+
+- [ ] Craft a Mod Storage Adapter through NEI. Place it against an unconfigured
+  ME Interface on a powered, channel-active network containing items and fluids.
+  Connect SFM cable to the adapter and label it `me`. Name a chest `me_output`
+  and a tank `me_water`, then copy those labels to the manager's disk.
+- [ ] The adapter faces the block clicked during placement. Sneak-right-click
+  empty-handed to rotate it if needed. Its chat message reports the target face.
+  Test both a full-block Interface and a multipart Interface facing the adapter.
+- [ ] Run the following program. Item and fluid counts must match stored ME stock,
+  excluding craftable-only entries. Item counts above 2,147,483,647 must remain
+  positive and exact. Disable the transfer lines while comparing counts.
+
+```sfml
+name "ME adapter test"
+every 20 ticks {
+  let me = label("me")
+  print(me.available(), me.empty(), me.count(item("*")))
+  print(me.contents(item("minecraft:iron_ingot")))
+  print(me.favailable(), me.fcount(fluid("water")))
+  transfer(me, label("me_output"), item("minecraft:iron_ingot"), 8) into sent
+  transferf(me, label("me_water"), fluid("water"), 250) into fluid_sent
+  print(sent.moved, sent.status, fluid_sent.moved, fluid_sent.status)
+}
+```
+
+- [ ] Reverse the source/destination to insert chest items and tank fluids into
+  ME. Test full destinations, NBT variants and bulk requests larger than one stack.
+  Compare combined counts before and after. There must be no hidden adapter buffer.
+- [ ] Put two adapters on the same ME network under one label. Queries count it
+  once. A transfer between the two adapters moves nothing.
+- [ ] Use a Security Terminal. Revoke the placer’s Build, Extract or Inject
+  permission. Access must become unavailable. Restore permission, then repeat
+  after the placer logs out to check offline automation with that identity.
+- [ ] Change Interface stocking configuration, remove power/channels, rotate
+  the adapter, unload its Interface chunk and replace the Interface. Stale access
+  must be refused. Missing/unavailable access must not return `empty() = true`.
+- [ ] Try legacy `input`/`output`, exact-transfer helpers and `.slots()`.
+  Unsupported operations must refuse explicitly. This version supports the
+  value-driven transfer and query APIs for adapters.
+- [ ] Verify optional loading without AE2, reconnect/reload persistence, recipe
+  registration, and two-player use on a dedicated full-pack server.
+
+## Wireless connectors
+
+- [ ] Place a connector next to the manager and another on a distant cable branch.
+  Use NEI to check the two late-HV recipes, including the two-endpoint output.
+- [ ] Right-click the two connectors with the Wireless Linking Tool. Confirm the
+  manager Network page and cable label editor show the remote inventories.
+- [ ] Name a local chest `wireless_source` and a remote chest `wireless_destination`,
+  copy the labels to the manager, put 20 items in the source and run this program.
+  Expect one item to move per run.
+
+```sfml
+name "Wireless test"
+every 20 ticks {
+  transfer(label("wireless_source"), label("wireless_destination"), 1)
+}
+```
+
+- [ ] Check fluids and a named Redstone Port on the remote branch using existing
+  transfer/query/redstone commands. Their labels and side selections work normally.
+- [ ] Sneak-right-click either connector with the tool. Remote transfers must stop.
+  Reconnect it to a third endpoint and verify the previous partner stays disconnected.
+- [ ] Unload a connector chunk, reload it, then restart the server. The link is
+  unavailable during unload and returns after reload without manually relinking.
+- [ ] Break and replace one connector. The old pair must stay disconnected.
+- [ ] Clear a tool selection with sneak-right-click in air. Try selecting across
+  dimensions and selecting a protected endpoint. Both must refuse pairing.
+- [ ] With two players, change the same pair and repeat discovery/transfer checks.
+  Each endpoint must have only its latest partner.
+
 Use a disposable test world and record the exact SFM JAR, GTNH pack, Java version,
 single-player/dedicated server and optional mods. Test one matching client/server
 build. A prepared JAR is not necessarily installed. Older8fbe82e lacks the newer
@@ -12,6 +84,41 @@ revision, expected/actual result, exact error and a screenshot if useful. Source
 locations refer to the installed program, which may differ from a Studio draft.
 
 ## Current build: highest-value manual pass
+
+### Shared Insert browser: Studio and Manager editor
+
+- [ ] Open Insert in both editors. Choose Items, then Fluids, then another
+  category. Each replaces the list and guidance. Search explicitly covers all
+  categories; Clear returns to the chosen category. A whitespace-only search
+  keeps that category's scope. Check all146 static entries remain reachable.
+- [ ] In Items and Fluids, verify a complete Input/Output move sequence and the
+  separate Input and Output instructions are present. Fluid previews and help
+  use fluid selectors and mB. Category and insert lists scroll continuously by
+  wheel and draggable scrollbar; there are no result-page buttons. Check the last
+  entry and return to the first without changing selection accidentally.
+- [ ] Use the Redstone shortcut. Timer/edge triggers, decisions, readings, outputs
+  and timed pulse must retain distinct action colors and written role labels.
+  Search `divide`: the arithmetic card must select Divide, not Add. Search a
+  fluid stock operation and check that its preview/help use mB.
+- [ ] Select a card and a named variant. Source must stay unchanged until Insert.
+  Check read-only preview, Inputs, Result, placement, expandable technical notes
+  and related links. Save operation result must only add an INTO target, without
+  extra actions. Exercise all six comparisons on a legacy contents condition.
+- [ ] Insert into a selected range and into a template placeholder; only that
+  range changes. Tab selects remaining placeholders; undo restores original
+  text/selection in one step. Cancel/Escape must preserve source and undo history.
+  A known top-level trigger inserted inside a running trigger must be refused.
+  An incomplete surrounding draft must explicitly say placement is uncertain.
+- [ ] Open a complete example while Studio has unsaved edits. Keep/discard/cancel
+  must follow the normal protection flow. The Manager must copy the example and
+  preserve its draft. Library selection must use the authorized Studio picker.
+  Exact-case player function names and quoted/Unicode labels must remain intact.
+- [ ] At a small game scale and independent Studio scale, use Choose category
+  and Back to [category]. Query, selected form and scrolling must survive related
+  navigation and Back. Open the guarded NBT example from a related link; Back
+  must reveal that selected entry in the continuous list. Resize the window: panes must fit and text must remain
+  readable. Check mouse wheel, Up/Down, Enter, Ctrl+Enter and search editing.
+  Studio inventory/hotbar/NEI remain inaccessible while the browser is open.
 
 ### Parenthesis and double-quote completion
 
@@ -561,6 +668,10 @@ every 40 ticks {
 - [ ] Compare full/fancy/mixed cable routes to the same inventory and Redstone
   Port; break/reconnect and cross a chunk boundary. Discovery/access behavior
   should match. The full cable has full-cube collision and rendering.
+- [ ] Aim at Fancy Cable cores, connected arms and the gaps between arms for
+  straight, corner and multi-way junctions. Only visible cable parts should be
+  targetable, with the outline following each piece. Verify breaking, adjacent
+  placement and walking past the gaps, including at a chunk boundary.
 - [ ] Hover over Studio code and editable text fields: the cursor becomes an
   I-beam. Move onto buttons, scrollbars, modal controls and another GUI, then
   close to the world: the prior pointer returns. Test game and Studio scales.

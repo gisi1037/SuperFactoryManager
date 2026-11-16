@@ -43,6 +43,17 @@ public final class DataRuntime {
             ((ca.teamdman.sfm.common.program.ProgramContext) queries).finishTrace(event, outcome, this, visible);
     }
 
+    public long beginProfileStatement() {
+        return queries instanceof ca.teamdman.sfm.common.program.ProgramContext context
+            ? context.beginProfileStatement()
+            : 0;
+    }
+
+    public void finishProfileStatement(SourceLocation location, long start) {
+        if (queries instanceof ca.teamdman.sfm.common.program.ProgramContext context)
+            context.finishProfileStatement(location, start);
+    }
+
     public boolean isFunctionFrame() {
         return functionFrame;
     }

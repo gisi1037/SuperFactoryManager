@@ -1168,6 +1168,19 @@ public class SFMLBaseVisitor<T> extends AbstractParseTreeVisitor<T> implements S
      * </p>
      */
     @Override
+    public T visitTransferExclusion(SFMLParser.TransferExclusionContext ctx) {
+        return visitChildren(ctx);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>
+     * The default implementation returns the result of calling
+     * {@link #visitChildren} on {@code ctx}.
+     * </p>
+     */
+    @Override
     public T visitDataTarget(SFMLParser.DataTargetContext ctx) {
         return visitChildren(ctx);
     }

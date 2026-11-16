@@ -55,6 +55,14 @@ public final class ModRecipes {
             outputs.put("redstonePort", new ItemStack(ModBlocks.redstonePort));
             outputs.put("diskCopier", new ItemStack(ModBlocks.diskCopier));
             for (IRecipe recipe : LateHvRecipes.build(outputs, parts::get)) GameRegistry.addRecipe(recipe);
+            for (IRecipe recipe : LateHvRecipes.wirelessRecipes(
+                new ItemStack(ModBlocks.wirelessConnector),
+                new ItemStack(ModItems.wirelessLinker),
+                new ItemStack(ModBlocks.cable),
+                parts::get)) GameRegistry.addRecipe(recipe);
+            GameRegistry.addRecipe(
+                LateHvRecipes
+                    .adapterRecipe(new ItemStack(ModBlocks.modAdapter), new ItemStack(ModBlocks.cable), parts::get));
         } catch (ReflectiveOperationException | IllegalArgumentException | LinkageError failure) {
             SuperFactoryManager.LOG
                 .error("Late-HV SFM recipes could not be registered; no vanilla fallback was added", failure);

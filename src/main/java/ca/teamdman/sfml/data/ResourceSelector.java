@@ -1,7 +1,10 @@
 package ca.teamdman.sfml.data;
 
+import java.util.regex.Pattern;
+
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.oredict.OreDictionary;
 
 /** Prevalidated resource selector. Matching never enumerates resource registries. */
@@ -14,12 +17,21 @@ public final class ResourceSelector {
     }
 
     private static final ResourceSelector ALL_ITEMS = new ResourceSelector(Kind.ITEM, "*");
+    private static final ResourceSelector ALL_FLUIDS = new ResourceSelector(Kind.FLUID, "*");
+    private static final Pattern ORE_NAME = Pattern.compile("[A-Za-z0-9_]+");
+    private static final Pattern FLUID_NAME = Pattern.compile("[A-Za-z0-9_.:/-]+");
     private final Kind kind;
     private final String id;
+    private final boolean inverted;
 
     private ResourceSelector(Kind kind, String id) {
+        this(kind, id, false);
+    }
+
+    private ResourceSelector(Kind kind, String id, boolean inverted) {
         this.kind = kind;
         this.id = id;
+        this.inverted = inverted;
     }
 
     public static ResourceSelector item(String id) {
@@ -30,7 +42,9 @@ public final class ResourceSelector {
 
     /** Exact, case-sensitive OreDictionary membership; construction does not register or resolve an ore ID. */
     public static ResourceSelector ore(String name) {
-        if (name == null || name.isEmpty() || name.length() > 256 || !name.matches("[A-Za-z0-9_]+"))
+        if (name == null || name.length() > 256
+            || !ORE_NAME.matcher(name)
+                .matches())
             throw new IllegalArgumentException(
                 "ORE needs an exact ore name of 1 to 256 ASCII letters, digits or underscores; patterns are unsupported");
         return new ResourceSelector(Kind.ORE, name);
@@ -38,17 +52,31 @@ public final class ResourceSelector {
 
     /** Exact Forge fluid registry name, or '*' for every fluid; amounts are millibuckets. */
     public static ResourceSelector fluid(String name) {
-        if (name == null || name.length() > 256 || !(name.equals("*") || name.matches("[A-Za-z0-9_.:/-]+")))
+        if ("*".equals(name)) return ALL_FLUIDS;
+        if (name == null || name.length() > 256
+            || !FLUID_NAME.matcher(name)
+                .matches())
             throw new IllegalArgumentException("FLUID needs an exact Forge fluid name or '*'");
         return new ResourceSelector(Kind.FLUID, name);
     }
 
-    public boolean matchesFluid(net.minecraftforge.fluids.FluidStack stack) {
-        return kind == Kind.FLUID && stack != null
-            && stack.getFluid() != null
-            && (id.equals("*") || id.equals(
+    public ResourceSelector invert() {
+        return new ResourceSelector(kind, id, !inverted);
+    }
+
+    public boolean isInverted() {
+        return inverted;
+    }
+
+    public boolean matchesFluid(FluidStack stack) {
+        return stack != null && stack.getFluid() != null
+            && matchesFluidId(
                 stack.getFluid()
-                    .getName()));
+                    .getName());
+    }
+
+    public boolean matchesFluidId(String registryId) {
+        return kind == Kind.FLUID && registryId != null && ((id.equals("*") || id.equals(registryId)) != inverted);
     }
 
     public Kind getKind() {
@@ -77,16 +105,16 @@ public final class ResourceSelector {
                 budget.chargeSlots(oreIds.length);
                 budget.chargeAllocation(oreIds.length);
             }
-            for (int oreId : oreIds) if (id.equals(OreDictionary.getOreName(oreId))) return true;
-            return false;
+            for (int oreId : oreIds) if (id.equals(OreDictionary.getOreName(oreId))) return !inverted;
+            return inverted;
         }
-        if (id.equals("*")) return true;
+        if (id.equals("*")) return !inverted;
         String registered = Item.itemRegistry == null ? null : Item.itemRegistry.getNameForObject(stack.getItem());
-        return id.equals(registered);
+        return id.equals(registered) != inverted;
     }
 
     @Override
     public String toString() {
-        return kind.name() + "(" + DataValue.string(id) + ")";
+        return (inverted ? "!" : "") + kind.name() + "(" + DataValue.string(id) + ")";
     }
 }

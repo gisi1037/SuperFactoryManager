@@ -69,8 +69,10 @@ public final class Block implements ASTNode {
     }
 
     private void execute(ProgramContext context, Statement statement, int index) {
-        ca.teamdman.sfm.common.program.ExecutionTrace.Event event = locations.isEmpty() ? null
-            : context.beginTrace(locations.get(index));
+        SourceLocation location = locations.isEmpty() ? null : locations.get(index);
+        ca.teamdman.sfm.common.program.ExecutionTrace.Event event = location == null ? null
+            : context.beginTrace(location);
+        long profileStart = location == null ? 0 : context.beginProfileStatement();
         String outcome = "completed";
         try {
             statement.tick(context);
@@ -84,6 +86,7 @@ public final class Block implements ASTNode {
             outcome = "failed";
             throw failure;
         } finally {
+            if (profileStart != 0) context.finishProfileStatement(location, profileStart);
             if (event != null) context.finishTrace(
                 event,
                 outcome,

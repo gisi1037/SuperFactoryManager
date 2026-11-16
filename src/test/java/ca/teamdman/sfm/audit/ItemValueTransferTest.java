@@ -30,6 +30,7 @@ import ca.teamdman.sfml.data.ItemTransferResult;
 import ca.teamdman.sfml.data.LabelReference;
 import ca.teamdman.sfml.data.QueryBudget;
 import ca.teamdman.sfml.data.ResourceSelector;
+import ca.teamdman.sfml.program_builder.ProgramBuilder;
 
 /** Real inventory/recovery path behind value transfers; completed snapshots never authorize extraction. */
 class ItemValueTransferTest {
@@ -197,6 +198,104 @@ class ItemValueTransferTest {
         assertEquals(0, denied.getMoved());
         assertEquals(1, source.extractions);
         assertEquals(21, count(source) + count(destination));
+    }
+
+    @Test
+    void forceTransferPullsFromExposedInputAndRetainsDestinationRules() throws Exception {
+        Fixture fixture = new Fixture();
+        SidedInventory source = new SidedInventory(2), destination = new SidedInventory(1);
+        int up = ForgeDirection.UP.ordinal();
+        source.faces[up] = new int[] { 1 };
+        destination.faces[up] = new int[] { 0 };
+        source.setInventorySlotContents(0, stack(TRANSFER_ITEM, 13, 0, null));
+        source.setInventorySlotContents(1, stack(TRANSFER_ITEM, 8, 0, null));
+        fixture.world.tiles.put(SRC, source);
+        fixture.world.tiles.put(DST, destination);
+        ProgramContext context = context(fixture);
+        LabelReference exposed = SOURCE.side(up)
+            .slots(1, 1);
+
+        assertEquals(
+            0,
+            context.transferItems(exposed, DEST, ALL, 2)
+                .getMoved());
+        int vetoChecks = source.extractChecks;
+        assertTrue(vetoChecks > 0);
+        assertResult(context.forceTransferItems(exposed, DEST, ALL, null, 2), 2, 0, "NO_CAPACITY");
+        assertEquals(0, source.extractions);
+        destination.insertSide = up;
+        assertResult(context.forceTransferItems(SOURCE.slots(0, 0), DEST, ALL, null, 2), 2, 0, "UNAVAILABLE");
+        assertEquals(0, source.extractions);
+
+        parse("""
+            every 20 ticks {
+              transferforce(label("source").side("up").slots(1, 1), label("dest"), item("sfm_transfer_test:item"), 2)
+                into result
+              print(result.moved)
+            }
+            """).tick(context);
+        assertEquals(13, source.inv.getStackInSlot(0).stackSize);
+        assertEquals(6, source.inv.getStackInSlot(1).stackSize);
+        assertEquals(2, count(destination));
+        assertEquals(1, source.extractions);
+        assertEquals(vetoChecks, source.extractChecks);
+        assertFalse(
+            context.getManager()
+                .hasPendingRecovery());
+    }
+
+    @Test
+    void forceTransferRestoresTheItemIfTheDestinationChangesItsMind() throws Exception {
+        Fixture fixture = new Fixture();
+        SidedInventory source = new SidedInventory(1);
+        source.faces[ForgeDirection.UP.ordinal()] = new int[] { 0 };
+        source.setInventorySlotContents(0, stack(TRANSFER_ITEM, 8, 7, tag("keep")));
+        fixture.world.tiles.put(SRC, source);
+        InventoryTile destination = new InventoryTile(1) {
+
+            int checks;
+
+            @Override
+            public boolean isItemValidForSlot(int slot, ItemStack inspection) {
+                return ++checks == 1;
+            }
+        };
+        fixture.world.tiles.put(DST, destination);
+        ProgramContext context = context(fixture);
+
+        assertResult(context.forceTransferItems(SOURCE.slots(0, 0), DEST, ALL, null, 2), 2, 0, "NO_CAPACITY");
+        assertEquals(1, source.extractions);
+        assertEquals(8, count(source));
+        assertEquals(
+            7,
+            source.inv.getStackInSlot(0)
+                .getItemDamage());
+        assertEquals(
+            tag("keep"),
+            source.inv.getStackInSlot(0)
+                .getTagCompound());
+        assertEquals(0, count(destination));
+        assertFalse(
+            context.getManager()
+                .hasPendingRecovery());
+    }
+
+    @Test
+    void forceTransferRequiresSlotSelectionAndAnExplicitAmount() throws Exception {
+        assertFalse(
+            new ProgramBuilder("""
+                every 20 ticks {
+                  transferforce(label("source").slots(0, 0), label("dest"))
+                }
+                """).build()
+                .isSuccess());
+        Fixture fixture = new Fixture();
+        CountingInventory inventory = source(fixture, 1);
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> context(fixture).forceTransferItems(SOURCE, DEST, ALL, null, 1));
+        assertEquals(0, inventory.reads);
+        assertEquals(0, inventory.extractions);
     }
 
     @Test

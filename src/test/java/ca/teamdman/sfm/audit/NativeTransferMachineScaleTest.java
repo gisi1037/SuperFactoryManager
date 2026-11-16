@@ -143,6 +143,38 @@ class NativeTransferMachineScaleTest {
     }
 
     @Test
+    void cachedSlotIndexCannotAuthorizeAnInPlaceExposureChange() throws Exception {
+        ScaleFixture fixture = new ScaleFixture();
+        Machine changing = new Machine() {
+
+            private final int[] exposed = { 0, 1 };
+
+            @Override
+            public int[] getAccessibleSlotsFromSide(int side) {
+                return exposed;
+            }
+
+            @Override
+            public boolean canInsertItem(int slot, ItemStack stack, int side) {
+                if (slot == 0) exposed[0] = 2;
+                return true;
+            }
+        };
+        fixture.machines[0] = changing;
+        fixture.base.world.tiles.put(new BlockPos(1, 64, 1), changing);
+        fixture.sourceChest.setInventorySlotContents(0, new ItemStack(INPUT, 1));
+        ItemTransferResult result = fixture.transfer(
+            "mutable-slot-exposure",
+            LabelReference.literal("source"),
+            LabelReference.literal("machine0")
+                .side(ForgeDirection.NORTH.ordinal()));
+        assertEquals(1, result.getMoved());
+        assertNull(changing.getStackInSlot(0));
+        assertEquals(1, changing.getStackInSlot(1).stackSize);
+        assertNull(changing.getStackInSlot(2));
+    }
+
+    @Test
     void repeatedBatchesShareInvocationBudgetAndConserveItemsOnExhaustion() throws Exception {
         int previousMultiplier = Config.queryBudgetMultiplier;
         Config.queryBudgetMultiplier = 1;
@@ -160,6 +192,7 @@ class NativeTransferMachineScaleTest {
                     for (int slot = 0; slot < 6; slot++)
                         fixture.sourceChest.setInventorySlotContents(slot, new ItemStack(INPUT, 1, slot));
                     int before = fixture.total();
+                    boolean transferring = false;
                     try {
                         LabelReference selected = LabelReference.literal("machine" + batch);
                         if (selectionQueries) {
@@ -176,6 +209,7 @@ class NativeTransferMachineScaleTest {
                                 }
                             }
                         }
+                        transferring = true;
                         ItemTransferResult result = fixture
                             .transfer("batch-" + batch + "-queries-" + selectionQueries, source, selected);
                         assertEquals(6, result.getMoved());
@@ -185,14 +219,17 @@ class NativeTransferMachineScaleTest {
                             failure.getMessage()
                                 .contains("budget exhausted"),
                             failure.getMessage());
-                        assertTrue(
-                            failure.getMessage()
-                                .contains("slot work before transfer:"),
-                            failure.getMessage());
-                        assertTrue(
-                            failure.getMessage()
-                                .contains("destination: machine" + batch),
-                            failure.getMessage());
+                        // Selection can spend the remaining shared allowance before transfer starts.
+                        if (transferring) {
+                            assertTrue(
+                                failure.getMessage()
+                                    .contains("slot work before transfer:"),
+                                failure.getMessage());
+                            assertTrue(
+                                failure.getMessage()
+                                    .contains("destination: machine" + batch),
+                                failure.getMessage());
+                        }
                         stopped = failure;
                     } finally {
                         assertEquals(before, fixture.total());

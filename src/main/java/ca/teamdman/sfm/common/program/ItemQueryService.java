@@ -129,6 +129,7 @@ public final class ItemQueryService implements DataQueries {
         if (positions.isEmpty()) return Observation.UNAVAILABLE;
         budget.chargeAllocation(1);
         Set<IInventory> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<Object> seenBackends = Collections.newSetFromMap(new IdentityHashMap<>());
         long total = 0;
         try {
             for (BlockPos pos : positions) {
@@ -137,6 +138,29 @@ public final class ItemQueryService implements DataQueries {
                 if (!context.getNetwork()
                     .isConnected(pos)) return Observation.UNAVAILABLE;
                 TileEntity tile = loadedTile(world, pos, budget);
+                if (tile instanceof ca.teamdman.sfm.common.tileentity.TileEntityModAdapter adapter) {
+                    if (source.hasSlotSelection() || access.firstSlot != 0 || access.lastSlot != Integer.MAX_VALUE)
+                        throw new IllegalArgumentException("Network adapters do not have physical slots");
+                    ca.teamdman.sfm.common.storage.StorageBackend backend = adapter.open(budget);
+                    if (backend == null || !backend.supportsItems()) return Observation.UNAVAILABLE;
+                    if (!seenBackends.add(backend.identity())) continue;
+                    if (stock) {
+                        int index = 0;
+                        for (ca.teamdman.sfm.common.storage.StorageBackend.StoredItem row : backend.items(budget)) {
+                            budget.chargeSlot();
+                            if (row.amount <= 0 || row.item == null)
+                                throw new IllegalArgumentException("Invalid adapter item observation");
+                            if (selector.matches(row.item, budget)) {
+                                total = Math.addExact(total, row.amount);
+                                if (collector != null)
+                                    collector.add(row.item, pos, index, access.sideMask, row.amount, budget);
+                            }
+                            index++;
+                        }
+                    }
+                    if (!backend.current(budget)) return Observation.UNAVAILABLE;
+                    continue;
+                }
                 if (!(tile instanceof IInventory)) return Observation.UNAVAILABLE;
                 IInventory first = (IInventory) tile, second = null;
                 BlockPos firstPosition = pos, secondPosition = null;
@@ -251,10 +275,10 @@ public final class ItemQueryService implements DataQueries {
         boolean stock, BlockPos position, ContentsCollector collector) {
         int size = size(inventory, budget);
         if (!stock) return availableSlots(inventory, size, budget, access);
-        if (collector != null && !(inventory instanceof ISidedInventory)) {
-            // A nonsided view is already a unique, ascending range. Contents previously sorted
-            // a boxed HashSet back into this order; retain the range bound and live read order.
-            int end = Math.min(size - 1, access.lastSlot);
+        int end = Math.min(size - 1, access.lastSlot);
+        // Zero-based slots below 65536 previously iterated in ascending bucket order. Keep the legacy
+        // count/empty callback order for offset ranges or IDs large enough to be spread by HashMap.
+        if (!(inventory instanceof ISidedInventory) && (collector != null || access.firstSlot == 0 && end < 65536)) {
             int count = Math.max(0, end - access.firstSlot + 1);
             budget.chargeSlots(count);
             if (count == 0) return -1;
@@ -265,11 +289,11 @@ public final class ItemQueryService implements DataQueries {
         }
         budget.chargeAllocation(1);
         Set<Integer> slots = new HashSet<>();
-        if (inventory instanceof ISidedInventory) {
+        if (inventory instanceof ISidedInventory sided) {
             for (ForgeDirection direction : ForgeDirection.VALID_DIRECTIONS) {
                 if ((access.sideMask & 1 << direction.ordinal()) == 0) continue;
                 budget.chargeProvider();
-                int[] exposed = ((ISidedInventory) inventory).getAccessibleSlotsFromSide(direction.ordinal());
+                int[] exposed = sided.getAccessibleSlotsFromSide(direction.ordinal());
                 if (exposed == null) continue;
                 // A provider may allocate internally; reserve all returned entries before walking/copying them.
                 budget.chargeSlots(exposed.length);
@@ -280,7 +304,6 @@ public final class ItemQueryService implements DataQueries {
                     }
             }
         } else {
-            int end = Math.min(size - 1, access.lastSlot);
             int count = Math.max(0, end - access.firstSlot + 1);
             budget.chargeSlots(count);
             budget.chargeAllocation(count);
@@ -288,23 +311,20 @@ public final class ItemQueryService implements DataQueries {
         }
         if (slots.isEmpty()) return -1;
         long total = 0;
-        if (stock) {
-            Iterable<Integer> ordered = slots;
-            if (collector != null) {
-                // HashSet iteration is not part of the observation order. Sort only contents scans;
-                // count/empty retain their provider work and iteration order.
-                budget.chargeSlots(slots.size());
-                budget.chargeAllocation(slots.size() * 2 + 1);
-                List<Integer> sorted = new ArrayList<>(slots);
-                Collections.sort(sorted, (left, right) -> {
-                    budget.chargeSlot();
-                    return Integer.compare(left, right);
-                });
-                ordered = sorted;
-            }
-            for (int slot : ordered)
-                total = Math.addExact(total, stack(inventory, slot, selector, budget, access, position, collector));
+        Iterable<Integer> ordered = slots;
+        if (collector != null) {
+            // HashSet iteration is not part of the observation order. Sort only contents scans.
+            budget.chargeSlots(slots.size());
+            budget.chargeAllocation(slots.size() * 2 + 1);
+            List<Integer> sorted = new ArrayList<>(slots);
+            Collections.sort(sorted, (left, right) -> {
+                budget.chargeSlot();
+                return Integer.compare(left, right);
+            });
+            ordered = sorted;
         }
+        for (int slot : ordered)
+            total = Math.addExact(total, stack(inventory, slot, selector, budget, access, position, collector));
         return total;
     }
 
@@ -323,8 +343,12 @@ public final class ItemQueryService implements DataQueries {
             int[] exposed = ((ISidedInventory) inventory).getAccessibleSlotsFromSide(direction.ordinal());
             if (exposed == null) continue;
             budget.chargeSlots(exposed.length);
-            for (int slot : exposed) if (slot >= 0 && slot < size && access.includes(slot)) found = true;
-            // Do not return early: later faces may throw or return an over-budget view.
+            if (!found) for (int slot : exposed) {
+                if (slot < 0 || slot >= size || !access.includes(slot)) continue;
+                found = true;
+                break;
+            }
+            // Later faces still run and charge their returned view, even when a slot is already known.
         }
         return found ? 0 : -1;
     }

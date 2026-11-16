@@ -13,20 +13,14 @@ import net.minecraft.util.ChatComponentText;
 
 import org.lwjgl.input.Keyboard;
 
-import com.cleanroommc.modularui.api.IPanelHandler;
 import com.cleanroommc.modularui.api.drawable.IKey;
-import com.cleanroommc.modularui.api.widget.IWidget;
 import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.widgets.ButtonWidget;
-import com.cleanroommc.modularui.widgets.ListWidget;
 import com.cleanroommc.modularui.widgets.TextWidget;
 
 import ca.teamdman.sfm.client.blueprint.BlueprintDocument;
 import ca.teamdman.sfm.client.gui.ProgramEditSession;
 import ca.teamdman.sfm.client.gui.ProgramEditState;
-import ca.teamdman.sfm.client.gui.syntax.SnippetCategory;
-import ca.teamdman.sfm.client.gui.syntax.SyntaxRegistry;
-import ca.teamdman.sfm.client.gui.syntax.SyntaxSnippet;
 import ca.teamdman.sfm.common.label.LabelPositionHolder;
 import ca.teamdman.sfm.common.net.PacketProgramEditReply;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
@@ -48,9 +42,8 @@ public final class Mui2CodeEditor implements ProgramEditSession.Receiver {
     private final List<ButtonWidget<?>> categoryButtons = new ArrayList<>();
     private int headerWidth = -1;
     private ModularPanel panel;
-    private IPanelHandler snippetPanel;
-    private List<SyntaxSnippet> suggestions = Collections.emptyList();
-    private int suggestionIndex, validationDelay = -1;
+    private InsertBrowser insertBrowser;
+    private int validationDelay = -1;
     private String status = "Loading program from server", loadedDraft = "";
     private boolean opened, cancelled, closeAfterSave, saveUnconfirmed, importedUnsaved;
 
@@ -169,7 +162,7 @@ public final class Mui2CodeEditor implements ProgramEditSession.Receiver {
             new GuardedButton("Indent", this::editable, editor::autoIndent).pos(96, 18)
                 .size(36, 14));
         panel.child(
-            new GuardedButton("Suggest", this::editable, this::suggest).pos(135, 18)
+            new GuardedButton("Insert", this::editable, this::suggest).pos(135, 18)
                 .size(44, 14));
         panel.child(
             new GuardedButton("Undo", this::editable, editor::undo).pos(182, 18)
@@ -177,12 +170,16 @@ public final class Mui2CodeEditor implements ProgramEditSession.Receiver {
         panel.child(
             new GuardedButton("Redo", this::editable, editor::redo).pos(217, 18)
                 .size(32, 14));
-        for (SnippetCategory category : SnippetCategory.values()) {
+        String[] insertTitles = { "Items", "Fluids", "Redstone", "Templates" };
+        for (int index = 0; index < insertTitles.length; index++) {
+            final int choice = index;
             ButtonWidget<?> categoryButton = new GuardedButton(
-                category.getDisplayName(),
+                insertTitles[index],
                 this::editable,
-                () -> category(category));
-            categoryButton.addTooltipLine(IKey.str(category.getDescription()));
+                () -> insertBrowser.open(
+                    choice == 3 ? InsertBrowser.Entry.TEMPLATES
+                        : choice == 2 ? InsertBrowser.Entry.REDSTONE
+                            : choice == 1 ? InsertBrowser.Entry.FLUIDS : InsertBrowser.Entry.ITEMS));
             categoryButtons.add(categoryButton);
             panel.child(categoryButton);
         }
@@ -219,7 +216,7 @@ public final class Mui2CodeEditor implements ProgramEditSession.Receiver {
             new GuardedButton("Cancel", this::canClose, this::close).right(8)
                 .bottom(3)
                 .size(50, 14));
-        snippetPanel = IPanelHandler.simple(panel, (parent, player) -> buildSuggestions(), true);
+        insertBrowser = createInsertBrowser();
         return panel;
     }
 
@@ -362,122 +359,85 @@ public final class Mui2CodeEditor implements ProgramEditSession.Receiver {
     }
 
     private void suggest() {
-        if (!editable()) return;
-        showSuggestions(SyntaxRegistry.getContextualSuggestions(draft(), editor.line(), editor.column(), labels()));
+        if (insertBrowser != null) insertBrowser.open(InsertBrowser.Entry.ALL);
     }
 
-    private void category(SnippetCategory category) {
-        List<SyntaxSnippet> list = new ArrayList<>(SyntaxRegistry.getSnippetsForCategory(category));
-        if (category == SnippetCategory.LABEL) list.addAll(0, SyntaxRegistry.getLabelSnippets(labels()));
-        showSuggestions(list);
-    }
+    private InsertBrowser createInsertBrowser() {
+        return new InsertBrowser(panel, new InsertBrowser.Host() {
 
-    private void showSuggestions(List<SyntaxSnippet> list) {
-        if (snippetPanel == null || snippetPanel.isPanelOpen()) return;
-        if (editor.isValid()) editor.getContext()
-            .removeFocus();
-        suggestions = list;
-        suggestionIndex = 0;
-        snippetPanel.deleteCachedPanel();
-        snippetPanel.openPanel();
-    }
-
-    private ModularPanel buildSuggestions() {
-        Minecraft mc = Minecraft.getMinecraft();
-        ScaledResolution resolution = new ScaledResolution(mc, mc.displayWidth, mc.displayHeight);
-        ModularPanel popup = new ModularPanel("sfm_code_suggestions") {
-
-            @Override
-            public boolean disablePanelsBelow() {
-                return true;
+            public SfmlCodeEditorWidget editor() {
+                return editor;
             }
 
-            @Override
-            public boolean closeOnOutOfBoundsClick() {
-                return true;
+            public boolean editable() {
+                return Mui2CodeEditor.this.editable();
             }
 
-            @Override
-            public boolean onKeyPressed(char character, int key) {
-                if (key == Keyboard.KEY_ESCAPE) {
-                    snippetPanel.closePanel();
-                    return true;
-                }
-                if (key == Keyboard.KEY_UP || key == Keyboard.KEY_DOWN) {
-                    suggestionIndex = Math
-                        .max(0, Math.min(suggestions.size() - 1, suggestionIndex + (key == Keyboard.KEY_UP ? -1 : 1)));
-                    return true;
-                }
-                if (key == Keyboard.KEY_RETURN || key == Keyboard.KEY_TAB) {
-                    insertSuggestion(suggestionIndex);
-                    return true;
-                }
-                return super.onKeyPressed(character, key);
+            public Set<String> labels() {
+                return Mui2CodeEditor.this.labels();
             }
-        }.onCloseAction(
-            () -> {
+
+            public int availableWidth() {
+                return new ScaledResolution(
+                    Minecraft.getMinecraft(),
+                    Minecraft.getMinecraft().displayWidth,
+                    Minecraft.getMinecraft().displayHeight).getScaledWidth();
+            }
+
+            public int availableHeight() {
+                return new ScaledResolution(
+                    Minecraft.getMinecraft(),
+                    Minecraft.getMinecraft().displayWidth,
+                    Minecraft.getMinecraft().displayHeight).getScaledHeight();
+            }
+
+            public ModularPanel panel(int width, int height, java.util.function.BiPredicate<Character, Integer> keys) {
+                return new ModularPanel("sfm_manager_insert") {
+
+                    @Override
+                    public boolean disablePanelsBelow() {
+                        return true;
+                    }
+
+                    @Override
+                    public boolean onKeyPressed(char character, int key) {
+                        if (key == Keyboard.KEY_ESCAPE) {
+                            closeIfOpen();
+                            return true;
+                        }
+                        return keys.test(character, key) || super.onKeyPressed(character, key);
+                    }
+                }.size(width, height)
+                    .leftRelAnchor(.5f, .5f)
+                    .topRelAnchor(.5f, .5f)
+                    .background(StudioTheme.SHELL);
+            }
+
+            public void focus() {
                 if (!cancelled && editor.isValid()) editor.getContext()
                     .focus(editor);
-            })
-            .size(
-                Math.min(312, (int) (resolution.getScaledWidth() * .98f)),
-                Math.min(228, (int) (resolution.getScaledHeight() * .98f)));
-        popup.child(
-            new TextWidget<>("Snippets | Enter inserts | Esc closes").left(8)
-                .right(8)
-                .top(7)
-                .height(12));
-        ListWidget<IWidget, ?> list = new ListWidget<>().left(8)
-            .right(8)
-            .top(24)
-            .bottom(31);
-        for (int i = 0; i < suggestions.size(); i++) {
-            final int index = i;
-            SyntaxSnippet snippet = suggestions.get(i);
-            list.child(
-                new ButtonWidget<>().widthRel(1f)
-                    .height(28)
-                    .addTooltipLine(IKey.str(snippet.getDescription()))
-                    .addTooltipLine(IKey.str(snippet.getTemplate()))
-                    .overlay(
-                        IKey.dynamic(
-                            () -> Minecraft.getMinecraft().fontRenderer.trimStringToWidth(
-                                (suggestionIndex == index ? "> " : "") + snippet.getTitle(),
-                                Math.max(
-                                    40,
-                                    popup.getArea()
-                                        .w() - 30))
-                                + "\n"
-                                + Minecraft.getMinecraft().fontRenderer.trimStringToWidth(
-                                    snippet.getDescription(),
-                                    Math.max(
-                                        40,
-                                        popup.getArea()
-                                            .w() - 30))))
-                    .onMousePressed(mouse -> {
-                        if (mouse != 0) return false;
-                        insertSuggestion(index);
-                        return true;
-                    }));
-        }
-        popup.child(list);
-        popup.child(
-            new ButtonWidget<>().right(8)
-                .bottom(6)
-                .size(70, 20)
-                .overlay(IKey.str("Close"))
-                .onMousePressed(mouse -> {
-                    if (mouse != 0) return false;
-                    snippetPanel.closePanel();
-                    return true;
-                }));
-        return popup;
-    }
+            }
 
-    private void insertSuggestion(int index) {
-        if (index < 0 || index >= suggestions.size()) return;
-        snippetPanel.closePanel();
-        editor.snippet(suggestions.get(index));
+            public void status(String text) {
+                status = text;
+            }
+
+            public boolean canCreateProject() {
+                return false;
+            }
+
+            public void newExample(String name, String code) {}
+
+            public boolean canPickLibrary() {
+                return false;
+            }
+
+            public void library() {}
+
+            public boolean prepareInsert() {
+                return editable();
+            }
+        });
     }
 
     private String statusLine() {
@@ -498,7 +458,7 @@ public final class Mui2CodeEditor implements ProgramEditSession.Receiver {
 
     /** Reflows only when the panel width changes, including drag resize and GUI-scale changes. */
     private boolean layoutHeader(int width) {
-        if (headerWidth == width || categoryButtons.size() != SnippetCategory.values().length) return false;
+        if (headerWidth == width || categoryButtons.isEmpty()) return false;
         headerWidth = width;
         HeaderLayout layout = new HeaderLayout(width, categoryButtons.size());
         for (int i = 0; i < categoryButtons.size(); i++) categoryButtons.get(i)

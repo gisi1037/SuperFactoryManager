@@ -28,6 +28,48 @@ twenty iron ingots in the source. Open **Manager > Terminal** and enable
 **Expected:** the first run moves sixteen,
 leaving four. The next run moves the remaining four and reports `partial`.
 
+Use `transferexact` when the whole quantity must arrive together. This example
+moves ten iron ingots or leaves both ends unchanged.
+
+```sfml
+every 20 ticks {
+  transferexact(label("inputs"), label("assembly"), item("minecraft:iron_ingot"), 10) into result
+  print(result.moved, result.status)
+}
+```
+
+Exact item transfers support vanilla chests, including double chests and slot
+selections. You can omit the item selector to allow any item. Use a selector
+when the batch must contain a particular item. `no_match` means there was too
+little matching stock, `no_capacity` means the planner could not fit the full
+batch, and `unavailable` includes unsupported storage.
+
+Add `except item("namespace:name")` after the closing parenthesis to leave one
+item type in the source, including all of its metadata and NBT variants.
+It works with ME adapters and regular inventories. An optional amount caps
+the eligible items. Put `into result` after the exclusion.
+
+```sfml
+every 20 ticks {
+  transfer(label("inputs"), label("assembly")) except item("minecraft:iron_ingot") into sent
+  print(sent.moved, sent.status)
+}
+```
+
+Put `!` before a selector to match everything of that resource kind except
+the selected type. For example, `!item("minecraft:stone")` leaves every
+metadata and NBT variant of stone in the source. Inverted selectors also
+work in queries such as `source.count(!item("minecraft:stone"))` and
+`tank.fcount(!fluid("water"))`. Inverting `item("*")` or `fluid("*")`
+matches nothing.
+
+```sfml
+every 20 ticks {
+  transfer(label("inputs"), label("assembly"), !item("minecraft:stone"))
+  transferf(label("tank_in"), label("tank_out"), !fluid("water"), 1000)
+}
+```
+
 Choose one form per request:
 
 | Form | Request |
@@ -38,6 +80,10 @@ Choose one form per request:
 | `transfer(source, destination, item("minecraft:iron_ingot"), 16)` | Up to sixteen iron ingots. |
 
 Two arguments select all items. A third integer limits the total item count, equivalent to `TRANSFER(src,dest,ITEM("*"),amount)`. A third ITEM_KEY or RESOURCE_SELECTOR instead selects all matching stock. An omitted amount snapshots matching visible source stock across the selected group/faces/slots; extraction restrictions can prevent moving some of it. This makes one bounded attempt, never waits for destination capacity, and moves items only. Fluids use separate [TRANSFERF and fluid queries](/automation/fluid-methods.md), or legacy INPUT/OUTPUT with `fluid:*`. Fluid quantities are millibuckets (1000 mB = one bucket). Later statements observe stock remaining after earlier transfers.
+
+`transfer()` batches writes between ordinary vanilla chests and can extract a
+batch of one exact item identity from an ME adapter to fill several destination
+slots. The usual item filters, slot limits and work budget still apply.
 
 The four-argument form explicitly supplies a nonnegative integer maximum:
 
@@ -52,6 +98,24 @@ EVERY 20 TICKS DO
   PRINT($result.moved, $result.remaining, $result.status)
 END
 ```
+
+### Pull from a machine input
+
+Use `transferforce` when a machine exposes an item slot to automation but refuses
+to let automation extract from it. Choose the source slots explicitly. The amount
+is a maximum, and the destination still has to accept the items.
+
+```sfml
+every 20 ticks {
+  transferforce(label("machine").slots(2, 2), label("returns"), 16) into recovered
+  print(recovered.moved)
+}
+```
+
+Replace slot 2 with the machine's actual slot index. Slot ranges are zero-based
+and inclusive. Add `.side("up")` if you need a particular exposed face, or put
+an item selector or exact item key before the amount to filter the extraction.
+Use Code view for this statement.
 
 INTO is optional in every form. When supplied it declares a fresh local record. Its integer fields are `requested`, `moved` and `remaining`; `status` is a string. Remaining always equals requested minus moved. Omitting INTO discards the result while preserving all access, recovery and work checks. Use `$result.moved` to test actual movement instead of treating an attempted statement as success.
 

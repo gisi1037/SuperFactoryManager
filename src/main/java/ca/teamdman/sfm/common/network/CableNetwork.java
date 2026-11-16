@@ -15,6 +15,7 @@ import net.minecraftforge.common.util.ForgeDirection;
 
 import ca.teamdman.sfm.common.block.BlockCable;
 import ca.teamdman.sfm.common.diagnostics.ManagerPhaseProfiler;
+import ca.teamdman.sfm.common.tileentity.TileEntityWirelessConnector;
 import ca.teamdman.sfm.common.util.BlockPos;
 import ca.teamdman.sfm.compat.Compat;
 import ca.teamdman.sfm.compat.stevefm.SteveFMCompat;
@@ -118,6 +119,7 @@ public final class CableNetwork {
     private final BlockPos managerPos;
     private final Set<BlockPos> cables = new HashSet<>();
     private final Set<BlockPos> peripherals = new HashSet<>();
+    private final Set<BlockPos> wirelessTargets = new HashSet<>();
     private long lastScanTime = -1;
     private long snapshotRevision;
 
@@ -142,6 +144,7 @@ public final class CableNetwork {
         if (world == null || managerPos == null) return 0;
         cables.clear();
         peripherals.clear();
+        wirelessTargets.clear();
 
         Queue<BlockPos> queue = new ArrayDeque<>();
         Set<BlockPos> visited = new HashSet<>();
@@ -163,6 +166,7 @@ public final class CableNetwork {
         int visitedCount = visited.size();
         if (trackingTopology) {
             visited.add(managerPos);
+            visited.addAll(wirelessTargets);
             updateTopologyFootprint(visited);
         }
         lastScanTime = world.getTotalWorldTime();
@@ -195,6 +199,13 @@ public final class CableNetwork {
             if (te != null) {
                 peripherals.add(pos);
             }
+            if (te instanceof TileEntityWirelessConnector connector) {
+                BlockPos peer = connector.getPeerPosition();
+                if (peer != null) wirelessTargets.add(peer);
+                BlockPos connected = connector.getConnectedPeerPosition();
+                // A reciprocal pair can recurse only to its partner and back to an already visited cell.
+                if (connected != null) checkAndAdd(connected, queue, visited);
+            }
         } else {
             TileEntity te = pos.getTileEntity(world);
             if (te != null) {
@@ -218,6 +229,7 @@ public final class CableNetwork {
                 trackingTopology = true;
                 Set<BlockPos> positions = new HashSet<>(cables);
                 positions.addAll(peripherals);
+                positions.addAll(wirelessTargets);
                 // Manager neighbor notifications carry its own coordinate; these
                 // remain conservative local rebases even without a proven cable gap.
                 positions.add(managerPos);

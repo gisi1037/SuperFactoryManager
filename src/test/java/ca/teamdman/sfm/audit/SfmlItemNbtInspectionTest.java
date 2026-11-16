@@ -131,6 +131,23 @@ class SfmlItemNbtInspectionTest {
     }
 
     @Test
+    void scanningNbtKeysDoesNotAllocateStringsAndMatchesUnicodeCodeUnits() {
+        NBTTagCompound tags = new NBTTagCompound();
+        for (int i = 0; i < 128; i++) tags.setInteger("k" + i, i);
+        String name = "\uD83D\uDD25";
+        tags.setLong(name, 55872);
+        ItemIdentity key = ItemIdentity.of(ID, 15, tags, new QueryBudget());
+        QueryBudget budget = new QueryBudget();
+        DataRuntime runtime = new DataRuntime(null, 0, null, budget);
+
+        assertEquals(
+            55872,
+            runtime.inspectItemNbt(key, "NBTINTEGER", "/" + name)
+                .asLong());
+        assertEquals(84, budget.getAllocations());
+    }
+
+    @Test
     void boundedKeysAndSharedWorkBudgetRefuseWithoutChangingInput() {
         NBTTagCompound tags = new NBTTagCompound();
         for (int i = 0; i < 257; i++) tags.setInteger("k" + i, i);

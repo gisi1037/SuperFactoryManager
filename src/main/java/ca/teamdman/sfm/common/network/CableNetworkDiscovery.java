@@ -15,6 +15,7 @@ import net.minecraftforge.common.util.ForgeDirection;
 import ca.teamdman.sfm.common.block.BlockCable;
 import ca.teamdman.sfm.common.net.ServerUiTasks;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
+import ca.teamdman.sfm.common.tileentity.TileEntityWirelessConnector;
 import ca.teamdman.sfm.common.util.BlockPos;
 import ca.teamdman.sfm.compat.Compat;
 import ca.teamdman.sfm.compat.stevefm.SteveFMCompat;
@@ -127,6 +128,15 @@ public final class CableNetworkDiscovery {
                 for (ForgeDirection side : ForgeDirection.VALID_DIRECTIONS) {
                     if (!enqueue(position.offset(side))) return finish(Status.LIMIT);
                 }
+            }
+            if (cable && tile instanceof TileEntityWirelessConnector connector) {
+                BlockPos peer = connector.getPeerPosition();
+                if (valid(peer)) {
+                    fence.observe(peer);
+                    if (!peer.isLoaded(world)) unloaded.add(peer);
+                }
+                BlockPos connected = connector.getConnectedPeerPosition();
+                if (connected != null && !enqueue(connected)) return finish(Status.LIMIT);
             }
         }
         if (getStatus() != Status.SCANNING) return status;

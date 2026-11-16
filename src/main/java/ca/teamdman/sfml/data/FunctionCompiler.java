@@ -275,6 +275,7 @@ public final class FunctionCompiler {
                 DataCompiler.Binding[] visible = data.debugLocals();
                 commands.set(index, runtime -> {
                     ca.teamdman.sfm.common.program.ExecutionTrace.Event event = runtime.beginTrace(location);
+                    long profileStart = runtime.beginProfileStatement();
                     String outcome = "completed";
                     try {
                         return command.execute(runtime);
@@ -288,6 +289,7 @@ public final class FunctionCompiler {
                         outcome = "failed";
                         throw location.annotate(failure);
                     } finally {
+                        if (profileStart != 0) runtime.finishProfileStatement(location, profileStart);
                         if (event != null) runtime.finishTrace(event, outcome, visible);
                     }
                 });

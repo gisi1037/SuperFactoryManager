@@ -4,12 +4,21 @@ import static ca.teamdman.sfm.audit.AuditRegressionTest.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.world.storage.SaveHandler;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import ca.teamdman.sfm.common.item.ItemDisk;
 import ca.teamdman.sfm.common.program.DebugTerminalService;
@@ -17,8 +26,12 @@ import ca.teamdman.sfm.common.program.ManagerExecutionProfiler;
 import ca.teamdman.sfm.common.program.ProgramStateStore;
 import ca.teamdman.sfm.common.tileentity.LogLevel;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
+import ca.teamdman.sfml.data.SourceLocation;
 
 class ManagerExecutionProfilerTest {
+
+    @TempDir
+    Path temporary;
 
     @Test
     void boundedSampleWindowUsesNearestRankAndStopsWithoutOverwritingResults() {
@@ -43,6 +56,23 @@ class ManagerExecutionProfilerTest {
         profiler.stop();
         assertEquals(1, profiler.snapshot().count);
         assertEquals(0, profiler.snapshot().averageMs);
+    }
+
+    @Test
+    void detailLimitsReportSkippedAttemptsWithoutStoppingUpdateCollection() {
+        ManagerExecutionProfiler profiler = new ManagerExecutionProfiler(1);
+        profiler.beginUpdate();
+        for (int line = 1; line <= 257; line++) {
+            SourceLocation location = new SourceLocation(line, 0, "Statement");
+            profiler.recordStatement(location, profiler.beginStatement());
+        }
+        for (int attempt = 257; attempt < 2048; attempt++) profiler.beginStatement();
+        assertEquals(0, profiler.beginStatement());
+        profiler.recordUpdate(3000, true, 4);
+        ManagerExecutionProfiler.Report report = profiler.report(null);
+        assertEquals(256, report.statements.size());
+        assertEquals(2, report.skippedStatements);
+        assertEquals(1, profiler.snapshot().count);
     }
 
     @Test
@@ -78,6 +108,7 @@ class ManagerExecutionProfilerTest {
         manager.updateEntity();
         assertEquals(1, manager.getExecutionProfileSnapshot().count);
         assertEquals(0, manager.getExecutionProfileSnapshot().dueUpdates);
+        assertEquals(0, manager.getExecutionProfileSnapshot().programUpdates);
         DebugTerminalService.execute(manager, "profile stop");
         manager.updateEntity();
         assertEquals(1, manager.getExecutionProfileSnapshot().count);
@@ -97,6 +128,91 @@ class ManagerExecutionProfilerTest {
         manager.startExecutionProfile(2);
         manager.onChunkUnload();
         assertNull(field.get(manager));
+    }
+
+    @Test
+    void profileTimesTriggerResumesAndFunctionStatementsAndDumpsRawUpdates() throws Exception {
+        Fixture fixture = new Fixture();
+        fixture.world.saveHandler = new SaveHandler(temporary.toFile(), "audit", false);
+        TileEntityManager manager = RecoveryFixtures.manager(fixture);
+        ItemStack disk = manager.getDisk();
+        ItemDisk.setProgramString(disk, """
+            name "private example"
+            integer cost(integer n) { return n + 1 }
+            every 1 ticks {
+              wait(2)
+              let result = cost(4)
+            }
+            """);
+        manager.setInventorySlotContents(0, disk);
+        manager.setRunning(true);
+        DebugTerminalService.execute(manager, "profile start 3");
+        for (int tick = 1; tick <= 3; tick++) {
+            fixture.world.time = tick;
+            manager.updateEntity();
+        }
+
+        ManagerExecutionProfiler.Snapshot summary = manager.getExecutionProfileSnapshot();
+        assertEquals(3, summary.count);
+        assertEquals(3, summary.programUpdates);
+        assertEquals(2, summary.dueUpdates);
+        assertFalse(summary.collecting);
+        ManagerExecutionProfiler.Report report = manager.getExecutionProfileReport(null);
+        assertEquals(1, report.triggers.size());
+        assertEquals(
+            2,
+            report.triggers.get(0)
+                .attempts());
+        assertEquals(
+            1,
+            report.triggers.get(0)
+                .resumes());
+        assertTrue(
+            report.statements.stream()
+                .anyMatch(row -> row.location.getLine() == 2));
+        assertTrue(
+            DebugTerminalService.execute(manager, "profile status")
+                .toString()
+                .contains("Hot statements"));
+
+        String reply = DebugTerminalService.execute(manager, "profile dump")
+            .get(0);
+        assertTrue(reply.startsWith("Saved sfm-profiles/"), reply);
+        Path dump = temporary.resolve("audit")
+            .resolve(reply.substring("Saved ".length()));
+        String json = new String(Files.readAllBytes(dump), StandardCharsets.UTF_8);
+        JsonObject root = new JsonParser().parse(json)
+            .getAsJsonObject();
+        JsonArray samples = root.getAsJsonArray("samples");
+        assertEquals(3, samples.size());
+        assertEquals(
+            1,
+            samples.get(0)
+                .getAsJsonObject()
+                .get("game_tick")
+                .getAsLong());
+        assertFalse(
+            samples.get(1)
+                .getAsJsonObject()
+                .get("trigger_due")
+                .getAsBoolean());
+        assertTrue(
+            samples.get(2)
+                .getAsJsonObject()
+                .get("trigger_due")
+                .getAsBoolean());
+        assertEquals(
+            1,
+            root.getAsJsonArray("triggers")
+                .get(0)
+                .getAsJsonObject()
+                .get("resumes")
+                .getAsLong());
+        assertEquals(
+            report.statements.size(),
+            root.getAsJsonArray("statements_inclusive")
+                .size());
+        assertFalse(json.contains("private example"));
     }
 
     @Test

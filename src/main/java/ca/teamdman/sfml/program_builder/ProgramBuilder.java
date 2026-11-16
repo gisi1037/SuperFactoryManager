@@ -37,8 +37,8 @@ public final class ProgramBuilder {
         return build(retainSyntax, false);
     }
 
-    /** Package-private syntax snapshot for import/link validation; never a published executable result. */
-    static ProgramBuildResult parseSyntax(String source) {
+    /** Bounded syntax snapshot for linking and authoring; never a published executable result. */
+    public static ProgramBuildResult parseSyntax(String source) {
         return new ProgramBuilder(source).build(true, true);
     }
 

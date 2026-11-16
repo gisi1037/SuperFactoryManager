@@ -24,6 +24,7 @@ public final class TerminalCommandCompletion {
         "profile stop",
         "profile reset",
         "profile status",
+        "profile dump",
         "trace start",
         "trace stop",
         "trace status",

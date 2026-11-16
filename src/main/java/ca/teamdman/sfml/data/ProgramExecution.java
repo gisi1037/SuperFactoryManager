@@ -66,7 +66,9 @@ public final class ProgramExecution {
         DataRuntime live = started ? context.getDataRuntime() : null;
         long now = context.getWorldTime();
         try {
-            for (Trigger trigger : program.getTriggers()) {
+            java.util.List<Trigger> triggers = program.getTriggers();
+            for (int index = 0; index < triggers.size(); index++) {
+                Trigger trigger = triggers.get(index);
                 Sleeping pending = sleeping.get(trigger);
                 if (pending != null ? now < pending.due : !trigger.shouldRun(context)) continue;
                 if (live == null) {
@@ -87,7 +89,7 @@ public final class ProgramExecution {
                 context.setDidSomething(true);
                 boolean paused = false;
                 try {
-                    trigger.runBlock(context);
+                    context.runTrigger(trigger, index, pending != null);
                 } catch (Continuation.Pause pause) {
                     if (sleeping.size() >= MAX_SLEEPING_TRIGGERS)
                         throw new IllegalArgumentException("WAIT sleeping-trigger limit exceeded");

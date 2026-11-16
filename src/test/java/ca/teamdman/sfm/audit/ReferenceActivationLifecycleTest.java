@@ -763,6 +763,13 @@ class ReferenceActivationLifecycleTest {
                     .get(0)
                     .contains("Profile ON"),
                 "Aggregate timing needs no source-read authority");
+            f.tick();
+            assertNull(f.manager.getExecutionProfileReport(bearer));
+            assertNotNull(f.manager.getExecutionProfileReport(author));
+            assertTrue(
+                ca.teamdman.sfm.common.program.DebugTerminalService.execute(f.manager, "profile dump", bearer)
+                    .get(0)
+                    .contains("requires access"));
             NBTTagCompound root = f.manager.getDisk()
                 .getTagCompound();
             assertFalse(root.hasKey("sourceOwner"), "The verified owner is server memory, never bearer metadata");

@@ -4,8 +4,11 @@ import static ca.teamdman.sfm.audit.AuditRegressionTest.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
 import net.minecraft.inventory.ISidedInventory;
@@ -47,6 +50,42 @@ class ItemQueryServiceTest {
         } catch (ReflectiveOperationException failure) {
             throw new AssertionError(failure);
         }
+    }
+
+    @Test
+    void plainInventoryQueriesChargeSlotsWithoutAllocatingPerSlot() throws Exception {
+        Fixture fixture = new Fixture();
+        InventoryTile inventory = new InventoryTile(128);
+        inventory.setInventorySlotContents(127, new ItemStack(FILTER_ITEM, 7));
+        fixture.world.tiles.put(SRC, inventory);
+        ItemQueryService service = service(fixture);
+        QueryBudget countBudget = new QueryBudget();
+        QueryBudget emptyBudget = new QueryBudget();
+
+        assertEquals(7, service.count(SOURCE, ALL, countBudget));
+        assertFalse(service.empty(SOURCE, ALL, emptyBudget));
+        assertEquals(2, countBudget.getAllocations());
+        assertEquals(2, emptyBudget.getAllocations());
+    }
+
+    @Test
+    void offsetPlainInventoryCountRetainsProviderReadOrder() throws Exception {
+        Fixture fixture = new Fixture();
+        List<Integer> reads = new ArrayList<>();
+        fixture.world.tiles.put(SRC, new InventoryTile(17) {
+
+            @Override
+            public ItemStack getStackInSlot(int slot) {
+                reads.add(slot);
+                return super.getStackInSlot(slot);
+            }
+        });
+        HashSet<Integer> legacyOrder = new HashSet<>();
+        legacyOrder.add(15);
+        legacyOrder.add(16);
+
+        assertEquals(0, service(fixture).count(SOURCE.slots(15, 16), ALL, new QueryBudget()));
+        assertEquals(new ArrayList<>(legacyOrder), reads);
     }
 
     @Test

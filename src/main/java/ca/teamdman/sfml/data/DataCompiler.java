@@ -731,14 +731,22 @@ public final class DataCompiler {
     }
 
     private static Node unary(String operator, Node value) {
-        require(value.type, operator.equals("NOT") ? DataType.BOOLEAN : DataType.INTEGER);
+        boolean negated = operator.equals("NOT");
+        boolean invertSelector = negated && value.type == DataType.RESOURCE_SELECTOR;
+        if (!invertSelector) require(value.type, negated ? DataType.BOOLEAN : DataType.INTEGER);
         return new Node(value.type, value.depth + 1, value.constant) {
 
             @Override
             protected DataValue compute(DataRuntime runtime) {
                 DataValue operand = value.evaluate(runtime);
                 runtime.work(1);
-                if (operator.equals("NOT")) return DataValue.bool(!operand.asBoolean());
+                if (invertSelector) {
+                    runtime.allocate(2);
+                    return DataValue.selector(
+                        operand.asSelector()
+                            .invert());
+                }
+                if (negated) return DataValue.bool(!operand.asBoolean());
                 if (operator.equals("~")) return DataValue.integer(~operand.asLong());
                 return DataValue.integer(operator.equals("-") ? Math.negateExact(operand.asLong()) : operand.asLong());
             }
@@ -1316,7 +1324,7 @@ public final class DataCompiler {
                 runtime.work(input.size() + 1);
                 runtime.allocate(input.size() + 1);
                 DataValue[] values = new DataValue[input.size()];
-                for (int i = 0; i < values.length; i++) values[i] = input.get(i);
+                input.copyElements(0, values, 0, values.length);
                 return DataValue.ownedDynamicArray(type, values);
             }
         };

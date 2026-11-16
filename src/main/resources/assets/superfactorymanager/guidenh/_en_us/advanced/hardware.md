@@ -7,6 +7,7 @@ navigation:
   keywords: ["craft", "recipe", "HV", "conversion", "full", "fancy", "cable"]
 categories: ["sfm"]
 updated: "2026-11-01"
+item_ids: ["superfactorymanager:wirelessConnector", "superfactorymanager:wirelessLinker"]
 ---
 
 # Recipes and cable shapes
@@ -22,6 +23,25 @@ Use **NEI** to see the exact crafting shape and accepted ingredients in your pac
 The full-block Inventory Cable and thin Fancy Cable discover the **same network**.
 Mix them freely. The full block has full-cube collision; Fancy Cable leaves more
 visual space around your machines. Neither loads distant chunks.
+
+## Link two distant branches
+
+<BlockImage id="superfactorymanager:wirelessConnector" scale="2" />
+<ItemImage id="superfactorymanager:wirelessLinker" />
+
+Place a **Wireless Inventory Connector** on each cable branch. Hold a
+**Wireless Linking Tool**, right-click the first connector, then right-click
+the second. The first click only selects the endpoint. After the second click,
+both branches form one cable network. Existing labels and SFML commands work
+across the link.
+
+Each connector has one partner. Linking it again replaces its previous pair.
+Sneak-right-click a connector with the tool to unlink it. Sneak-right-click air
+to clear the tool's selection.
+
+The pair works at any distance within the same dimension while both endpoints
+and the intervening cable branches are loaded. Reloading the world preserves
+the pair. Breaking and replacing a connector requires linking the new block.
 
 ## Free one-for-one conversions
 
@@ -58,6 +78,8 @@ means an accepted `circuitAdvanced` ingredient. NEI shows alternatives.
 | Programming Station ×1 | Stainless steel, screen, advanced epoxy boards, HV hull, 2 HV circuits and a manager |
 | Redstone Port ×1 | Stainless steel, HV sensor, HV emitter, 2 HV circuits and our full-block cable |
 | Disk Copier ×1 | Stainless steel, screen, 2 advanced epoxy boards, HV hull, 2 HV circuits, HV sensor and HV emitter |
+| Wireless Inventory Connector ×2 | 4 stainless-steel plates, HV sensor, 2 HV emitters, HV circuit and Inventory Cable |
+| Wireless Linking Tool ×1 | Stainless-steel plate, HV sensor, HV emitter, screen and HV circuit |
 
 No OpenComputers parts are required. Direct recipes need the GT components;
 there is no cheaper vanilla fallback if a component is missing. Conversions remain

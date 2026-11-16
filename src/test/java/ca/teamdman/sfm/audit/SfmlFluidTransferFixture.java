@@ -31,6 +31,47 @@ public final class SfmlFluidTransferFixture {
         ResourceSelectorOreFixture.registerFixtures();
     }
 
+    public static void standaloneTanksCommitTaggedFluidAndNotifyOnlyAfterSuccess() throws Exception {
+        Setup setup = new Setup(new TankTile(0), new TankTile(0));
+        buildcraft.factory.TileTank source = new buildcraft.factory.TileTank();
+        buildcraft.factory.TileTank destination = new buildcraft.factory.TileTank();
+        setup.fixture.add("source", SRC, source);
+        setup.fixture.add("dest", DST, destination);
+        FluidStack stock = water(2000);
+        stock.tag = new NBTTagCompound();
+        stock.tag.setInteger("grade", 5);
+        source.tank.setFluid(stock);
+        FluidStack nearlyFull = new FluidStack(stock, 15900);
+        destination.tank.setFluid(nearlyFull);
+
+        ItemTransferResult refused = setup.context.transferExact(
+            LabelReference.of("source"),
+            LabelReference.of("dest"),
+            DataValue.selector(ResourceSelector.fluid("*")),
+            1000,
+            true);
+        assertEquals(ItemTransferResult.Status.NO_CAPACITY, refused.getStatus());
+        assertEquals(0, refused.getMoved());
+        assertSame(stock, source.tank.getFluid());
+        assertSame(nearlyFull, destination.tank.getFluid());
+        assertFalse(source.hasNetworkUpdate);
+        assertEquals(0, destination.comparatorUpdates);
+
+        destination.tank.setFluid(null);
+        parse("""
+            every 20 ticks {
+              transferfexact(label("source"), label("dest"), fluid("water"), 1000) into result
+            }
+            """).tick(setup.context);
+        assertEquals(1000, source.tank.getFluidAmount());
+        assertEquals(1000, destination.tank.getFluidAmount());
+        assertEquals(stock.tag, destination.tank.getFluid().tag);
+        assertTrue(source.hasNetworkUpdate);
+        assertTrue(destination.hasNetworkUpdate);
+        assertEquals(1, source.comparatorUpdates);
+        assertEquals(1, destination.comparatorUpdates);
+    }
+
     private static FluidStack water(int amount) {
         return new FluidStack(net.minecraftforge.fluids.FluidRegistry.WATER, amount);
     }

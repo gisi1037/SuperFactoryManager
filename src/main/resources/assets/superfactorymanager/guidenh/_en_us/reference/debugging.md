@@ -77,8 +77,9 @@ causes the ordinary program fault.
 | `trace status` / `trace stop` / `trace clear` | Read, stop, or discard the RAM-only trace. |
 | `trace list` / `trace list 1` | Show the latest 15 events, or page from a chosen event. |
 | `locals 12` | Read up to eight lexical local/parameter snapshots for trace event 12. |
-| `profile start 1200` | Start a bounded complete-update timing capture; accepts 1–4,096 updates. |
+| `profile start 1200` | Record manager, SFML scheduler, trigger and statement timings for 1–4,096 updates. |
 | `profile status` / `profile stop` / `profile reset` | Read, stop while retaining, or clear that profiler capture. |
+| `profile dump` | Save the full capture as JSON in the server world's `sfm-profiles` folder. |
 | `labels` | Show the first 15 saved label names and position-entry counts. |
 | `labels Input Chest` | Inspect the exact case-sensitive saved name, including spaces. |
 | `logs` / `logs 15` | Show the latest 10 logs, or a count from 1 to 15, oldest first. |

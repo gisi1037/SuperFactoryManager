@@ -426,7 +426,7 @@ public final class SfmlCompletionCatalog {
             "item",
             "item(\"namespace:name\" | \"*\") -> resource_selector",
             "item(\"<namespace:item>\")",
-            "Select all metadata/NBT variants of an item, or every item with *. A selector is not an exact item key.",
+            "Select all metadata/NBT variants of an item, or every item with *. Prefix with ! to exclude that type.",
             "let $value = item(\"minecraft:iron_ingot\")",
             Kind.CONSTRUCTOR,
             Context.EXPRESSION);
@@ -435,7 +435,7 @@ public final class SfmlCompletionCatalog {
             "ore",
             "ore(\"oreName\") -> resource_selector",
             "ore(\"<oreName>\")",
-            "Select an exact case-sensitive OreDictionary name. Requires a quoted literal; unknown names match nothing.",
+            "Select an exact case-sensitive OreDictionary name from a quoted literal. Prefix with ! to exclude its members.",
             "let $value = ore(\"ingotIron\")",
             Kind.CONSTRUCTOR,
             Context.EXPRESSION);
@@ -444,7 +444,7 @@ public final class SfmlCompletionCatalog {
             "fluid",
             "fluid(\"name\" | \"*\") -> resource_selector",
             "fluid(\"<fluid>\")",
-            "Select a Forge fluid name (water, lava or a mod's registered name), or every fluid with *. Use transferf/fqueries; amounts are mB.",
+            "Select a Forge fluid name, or every fluid with *. Prefix with ! to exclude that fluid. Amounts are mB.",
             "let $water = fluid(\"water\")",
             Kind.CONSTRUCTOR,
             Context.EXPRESSION);
@@ -570,7 +570,7 @@ public final class SfmlCompletionCatalog {
         add(
             entries,
             "transfer",
-            "transfer(source, destination [, amount | selector | item_key [, amount]]) [into $result]",
+            "transfer(source, destination [, amount | selector | item_key [, amount]]) [except item(...)] [into $result]",
             "transfer(<source>, <destination>)",
             "Item action: a third integer limits all items; a third selector/key uses matching stock. Four arguments require a selector/key then amount. Optional INTO captures progress. No fluids or expression return value.",
             "transfer(label(\"inputs\"), label(\"outputs\"))",
@@ -583,6 +583,33 @@ public final class SfmlCompletionCatalog {
             "transferf(<source>, <destination>)",
             "Fluid action in mB. Two arguments move all visible stock; a third integer caps all fluids. A fluid selector/key filters stock; a fourth integer caps it. Exact keys preserve NBT matching. Capacity and side permissions apply.",
             "transferf(label(\"supply\"), label(\"tank\"), 1000)",
+            Kind.STATEMENT,
+            Context.TRIGGER_STATEMENT);
+        add(
+            entries,
+            "transferexact",
+            "transferexact(source, destination [, selector | item_key], amount) [into result]",
+            "transferexact(<source>, <destination>, <amount>)",
+            "Move the full item count or leave both ends unchanged. Supports vanilla chests.",
+            "transferexact(label(\"inputs\"), label(\"outputs\"), 10)",
+            Kind.STATEMENT,
+            Context.TRIGGER_STATEMENT);
+        add(
+            entries,
+            "transferforce",
+            "transferforce(source.slots(first, last), destination [, selector | item_key], amount) [into result]",
+            "transferforce(<source>.slots(<first>, <last>), <destination>, <amount>)",
+            "Pull from exposed source slots even when the machine rejects automated extraction. Requires an explicit source slot range and total amount. Destination rules still apply.",
+            "transferforce(label(\"machine\").slots(2, 2), label(\"returns\"), 16)",
+            Kind.STATEMENT,
+            Context.TRIGGER_STATEMENT);
+        add(
+            entries,
+            "transferfexact",
+            "transferfexact(source, destination [, selector | fluid_key], amount) [into result]",
+            "transferfexact(<source>, <destination>, <amount>)",
+            "Move the full amount in millibuckets or leave both ends unchanged. Supports standalone BuildCraft tanks.",
+            "transferfexact(label(\"supply\"), label(\"tank\"), 1000)",
             Kind.STATEMENT,
             Context.TRIGGER_STATEMENT);
         method(

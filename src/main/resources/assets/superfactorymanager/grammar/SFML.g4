@@ -236,7 +236,7 @@ label           : identifier dataSuffix*  #RawLabel
 
 emptyslots      : EMPTY (SLOTS | SLOT) IN ;
 
-identifier : (IDENTIFIER | IMPORT | REVISION | DIGEST | WAIT | SETCIRCUIT | TRANSFER | TRANSFERF | INTO | LET | SET | STATE | PRINT | FUNCTION | RETURNS | RETURN | FOR | WHILE | STEP | RISING | FALLING | REDSTONE | LEVEL | LEVELS | GLOBAL | SECOND | SECONDS | TOP | BOTTOM | LEFT | RIGHT | FRONT | BACK) ;
+identifier : (IDENTIFIER | IMPORT | REVISION | DIGEST | WAIT | SETCIRCUIT | TRANSFER | TRANSFERF | TRANSFEREXACT | TRANSFERFEXACT | TRANSFERFORCE | INTO | LET | SET | STATE | PRINT | FUNCTION | RETURNS | RETURN | FOR | WHILE | STEP | RISING | FALLING | REDSTONE | LEVEL | LEVELS | GLOBAL | SECOND | SECONDS | TOP | BOTTOM | LEFT | RIGHT | FRONT | BACK) ;
 
 // Typed data expressions. Multiplication retains the legacy wildcard token.
 stateDeclaration : STATE variableName EQ_SYMBOL dataExpression;
@@ -246,8 +246,10 @@ circuitStatement : SETCIRCUIT LPAREN dataExpression COMMA dataExpression RPAREN 
 waitStatement : WAIT dataExpression;
 printStatement : PRINT LPAREN dataExpression (COMMA dataExpression)* RPAREN;
 // Actions are statements: no transfer can hide inside a predicate or ordinary function call.
-transferStatement : (TRANSFER | TRANSFERF) LPAREN dataExpression COMMA dataExpression
-                    (COMMA dataExpression (COMMA dataExpression)?)? RPAREN (INTO variableName)?;
+transferStatement : (TRANSFER | TRANSFERF | TRANSFEREXACT | TRANSFERFEXACT | TRANSFERFORCE) LPAREN dataExpression COMMA dataExpression
+                    (COMMA dataExpression (COMMA dataExpression)?)? RPAREN transferExclusion? (INTO variableName)?;
+// A selector starts with a name so a subsequent player function call except(...) stays unambiguous.
+transferExclusion : EXCEPT (functionCall | variableName);
 dataTarget : variableName (DOT dataName | LBRACKET dataExpression RBRACKET)*;
 dataExpression : dataOr;
 dataOr : dataAnd (OR dataAnd)*;
@@ -272,7 +274,7 @@ dataPrimary : NUMBER | STRING | VARIABLE | IMPORT | REVISION | DIGEST | TRUE | F
             | LBRACE (dataField (COMMA dataField)* COMMA?)? RBRACE;
 dataField : dataName COLON dataExpression;
 // All legacy keyword spellings are legal fixed field names.
-dataName : IDENTIFIER | IMPORT | REVISION | DIGEST | WAIT | SETCIRCUIT | TRANSFER | TRANSFERF | INTO | LET | SET | STATE | PRINT | FUNCTION | RETURNS | RETURN | IF | THEN | ELSE | HAS | OVERALL | SOME | ONE | LONE
+dataName : IDENTIFIER | IMPORT | REVISION | DIGEST | WAIT | SETCIRCUIT | TRANSFER | TRANSFERF | TRANSFEREXACT | TRANSFERFEXACT | TRANSFERFORCE | INTO | LET | SET | STATE | PRINT | FUNCTION | RETURNS | RETURN | IF | THEN | ELSE | HAS | OVERALL | SOME | ONE | LONE
          | TRUE | FALSE | NOT | AND | OR | GT | LT | EQ | LE | GE | FROM | TO | INPUT | OUTPUT
          | WHERE | SLOTS | SLOT | RETAIN | EACH | EXCEPT | FORGET | EMPTY | IN | WITHOUT | WITH
          | TAG | ROUND | ROBIN | BY | LABEL | BLOCK | TOP | BOTTOM | NORTH | EAST | SOUTH | WEST
@@ -297,6 +299,9 @@ SETCIRCUIT : S E T C I R C U I T;
 WAIT : W A I T;
 TRANSFER : T R A N S F E R;
 TRANSFERF : T R A N S F E R F;
+TRANSFEREXACT : T R A N S F E R E X A C T;
+TRANSFERFEXACT : T R A N S F E R F E X A C T;
+TRANSFERFORCE : T R A N S F E R F O R C E;
 INTO : I N T O;
 FUNCTION : F U N C T I O N;
 RETURNS : R E T U R N S;

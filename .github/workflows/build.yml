@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [rc2, nightly]
+        target: [stable290]
     permissions:
       contents: read
 

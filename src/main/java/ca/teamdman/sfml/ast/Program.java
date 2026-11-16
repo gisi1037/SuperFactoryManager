@@ -195,7 +195,8 @@ public final class Program implements Statement {
                 .tick(this, context, localCount, stateSchema.size() > 0, dataStarted);
             return;
         }
-        for (Trigger trigger : triggers) {
+        for (int index = 0; index < triggers.size(); index++) {
+            Trigger trigger = triggers.get(index);
             if (!trigger.shouldRun(context)) continue;
             if (dataFeatures) {
                 if (!dataStarted) {
@@ -229,7 +230,7 @@ public final class Program implements Statement {
             long startNs = System.nanoTime();
             context.clearAllInputs();
             try {
-                trigger.runBlock(context);
+                context.runTrigger(trigger, index, false);
             } finally {
                 context.clearAllInputs();
                 if (dataFeatures) context.getDataRuntime()

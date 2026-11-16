@@ -36,6 +36,8 @@ public final class InventoryUtils {
     public static IInventory getInventory(World world, BlockPos pos) {
         if (world == null || pos == null) return null;
         TileEntity te = pos.getTileEntity(world);
+        if (te instanceof ca.teamdman.sfm.common.tileentity.TileEntityModAdapter)
+            throw new IllegalArgumentException("Mod Storage Adapters use transfer() and item query methods");
         if (te instanceof TileEntityChest) {
             ChestPair pair = resolveChest((TileEntityChest) te);
             if (pair == null) return null;
@@ -145,6 +147,8 @@ public final class InventoryUtils {
     public static IFluidHandler getFluidHandler(World world, BlockPos pos) {
         if (world == null || pos == null) return null;
         TileEntity te = pos.getTileEntity(world);
+        if (te instanceof ca.teamdman.sfm.common.tileentity.TileEntityModAdapter)
+            throw new IllegalArgumentException("Mod Storage Adapters use transferf() and fluid query methods");
         if (te instanceof IFluidHandler) {
             return (IFluidHandler) te;
         }

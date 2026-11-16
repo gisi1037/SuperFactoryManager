@@ -43,3 +43,4 @@ complete examples, diagnostics, recovery, performance limits and feature status.
   connection rules.
 - [Recipes and cable shapes](hardware.md): progression, conversions and saved-item rules.
 - [Copy program disks](disk-copier.md): duplicate a program onto fresh media.
+- [ME network adapter](mod-adapter.md): read and move ME stock through an Interface.

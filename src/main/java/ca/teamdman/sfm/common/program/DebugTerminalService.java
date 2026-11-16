@@ -53,8 +53,8 @@ public final class DebugTerminalService {
                 List<String> help = new ArrayList<>();
                 help.add("help | status | error [clear] | state [$name] | clear | capture on/off");
                 help.add("labels [exact name] | logs [1..15] | watch [$name]");
-                help.add("profile start [1..4096 updates] | profile stop/reset/status");
-                help.add("Profile is opt-in full server-update time including idle; default 1200 updates.");
+                help.add("profile start [1..4096 updates] | profile stop/reset/status/dump");
+                help.add("Profile measures manager updates, trigger runs and hot statements. Default 1200 updates.");
                 help.add("labels reads saved bindings, not live connectivity or contents.");
                 help.add("state reads live STATE; watch also reads initialized program-wide globals.");
                 help.add("Reference variables require the source author; PRINT remains intentional output.");
@@ -92,7 +92,7 @@ public final class DebugTerminalService {
                 if (words.length > 2) break;
                 return manager.getLiveVariableSnapshot(words.length == 2 ? words[1] : null, actor);
             case "profile":
-                return profileCommand(manager, words);
+                return profileCommand(manager, words, actor);
             case "trace":
                 if (words.length == 3 && words[1].equalsIgnoreCase("list")) {
                     try {
@@ -167,7 +167,7 @@ public final class DebugTerminalService {
             "Variable inspection is author-only for published programs; execution/copy permission is insufficient.");
     }
 
-    private static List<String> profileCommand(TileEntityManager manager, String[] words) {
+    private static List<String> profileCommand(TileEntityManager manager, String[] words, java.util.UUID actor) {
         if (words.length >= 2 && words[1].equalsIgnoreCase("start")) {
             int limit = ManagerExecutionProfiler.DEFAULT_UPDATE_LIMIT;
             if (words.length == 3) {
@@ -188,14 +188,17 @@ public final class DebugTerminalService {
             else if (words[1].equalsIgnoreCase("reset")) {
                 manager.resetExecutionProfile();
                 return Collections.singletonList("Profiler reset; collection OFF.");
-            } else if (!words[1].equalsIgnoreCase("status")) return Collections
-                .singletonList("Use profile start [updates], profile stop, profile reset or profile status.");
-            return inspectProfile(manager.getExecutionProfileSnapshot());
+            } else if (words[1].equalsIgnoreCase("dump")) return manager.dumpExecutionProfile(actor);
+            else if (!words[1].equalsIgnoreCase("status")) return Collections.singletonList(
+                "Use profile start [updates], profile stop, profile reset, profile status or profile dump.");
+            return inspectProfile(manager.getExecutionProfileSnapshot(), manager.getExecutionProfileReport(actor));
         }
-        return Collections.singletonList("Use profile start [updates], profile stop, profile reset or profile status.");
+        return Collections
+            .singletonList("Use profile start [updates], profile stop, profile reset, profile status or profile dump.");
     }
 
-    public static List<String> inspectProfile(ManagerExecutionProfiler.Snapshot profile) {
+    private static List<String> inspectProfile(ManagerExecutionProfiler.Snapshot profile,
+        ManagerExecutionProfiler.Report report) {
         List<String> result = new ArrayList<>();
         result.add(
             "Profiler " + (profile.collecting ? "ON" : "OFF")
@@ -209,14 +212,59 @@ public final class DebugTerminalService {
         result.add(
             String.format(
                 Locale.ROOT,
-                "ms avg=%.4f p50=%.4f p95=%.4f p99=%.4f max=%.4f",
+                "Full update ms: avg %.4f | p50 %.4f | p95 %.4f | p99 %.4f | max %.4f",
                 profile.averageMs,
                 profile.p50Ms,
                 profile.p95Ms,
                 profile.p99Ms,
                 profile.maximumMs));
-        result.add("Full tile update includes idle, recovery, discovery and execution; nearest-rank percentiles.");
-        result.add("Due updates began at least one trigger; async workers, UI callbacks and manual Run are excluded.");
+        result.add(
+            String.format(
+                Locale.ROOT,
+                "Program ms: avg %.4f | max %.4f across %d scheduler updates",
+                profile.programAverageMs,
+                profile.programMaximumMs,
+                profile.programUpdates));
+        if (report == null) {
+            if (profile.updateLimit > 0) result.add("Source details require access to the captured program.");
+            return result;
+        }
+        if (!report.triggers.isEmpty()) result.add("Trigger time by total (source order, 1-based)");
+        for (int i = 0; i < Math.min(3, report.triggers.size()); i++) {
+            ManagerExecutionProfiler.Hotspot row = report.triggers.get(i);
+            result.add(
+                String.format(
+                    Locale.ROOT,
+                    "#%d | %d runs, %d resumes | %.3f ms total, %.3f ms max",
+                    row.trigger,
+                    row.attempts() - row.resumes(),
+                    row.resumes(),
+                    row.totalNs() / 1e6,
+                    row.maximumNs() / 1e6));
+        }
+        if (!report.statements.isEmpty()) result.add("Hot statements by total (includes nested work)");
+        for (int i = 0; i < Math.min(5, report.statements.size()); i++) {
+            ManagerExecutionProfiler.Hotspot row = report.statements.get(i);
+            ca.teamdman.sfml.data.SourceLocation at = row.location;
+            String module = at.isModuleLocation() ? at.getModuleAlias() + " r" + at.getModuleRevision() + " " : "";
+            result.add(
+                String.format(
+                    Locale.ROOT,
+                    "%s%d:%d %s | %d attempts | %.3f ms total, %.3f ms max",
+                    module,
+                    at.getLine(),
+                    at.getColumn() + 1,
+                    at.getStatementKind(),
+                    row.attempts(),
+                    row.totalNs() / 1e6,
+                    row.maximumNs() / 1e6));
+        }
+        if (report.skippedTriggers != 0 || report.skippedStatements != 0) result.add(
+            "Capture limits skipped " + report.skippedTriggers
+                + " trigger and "
+                + report.skippedStatements
+                + " statement attempts.");
+        result.add("Use profile dump for all captured rows and per-update timings.");
         return result;
     }
 

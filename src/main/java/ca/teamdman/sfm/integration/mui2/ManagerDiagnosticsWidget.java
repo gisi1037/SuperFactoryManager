@@ -44,15 +44,15 @@ final class ManagerDiagnosticsWidget extends ParentWidget<ManagerDiagnosticsWidg
     private List<String> terminalResult = Collections.singletonList(
         "Type help for commands. Errors shows the last failure. PRINT uses this manager's saved capture setting.");
     private List<String> print = Collections.emptyList(),
-        profile = Collections.singletonList("Record full manager update costs; no per-statement tracing."),
+        profile = Collections.singletonList("Record manager updates, triggers and hot statements."),
         watch = Collections.singletonList("Program globals and persistent variables are read-only snapshots.");
     private List<LogEntry> logs = Collections.emptyList();
     private List<String> filteredLogs = Collections.singletonList("Waiting for retained logs.");
-    private String command = "", query = "", variable = "", notice = "", deferred;
+    private String command = "", query = "", variable = "", notice = "", deferred, profileDumpNotice = "";
     private LogLevel recording = LogLevel.OFF, filter;
     private int ticks, lastPoll = -20, pendingAt, selected = -1, pendingPage, deferredPage;
     private long latestRequest, dropped;
-    private boolean pending, capture, printView, wrap = true, live = true, closed;
+    private boolean pending, pendingDump, capture, printView, wrap = true, live = true, closed;
 
     ManagerDiagnosticsWidget(TileEntityManager manager, ManagerConsoleBody body,
         Supplier<ManagerControlToken> control) {
@@ -153,12 +153,14 @@ final class ManagerDiagnosticsWidget extends ParentWidget<ManagerDiagnosticsWidg
         button(() -> live ? "Live" : "Frozen", 202, 20, 46, () -> live = !live).setEnabledIf(w -> page() == 4);
         button(() -> "Copy", 250, 20, 46, this::copy).setEnabledIf(w -> page() == 4);
 
-        button(() -> "Record", 0, 0, 64, () -> request("profile start")).setEnabledIf(w -> page() == 5)
-            .addTooltipLine("Measure the next 1,200 full manager updates, including idle work. Stops automatically.");
-        button(() -> "Stop", 66, 0, 54, () -> request("profile stop")).setEnabledIf(w -> page() == 5);
-        button(() -> "Reset", 122, 0, 54, () -> request("profile reset")).setEnabledIf(w -> page() == 5);
-        button(() -> "Refresh", 178, 0, 66, () -> request("profile status")).setEnabledIf(w -> page() == 5);
-        button(() -> "Copy", 246, 0, 50, this::copy).setEnabledIf(w -> page() == 5);
+        button(() -> "Record", 0, 0, 52, () -> request("profile start")).setEnabledIf(w -> page() == 5)
+            .addTooltipLine("Record the next 1,200 updates, with separate SFML timings. Stops automatically.");
+        button(() -> "Stop", 54, 0, 42, () -> request("profile stop")).setEnabledIf(w -> page() == 5);
+        button(() -> "Reset", 98, 0, 42, () -> request("profile reset")).setEnabledIf(w -> page() == 5);
+        button(() -> "Refresh", 142, 0, 54, () -> request("profile status")).setEnabledIf(w -> page() == 5);
+        button(() -> "Copy", 198, 0, 42, this::copy).setEnabledIf(w -> page() == 5);
+        button(() -> "Dump", 242, 0, 54, () -> request("profile dump")).setEnabledIf(w -> page() == 5)
+            .addTooltipLine("Save all captured timings to sfm-profiles in the server world folder.");
 
         child(
             new TextFieldWidget().setMaxLength(96)
@@ -241,14 +243,16 @@ final class ManagerDiagnosticsWidget extends ParentWidget<ManagerDiagnosticsWidg
         dropped = reply.dropped;
         print = reply.history;
         if (!reply.result.isEmpty()) {
-            if (pendingPage == 5) profile = reply.result;
-            else if (pendingPage == 6) watch = reply.result;
+            if (pendingPage == 5) {
+                if (pendingDump) profileDumpNotice = reply.result.get(0);
+                else profile = reply.result;
+            } else if (pendingPage == 6) watch = reply.result;
             else {
                 terminalResult = reply.result;
                 printView = false;
             }
         }
-        notice = page() == 5 ? "Opt-in full-update timings; not per-instruction or whole-server TPS."
+        notice = page() == 5 ? profileDumpNotice
             : page() == 6 ? "Live read-only values; local trigger variables expire after execution."
                 : "PRINT: " + print.size() + " retained; " + reply.dropped + " dropped. Tab completes commands.";
         refreshOutput();
@@ -295,6 +299,8 @@ final class ManagerDiagnosticsWidget extends ParentWidget<ManagerDiagnosticsWidg
         pending = true;
         pendingAt = lastPoll = ticks;
         pendingPage = origin;
+        pendingDump = origin == 5 && text.equals("profile dump");
+        if (origin == 5 && (text.equals("profile start") || text.equals("profile reset"))) profileDumpNotice = "";
         latestRequest = REQUESTS.incrementAndGet();
         if (origin == 3) history.record(text);
         SFMNetwork.WRAPPER.sendToServer(

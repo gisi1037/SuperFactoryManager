@@ -39,6 +39,17 @@ stock. A full or refusing tank can move less.
 | `transferf(src, dest, fluid("water"))` | All matching water. |
 | `transferf(src, dest, fluid("water"), 1000)` | Up to 1000 mB of water. |
 
+Use `transferfexact` to move a full amount or leave both ends unchanged.
+Exact fluid transfers support standalone BuildCraft tanks. The amount is in
+millibuckets, and the fluid selector is optional.
+
+```sfml
+every 20 ticks {
+  transferfexact(label("source"), label("destination"), fluid("water"), 1000) into sent
+  print(sent.moved, sent.status)
+}
+```
+
 `fluid("*")` matches all fluids. Names are exact Forge registry names; water is
 `"water"`, not `"minecraft:water"`. An amount is a total limit, not multiplied by
 tanks or faces. Missing amount observes a finite source snapshot. Every form

@@ -10,6 +10,7 @@ import net.minecraftforge.common.util.ForgeDirection;
 import org.lwjgl.opengl.GL11;
 
 import ca.teamdman.sfm.common.block.BlockCable;
+import ca.teamdman.sfm.common.block.BlockFancyCable;
 import cpw.mods.fml.client.registry.ISimpleBlockRenderingHandler;
 
 public class RenderFancyCable implements ISimpleBlockRenderingHandler {
@@ -17,10 +18,10 @@ public class RenderFancyCable implements ISimpleBlockRenderingHandler {
     private final int renderId;
 
     // Dimensions in 16ths
-    private static final double C_MIN = 4.0 / 16.0; // 0.25
-    private static final double C_MAX = 12.0 / 16.0; // 0.75
-    private static final double A_MIN = 5.0 / 16.0; // 0.3125
-    private static final double A_MAX = 11.0 / 16.0; // 0.6875
+    private static final double C_MIN = BlockFancyCable.CORE_MIN;
+    private static final double C_MAX = BlockFancyCable.CORE_MAX;
+    private static final double A_MIN = BlockFancyCable.ARM_MIN;
+    private static final double A_MAX = BlockFancyCable.ARM_MAX;
 
     public RenderFancyCable(int renderId) {
         this.renderId = renderId;

@@ -135,8 +135,11 @@ public final class SfmlHighlighter {
             return isNamedRedstoneEdge(tokens, index) ? Style.FLOW : Style.LABEL;
         if (type == SFMLLexer.FUNCTION || type == SFMLLexer.RETURNS || type == SFMLLexer.RETURN)
             return isFunctionFlow(tokens, index, functionNames) ? Style.FLOW : Style.LABEL;
-        if (type == SFMLLexer.TRANSFER || type == SFMLLexer.TRANSFERF || type == SFMLLexer.SETCIRCUIT)
-            return Style.LABEL; // Calls were already
+        if (type == SFMLLexer.TRANSFER || type == SFMLLexer.TRANSFERF
+            || type == SFMLLexer.TRANSFEREXACT
+            || type == SFMLLexer.TRANSFERFEXACT
+            || type == SFMLLexer.TRANSFERFORCE
+            || type == SFMLLexer.SETCIRCUIT) return Style.LABEL; // Calls were already
         // classified above.
         if (type == SFMLLexer.WAIT) {
             int after = nextVisible(tokens, index);
@@ -185,6 +188,9 @@ public final class SfmlHighlighter {
                 return Style.RESOURCE;
             case SFMLLexer.TRANSFER:
             case SFMLLexer.TRANSFERF:
+            case SFMLLexer.TRANSFEREXACT:
+            case SFMLLexer.TRANSFERFEXACT:
+            case SFMLLexer.TRANSFERFORCE:
             case SFMLLexer.SETCIRCUIT:
             case SFMLLexer.WAIT:
             case SFMLLexer.INPUT:
@@ -323,10 +329,14 @@ public final class SfmlHighlighter {
             || name.equals("REDSTONEAVAILABLE")
             || name.equals("SIDE")
             || name.equals("SLOTS")) return previous == SFMLLexer.DOT;
-        return (name.equals("FLUID") || name.equals(
-            "TRANSFERF") || name.equals("LABEL") || name.equals("ITEM") || name.equals("ORE") || name.equals("PRINT"))
-            && previous != SFMLLexer.DOT
-            && !isResourcePart(tokens, index);
+        return (name.equals("FLUID") || name.equals("TRANSFERF")
+            || name.equals("TRANSFEREXACT")
+            || name.equals("TRANSFERFEXACT")
+            || name.equals("TRANSFERFORCE")
+            || name.equals("LABEL")
+            || name.equals("ITEM")
+            || name.equals("ORE")
+            || name.equals("PRINT")) && previous != SFMLLexer.DOT && !isResourcePart(tokens, index);
     }
 
     private static boolean isFunctionType(List<? extends Token> tokens, int index, Context context) {
@@ -517,6 +527,9 @@ public final class SfmlHighlighter {
             || type == SFMLLexer.FALLING
             || type == SFMLLexer.TRANSFER
             || type == SFMLLexer.TRANSFERF
+            || type == SFMLLexer.TRANSFEREXACT
+            || type == SFMLLexer.TRANSFERFEXACT
+            || type == SFMLLexer.TRANSFERFORCE
             || type == SFMLLexer.WAIT
             || type == SFMLLexer.SETCIRCUIT
             || type == SFMLLexer.INTO;
@@ -653,6 +666,9 @@ public final class SfmlHighlighter {
         switch (type) {
             case SFMLLexer.TRANSFER:
             case SFMLLexer.TRANSFERF:
+            case SFMLLexer.TRANSFEREXACT:
+            case SFMLLexer.TRANSFERFEXACT:
+            case SFMLLexer.TRANSFERFORCE:
             case SFMLLexer.SETCIRCUIT:
             case SFMLLexer.WAIT:
             case SFMLLexer.INTO:

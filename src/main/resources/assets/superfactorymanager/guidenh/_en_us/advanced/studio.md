@@ -6,7 +6,7 @@ navigation:
   parent: /advanced/index.md
   keywords: ["programming station", "studio", "project", "publish", "imprint", "recovery"]
 categories: ["sfm"]
-updated: "2026-11-01"
+updated: "2026-11-02"
 ---
 
 # Studio and published builds
@@ -56,6 +56,16 @@ the searchable statement/example catalog. **Visual / Split / Code** chooses the
 authoring view; Split needs at least 640 logical pixels. Drag the project,
 Split or bottom-dock divider to change their balance.
 
+The same Insert browser is available in the Manager text editor. Choose one
+category, then scroll its inserts. Changing categories replaces the list;
+search explicitly covers all categories. Redstone includes triggers, checks,
+readings and outputs, each marked by a small color and a written code kind.
+Choose a name, read its forms, units and preview, then explicitly Insert.
+Items and Fluids both offer complete Input/Output sequences and separate steps.
+Each insertion is one undo step. Program templates create new Studio drafts;
+the Manager copies them instead. Small screens use Choose category and named
+Back buttons to return to the list, retaining its scroll position.
+
 Use Code for the full language. Visual supports the [documented graph subset](editors.md);
 unsupported text remains intact in Code. Disconnected graphs retain their last
 safe source and block Save. [Fields](routing-fields.md) keeps edits pending until
@@ -80,7 +90,7 @@ centered machine window with normal inventory and operational pages.
 | Ctrl+F / Ctrl+H | Literal Find / Replace; Replace All is one undo step. |
 | Ctrl+Z / Ctrl+Y | Undo / redo on the active surface. |
 | F4 | Jump to a current compiler problem. |
-| API / hover a call | Find signatures and help. |
+| Insert / hover a call | Find signatures and help. |
 
 Gray inline completions can appear after a typing pause; Tab accepts and Escape
 dismisses. Suggestions do not guarantee type or scope correctness. Draft checks

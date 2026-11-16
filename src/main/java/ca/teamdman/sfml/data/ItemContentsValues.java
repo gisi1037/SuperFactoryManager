@@ -44,6 +44,18 @@ final class ItemContentsValues {
 
         DataType groupType = DataType.ITEM_CONTENTS.getElementType();
         DataType locationType = DataType.ITEM_LOCATIONS.getElementType();
+        int itemField = groupType.fieldIndex("item");
+        int idField = groupType.fieldIndex("id");
+        int metadataField = groupType.fieldIndex("metadata");
+        int totalField = groupType.fieldIndex("total");
+        int locationsField = groupType.fieldIndex("locations");
+        int dimensionField = locationType.fieldIndex("dimension");
+        int xField = locationType.fieldIndex("x");
+        int yField = locationType.fieldIndex("y");
+        int zField = locationType.fieldIndex("z");
+        int slotField = locationType.fieldIndex("slot");
+        int sideMaskField = locationType.fieldIndex("sideMask");
+        int amountField = locationType.fieldIndex("amount");
         DataValue[] rows = new DataValue[groupCount];
         for (int i = 0; i < groupCount; i++) {
             Group group = groups.get(i);
@@ -53,21 +65,21 @@ final class ItemContentsValues {
             for (int j = 0; j < locationRows.length; j++) {
                 Location origin = origins.get(j);
                 DataValue[] fields = new DataValue[7];
-                fields[locationType.fieldIndex("dimension")] = DataValue.integer(origin.dimension);
-                fields[locationType.fieldIndex("x")] = DataValue.integer(origin.x);
-                fields[locationType.fieldIndex("y")] = DataValue.integer(origin.y);
-                fields[locationType.fieldIndex("z")] = DataValue.integer(origin.z);
-                fields[locationType.fieldIndex("slot")] = DataValue.integer(origin.slot);
-                fields[locationType.fieldIndex("sideMask")] = DataValue.integer(origin.sideMask);
-                fields[locationType.fieldIndex("amount")] = DataValue.integer(origin.amount);
+                fields[dimensionField] = DataValue.integer(origin.dimension);
+                fields[xField] = DataValue.integer(origin.x);
+                fields[yField] = DataValue.integer(origin.y);
+                fields[zField] = DataValue.integer(origin.z);
+                fields[slotField] = DataValue.integer(origin.slot);
+                fields[sideMaskField] = DataValue.integer(origin.sideMask);
+                fields[amountField] = DataValue.integer(origin.amount);
                 locationRows[j] = DataValue.ownedCollection(locationType, fields);
             }
             DataValue[] fields = new DataValue[5];
-            fields[groupType.fieldIndex("item")] = DataValue.itemIdentity(item);
-            fields[groupType.fieldIndex("id")] = DataValue.string(item.getRegistryId());
-            fields[groupType.fieldIndex("metadata")] = DataValue.integer(item.getMetadata());
-            fields[groupType.fieldIndex("total")] = DataValue.integer(group.getTotal());
-            fields[groupType.fieldIndex("locations")] = DataValue.ownedSequence(DataType.ITEM_LOCATIONS, locationRows);
+            fields[itemField] = DataValue.itemIdentity(item);
+            fields[idField] = DataValue.string(item.getRegistryId());
+            fields[metadataField] = DataValue.integer(item.getMetadata());
+            fields[totalField] = DataValue.integer(group.getTotal());
+            fields[locationsField] = DataValue.ownedSequence(DataType.ITEM_LOCATIONS, locationRows);
             rows[i] = DataValue.ownedCollection(groupType, fields);
         }
         return DataValue.ownedSequence(DataType.ITEM_CONTENTS, rows);

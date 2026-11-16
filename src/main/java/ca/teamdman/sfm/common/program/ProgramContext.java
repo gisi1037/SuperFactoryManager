@@ -35,8 +35,12 @@ import ca.teamdman.sfml.ast.OutputStatement;
 import ca.teamdman.sfml.ast.RedstoneOutputStatement;
 import ca.teamdman.sfml.ast.ResourceLimit;
 import ca.teamdman.sfml.ast.ResourceLimits;
+import ca.teamdman.sfml.data.DataValue;
 import ca.teamdman.sfml.data.ItemIdentity;
+import ca.teamdman.sfml.data.ItemTransferResult;
+import ca.teamdman.sfml.data.LabelReference;
 import ca.teamdman.sfml.data.QueryBudget;
+import ca.teamdman.sfml.data.ResourceSelector;
 import ca.teamdman.sfml.data.recipe.RecipeCatalog;
 
 public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
@@ -58,6 +62,39 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
     private int loopDepth, loopInputRegistrations;
 
     private ExecutionTrace testTrace;
+    private ManagerExecutionProfiler executionProfiler;
+    private boolean profiledTriggerStarted;
+
+    public void setExecutionProfiler(ManagerExecutionProfiler profiler) {
+        executionProfiler = profiler;
+    }
+
+    public boolean didRunProfiledTrigger() {
+        return profiledTriggerStarted;
+    }
+
+    public void runTrigger(ca.teamdman.sfml.ast.Trigger trigger, int index, boolean resumed) {
+        ManagerExecutionProfiler profiler = executionProfiler;
+        if (profiler == null) {
+            trigger.runBlock(this);
+            return;
+        }
+        profiledTriggerStarted = true;
+        long start = System.nanoTime();
+        try {
+            trigger.runBlock(this);
+        } finally {
+            profiler.recordTrigger(index, start, resumed);
+        }
+    }
+
+    public long beginProfileStatement() {
+        return executionProfiler == null ? 0 : executionProfiler.beginStatement();
+    }
+
+    public void finishProfileStatement(ca.teamdman.sfml.data.SourceLocation location, long start) {
+        executionProfiler.recordStatement(location, start);
+    }
 
     /** Headless qualification seam; managers own real captures and their authorization/lifetime. */
     public void setExecutionTrace(ExecutionTrace trace) {
@@ -326,17 +363,49 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
 
     public ca.teamdman.sfml.data.ItemTransferResult transferItems(ca.teamdman.sfml.data.LabelReference source,
         ca.teamdman.sfml.data.LabelReference destination, ca.teamdman.sfml.data.DataValue itemOrSelector, long amount) {
-        ItemTransferService.validateArguments(source, destination, itemOrSelector, amount);
-        if (amount != 0) beginNativeItemAction();
-        return new ItemTransferService(this).transfer(source, destination, itemOrSelector, amount);
+        return transferItems(source, destination, itemOrSelector, null, amount, false);
     }
 
     public ca.teamdman.sfml.data.ItemTransferResult transferItems(ca.teamdman.sfml.data.LabelReference source,
         ca.teamdman.sfml.data.LabelReference destination, ca.teamdman.sfml.data.DataValue itemOrSelector) {
-        ItemTransferService.validateArguments(source, destination, itemOrSelector, 0);
+        return transferItems(source, destination, itemOrSelector, null, 0, true);
+    }
+
+    public ca.teamdman.sfml.data.ItemTransferResult transferItems(ca.teamdman.sfml.data.LabelReference source,
+        ca.teamdman.sfml.data.LabelReference destination, ca.teamdman.sfml.data.DataValue itemOrSelector,
+        ca.teamdman.sfml.data.ResourceSelector excluded, long amount, boolean all) {
+        ItemTransferService.validateArguments(source, destination, itemOrSelector, amount);
+        ItemTransferService.validateExclusion(excluded);
         // Automatic amounts can mutate: reserve authority/action credit before observing providers.
+        if (all || amount != 0) beginNativeItemAction();
+        return new ItemTransferService(this).transfer(source, destination, itemOrSelector, excluded, amount, all);
+    }
+
+    public ca.teamdman.sfml.data.ItemTransferResult transferExact(ca.teamdman.sfml.data.LabelReference source,
+        ca.teamdman.sfml.data.LabelReference destination, ca.teamdman.sfml.data.DataValue selection, long amount,
+        boolean fluids) {
+        if (fluids) FluidTransferService.validateArguments(source, destination, selection, amount);
+        else ItemTransferService.validateArguments(source, destination, selection, amount);
+        if (amount == 0) return new ca.teamdman.sfml.data.ItemTransferResult(
+            0,
+            0,
+            ca.teamdman.sfml.data.ItemTransferResult.Status.COMPLETE);
+        if (world != null && (world.isRemote || net.minecraft.server.MinecraftServer.getServer() != null
+            && !ca.teamdman.sfm.common.net.ServerUiTasks.isServerThread()))
+            throw new IllegalStateException("Exact transfers require the server thread");
         beginNativeItemAction();
-        return new ItemTransferService(this).transfer(source, destination, itemOrSelector);
+        return fluids ? new FluidTransferService(this).transferExact(source, destination, selection, amount)
+            : new ItemTransferService(this).transferExact(source, destination, selection, amount);
+    }
+
+    public ItemTransferResult forceTransferItems(LabelReference source, LabelReference destination, DataValue selection,
+        ResourceSelector excluded, long amount) {
+        ItemTransferService.validateArguments(source, destination, selection, amount);
+        ItemTransferService.validateExclusion(excluded);
+        if (!source.hasSlotSelection())
+            throw new IllegalArgumentException("TRANSFERFORCE requires explicit source slots with .slots(first, last)");
+        if (amount != 0) beginNativeItemAction();
+        return new ItemTransferService(this).transfer(source, destination, selection, excluded, amount, false, true);
     }
 
     private void beginNativeItemAction() {
@@ -344,7 +413,8 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
             || !(manager.getDisk()
                 .getItem() instanceof ca.teamdman.sfm.common.item.ItemDisk))
             throw new IllegalStateException("Native transfers require an active recovery disk");
-        if (manager.hasPendingRecovery()) throw new IllegalStateException("Transfer paused: pending recovery");
+        if (manager.hasPendingRecovery() || manager.isItemRecoveryInProgress())
+            throw new IllegalStateException("Transfer paused: pending recovery");
         if (nativeItemActions >= MAX_NATIVE_ITEM_ACTIONS)
             throw new IllegalArgumentException("Native transfer action limit exceeded");
         nativeItemActions++;
@@ -1160,9 +1230,9 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
 
     static final class ItemMoveFailure extends RuntimeException {
 
-        final int moved;
+        final long moved;
 
-        ItemMoveFailure(int moved, RuntimeException cause) {
+        ItemMoveFailure(long moved, RuntimeException cause) {
             super(cause.getMessage(), cause);
             this.moved = moved;
         }

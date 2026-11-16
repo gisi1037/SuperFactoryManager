@@ -853,7 +853,7 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
         return name.startsWith("$") ? name.substring(1) : name;
     }
 
-    private DataExpression expression(SFMLParser.DataExpressionContext context) {
+    private DataExpression expression(ParserRuleContext context) {
         return data.compile(
             source(context),
             context.getStart()
@@ -885,9 +885,24 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
 
     @Override
     public ASTNode visitTransferStatement(SFMLParser.TransferStatementContext ctx) {
-        boolean fluids = ctx.TRANSFERF() != null;
+        boolean fluids = ctx.TRANSFERF() != null || ctx.TRANSFERFEXACT() != null;
+        boolean exact = ctx.TRANSFEREXACT() != null || ctx.TRANSFERFEXACT() != null;
+        boolean force = ctx.TRANSFERFORCE() != null;
+        DataExpression exclusion = null;
+        SFMLParser.TransferExclusionContext except = ctx.transferExclusion();
+        if (except != null) {
+            if (fluids || exact) throw new IllegalArgumentException("EXCEPT is supported by item TRANSFER");
+            exclusion = expression(except.functionCall() == null ? except.variableName() : except.functionCall());
+            if (exclusion.getType() != DataType.RESOURCE_SELECTOR)
+                throw new IllegalArgumentException("TRANSFER EXCEPT requires ITEM(\"namespace:name\")");
+        }
         List<DataExpression> arguments = new ArrayList<>();
         for (SFMLParser.DataExpressionContext argument : ctx.dataExpression()) arguments.add(expression(argument));
+        if ((exact || force) && (arguments.size() < 3 || !arguments.get(arguments.size() - 1)
+            .getType()
+            .equals(DataType.INTEGER)))
+            throw new IllegalArgumentException(
+                (force ? "TRANSFERFORCE" : "Exact transfer") + " requires an explicit integer amount");
         DataType[] expected = { DataType.LABEL_REF, DataType.LABEL_REF, null, DataType.INTEGER };
         for (int i = 0; i < arguments.size(); i++) {
             DataType actual = arguments.get(i)
@@ -909,7 +924,10 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
             arguments,
             ctx.variableName() == null ? null
                 : data.declareLocal(variable(ctx.variableName()), TransferStatement.RESULT_TYPE),
-            fluids);
+            fluids,
+            exact,
+            exclusion,
+            force);
     }
 
     @Override

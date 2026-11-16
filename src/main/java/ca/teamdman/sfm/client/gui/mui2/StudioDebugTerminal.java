@@ -110,7 +110,7 @@ public final class StudioDebugTerminal {
                     "Read the connected manager's last runtime failure. Reference-disk details are author-only."));
         tools.child(
             button("Profile", 143, 0, 48, () -> request("profile status")).height(17)
-                .addTooltipLine("Full server update timings. Commands: profile start [updates], stop, reset, status."));
+                .addTooltipLine("Program timings and hot statements. Use profile dump to save the full capture."));
         tools.child(
             button("Copy", 194, 0, 40, this::copy).height(17)
                 .setEnabledIf(widget -> dock.getArea().width >= 244));

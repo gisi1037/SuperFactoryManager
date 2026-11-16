@@ -5,16 +5,21 @@ navigation:
   position: 60
   keywords: ["sfm", "contents", "item key", "nbt", "locations", "snapshot"]
 categories: ["sfm", "automation"]
-updated: "2026-11-01"
+updated: "2026-11-02"
 ---
 # Contents and exact item keys
 
-`LABEL("inputs").contents()` captures visible items into a read-only ITEM_CONTENTS sequence. Pass ITEM or ORE to filter the scan, for example `.contents(ORE("ingotIron"))`. Access uses the same direct-inventory, loaded-chunk, chest-pair, side and slot rules as [count](/automation/queries.md).
+`LABEL("inputs").contents()` captures all visible items into a read-only ITEM_CONTENTS sequence. To capture only one item type, use `.contents(item("minecraft:iron_ingot"))`. You can also pass a selector variable, such as `.contents(iron)`, or an ore filter, such as `.contents(ORE("ingotIron"))`. Other item types are excluded from the result. Access uses the same direct-inventory, loaded-chunk, chest-pair, side and slot rules as [count](/automation/queries.md).
+
+This example finds only iron. `group.total` is the item quantity in that exact
+variant group; `len(stock)` is the number of groups, not the number of ingots.
+See [item-filter examples](/automation/queries.md#filter-by-item) to compare
+`empty(iron)`, `count(iron)` and `contents(iron)`.
 
 ```sfml
-NAME "Where is our stock?"
+NAME "Where is our iron?"
 EVERY 20 TICKS DO
-  LET $stock = LABEL("inputs").contents()
+  LET $stock = LABEL("inputs").contents(ITEM("minecraft:iron_ingot"))
   PRINT("distinct variants", LEN($stock))
   FOR $group IN $stock DO
     PRINT($group.id, $group.metadata, $group.total)

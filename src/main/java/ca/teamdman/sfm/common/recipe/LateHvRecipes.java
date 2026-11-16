@@ -156,6 +156,67 @@ public final class LateHvRecipes {
             part(bundledCable)).setMirrored(false);
     }
 
+    /** Two endpoints per craft; their reusable linking tool is made separately. */
+    public static List<IRecipe> wirelessRecipes(ItemStack connector, ItemStack linker, ItemStack cable,
+        Function<String, ItemStack> gt) {
+        ItemStack pair = part(connector);
+        pair.stackSize = 2;
+        List<IRecipe> recipes = new ArrayList<>();
+        recipes.add(
+            new PlainShapedOreRecipe(
+                pair,
+                "PSP",
+                "ECE",
+                "PWP",
+                'P',
+                "plateStainlessSteel",
+                'S',
+                part(gt.apply("Sensor_HV")),
+                'E',
+                part(gt.apply("Emitter_HV")),
+                'C',
+                "circuitAdvanced",
+                'W',
+                part(cable)));
+        recipes.add(
+            new PlainShapedOreRecipe(
+                part(linker),
+                " SE",
+                " DC",
+                "P  ",
+                'S',
+                part(gt.apply("Sensor_HV")),
+                'E',
+                part(gt.apply("Emitter_HV")),
+                'D',
+                part(gt.apply("Cover_Screen")),
+                'C',
+                "circuitAdvanced",
+                'P',
+                "plateStainlessSteel"));
+        return recipes;
+    }
+
+    public static IRecipe adapterRecipe(ItemStack output, ItemStack cable, Function<String, ItemStack> gt) {
+        return new PlainShapedOreRecipe(
+            part(output),
+            "PSP",
+            "CHC",
+            "PEW",
+            'P',
+            "plateStainlessSteel",
+            'S',
+            part(gt.apply("Sensor_HV")),
+            'C',
+            "circuitAdvanced",
+            'H',
+            part(gt.apply("Hull_HV")),
+            'E',
+            part(gt.apply("Emitter_HV")),
+            'W',
+            part(cable));
+    }
+
     private static ItemStack part(ItemStack stack) {
         if (stack == null || stack.getItem() == null || stack.stackSize != 1 || !PlainConversionRecipe.plain(stack))
             throw new IllegalArgumentException("Missing or nonplain late-HV recipe component");

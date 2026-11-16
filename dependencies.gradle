@@ -34,7 +34,7 @@
  * For more details, see https://docs.gradle.org/8.0.1/userguide/java_library_plugin.html#sec:java_library_configurations_graph
  */
 // Keep the development pack pinned; release profiles compile against each pack's actual APIs.
-def sfmTarget = providers.gradleProperty("sfmTarget").getOrElse("daily803")
+def sfmTarget = providers.gradleProperty("sfmTarget").getOrElse("stable290")
 def sfmTargets = [
     daily803: [pack: "daily-2026-10-27+803", suffix: "gtnh-daily-803", mui: "2.3.93-1.7.10", lib: "0.11.54", nei: "2.8.169-GTNH"],
     rc2: [pack: "2.9.0-RC-2", suffix: "gtnh-2.9.0-rc2", mui: "2.3.92-1.7.10", lib: "0.11.52", nei: "2.8.155-GTNH"],
@@ -67,6 +67,10 @@ dependencies {
     compileOnly("com.github.GTNewHorizons:Steve-s-Factory-Manager:1.3.9-GTNH:dev") { transitive = false }
     compileOnly("com.github.GTNewHorizons:StevesAddons:0.15.2:dev") { transitive = false }
     compileOnly("com.github.GTNewHorizons:NotEnoughItems:${sfmApis.nei}:dev") { transitive = false }
+    // Optional adapter implementation is loaded only when AE2 is installed.
+    def sfmAeVersion = sfmTarget == "rc2" ? "rv3-beta-1080-GTNH" :
+        sfmTarget == "daily803" ? "rv3-beta-1093-GTNH" : "rv3-beta-1095-GTNH"
+    compileOnly("com.github.GTNewHorizons:Applied-Energistics-2-Unofficial:${sfmAeVersion}:dev") { transitive = false }
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

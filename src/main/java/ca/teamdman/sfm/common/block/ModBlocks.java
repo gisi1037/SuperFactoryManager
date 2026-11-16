@@ -6,6 +6,7 @@ import ca.teamdman.sfm.common.tileentity.TileEntityDiskCopier;
 import ca.teamdman.sfm.common.tileentity.TileEntityManager;
 import ca.teamdman.sfm.common.tileentity.TileEntityProgrammingStation;
 import ca.teamdman.sfm.common.tileentity.TileEntityRedstonePort;
+import ca.teamdman.sfm.common.tileentity.TileEntityWirelessConnector;
 import cpw.mods.fml.common.registry.GameRegistry;
 
 public final class ModBlocks {
@@ -16,6 +17,8 @@ public final class ModBlocks {
     public static Block programmingStation;
     public static Block redstonePort;
     public static Block diskCopier;
+    public static Block wirelessConnector;
+    public static Block modAdapter;
 
     public static void init() {
         manager = new BlockManager();
@@ -24,6 +27,8 @@ public final class ModBlocks {
         programmingStation = new BlockProgrammingStation();
         redstonePort = new BlockRedstonePort();
         diskCopier = new BlockDiskCopier();
+        wirelessConnector = new BlockWirelessConnector();
+        modAdapter = new BlockModAdapter();
 
         GameRegistry.registerBlock(manager, "manager");
         GameRegistry.registerBlock(cable, "cable");
@@ -31,10 +36,14 @@ public final class ModBlocks {
         GameRegistry.registerBlock(programmingStation, "programmingStation");
         GameRegistry.registerBlock(redstonePort, "redstonePort");
         GameRegistry.registerBlock(diskCopier, "diskCopier");
+        GameRegistry.registerBlock(wirelessConnector, "wirelessConnector");
+        GameRegistry.registerBlock(modAdapter, ca.teamdman.sfm.common.item.ItemBlockModAdapter.class, "modAdapter");
 
         GameRegistry.registerTileEntity(TileEntityManager.class, "sfm.manager");
         GameRegistry.registerTileEntity(TileEntityProgrammingStation.class, "sfm.programmingStation");
         GameRegistry.registerTileEntity(TileEntityRedstonePort.class, "sfm.redstonePort");
         GameRegistry.registerTileEntity(TileEntityDiskCopier.class, "sfm.diskCopier");
+        GameRegistry.registerTileEntity(TileEntityWirelessConnector.class, "sfm.wirelessConnector");
+        GameRegistry.registerTileEntity(ca.teamdman.sfm.common.tileentity.TileEntityModAdapter.class, "sfm.modAdapter");
     }
 }

@@ -31,7 +31,7 @@ public final class LabelReference {
         if (name == null || name.isEmpty() || name.length() > 256 || !name.equals(name.trim()))
             throw new IllegalArgumentException(
                 "LABEL needs an exact nonempty name of at most 256 characters without surrounding whitespace");
-        DataValue.string(name);
+        DataValue.checkedStringNbtBytes(name);
         return new LabelReference(name);
     }
 
