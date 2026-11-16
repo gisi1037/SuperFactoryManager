@@ -340,6 +340,18 @@ public final class SyntaxRegistry {
             SnippetCategory.CONDITION,
             "REDSTONE >= <level>",
             "Compares redstone against a level threshold");
+        snippet(
+            "cond_redstone_label",
+            "Label REDSTONE level",
+            SnippetCategory.CONDITION,
+            "\"<src>\" REDSTONE LEVEL >= <level>",
+            "Tests the strongest signal into the labelled blocks");
+        snippet(
+            "cond_redstone_label_each",
+            "EACH label REDSTONE level",
+            SnippetCategory.CONDITION,
+            "EACH \"<src>\" REDSTONE LEVEL >= <level>",
+            "Tests every labelled block's signal (SOME: at least one)");
         snippet("cond_not", "NOT condition", SnippetCategory.CONDITION, "NOT <condition>", "Negates a condition");
         snippet(
             "cond_and",

@@ -1,15 +1,24 @@
 package ca.teamdman.sfm.common.program;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
+import net.minecraft.block.Block;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.world.World;
 import net.minecraftforge.common.util.ForgeDirection;
 
+import ca.teamdman.sfm.common.label.LabelPositionHolder;
 import ca.teamdman.sfm.common.net.ServerUiTasks;
 import ca.teamdman.sfm.common.tileentity.TileEntityRedstonePort;
 import ca.teamdman.sfm.common.util.BlockPos;
+import ca.teamdman.sfm.common.util.LoadedRedstoneAccess;
+import ca.teamdman.sfm.compat.Compat;
+import ca.teamdman.sfm.compat.stevefm.SteveFMCompat;
+import ca.teamdman.sfml.ast.LabelAccess;
+import ca.teamdman.sfml.ast.Side;
 import ca.teamdman.sfml.data.LabelReference;
 import ca.teamdman.sfml.data.QueryBudget;
 
@@ -35,6 +44,63 @@ public final class RedstoneQueryService {
 
     public boolean available(LabelReference source, QueryBudget budget) {
         return observe(source, budget) >= 0;
+    }
+
+    List<Integer> labelledLevels(LabelAccess selection, QueryBudget budget) {
+        World world = context.getWorld();
+        if (world != null && (world.isRemote || MinecraftServer.getServer() != null && !ServerUiTasks.isServerThread()))
+            throw new IllegalArgumentException("Redstone queries require server-thread execution");
+        LabelAccess access = selection.resolve(context);
+        if (!access.getSlots()
+            .isAll() || access.hasHandleSlots())
+            throw new IllegalArgumentException("Labelled REDSTONE does not accept item slot restrictions");
+        budget.chargeAllocation(4);
+        LabelPositionHolder holder = context.getLabelPositionHolder();
+        List<BlockPos> positions = access.getPositions(holder, budget);
+        budget.chargeAllocation(positions.size() * 2);
+        List<Integer> levels = new ArrayList<>(positions.size());
+        LoadedRedstoneAccess reads = new LoadedRedstoneAccess();
+        reads.attach(world, budget::chargeProvider);
+        for (BlockPos pos : positions) {
+            budget.chargeProviders(2);
+            if (world == null || context.getNetwork() == null
+                || !pos.isLoaded(world)
+                || !context.getNetwork()
+                    .isConnected(pos))
+                throw unavailable(pos);
+            int mask = 0;
+            budget.chargeAllocation(1);
+            for (Side side : access.getSides(pos, holder, budget)
+                .getSides()) {
+                if (side == Side.NULL) throw new IllegalArgumentException("Labelled REDSTONE requires physical faces");
+                mask |= 1 << side.getDirection()
+                    .ordinal();
+            }
+            if (mask == 0) throw unavailable(pos);
+            reads.reset();
+            int level = 0;
+            for (ForgeDirection face : ForgeDirection.VALID_DIRECTIONS) {
+                if ((mask & 1 << face.ordinal()) == 0) continue;
+                int y = pos.y + face.offsetY;
+                if (y < 0 || y >= 256) continue; // Vanilla treats positions beyond the world height as air.
+                int x = pos.x + face.offsetX, z = pos.z + face.offsetZ;
+                Block source = reads.getBlock(x, y, z);
+                if (!reads.isComplete()) throw unavailable(pos);
+                budget.chargeProvider();
+                level = Math.max(level, source.isProvidingStrongPower(reads, x, y, z, face.ordinal()));
+                if (!reads.isComplete()) throw unavailable(pos);
+            }
+            if (Compat.isSFMLoaded()) {
+                budget.chargeProviders(3);
+                level = Math.max(level, SteveFMCompat.getReceiverPower(world, pos, mask));
+            }
+            levels.add(level);
+        }
+        return levels;
+    }
+
+    private static IllegalArgumentException unavailable(BlockPos pos) {
+        return new IllegalArgumentException("Labelled redstone query unavailable at " + pos);
     }
 
     private int observe(LabelReference source, QueryBudget budget) {

@@ -226,6 +226,10 @@ public final class ProgramContext implements ca.teamdman.sfml.data.DataQueries {
         return redstoneQueries;
     }
 
+    public List<Integer> labelledRedstone(ca.teamdman.sfml.ast.LabelAccess access) {
+        return redstoneQueries().labelledLevels(access, getInvocationQueryBudget());
+    }
+
     @Override
     public long redstone(ca.teamdman.sfml.data.LabelReference source, ca.teamdman.sfml.data.QueryBudget budget) {
         return redstoneQueries().redstone(source, budget);

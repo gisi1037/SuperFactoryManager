@@ -89,7 +89,8 @@ public final class StudioConditionSyntax {
                             || current instanceof SFMLParser.BooleanDisjunctionContext
                             || current instanceof SFMLParser.BooleanNegationContext
                             || current instanceof SFMLParser.BooleanHasContext
-                            || current instanceof SFMLParser.BooleanRedstoneContext) operators++;
+                            || current instanceof SFMLParser.BooleanRedstoneContext
+                            || current instanceof SFMLParser.BooleanLabelledRedstoneContext) operators++;
                         for (int i = 0; i < current.getChildCount(); i++) pending.push(current.getChild(i));
                     }
                     // Legacy label/resource commas never reset the enclosing Boolean chain's work.
@@ -148,6 +149,7 @@ public final class StudioConditionSyntax {
                 && StudioExpressionSyntax.comparison(next)) return true;
             if (kind == SFMLLexer.STRING && (prior == SFMLLexer.LPAREN || prior == SFMLLexer.NOT)
                 && next != SFMLLexer.HAS
+                && next != SFMLLexer.REDSTONE
                 && next != SFMLLexer.COMMA
                 && next != SFMLLexer.ROUND
                 && next != SFMLLexer.SLOTS

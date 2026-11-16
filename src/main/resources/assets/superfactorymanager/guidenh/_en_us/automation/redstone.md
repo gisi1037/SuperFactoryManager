@@ -10,9 +10,11 @@ item_ids: ["superfactorymanager:redstonePort"]
 ---
 # Redstone
 
-SFM has two input paths: the manager's own observed power, and named native Redstone Ports connected to its network. Bare REDSTONE and an unnamed pulse use manager/legacy input. Named queries and FROM triggers address native ports. They do not automatically combine into one signal.
+Bare REDSTONE and an unnamed pulse use the manager's observed input. Labelled
+conditions read cable-connected targets. The typed port methods and FROM
+triggers address native Redstone Ports.
 
-Choose [manager pulses](#manager-level-and-pulse), [native port reads](#native-redstone-port),
+Choose [manager pulses](#manager-level-and-pulse), [labelled conditions](#labelled-redstone-conditions), [native port reads](#native-redstone-port),
 [named edges](#named-rising-and-falling-triggers) or [signal output](#emitting-signals).
 For a complete small setup, try the [remote gate](#switch-a-remote-output-with-an-input).
 
@@ -48,6 +50,24 @@ END
 ```
 
 FALSE initially permits one attempt before a pulse. TRUE initially waits for the first pulse on a new disk or after an explicit state reset; changing a default does not overwrite existing saved state. The lock is set even if the output moves zero. Source order lets a due pulse unlock before the due timer. Ped is a case-sensitive label. See [STATE](/language/variables.md) for persistence rules.
+
+## Labelled redstone conditions
+
+```sfml
+every 20 ticks {
+  if "sensor" north side redstone >= 8 {
+    input 1 from "source"
+    output to "destination"
+  }
+}
+```
+
+Use a quoted label or a LABEL_REF, such as `label("sensor").side("north")`.
+The condition reads strong redstone input and supported legacy receiver
+signals on the selected faces. It compares the highest signal by default.
+`EACH`, `SOME`, `ONE`, and `LONE` compare the highest selected signal on
+each block separately. A bound target that is disconnected or cannot be
+sampled from loaded chunks raises an unavailable query error.
 
 ## Send a pulse without waiting
 

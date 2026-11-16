@@ -93,6 +93,10 @@ public final class SteveFMCompat {
     }
 
     public static int getReceiverPower(World world, BlockPos pos) {
+        return getReceiverPower(world, pos, 63);
+    }
+
+    public static int getReceiverPower(World world, BlockPos pos, int sideMask) {
         if (world == null || pos == null || !pos.isLoaded(world)) return 0;
         try {
             vswe.stevesfactory.blocks.TileEntityInput input = vswe.stevesfactory.blocks.TileEntityCluster
@@ -101,8 +105,8 @@ public final class SteveFMCompat {
             int max = 0;
             int[] power = input.getPower();
             if (power != null) {
-                for (int p : power) {
-                    if (p > max) max = p;
+                for (int side = 0; side < power.length && side < 6; side++) {
+                    if ((sideMask & 1 << side) != 0 && power[side] > max) max = power[side];
                 }
             }
             return max;
