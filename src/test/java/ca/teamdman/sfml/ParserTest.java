@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
@@ -696,11 +697,10 @@ public class ParserTest {
         LabelPositionHolder holder = new LabelPositionHolder();
         holder.addPosition("a", new BlockPos(1, 0, 0));
         holder.addPosition("a", new BlockPos(2, 0, 0));
-        // no world: every block reads as unpowered
+        // A saved binding without a live world is unavailable.
         ProgramContext context = new ProgramContext(null, null, null, holder, 0, false);
 
-        assertTrue(parseRedstone("EACH \"a\" REDSTONE = 0").evaluate(context));
-        assertFalse(parseRedstone("SOME \"a\" REDSTONE > 0").evaluate(context));
+        assertThrows(IllegalArgumentException.class, () -> parseRedstone("EACH \"a\" REDSTONE = 0").evaluate(context));
         // a label with no blocks fails EACH even though no block disagrees
         assertFalse(parseRedstone("EACH \"missing\" REDSTONE = 0").evaluate(context));
         assertTrue(parseRedstone("\"missing\" REDSTONE = 0").evaluate(context));

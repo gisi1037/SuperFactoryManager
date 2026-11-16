@@ -793,6 +793,11 @@ public class ASTBuilder extends SFMLBaseVisitor<ASTNode> {
                 .getText())
             : SetOperator.OVERALL;
         LabelAccess labelAccess = (LabelAccess) visit(ctx.labelAccess());
+        if (!labelAccess.getSlots()
+            .isAll()) throw new IllegalArgumentException("Labelled REDSTONE does not accept item slot restrictions");
+        if (labelAccess.getSides()
+            .getSides()
+            .contains(Side.NULL)) throw new IllegalArgumentException("Labelled REDSTONE requires physical faces");
         ComparisonOperator op = ctx.comparisonOp() != null ? ComparisonOperator.from(
             ctx.comparisonOp()
                 .getText())

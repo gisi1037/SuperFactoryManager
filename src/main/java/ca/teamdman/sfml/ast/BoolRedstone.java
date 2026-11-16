@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import ca.teamdman.sfm.common.program.ProgramContext;
-import ca.teamdman.sfm.common.util.BlockPos;
 
 public final class BoolRedstone implements BoolExpr {
 
@@ -50,12 +49,7 @@ public final class BoolRedstone implements BoolExpr {
             return comparison.test(currentSignal, target);
         }
 
-        List<BlockPos> positions = labelAccess.getPositions(context.getLabelPositionHolder());
-        List<Integer> levels = new ArrayList<>(positions.size());
-        for (BlockPos pos : positions) {
-            levels.add(context.getRedstonePower(pos));
-        }
-        return test(levels, target);
+        return test(context.labelledRedstone(labelAccess), target);
     }
 
     /** {@link #test(List, long)} against this condition's constant target. */

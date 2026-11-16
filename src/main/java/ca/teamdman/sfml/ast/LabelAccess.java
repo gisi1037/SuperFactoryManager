@@ -9,6 +9,7 @@ import net.minecraftforge.common.util.ForgeDirection;
 import ca.teamdman.sfm.common.label.LabelPositionHolder;
 import ca.teamdman.sfm.common.program.ProgramContext;
 import ca.teamdman.sfm.common.util.BlockPos;
+import ca.teamdman.sfml.data.QueryBudget;
 
 public final class LabelAccess implements ASTNode {
 
@@ -88,10 +89,15 @@ public final class LabelAccess implements ASTNode {
 
     /** Preserve each handle's side restriction; do not take a cross product of label qualifiers. */
     public SideQualifier getSides(BlockPos position, LabelPositionHolder holder) {
+        return getSides(position, holder, null);
+    }
+
+    public SideQualifier getSides(BlockPos position, LabelPositionHolder holder, QueryBudget budget) {
         if (!qualified) return sides;
         List<Side> allowed = new ArrayList<>();
         for (Side side : sides.getSides()) {
             for (Label label : labels) {
+                if (budget != null) budget.chargeSlot();
                 if (includes(label, position, holder) && permits(label, side.getDirection())) {
                     allowed.add(side);
                     break;
@@ -150,21 +156,25 @@ public final class LabelAccess implements ASTNode {
     }
 
     public List<BlockPos> getPositions(LabelPositionHolder holder) {
+        return getPositions(holder, null);
+    }
+
+    public List<BlockPos> getPositions(LabelPositionHolder holder, QueryBudget budget) {
         if (holder == null || labels.isEmpty()) {
             return Collections.emptyList();
         }
-        if (qualified && selectedLabel != null) return new ArrayList<>(holder.getPositions(selectedLabel.getName()));
+        if (qualified && selectedLabel != null) return new ArrayList<>(positions(holder, selectedLabel, budget));
 
         if (roundRobin.isEnabled() && roundRobin.getMode() == RoundRobin.Mode.BY_LABEL) {
             int selectedLabelIdx = roundRobin.nextIndex(labels.size());
             Label l = labels.get(selectedLabelIdx);
             if (qualified) selectedLabel = l;
-            return new ArrayList<>(holder.getPositions(l.getName()));
+            return new ArrayList<>(positions(holder, l, budget));
         }
 
         java.util.Set<BlockPos> unique = new java.util.LinkedHashSet<>();
         for (Label l : labels) {
-            unique.addAll(holder.getPositions(l.getName()));
+            unique.addAll(positions(holder, l, budget));
         }
 
         List<BlockPos> result = new ArrayList<>(unique);
@@ -174,6 +184,15 @@ public final class LabelAccess implements ASTNode {
         }
 
         return result;
+    }
+
+    private static java.util.Set<BlockPos> positions(LabelPositionHolder holder, Label label, QueryBudget budget) {
+        java.util.Set<BlockPos> positions = holder.getPositions(label.getName());
+        if (budget != null) {
+            budget.chargePositions(positions.size());
+            budget.chargeAllocation(positions.size() + 1);
+        }
+        return positions;
     }
 
     @Override
